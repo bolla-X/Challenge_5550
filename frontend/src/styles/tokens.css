@@ -1,0 +1,30 @@
+/* Ported 1:1 from app/static/styles.css :root (approved redesign tokens). */
+:root {
+  --bg: #0a0d12;
+  --surface: #12161d;
+  --surface-2: #171c25;
+  --surface-3: #1c222c;
+  --border: #262d3a;
+  --border-strong: #37404f;
+  --text: #e8ecf3;
+  --muted: #8b95a8;
+  --muted-2: #626d80;
+
+  --accent: #2fd4e6;
+  --accent-ink: #04181c;
+  --accent-dim: rgba(47, 212, 230, .14);
+
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --ok: #22c55e;
+  --info: #38bdf8;
+
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --shadow-crit: 0 22px 48px rgba(0, 0, 0, .5);
+}

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VisionEPI Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="app" class="app operator-mode">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">VE</div>
+        <div>
+          <h1>VisionEPI</h1>
+          <p>Monitoramento inteligente de EPIs, postura, quedas e áreas de risco.</p>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <div class="mode-toggle" role="group" aria-label="Modo de visualização">
+          <button id="operatorModeBtn" class="segmented active" type="button">Operador</button>
+          <button id="technicalModeBtn" class="segmented" type="button">Técnico</button>
+        </div>
+        <button id="startBtn" type="button">Iniciar</button>
+        <button id="stopBtn" class="secondary" type="button">Parar</button>
+      </div>
+    </header>
+
+    <section id="messageBar" class="message-bar hidden"></section>
+
+    <section class="status-grid" aria-label="Status do sistema">
+      <article class="status-card" id="backendCard">
+        <span>Backend</span>
+        <strong id="backendStatus">Online</strong>
+      </article>
+      <article class="status-card" id="socketCard">
+        <span>WebSocket</span>
+        <strong id="connectionStatus">Desconectado</strong>
+      </article>
+      <article class="status-card" id="monitorCard">
+        <span>Monitor</span>
+        <strong id="monitorStatus">Parado</strong>
+      </article>
+      <article class="status-card" id="videoCard">
+        <span>Vídeo</span>
+        <strong id="videoStatus">Aguardando</strong>
+      </article>
+      <article class="status-card technical-only">
+        <span>Frames</span>
+        <strong id="frameCounter">0</strong>
+      </article>
+      <article class="status-card technical-only">
+        <span>FPS visual</span>
+        <strong id="fpsCounter">0</strong>
+      </article>
+    </section>
+
+    <section class="panel feature-strip-panel" aria-label="Features analisadas">
+      <div class="panel-title-row compact-title">
+        <div>
+          <h2>Features analisadas</h2>
+          <p>Controle horizontal do que o backend processa. Cada card mostra suporte técnico e estado da feature.</p>
+        </div>
+        <div class="profile-row">
+          <button class="profile-btn small" data-profile="basic" type="button">Básico</button>
+          <button class="profile-btn small" data-profile="epi" type="button">EPI</button>
+          <button class="profile-btn small" data-profile="risk" type="button">Risco</button>
+          <button class="profile-btn small" data-profile="full" type="button">Completo</button>
+        </div>
+      </div>
+      <div id="features" class="features horizontal"></div>
+    </section>
+
+    <main class="layout">
+      <section class="main-column">
+        <section class="panel video-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Feed ao vivo</h2>
+              <p>O vídeo permanece limpo: apenas detecção visual. Status, conformidade e pessoas ficam fora do frame.</p>
+            </div>
+            <span id="streamBadge" class="badge neutral">sem frame</span>
+          </div>
+          <div class="video-wrap" id="videoWrap">
+            <img id="videoFeed" src="/video_feed" alt="Feed de vídeo VisionEPI">
+            <canvas id="riskEditorCanvas" class="risk-editor-canvas hidden" aria-label="Editor visual de área de risco"></canvas>
+          </div>
+        </section>
+
+        <section class="grid-two">
+          <section class="panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>Conformidade atual</h2>
+                <p>Dados operacionais ficam fora do vídeo para reduzir poluição visual.</p>
+              </div>
+              <span id="personBadge" class="badge neutral">0 pessoas</span>
+            </div>
+            <div id="compliance" class="compliance matrix"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>Pessoas e detecções</h2>
+                <p>Resumo externo ao frame. Cards por pessoa serão enriquecidos quando o modelo PPE chegar.</p>
+              </div>
+              <span id="detectionBadge" class="badge neutral">0 detecções</span>
+            </div>
+            <div id="personCards" class="person-cards"></div>
+          </section>
+        </section>
+      </section>
+
+      <aside class="side-column">
+        <section class="panel alert-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Alertas ativos</h2>
+              <p>Somem automaticamente quando a condição normal é confirmada.</p>
+            </div>
+            <span id="activeCount" class="badge neutral">0</span>
+          </div>
+          <div id="activeAlerts" class="alerts"></div>
+        </section>
+
+        <section class="panel timeline-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>Linha do tempo</h2>
+              <p>Somente alertas que já estiveram ativos e foram resolvidos. Sem duplicar o mesmo alerta.</p>
+            </div>
+            <button id="refreshEventsBtn" class="secondary small" type="button">Atualizar</button>
+          </div>
+          <div id="eventTimeline" class="timeline"></div>
+        </section>
+
+        <section class="panel technical-only">
+          <div class="panel-title-row">
+            <div>
+              <h2>Checklist pré-start</h2>
+              <p>Validação rápida antes de iniciar um ciclo de teste.</p>
+            </div>
+            <button id="refreshPreflightBtn" class="secondary small" type="button">Atualizar</button>
+          </div>
+          <div id="preflight" class="checklist"></div>
+        </section>
+
+        <section class="panel technical-only">
+          <div class="panel-title-row">
+            <div>
+              <h2>Overlay do vídeo</h2>
+              <p>Controle o que aparece dentro do frame sem misturar dados operacionais.</p>
+            </div>
+          </div>
+          <div id="overlayControls" class="features compact"></div>
+        </section>
+
+        <section class="panel technical-only">
+          <div class="panel-title-row">
+            <div>
+              <h2>Editor de área de risco</h2>
+              <p>Clique no vídeo para criar pontos normalizados. Salve para aplicar no backend.</p>
+            </div>
+          </div>
+          <div class="risk-editor-actions">
+            <button id="riskEditBtn" class="secondary small" type="button">Editar no vídeo</button>
+            <button id="riskClearBtn" class="secondary small" type="button">Limpar pontos</button>
+            <button id="riskResetBtn" class="secondary small" type="button">Recarregar</button>
+            <button id="riskSaveBtn" class="small" type="button">Salvar zona</button>
+          </div>
+          <div id="riskEditorStatus" class="risk-editor-status">Área atual não carregada.</div>
+        </section>
+
+        <section class="panel technical-only">
+          <div class="panel-title-row">
+            <div>
+              <h2>Configurações rápidas</h2>
+              <p>Aplicadas em runtime quando possível. Persistência definitiva continua no .env.</p>
+            </div>
+            <button id="saveSettingsBtn" class="secondary small" type="button">Salvar</button>
+          </div>
+          <div id="settingsPanel" class="settings-grid"></div>
+        </section>
+
+        <section class="panel technical-only">
+          <h2>Modelo YOLO</h2>
+          <div id="modelStatus" class="model-status">Aguardando diagnóstico.</div>
+          <details>
+            <summary>Classes carregadas</summary>
+            <div id="modelClasses" class="class-list"></div>
+          </details>
+        </section>
+
+        <section class="panel technical-only">
+          <div class="panel-title-row">
+            <div>
+              <h2>Histórico recente</h2>
+              <p>Auditoria local de alertas persistidos.</p>
+            </div>
+          </div>
+          <div class="filter-row">
+            <select id="statusFilter">
+              <option value="">Todos</option>
+              <option value="active">Ativos</option>
+              <option value="resolved">Resolvidos</option>
+            </select>
+            <select id="severityFilter">
+              <option value="">Todas severidades</option>
+              <option value="critical">Crítico</option>
+              <option value="high">Alto</option>
+              <option value="medium">Médio</option>
+              <option value="low">Baixo</option>
+              <option value="info">Info</option>
+            </select>
+          </div>
+          <div id="alerts" class="alerts history"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

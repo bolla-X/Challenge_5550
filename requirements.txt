@@ -1,0 +1,14 @@
+Flask==3.0.3
+Flask-SocketIO==5.3.6
+Flask-SQLAlchemy==3.1.1
+python-dotenv==1.0.1
+psycopg2-binary==2.9.9
+opencv-python==4.10.0.84
+ultralytics==8.3.40
+mediapipe==0.10.14
+numpy==1.26.4
+eventlet==0.36.1
+gunicorn==22.0.0
+pytest==8.3.3
+pytest-cov==5.0.0
+ruff==0.6.9
