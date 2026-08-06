@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel, EmptyState } from "./common";
+import { Badge, Panel, EmptyState } from "./common";
 import { getPreflight } from "../api/endpoints";
 import type { PreflightCheck, RuntimeSettings } from "../api/types";
 
@@ -131,29 +131,22 @@ export function ModelStatusPanel() {
       </Panel>
     );
   }
-  const statusClass = model.error ? "error" : model.ppe_ready ? "ok" : "warn";
+  const statusTone = model.error ? "error" : model.ppe_ready ? "ok" : "warn";
   const statusText = model.ppe_ready ? "Modelo PPE completo" : model.error ? "Modelo indisponível" : "Modelo PPE incompleto";
   const supported = model.supported_ppe;
   const classes = model.classes || [];
+  const yesNo = (v: boolean | undefined) => (v ? "suportado" : "não suportado");
 
   return (
-    <Panel id="panel-model" title="Modelo YOLO" className="technical-only">
-      <div className={`model-status ${statusClass}`}>
-        <strong>{statusText}</strong>
-        <br />
-        arquivo: {model.model_path || "indefinido"}
-        <br />
-        pessoa: {model.person_supported ? "suportado" : "não suportado"}
-        <br />
-        multi-pessoa: {model.multi_person_detection ? "ativo" : "inativo"}
-        <br />
-        máx. detecções: {model.max_detections ?? "-"}
-        <br />
-        capacete: {supported?.helmet ? "suportado" : "não suportado"}
-        <br />
-        colete: {supported?.vest ? "suportado" : "não suportado"}
-        <br />
-        luvas: {supported?.gloves ? "suportado" : "não suportado"}
+    <Panel id="panel-model" title="Modelo YOLO" className="technical-only" action={<Badge tone={statusTone}>{statusText}</Badge>}>
+      <div className="status-list">
+        <div className="status-row"><span className="status-row-label">Arquivo</span><span className="status-row-value">{model.model_path || "indefinido"}</span></div>
+        <div className="status-row"><span className="status-row-label">Pessoa</span><span className="status-row-value">{yesNo(model.person_supported)}</span></div>
+        <div className="status-row"><span className="status-row-label">Multi-pessoa</span><span className="status-row-value">{model.multi_person_detection ? "ativo" : "inativo"}</span></div>
+        <div className="status-row"><span className="status-row-label">Máx. detecções</span><span className="status-row-value">{model.max_detections ?? "-"}</span></div>
+        <div className="status-row"><span className="status-row-label">Capacete</span><span className="status-row-value">{yesNo(supported?.helmet)}</span></div>
+        <div className="status-row"><span className="status-row-label">Colete</span><span className="status-row-value">{yesNo(supported?.vest)}</span></div>
+        <div className="status-row"><span className="status-row-label">Luvas</span><span className="status-row-value">{yesNo(supported?.gloves)}</span></div>
       </div>
       <details>
         <summary>Classes carregadas</summary>

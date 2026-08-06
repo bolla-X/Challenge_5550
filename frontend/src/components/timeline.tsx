@@ -7,6 +7,14 @@ function formatTime(value: string | null): string {
   return new Date(value).toLocaleTimeString();
 }
 
+// Backend sempre prefixa a mensagem com "Alerta resolvido:" ou "Falso
+// positivo resolvido:" (monitor_service.py) — redundante aqui porque o
+// cabeçalho do painel já diz "alertas resolvidos". Só formatação de
+// exibição, não mexe no dado.
+function stripResolvedPrefix(message: string): string {
+  return message.replace(/^(Falso positivo resolvido|Alerta resolvido):\s*/, "");
+}
+
 export function TimelineCard() {
   const timeline = useDashboardStore((s) => s.timeline);
   const bootstrapping = useDashboardStore((s) => s.bootstrapping);
@@ -45,13 +53,20 @@ export function TimelineCard() {
         <div className="timeline-list">
           {timeline.map((event) => {
             const alert = (event.metadata?.alert as Record<string, unknown>) || {};
-            const detail = [event.subject, alert.feature, alert.false_positive ? "falso positivo" : "resolvido"].filter(Boolean).join(" · ");
+            // Todo item aqui já é "resolvido" (o cabeçalho do painel diz
+            // isso) — a metadata só precisa acrescentar o que muda de item
+            // pra item: subject/feature (deduplicados quando iguais) e se
+            // foi falso positivo.
+            const feature = typeof alert.feature === "string" ? alert.feature : null;
+            const detail = [event.subject, feature && feature !== event.subject ? feature : null, alert.false_positive ? "falso positivo" : null]
+              .filter(Boolean)
+              .join(" · ");
             return (
               <div className="timeline-row" key={event.id}>
                 <span className={`timeline-dot ${event.severity || "info"}`} />
                 <div className="timeline-row-body">
                   <span className="timeline-time">{formatTime(event.created_at)}</span>
-                  <strong>{event.message}</strong>
+                  <strong>{stripResolvedPrefix(event.message)}</strong>
                   <small>{detail || event.event_type || ""}</small>
                 </div>
               </div>

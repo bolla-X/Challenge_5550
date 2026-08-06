@@ -24,8 +24,13 @@
   --surface: #12161d;
   --surface-2: #171c25;
   --surface-3: #1c222c;
-  --border: #262d3a;
-  --border-strong: #37404f;
+  /* Semi-transparent, not solid hex — solid borders over near-black fill
+     flattened everything. --border-strong already doubles as the hover/
+     emphasis value everywhere (button:hover, .nav-row focus, etc.), so
+     bumping both tokens is enough to apply "rest .06 / hover .10" globally
+     without touching every rule that references them. */
+  --border: rgba(255, 255, 255, .06);
+  --border-strong: rgba(255, 255, 255, .10);
   --text: #e8ecf3;
   --muted: #8b95a8;
   --muted-2: #626d80;

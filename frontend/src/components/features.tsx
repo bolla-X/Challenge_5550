@@ -1,6 +1,6 @@
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel } from "./common";
-import type { FeatureFlag } from "../api/types";
+import type { ComplianceState, FeatureFlag } from "../api/types";
 
 const FEATURE_ORDER = ["ppe", "helmet", "vest", "gloves", "pose", "falls", "posture", "risk_area"];
 
@@ -45,6 +45,33 @@ const OVERLAY_LABELS: Record<string, string> = {
   risk_area: "Zona de risco",
 };
 
+// ciano = dado vivo agora, não "feature ligada". Ligada-mas-parada é texto
+// normal; só quando o item aparece no frame atual (ou dispara alerta, no
+// caso de falls/posture que não têm detecção própria) é que acende.
+// ponytail: falls/posture não têm payload de detecção dedicado, então a
+// leitura é via o alerta ativo de pose — se o backend ganhar um campo
+// próprio de detecção por sub-feature, trocar por isso.
+function isFeatureLive(key: string, compliance: ComplianceState | null): boolean {
+  if (!compliance) return false;
+  switch (key) {
+    case "helmet":
+    case "vest":
+    case "gloves":
+      return (compliance.ppe[key]?.detections.length ?? 0) > 0;
+    case "ppe":
+      return (["helmet", "vest", "gloves"] as const).some((k) => (compliance.ppe[k]?.detections.length ?? 0) > 0);
+    case "pose":
+      return compliance.pose ? !["disabled", "waiting"].includes(compliance.pose.status) : false;
+    case "falls":
+    case "posture":
+      return compliance.pose?.active_alert?.feature === key;
+    case "risk_area":
+      return Boolean(compliance.risk_area && !["disabled"].includes(compliance.risk_area.status) && compliance.risk_area.active_alert);
+    default:
+      return false;
+  }
+}
+
 function supportMessage(key: string, model: ReturnType<typeof useDashboardStore.getState>["model"]): string {
   if (!model) return "aguardando diagnóstico";
   const supported = model.supported_ppe || ({} as Record<string, boolean>);
@@ -57,11 +84,17 @@ function supportMessage(key: string, model: ReturnType<typeof useDashboardStore.
 
 function NavRow({ feature }: { feature: FeatureFlag }) {
   const model = useDashboardStore((s) => s.model);
+  const compliance = useDashboardStore((s) => s.compliance);
   const updateFeatures = useDashboardStore((s) => s.updateFeatures);
   const checked = feature.enabled;
+  const live = checked && isFeatureLive(feature.key, compliance);
   const iconPath = FEATURE_ICONS[feature.key];
   return (
-    <button type="button" className={`nav-row ${checked ? "active" : ""}`.trim()} onClick={() => updateFeatures({ [feature.key]: !checked }).catch(console.error)}>
+    <button
+      type="button"
+      className={`nav-row ${checked ? "on" : ""} ${live ? "live" : ""}`.trim()}
+      onClick={() => updateFeatures({ [feature.key]: !checked }).catch(console.error)}
+    >
       <span className={`nav-row-icon ${iconPath ? "" : "dot"}`.trim()}>
         {iconPath && (
           <svg viewBox="0 0 24 24">
@@ -73,7 +106,10 @@ function NavRow({ feature }: { feature: FeatureFlag }) {
         <strong>{feature.label}</strong>
         <small>{SHORT_DESCRIPTION[feature.key] || feature.description} · {supportMessage(feature.key, model)}</small>
       </span>
-      <span className="nav-row-state">{checked ? "on" : "off"}</span>
+      <span className="nav-row-state">
+        <span className="nav-row-live-dot" />
+        {checked ? "on" : "off"}
+      </span>
     </button>
   );
 }

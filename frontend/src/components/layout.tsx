@@ -53,62 +53,68 @@ export function Topbar() {
   };
   return (
     <header className="topbar">
-      <div className="topbar-brand">
-        <h1>VisionEPI</h1>
-        <div className="topbar-status">
-          <span className="status-dot-item">
-            <span className="status-dot ok" /> backend
-          </span>
-          <span className="status-dot-item">
-            <span className={`status-dot ${connected ? "ok" : "error"}`} /> conexão
-          </span>
-          <span className="status-dot-item">
-            <span className={`status-dot ${running ? "ok" : "warn"}`} /> {running ? "monitorando" : "parado"}
-          </span>
-          <span className="status-dot-item">
-            <span className={`status-dot ${video.status}`} /> {video.label}
-          </span>
+      <div className="topbar-inner">
+        <div className="topbar-brand">
+          <h1>VisionEPI</h1>
+          <div className="topbar-status">
+            <span className="status-dot-item">
+              <span className="status-dot ok" /> backend
+            </span>
+            <span className="status-dot-item">
+              <span className={`status-dot ${connected ? "ok" : "error"}`} /> conexão
+            </span>
+            <span className="status-dot-item">
+              <span className={`status-dot ${running ? "ok" : "warn"}`} /> {running ? "monitorando" : "parado"}
+            </span>
+            {/* Status do vídeo só é informação útil quando há stream — com
+                running=false os dois dots diziam "parado" ao mesmo tempo. */}
+            {running && (
+              <span className="status-dot-item">
+                <span className={`status-dot ${video.status}`} /> {video.label}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="topbar-actions">
-        <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
-          Buscar <kbd>Ctrl K</kbd>
-        </button>
-        <MuteToggle />
-        <div className="mode-toggle" role="group" aria-label="Modo de visualização">
-          {MODES.map((item) => (
-            <button key={item.key} className={`segmented ${mode === item.key ? "active" : ""}`.trim()} type="button" onClick={() => setMode(item.key)}>
-              {/* Comunica que o clique produziu exatamente esse destaque —
-                  a pílula desliza até o botão clicado em vez de trocar de
-                  cor abruptamente em dois lugares ao mesmo tempo. */}
-              {mode === item.key && (
-                <motion.span
-                  className="segmented-pill"
-                  layoutId="mode-pill"
-                  transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
-                />
-              )}
-              <span className="segmented-label">{item.label}</span>
-            </button>
-          ))}
+        <div className="topbar-actions">
+          <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
+            Buscar <kbd>Ctrl K</kbd>
+          </button>
+          <MuteToggle />
+          <div className="mode-toggle" role="group" aria-label="Modo de visualização">
+            {MODES.map((item) => (
+              <button key={item.key} className={`segmented ${mode === item.key ? "active" : ""}`.trim()} type="button" onClick={() => setMode(item.key)}>
+                {/* Comunica que o clique produziu exatamente esse destaque —
+                    a pílula desliza até o botão clicado em vez de trocar de
+                    cor abruptamente em dois lugares ao mesmo tempo. */}
+                {mode === item.key && (
+                  <motion.span
+                    className="segmented-pill"
+                    layoutId="mode-pill"
+                    transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
+                  />
+                )}
+                <span className="segmented-label">{item.label}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            className={`secondary ${pending === "stop" ? "is-pending" : ""}`.trim()}
+            type="button"
+            disabled={pending !== null}
+            onClick={() => runAction("stop", stop)}
+          >
+            {pending === "stop" ? "Parando…" : "Parar"}
+          </button>
+          <button
+            type="button"
+            id="startBtn"
+            className={pending === "start" ? "is-pending" : ""}
+            disabled={pending !== null}
+            onClick={() => runAction("start", start)}
+          >
+            {pending === "start" ? "Iniciando…" : "Iniciar"}
+          </button>
         </div>
-        <button
-          className={`secondary ${pending === "stop" ? "is-pending" : ""}`.trim()}
-          type="button"
-          disabled={pending !== null}
-          onClick={() => runAction("stop", stop)}
-        >
-          {pending === "stop" ? "Parando…" : "Parar"}
-        </button>
-        <button
-          type="button"
-          id="startBtn"
-          className={pending === "start" ? "is-pending" : ""}
-          disabled={pending !== null}
-          onClick={() => runAction("start", start)}
-        >
-          {pending === "start" ? "Iniciando…" : "Iniciar"}
-        </button>
       </div>
     </header>
   );

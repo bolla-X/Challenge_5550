@@ -59,13 +59,17 @@ button.segmented.active { color: var(--text); }
 
 .topbar {
   flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 0 24px;
   height: 68px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--border);
+}
+/* Sem isso, .topbar-actions e .topbar-brand ficam com justify-content:
+   space-between direto na largura da janela — em ultrawide (~2560px) o
+   vão entre marca e ações vira um buraco vazio. O border-bottom continua
+   full-bleed (mora em .topbar); só o conteúdo é que centraliza. */
+.topbar-inner {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  max-width: 1800px; height: 100%; margin: 0 auto;
 }
 .topbar-brand { display: flex; flex-direction: column; justify-content: center; }
 .topbar-brand h1 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
@@ -240,22 +244,31 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
   transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
 }
 .nav-row:hover { background: var(--surface-2); color: var(--text); }
-.nav-row.active { background: var(--surface-2); color: var(--text); border-left-color: var(--accent); }
+/* .on = feature enabled — normal text, no accent, just a neutral 4px dot
+   (.nav-row-live-dot below). .live = actually detecting in the current
+   frame — cyan is reserved for that, not for "toggled on" (ciano = dado
+   vivo agora, ver brief Fase 2). */
+.nav-row.on { background: var(--surface-2); color: var(--text); }
 .nav-row-icon {
   width: 26px; height: 26px; border-radius: 8px; flex: none;
   display: grid; place-items: center; background: var(--surface-3); border: 1px solid var(--border);
 }
 .nav-row-icon svg { width: 14px; height: 14px; fill: var(--muted); }
-.nav-row.active .nav-row-icon { background: var(--accent-dim); border-color: var(--accent-soft-border); }
-.nav-row.active .nav-row-icon svg { fill: var(--accent); }
+.nav-row.live { border-left-color: var(--accent); }
+.nav-row.live .nav-row-icon { background: var(--accent-dim); border-color: var(--accent-soft-border); }
+.nav-row.live .nav-row-icon svg { fill: var(--accent); }
 .nav-row-icon.dot { background: transparent; border: 0; }
 .nav-row-icon.dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted-2); }
-.nav-row.active .nav-row-icon.dot::before { background: var(--accent); }
+.nav-row.live .nav-row-icon.dot::before { background: var(--accent); }
 .nav-row-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .nav-row-body strong { font-size: 13px; font-weight: 550; }
-.nav-row-body small { font-size: 11px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav-row-state { font-size: 10px; font-weight: 650; color: var(--muted-2); flex: none; text-transform: uppercase; letter-spacing: .03em; }
-.nav-row.active .nav-row-state { color: var(--accent); }
+/* Sem nowrap/ellipsis: a sidebar tem 236px fixos e truncar cortava a
+   descrição inteira em quase todo item (ex: "Grupo de EPI · disponí…").
+   Deixa quebrar em 2 linhas em vez de perder o texto. */
+.nav-row-body small { font-size: 11px; color: var(--muted-2); line-height: 1.35; }
+.nav-row-state { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; color: var(--muted-2); flex: none; text-transform: uppercase; letter-spacing: .03em; }
+.nav-row-live-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted-2); flex: none; }
+.nav-row.live .nav-row-live-dot { background: var(--accent); }
 
 /* ---------------- Main content ---------------- */
 /* .main owns nothing — it's a grid with two independent scroll regions
@@ -281,10 +294,10 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
 }
-.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 18px 20px 0; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 16px 16px 0; }
 .card-head h2 { font-size: 14px; font-weight: 650; color: var(--text); letter-spacing: -.005em; }
 .card-head p { margin-top: 3px; font-size: 12.5px; max-width: 46ch; }
-.card-body { padding: 16px 20px 20px; }
+.card-body { padding: 12px 16px 16px; }
 
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
@@ -410,7 +423,9 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .check-item { display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: start; }
 .check-status { text-transform: uppercase; font-size: 10px; font-family: var(--font-mono); font-weight: 700; letter-spacing: .03em; padding: 4px 6px; border-radius: var(--radius-pill); text-align: center; background: var(--surface-2); color: var(--text); }
 .check-item strong { font-size: 13px; }
-.check-item small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+/* display: block — small é inline por padrão dentro do <div>, então colava
+   direto no <strong> ("BackendAPI Flask respondendo" sem espaço/quebra). */
+.check-item small { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .check-item.ok .check-status { background: rgba(34, 197, 94, .12); color: #bbf7d0; }
 .check-item.warning .check-status { background: rgba(245, 158, 11, .13); color: #fed7aa; }
 .check-item.error .check-status { background: rgba(239, 68, 68, .13); color: #fecaca; }
@@ -422,10 +437,13 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .feature-item .switch { margin-top: 1px; }
 .feature-item strong { font-size: 12.5px; }
 
-.model-status { color: var(--muted); line-height: 1.6; font-size: 12.5px; font-family: var(--font-mono); }
-.model-status.ok { color: #bbf7d0; }
-.model-status.warn { color: #fed7aa; }
-.model-status.error { color: #fecaca; }
+/* Linhas de status estruturadas — label em fonte normal (como o resto do
+   app), só o valor (paths, contagens, nomes de classe) em mono. Antes era
+   um bloco mono inteiro com <br>, lia como dump de terminal. */
+.status-list { display: flex; flex-direction: column; gap: 7px; }
+.status-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+.status-row-label { color: var(--muted); }
+.status-row-value { color: var(--text); font-family: var(--font-mono); font-size: 12px; text-align: right; }
 .class-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .class-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-family: var(--font-mono); color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 8px; background: var(--surface-2); }
 
