@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { motion } from "motion/react";
-import { subscribeToServerEvents, useDashboardStore } from "./store/dashboardStore";
+import { subscribeToServerEvents, useDashboardStore, type ViewMode } from "./store/dashboardStore";
 import { Topbar, MessageBar } from "./components/layout";
 import { Sidebar, OverlayControls } from "./components/features";
 import { VideoCard, RiskAreaEditorPanel } from "./components/video";
@@ -9,15 +9,16 @@ import { RiskScoreCard } from "./components/risk-score";
 import { AlertPanel, AlertHistoryPanel } from "./components/alerts";
 import { TimelineCard } from "./components/timeline";
 import { ChecklistPanel, SettingsPanel, ModelStatusPanel } from "./components/diagnostics";
+import { ExportPanel } from "./components/export";
 import { CommandPalette } from "./components/command-palette";
-import { Tabs } from "./components/common";
+import { Tabs, type TabItem } from "./components/common";
 
 // O vídeo nunca desmonta (evita reconectar o stream MJPEG a cada troca de
-// modo) — só a proporção do grid muda. As abas trocam qual painel completo
-// aparece na side-column; estado de aba fica aqui (App nunca desmonta) em
-// vez de no zustand store, então sobrevive a alternar de modo e voltar, mas
-// não precisa (nem deve) persistir em localStorage — ver dashboardStore.
-const OPERATOR_TABS = [
+// perfil) — só a proporção do grid muda. As abas trocam qual painel completo
+// aparece na side-column; estado de aba ativa fica em activeTabByMode no
+// store (Fase 4: precisa ser lido pelo cmdk também, não só pelo App), mas
+// não persiste em localStorage — só o perfil em si (mode) persiste.
+const OPERATOR_TABS: TabItem[] = [
   { key: "risk", label: "Risco", content: <RiskScoreCard /> },
   { key: "alerts", label: "Alertas", content: <AlertPanel /> },
   { key: "compliance", label: "Conformidade", content: <ComplianceCard /> },
@@ -25,7 +26,7 @@ const OPERATOR_TABS = [
   { key: "timeline", label: "Timeline", content: <TimelineCard /> },
 ];
 
-const TECHNICAL_TABS = [
+const TECHNICAL_TABS: TabItem[] = [
   { key: "checklist", label: "Checklist", content: <ChecklistPanel /> },
   { key: "overlay", label: "Overlay", content: <OverlayControls /> },
   { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
@@ -34,11 +35,26 @@ const TECHNICAL_TABS = [
   { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
 ];
 
+// Sem controles de calibração/checklist — é o perfil de gestão de risco:
+// tendência, histórico e exportação, reaproveitando os mesmos componentes
+// já usados em Operador/Técnico (nenhum deles é técnico-only por natureza).
+const SUPERVISOR_TABS: TabItem[] = [
+  { key: "trend", label: "Tendência", content: <RiskScoreCard /> },
+  { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
+  { key: "export", label: "Exportação", content: <ExportPanel /> },
+];
+
+const TABS_BY_MODE: Record<ViewMode, TabItem[]> = {
+  operator: OPERATOR_TABS,
+  technical: TECHNICAL_TABS,
+  supervisor: SUPERVISOR_TABS,
+};
+
 export default function App() {
   const mode = useDashboardStore((s) => s.mode);
   const bootstrap = useDashboardStore((s) => s.bootstrap);
-  const [operatorTab, setOperatorTab] = useState(OPERATOR_TABS[0].key);
-  const [technicalTab, setTechnicalTab] = useState(TECHNICAL_TABS[0].key);
+  const activeTabByMode = useDashboardStore((s) => s.activeTabByMode);
+  const setActiveTab = useDashboardStore((s) => s.setActiveTab);
 
   useEffect(() => {
     const unsubscribe = subscribeToServerEvents();
@@ -62,11 +78,7 @@ export default function App() {
             <VideoCard />
           </motion.div>
           <motion.div className="side-column" layout>
-            {mode === "operator" ? (
-              <Tabs tabs={OPERATOR_TABS} active={operatorTab} onChange={setOperatorTab} idPrefix="operator" />
-            ) : (
-              <Tabs tabs={TECHNICAL_TABS} active={technicalTab} onChange={setTechnicalTab} idPrefix="technical" />
-            )}
+            <Tabs tabs={TABS_BY_MODE[mode]} active={activeTabByMode[mode]} onChange={(key) => setActiveTab(mode, key)} idPrefix={mode} />
           </motion.div>
         </main>
       </div>

@@ -276,7 +276,10 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
    page itself scrolling. Mode swaps which column is wider; ratio A here
    (1fr/1.65fr) is the one under review, variant B is a one-line swap. */
 .main { flex: 1; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 1.65fr 1fr; gap: 24px; padding: 28px; }
-.main[data-mode="technical"] { grid-template-columns: 1fr 1.65fr; }
+/* Supervisor reaproveita a proporção do Técnico — o painel (tendência/
+   histórico/export) se beneficia mais de largura do que o vídeo, mesma
+   lógica de "não é o vídeo que precisa de espaço aqui". */
+.main[data-mode="technical"], .main[data-mode="supervisor"] { grid-template-columns: 1fr 1.65fr; }
 .stage { min-height: 0; display: flex; flex-direction: column; }
 .side-column { min-height: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
 /* Variant A only: técnico panels stay single-column, so the extra width
@@ -285,8 +288,15 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
    otherwise the scrollbar sits at 68ch instead of the column edge, and the
    leftover space is dead space instead of margin. No margin-inline: auto —
    left-aligned, flush with the video's edge; padding-inline-end pushes the
-   breathing room to the outer edge instead of centering the panel. */
+   breathing room to the outer edge instead of centering the panel.
+   Supervisor NÃO ganha esse cap — histórico é lista/tabela, não prosa, não
+   deveria ter largura de linha limitada. */
 .main[data-mode="technical"] .side-column > .tabs { max-width: 68ch; padding-inline-end: 24px; }
+/* Densidade do Supervisor: mais respiro que o padrão compacto (Fase 2),
+   tom de "apresentação/relatório" em vez de monitoramento denso. Só CSS,
+   sem estado novo — densidade é 100% derivada do perfil ativo. */
+.main[data-mode="supervisor"] .card-head { padding: 20px 20px 0; }
+.main[data-mode="supervisor"] .card-body { padding: 16px 20px 20px; }
 
 .card {
   background: var(--surface);

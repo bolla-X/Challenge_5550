@@ -36,16 +36,26 @@ import type {
   TimelineEvent,
 } from "../api/types";
 
-export type ViewMode = "operator" | "technical";
+export type ViewMode = "operator" | "technical" | "supervisor";
 
 interface DashboardState {
   // connection
   connected: boolean;
   mode: ViewMode;
 
-  // audio: sons são poucos e opt-out — persistido pra sobreviver a reload
+  // audio: sons são poucos e opt-out — persistido por perfil (Fase 4: cada
+  // perfil lembra sua própria preferência; `muted` é o valor "ao vivo" do
+  // perfil atual, derivado de mutedByProfile a cada troca de mode).
   muted: boolean;
+  mutedByProfile: Record<ViewMode, boolean>;
   toggleMuted: () => void;
+
+  // Aba ativa por perfil — em memória, não persiste (ver App.tsx e o
+  // comentário da Fase 1 sobre não resetar ao alternar perfil e voltar).
+  // Vive no store, não em useState local, porque o cmdk (jumpTo) também
+  // precisa poder setar a aba antes de rolar até o painel.
+  activeTabByMode: Record<ViewMode, string>;
+  setActiveTab: (mode: ViewMode, tabKey: string) => void;
 
   // command palette: estado simples de UI, mesmo padrão do riskEditorActive
   // abaixo — não é dado de servidor, só precisa ser lido por 2 componentes
@@ -120,25 +130,49 @@ const MAX_HISTORY = 80;
 // any component reads directly (only the derived `fps` average is exposed).
 const FPS_SAMPLE_WINDOW = 20;
 const fpsSamples: number[] = [];
-const MUTED_STORAGE_KEY = "visionepi-muted";
+const MUTED_STORAGE_KEY = "visionepi-muted"; // legado (pré-Fase 4): boolean único, só lido pra migração
+const MUTED_BY_PROFILE_STORAGE_KEY = "visionepi-muted-by-profile";
 const MODE_STORAGE_KEY = "visionepi-mode";
 const SEVERITIES_WITH_CHIME = new Set(["critical", "high"]);
+// Supervisor nasce mudo (perfil de apresentação/gestão, som de alerta
+// atrapalha reunião); Operador/Técnico mantêm o padrão de sempre (som ligado).
+const DEFAULT_MUTED_BY_PROFILE: Record<ViewMode, boolean> = { operator: false, technical: false, supervisor: true };
+const DEFAULT_ACTIVE_TAB_BY_MODE: Record<ViewMode, string> = { operator: "risk", technical: "checklist", supervisor: "trend" };
 
-function readStoredMuted(): boolean {
+function readStoredMutedByProfile(): Record<ViewMode, boolean> {
   try {
-    return localStorage.getItem(MUTED_STORAGE_KEY) === "1";
+    const stored = localStorage.getItem(MUTED_BY_PROFILE_STORAGE_KEY);
+    if (stored) return { ...DEFAULT_MUTED_BY_PROFILE, ...JSON.parse(stored) };
+    // Migração: quem já tinha a chave antiga (boolean único) não perde a
+    // preferência na primeira carga pós-Fase 4 — vira o default de
+    // operator/technical. Supervisor não existia antes, então nasce mudo
+    // pelo default acima, não pelo valor legado.
+    const legacy = localStorage.getItem(MUTED_STORAGE_KEY);
+    if (legacy !== null) {
+      const legacyMuted = legacy === "1";
+      return { ...DEFAULT_MUTED_BY_PROFILE, operator: legacyMuted, technical: legacyMuted };
+    }
+    return DEFAULT_MUTED_BY_PROFILE;
   } catch {
-    return false;
+    return DEFAULT_MUTED_BY_PROFILE;
+  }
+}
+
+function persistMutedByProfile(map: Record<ViewMode, boolean>) {
+  try {
+    localStorage.setItem(MUTED_BY_PROFILE_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // localStorage indisponível (modo privado etc.) — só não persiste
   }
 }
 
 // Modo persiste (é um perfil de tela, não um estado transiente). A aba ativa
-// dentro de cada modo NÃO persiste — fica em memória no App, só pra não
-// resetar ao alternar operador<->técnico na mesma sessão (ver App.tsx).
+// dentro de cada modo NÃO persiste — fica em memória (ver activeTabByMode
+// acima), só pra não resetar ao alternar de perfil e voltar.
 function readStoredMode(): ViewMode {
   try {
     const stored = localStorage.getItem(MODE_STORAGE_KEY);
-    return stored === "technical" ? "technical" : "operator";
+    return stored === "technical" || stored === "supervisor" ? stored : "operator";
   } catch {
     return "operator";
   }
@@ -150,21 +184,23 @@ export const useDashboardStore = create<DashboardState>()(
       connected: socket.connected,
       mode: readStoredMode(),
 
-      muted: readStoredMuted(),
+      mutedByProfile: readStoredMutedByProfile(),
+      muted: readStoredMutedByProfile()[readStoredMode()],
       toggleMuted: () =>
         set(
           (state) => {
             const next = !state.muted;
-            try {
-              localStorage.setItem(MUTED_STORAGE_KEY, next ? "1" : "0");
-            } catch {
-              // localStorage indisponível (modo privado etc.) — só não persiste
-            }
-            return { muted: next };
+            const nextByProfile = { ...state.mutedByProfile, [state.mode]: next };
+            persistMutedByProfile(nextByProfile);
+            return { muted: next, mutedByProfile: nextByProfile };
           },
           false,
           "toggleMuted",
         ),
+
+      activeTabByMode: { ...DEFAULT_ACTIVE_TAB_BY_MODE },
+      setActiveTab: (mode, tabKey) =>
+        set((state) => ({ activeTabByMode: { ...state.activeTabByMode, [mode]: tabKey } }), false, "setActiveTab"),
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }, false, "setCommandPaletteOpen"),
@@ -210,13 +246,15 @@ export const useDashboardStore = create<DashboardState>()(
 
       setMode: (mode) =>
         set(
-          () => {
+          (state) => {
             try {
               localStorage.setItem(MODE_STORAGE_KEY, mode);
             } catch {
               // localStorage indisponível (modo privado etc.) — só não persiste
             }
-            return { mode };
+            // Som "ao vivo" segue o default/última preferência do perfil pra
+            // onde se está indo, não do perfil anterior.
+            return { mode, muted: state.mutedByProfile[mode] };
           },
           false,
           "setMode",

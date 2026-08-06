@@ -4,9 +4,12 @@ import { useDashboardStore } from "../store/dashboardStore";
 
 const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
 const EASE_IN = "easeIn" as const; // exits — tokens.css only has the ease-out curve above
-const MODES = [
+// Exportado pra command-palette.tsx reaproveitar (não duplicar os 3 perfis
+// e seus rótulos em dois arquivos).
+export const MODES = [
   { key: "operator", label: "Operador" },
   { key: "technical", label: "Técnico" },
+  { key: "supervisor", label: "Supervisor" },
 ] as const;
 
 /** Ícone de alto-falante — traço grosso, sem preenchimento fino, pra ler

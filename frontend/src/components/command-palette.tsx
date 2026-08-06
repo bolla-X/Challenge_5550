@@ -1,25 +1,33 @@
 import { useEffect } from "react";
 import { Command } from "cmdk";
-import { useDashboardStore } from "../store/dashboardStore";
+import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
+import { MODES } from "./layout";
 
-// Painéis técnicos só existem no DOM quando mode === "technical" (drawer
-// desmontado em Operador) — pular pra eles precisa trocar de modo primeiro,
-// senão o scroll mira um elemento que não existe ainda.
-const TECHNICAL_ONLY_IDS = new Set(["panel-checklist", "panel-overlay", "panel-risk-area", "panel-settings", "panel-model", "panel-alert-history"]);
+// Alvo é o id do WRAPPER da aba (gerado por Tabs em common.tsx como
+// `${idPrefix}-panel-${tabKey}`), não o id do Panel interno — o Panel só
+// existe no DOM quando a aba dele está ativa (Fase 1: abas desmontam
+// conteúdo inativo), então pular pra ele exige trocar de perfil E de aba
+// antes de rolar, senão o alvo não existe ainda (bug corrigido na Fase 4:
+// antes só trocava de modo, nunca de aba, e o getElementById voltava null
+// sempre que a aba-alvo não era a ativa no momento).
+type JumpTarget = { id: string; label: string; profile?: ViewMode; tabKey?: string };
 
-const JUMP_TARGETS: { id: string; label: string }[] = [
+const JUMP_TARGETS: JumpTarget[] = [
   { id: "panel-video", label: "Vídeo" },
-  { id: "panel-risk-score", label: "Tendência de risco" },
-  { id: "panel-alerts", label: "Alertas ativos" },
-  { id: "panel-compliance", label: "Conformidade" },
-  { id: "panel-people", label: "Pessoas e detecções" },
-  { id: "panel-timeline", label: "Linha do tempo" },
-  { id: "panel-checklist", label: "Checklist pré-start (Técnico)" },
-  { id: "panel-overlay", label: "Overlay do vídeo (Técnico)" },
-  { id: "panel-risk-area", label: "Editor de área de risco (Técnico)" },
-  { id: "panel-settings", label: "Configurações rápidas (Técnico)" },
-  { id: "panel-model", label: "Modelo YOLO (Técnico)" },
-  { id: "panel-alert-history", label: "Histórico de alertas (Técnico)" },
+  { id: "operator-panel-risk", label: "Tendência de risco", profile: "operator", tabKey: "risk" },
+  { id: "operator-panel-alerts", label: "Alertas ativos", profile: "operator", tabKey: "alerts" },
+  { id: "operator-panel-compliance", label: "Conformidade", profile: "operator", tabKey: "compliance" },
+  { id: "operator-panel-people", label: "Pessoas e detecções", profile: "operator", tabKey: "people" },
+  { id: "operator-panel-timeline", label: "Linha do tempo", profile: "operator", tabKey: "timeline" },
+  { id: "technical-panel-checklist", label: "Checklist pré-start (Técnico)", profile: "technical", tabKey: "checklist" },
+  { id: "technical-panel-overlay", label: "Overlay do vídeo (Técnico)", profile: "technical", tabKey: "overlay" },
+  { id: "technical-panel-zone", label: "Editor de área de risco (Técnico)", profile: "technical", tabKey: "zone" },
+  { id: "technical-panel-settings", label: "Configurações rápidas (Técnico)", profile: "technical", tabKey: "settings" },
+  { id: "technical-panel-model", label: "Modelo YOLO (Técnico)", profile: "technical", tabKey: "model" },
+  { id: "technical-panel-history", label: "Histórico de alertas (Técnico)", profile: "technical", tabKey: "history" },
+  { id: "supervisor-panel-trend", label: "Tendência de risco (Supervisor)", profile: "supervisor", tabKey: "trend" },
+  { id: "supervisor-panel-history", label: "Histórico de alertas (Supervisor)", profile: "supervisor", tabKey: "history" },
+  { id: "supervisor-panel-export", label: "Exportação (Supervisor)", profile: "supervisor", tabKey: "export" },
 ];
 
 function scrollToPanel(id: string) {
@@ -38,6 +46,7 @@ export function CommandPalette() {
   const setOpen = useDashboardStore((s) => s.setCommandPaletteOpen);
   const mode = useDashboardStore((s) => s.mode);
   const setMode = useDashboardStore((s) => s.setMode);
+  const setActiveTab = useDashboardStore((s) => s.setActiveTab);
   const running = useDashboardStore((s) => s.running);
   const start = useDashboardStore((s) => s.start);
   const stop = useDashboardStore((s) => s.stop);
@@ -60,14 +69,15 @@ export function CommandPalette() {
     setOpen(false);
   };
 
-  const jumpTo = (id: string) => {
-    if (TECHNICAL_ONLY_IDS.has(id) && mode !== "technical") setMode("technical");
+  const jumpTo = (target: JumpTarget) => {
+    if (target.profile && mode !== target.profile) setMode(target.profile);
+    if (target.profile && target.tabKey) setActiveTab(target.profile, target.tabKey);
     setOpen(false);
     // setTimeout, não requestAnimationFrame: rAF fica pausado em aba em
     // segundo plano (e o usuário pode ter aberto a paleta e trocado de aba
-    // durante a animação do drawer técnico) — setTimeout dispara de
-    // qualquer jeito. Espera o drawer técnico (AnimatePresence) montar.
-    setTimeout(() => scrollToPanel(id), 50);
+    // durante a animação de fade da aba) — setTimeout dispara de qualquer
+    // jeito. Espera o React montar a aba-alvo antes de tentar rolar até ela.
+    setTimeout(() => scrollToPanel(target.id), 50);
   };
 
   return (
@@ -81,10 +91,12 @@ export function CommandPalette() {
       <Command.Input placeholder="Buscar uma ação…" autoFocus />
       <Command.List>
         <Command.Empty>Nenhum resultado.</Command.Empty>
-        <Command.Group heading="Modo">
-          <Command.Item onSelect={() => runAndClose(() => setMode(mode === "operator" ? "technical" : "operator"))}>
-            Trocar para modo {mode === "operator" ? "Técnico" : "Operador"}
-          </Command.Item>
+        <Command.Group heading="Perfil">
+          {MODES.filter((m) => m.key !== mode).map((m) => (
+            <Command.Item key={m.key} onSelect={() => runAndClose(() => setMode(m.key))}>
+              Mudar para perfil {m.label}
+            </Command.Item>
+          ))}
         </Command.Group>
         <Command.Group heading="Monitoramento">
           <Command.Item onSelect={() => runAndClose(() => (running ? stop() : start()).catch(console.error))}>
@@ -94,7 +106,7 @@ export function CommandPalette() {
         </Command.Group>
         <Command.Group heading="Ir para">
           {JUMP_TARGETS.map((target) => (
-            <Command.Item key={target.id} onSelect={() => jumpTo(target.id)}>
+            <Command.Item key={target.id} onSelect={() => jumpTo(target)}>
               {target.label}
             </Command.Item>
           ))}
