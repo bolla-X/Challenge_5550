@@ -25,6 +25,7 @@ export function ChecklistPanel() {
 
   return (
     <Panel
+      id="panel-checklist"
       title="Checklist pré-start"
       description="Validação rápida antes de iniciar um ciclo de teste."
       className="technical-only"
@@ -81,6 +82,7 @@ export function SettingsPanel() {
 
   return (
     <Panel
+      id="panel-settings"
       title="Configurações rápidas"
       description="Aplicadas em runtime quando possível. Persistência definitiva continua no .env."
       className="technical-only"
@@ -95,11 +97,16 @@ export function SettingsPanel() {
           <label key={key}>
             <span>{label}</span>
             {type === "checkbox" ? (
-              <input
-                type="checkbox"
-                checked={Boolean(draft[key])}
-                onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.checked }))}
-              />
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft[key])}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.checked }))}
+                />
+                <span className="switch-track">
+                  <span className="switch-thumb" />
+                </span>
+              </span>
             ) : (
               <input
                 type="number"
@@ -119,7 +126,7 @@ export function ModelStatusPanel() {
   const model = useDashboardStore((s) => s.model);
   if (!model) {
     return (
-      <Panel title="Modelo YOLO" className="technical-only">
+      <Panel id="panel-model" title="Modelo YOLO" className="technical-only">
         <div className="model-status">Aguardando diagnóstico.</div>
       </Panel>
     );
@@ -130,7 +137,7 @@ export function ModelStatusPanel() {
   const classes = model.classes || [];
 
   return (
-    <Panel title="Modelo YOLO" className="technical-only">
+    <Panel id="panel-model" title="Modelo YOLO" className="technical-only">
       <div className={`model-status ${statusClass}`}>
         <strong>{statusText}</strong>
         <br />

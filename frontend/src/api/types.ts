@@ -291,3 +291,41 @@ export interface SettingsResponse {
   settings: RuntimeSettings;
   overlay: OverlayOptions;
 }
+
+// ---- app/services/risk_score_service.py: compute_risk_score() ------------
+// Estatística sobre janela deslizante (contagem de alertas ponderada por
+// severidade) — não é predição por IA/ML.
+export type RiskLevel = "baixo" | "moderado" | "alto" | "critico";
+
+export interface RiskFeatureScore {
+  score: number;
+  level: RiskLevel | string;
+  alert_count: number;
+}
+
+export interface RiskScoreOverall extends RiskFeatureScore {
+  driving_feature: string | null;
+}
+
+export interface RiskScore {
+  window_minutes: number;
+  overall: RiskScoreOverall;
+  features: Record<string, RiskFeatureScore>;
+  computed_at: string;
+}
+
+// ---- app/services/risk_score_service.py: compute_risk_trend() ------------
+// Cada bucket é pontuado isoladamente (não é janela deslizante) — mostra a
+// frequência daquela hora específica, não o /risk-score.overall.
+export interface RiskTrendBucket {
+  bucket_start: string;
+  bucket_end: string;
+  overall: { score: number; level: RiskLevel | string };
+  features: Record<string, RiskFeatureScore>;
+}
+
+export interface RiskTrendResponse {
+  hours: number;
+  bucket_hours: number;
+  buckets: RiskTrendBucket[];
+}

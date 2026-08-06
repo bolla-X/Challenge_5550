@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel } from "./common";
 import { useVideoStreamLabel } from "./layout";
@@ -20,11 +21,15 @@ function CameraOffIcon() {
  * "monitoramento parado" as pixels when the loop isn't running — we avoid
  * mounting <img> at all until running, so that never reaches the screen).
  */
+const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
+
 export function VideoCard() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const running = useDashboardStore((s) => s.running);
+  const bootstrapping = useDashboardStore((s) => s.bootstrapping);
   const start = useDashboardStore((s) => s.start);
+  const shouldReduceMotion = useReducedMotion();
   const riskEditorActive = useDashboardStore((s) => s.riskEditorActive);
   const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
   const addRiskEditorPoint = useDashboardStore((s) => s.addRiskEditorPoint);
@@ -87,34 +92,62 @@ export function VideoCard() {
     addRiskEditorPoint({ x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 });
   };
 
+  if (bootstrapping) {
+    return (
+      <section id="panel-video" className="card video-card">
+        <div className="video-frame">
+          <div className="skeleton-block video-skeleton" />
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="card video-card">
+    <section id="panel-video" className="card video-card">
       <div className={`video-frame ${riskEditorActive ? "editing-risk" : ""}`.trim()} ref={wrapRef}>
-        {running ? (
-          <>
-            <span className="video-live-dot">
-              <span className={`status-dot ${video.status}`} /> {video.label}
-            </span>
-            <img src="/video_feed" alt="Feed de vídeo VisionEPI" onLoad={draw} />
-            <canvas
-              ref={canvasRef}
-              className={`risk-editor-canvas ${riskEditorActive ? "" : "hidden"}`.trim()}
-              aria-label="Editor visual de área de risco"
-              onClick={handleClick}
-            />
-          </>
-        ) : (
-          <div className="video-empty">
-            <div className="video-empty-badge">
-              <CameraOffIcon />
-            </div>
-            <h3>Aguardando conexão de vídeo</h3>
-            <p>Inicie o monitoramento para começar a receber o feed em tempo real.</p>
-            <button type="button" id="startBtn" onClick={() => start().catch((err) => console.error(err))}>
-              Iniciar
-            </button>
-          </div>
-        )}
+        {/* Comunica "o feed ligou/desligou" com um cross-fade — opacity
+            só, sem scale/slide: o vídeo é o elemento mais importante da
+            tela, não pode competir com a própria transição. */}
+        <AnimatePresence initial={false}>
+          {running ? (
+            <motion.div
+              key="live"
+              initial={shouldReduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0.001 : 0.25, ease: EASE }}
+            >
+              <span className="video-live-dot">
+                <span className={`status-dot ${video.status}`} /> {video.label}
+              </span>
+              <img src="/video_feed" alt="Feed de vídeo VisionEPI" onLoad={draw} />
+              <canvas
+                ref={canvasRef}
+                className={`risk-editor-canvas ${riskEditorActive ? "" : "hidden"}`.trim()}
+                aria-label="Editor visual de área de risco"
+                onClick={handleClick}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="empty"
+              className="video-empty"
+              initial={shouldReduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0.001 : 0.25, ease: EASE }}
+            >
+              <div className="video-empty-badge">
+                <CameraOffIcon />
+              </div>
+              <h3>Aguardando conexão de vídeo</h3>
+              <p>Inicie o monitoramento para começar a receber o feed em tempo real.</p>
+              <button type="button" id="startBtn" onClick={() => start().catch((err) => console.error(err))}>
+                Iniciar
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
@@ -123,16 +156,20 @@ export function VideoCard() {
 export function RiskAreaEditorPanel() {
   const { riskArea, riskEditorActive, riskEditorPoints, toggleRiskEditor, clearRiskEditorPoints, resetRiskEditorFromServer, updateRiskArea, showMessage } =
     useDashboardStore();
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (riskEditorPoints.length < 3) {
       showMessage("Área de risco precisa de pelo menos 3 pontos.", "warning");
       return;
     }
+    setSaving(true);
     try {
       await updateRiskArea({ name: riskArea?.name || "Área de risco", polygon: riskEditorPoints });
     } catch {
       // message already set by the store action
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -141,7 +178,7 @@ export function RiskAreaEditorPanel() {
     : "Área atual não carregada.";
 
   return (
-    <Panel title="Editor de área de risco" description="Clique no vídeo (com o monitoramento ativo) para criar pontos normalizados.">
+    <Panel id="panel-risk-area" title="Editor de área de risco" description="Clique no vídeo (com o monitoramento ativo) para criar pontos normalizados.">
       <div className="risk-editor-actions">
         <button className="secondary small" type="button" onClick={toggleRiskEditor}>
           {riskEditorActive ? "Encerrar edição" : "Editar no vídeo"}
@@ -152,8 +189,8 @@ export function RiskAreaEditorPanel() {
         <button className="secondary small" type="button" onClick={resetRiskEditorFromServer}>
           Recarregar
         </button>
-        <button className="small" type="button" onClick={() => save().catch(console.error)}>
-          Salvar zona
+        <button className={`small ${saving ? "is-pending" : ""}`.trim()} type="button" disabled={saving} onClick={() => save().catch(console.error)}>
+          {saving ? "Salvando…" : "Salvar zona"}
         </button>
       </div>
       <div className="risk-editor-status">{statusText}</div>

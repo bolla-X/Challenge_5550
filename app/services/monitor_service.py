@@ -19,6 +19,7 @@ from app.services.alert_state_service import AlertStateService
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
 from app.services.risk_rules import RuleEngine
+from app.services.risk_score_service import compute_risk_score
 from app.services.storage_cleanup_service import StorageCleanupService
 from app.services.snapshot_service import SnapshotService
 from app.vision.annotator import FrameAnnotator
@@ -42,6 +43,8 @@ class MonitorService:
         self._latest_analysis: dict[str, Any] | None = None
         self._last_error: str | None = None
         self._frame_counter = 0
+        self._last_risk_score_emit_at = 0.0
+        self.risk_score_interval_seconds = 30
 
         risk_polygon = self._parse_risk_polygon(app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON))
         self.risk_area_name = str(app.config.get("RISK_AREA_NAME", "Área de risco"))
@@ -55,6 +58,16 @@ class MonitorService:
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
             device=app.config.get("YOLO_DEVICE"),
             classes=self._parse_yolo_classes(app.config.get("YOLO_CLASSES", "")),
+            max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
+            require_person=False,  # person vem do self.person_detector, abaixo
+        )
+        # Modelo de EPI dedicado (ex.: epi_pretrained.pt) não detecta "person".
+        # Um segundo YOLO (COCO, classe 0) roda em paralelo pra suprir isso.
+        self.person_detector = YoloPPEDetector(
+            model_path=app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"),
+            confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
+            device=app.config.get("YOLO_DEVICE"),
+            classes=[0],
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
         )
         self.pose_estimator = MediaPipePoseEstimator(
@@ -346,6 +359,7 @@ class MonitorService:
                     self.socketio.emit("analysis", payload)
                     self.socketio.emit("compliance_state", compliance_state)
                     self.socketio.emit("model_diagnostics", model_diagnostics)
+                    self._maybe_emit_risk_score()
                     self._last_error = None
                 except Exception as exc:  # noqa: BLE001
                     self._last_error = str(exc)
@@ -360,6 +374,8 @@ class MonitorService:
         pose = None
         if self._needs_yolo_detection():
             detections = self.detector.detect(frame)
+            if self.app.config.get("MULTI_PERSON_DETECTION", True):
+                detections = detections + self.person_detector.detect(frame)
         if self.feature_manager.is_enabled("pose"):
             pose = self.pose_estimator.estimate(frame)
         return FrameAnalysis(detections=detections, pose=pose, risk_events=[])
@@ -381,10 +397,38 @@ class MonitorService:
                 "warning": "YOLO desativado pelas features atuais",
                 "error": None,
             }
-        diagnostics = self.detector.diagnostics()
+        diagnostics = dict(self.detector.diagnostics())
+        multi_person = bool(self.app.config.get("MULTI_PERSON_DETECTION", True))
+        person_supported = False
+        warning_parts = [diagnostics.get("warning")] if diagnostics.get("warning") else []
+        if multi_person:
+            person_diagnostics = self.person_detector.diagnostics()
+            person_supported = bool(person_diagnostics.get("person_supported"))
+            diagnostics["person_model_path"] = self.person_detector.model_path
+            if not person_supported:
+                warning_parts.append(
+                    f"Modelo de pessoa ({self.person_detector.model_path}) não possui classe 'person'."
+                    if not person_diagnostics.get("error")
+                    else f"Modelo de pessoa indisponível: {person_diagnostics.get('error')}"
+                )
+        diagnostics["person_supported"] = person_supported
+        diagnostics["ppe_ready"] = bool(diagnostics.get("ppe_ready")) and (person_supported if multi_person else True)
+        diagnostics["warning"] = " ".join(warning_parts) or None
         diagnostics["ppe_feature_enabled"] = self.feature_manager.is_enabled("ppe")
-        diagnostics["multi_person_detection"] = bool(self.app.config.get("MULTI_PERSON_DETECTION", True))
+        diagnostics["multi_person_detection"] = multi_person
         return diagnostics
+
+    def _maybe_emit_risk_score(self) -> None:
+        # ponytail: throttle por relógio, não por contagem de frame — TARGET_FPS
+        # é configurável em runtime, contar frames faria o intervalo derrapar.
+        now = time.time()
+        if now - self._last_risk_score_emit_at < self.risk_score_interval_seconds:
+            return
+        self._last_risk_score_emit_at = now
+        try:
+            self.socketio.emit("risk_score", compute_risk_score())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("risk_score_emit_failed", extra={"error": str(exc)})
 
     def settings(self) -> dict[str, Any]:
         return {

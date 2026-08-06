@@ -48,12 +48,17 @@ class YoloPPEDetector:
         device: str | None = None,
         classes: list[int] | None = None,
         max_detections: int = 100,
+        require_person: bool = True,
     ) -> None:
         self.model_path = model_path
         self.confidence = confidence
         self.device = device
         self.classes = classes
         self.max_detections = max(1, int(max_detections))
+        # ponytail: modelos dedicados a EPI (sem classe "person") não devem ser
+        # marcados como "não prontos" por não terem pessoa — quem detecta pessoa
+        # é outro YoloPPEDetector (ver MonitorService.person_detector).
+        self.require_person = require_person
         self._last_diagnostics: dict[str, Any] | None = None
 
     @cached_property
@@ -145,7 +150,7 @@ class YoloPPEDetector:
 
         supported_ppe = {key: key in normalized_values for key in PPE_REQUIRED_CLASSES}
         has_person = "person" in normalized_values
-        ready = all(supported_ppe.values()) and has_person
+        ready = all(supported_ppe.values()) and (has_person if self.require_person else True)
         warning = None
         if error:
             warning = f"Modelo YOLO indisponível: {error}"
@@ -153,7 +158,7 @@ class YoloPPEDetector:
             warning = "O modelo YOLO carregado não possui classes de EPI. Configure PPE_MODEL_PATH com pesos treinados para helmet/vest/gloves."
         elif not ready:
             missing = [key for key, enabled in supported_ppe.items() if not enabled]
-            if not has_person:
+            if self.require_person and not has_person:
                 missing.append("person")
             warning = f"Modelo YOLO parcial para EPI. Classes ausentes: {', '.join(missing)}."
 

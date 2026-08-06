@@ -8,6 +8,8 @@ import type {
   OverlayOptions,
   PreflightResponse,
   RiskAreaState,
+  RiskScore,
+  RiskTrendResponse,
   RuntimeSettings,
   SettingsResponse,
   StatusResponse,
@@ -38,6 +40,8 @@ export const markFalsePositive = (alertId: number, reason?: string) =>
   });
 
 export const getModel = () => apiFetch<ModelDiagnostics>("/model");
+export const getRiskScore = () => apiFetch<RiskScore>("/risk-score");
+export const getRiskTrend = (hours = 24) => apiFetch<RiskTrendResponse>(`/risk-score/trend?hours=${hours}`);
 
 export const getSettings = () => apiFetch<SettingsResponse>("/settings");
 export const patchSettings = (updates: Partial<RuntimeSettings>) =>

@@ -54,6 +54,9 @@ class Config:
     JPEG_QUALITY = env_int("JPEG_QUALITY", 80)
 
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "yolov8n.pt")
+    # Modelo dedicado a detectar "person" (classe 0 COCO). Necessário porque modelos
+    # de EPI treinados sem merge de dataset (ex: epi_pretrained.pt) não têm essa classe.
+    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "yolov8n.pt")
     YOLO_CONFIDENCE = env_float("YOLO_CONFIDENCE", 0.35)
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
     YOLO_CLASSES = os.getenv("YOLO_CLASSES", "")

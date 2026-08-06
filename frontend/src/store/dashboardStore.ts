@@ -1,11 +1,14 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
+import { playAlertChime, playAllClearChime } from "../audio/chime";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
   getOverlay,
   getRiskArea,
+  getRiskScore,
+  getRiskTrend,
   getSettings,
   getStatus,
   listAlerts,
@@ -27,6 +30,8 @@ import type {
   OverlayOptions,
   PoseResult,
   RiskAreaState,
+  RiskScore,
+  RiskTrendResponse,
   RuntimeSettings,
   TimelineEvent,
 } from "../api/types";
@@ -38,6 +43,25 @@ interface DashboardState {
   connected: boolean;
   mode: ViewMode;
 
+  // audio: sons são poucos e opt-out — persistido pra sobreviver a reload
+  muted: boolean;
+  toggleMuted: () => void;
+
+  // command palette: estado simples de UI, mesmo padrão do riskEditorActive
+  // abaixo — não é dado de servidor, só precisa ser lido por 2 componentes
+  // que não têm relação de pai/filho (Topbar e CommandPalette).
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (open: boolean) => void;
+
+  // true até bootstrap() resolver — cards mostram skeleton em vez de piscar
+  // vazio->populado nos primeiros segundos antes do WS conectar.
+  bootstrapping: boolean;
+
+  // Timestamp da última transição real "havia alerta ativo -> zero alertas"
+  // (não o boot inicial). AlertPanel observa isso pra disparar o pulso de
+  // cor sem duplicar a lógica de transição que já existe pro chime de áudio.
+  allClearAt: number | null;
+
   // monitor
   running: boolean;
   frameCounter: number;
@@ -48,9 +72,14 @@ interface DashboardState {
   overlay: OverlayOptions | null;
   settings: RuntimeSettings | null;
   riskArea: RiskAreaState | null;
+  riskScore: RiskScore | null;
+  riskTrend: RiskTrendResponse | null;
   model: ModelDiagnostics | null;
   compliance: ComplianceState | null;
   activeAlerts: Alert[];
+  // Set only by the alert_created socket event (never alert_updated) — lets
+  // AlertPanel highlight the one row that's genuinely new, not a re-confirm.
+  lastAlertCreatedId: number | null;
   alertHistory: Alert[];
   timeline: TimelineEvent[];
   message: { text: string; tone: "ok" | "warning" | "error" } | null;
@@ -91,12 +120,44 @@ const MAX_HISTORY = 80;
 // any component reads directly (only the derived `fps` average is exposed).
 const FPS_SAMPLE_WINDOW = 20;
 const fpsSamples: number[] = [];
+const MUTED_STORAGE_KEY = "visionepi-muted";
+const SEVERITIES_WITH_CHIME = new Set(["critical", "high"]);
+
+function readStoredMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export const useDashboardStore = create<DashboardState>()(
   devtools(
     (set) => ({
       connected: socket.connected,
       mode: "operator",
+
+      muted: readStoredMuted(),
+      toggleMuted: () =>
+        set(
+          (state) => {
+            const next = !state.muted;
+            try {
+              localStorage.setItem(MUTED_STORAGE_KEY, next ? "1" : "0");
+            } catch {
+              // localStorage indisponível (modo privado etc.) — só não persiste
+            }
+            return { muted: next };
+          },
+          false,
+          "toggleMuted",
+        ),
+
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }, false, "setCommandPaletteOpen"),
+
+      bootstrapping: true,
+      allClearAt: null,
 
       running: false,
       frameCounter: 0,
@@ -106,9 +167,12 @@ export const useDashboardStore = create<DashboardState>()(
       overlay: null,
       settings: null,
       riskArea: null,
+      riskScore: null,
+      riskTrend: null,
       model: null,
       compliance: null,
       activeAlerts: [],
+      lastAlertCreatedId: null,
       alertHistory: [],
       timeline: [],
       message: null,
@@ -136,33 +200,45 @@ export const useDashboardStore = create<DashboardState>()(
       hideMessage: () => set({ message: null }, false, "hideMessage"),
 
       bootstrap: async () => {
-        const [status, featuresRes, settingsRes, overlayRes, riskAreaRes, eventsRes, alertsRes] = await Promise.all([
-          getStatus(),
-          getFeatures(),
-          getSettings(),
-          getOverlay(),
-          getRiskArea(),
-          listEvents({ limit: 80, eventType: "alert_resolved" }),
-          listAlerts({ limit: 50 }),
-        ]);
-        set(
-          {
-            running: status.running,
-            frameCounter: status.frame_counter,
-            lastError: status.last_error,
-            model: status.model,
-            activeAlerts: status.active_alerts,
-            features: featuresRes.features,
-            settings: settingsRes.settings,
-            overlay: overlayRes.overlay,
-            riskArea: riskAreaRes.risk_area,
-            timeline: eventsRes.items,
-            alertHistory: alertsRes.items,
-            riskEditorPoints: (riskAreaRes.risk_area.polygon || []).map((p) => ({ x: p.x, y: p.y })),
-          },
-          false,
-          "bootstrap",
-        );
+        try {
+          const [status, featuresRes, settingsRes, overlayRes, riskAreaRes, riskScoreRes, riskTrendRes, eventsRes, alertsRes] = await Promise.all([
+            getStatus(),
+            getFeatures(),
+            getSettings(),
+            getOverlay(),
+            getRiskArea(),
+            getRiskScore(),
+            getRiskTrend(),
+            listEvents({ limit: 80, eventType: "alert_resolved" }),
+            listAlerts({ limit: 50 }),
+          ]);
+          set(
+            {
+              running: status.running,
+              frameCounter: status.frame_counter,
+              lastError: status.last_error,
+              model: status.model,
+              activeAlerts: status.active_alerts,
+              features: featuresRes.features,
+              settings: settingsRes.settings,
+              overlay: overlayRes.overlay,
+              riskArea: riskAreaRes.risk_area,
+              riskScore: riskScoreRes,
+              riskTrend: riskTrendRes,
+              timeline: eventsRes.items,
+              alertHistory: alertsRes.items,
+              riskEditorPoints: (riskAreaRes.risk_area.polygon || []).map((p) => ({ x: p.x, y: p.y })),
+              bootstrapping: false,
+            },
+            false,
+            "bootstrap",
+          );
+        } catch (error) {
+          // Skeleton não pode ficar preso pra sempre se o bootstrap falhar —
+          // cai pros empty states de cada card, que já tratam dado ausente.
+          set({ bootstrapping: false }, false, "bootstrap:error");
+          throw error;
+        }
       },
 
       start: async () => {
@@ -207,6 +283,24 @@ export const useDashboardStore = create<DashboardState>()(
     { name: "visionepi-dashboard" },
   ),
 );
+
+// "Voltou tudo certo" só conta como celebração se havia alerta ativo antes —
+// não no boot inicial (que já começa em zero). Watcher de módulo, não parte
+// de nenhum setter específico, porque activeAlerts muda em vários pontos
+// (bootstrap, ws:active_alerts, ws:analysis, resolveAlert, upsertActiveAlert).
+let hadActiveAlerts = false;
+useDashboardStore.subscribe((state) => {
+  const has = state.activeAlerts.length > 0;
+  if (has) {
+    hadActiveAlerts = true;
+    return;
+  }
+  if (hadActiveAlerts) {
+    hadActiveAlerts = false;
+    if (!state.muted) playAllClearChime();
+    useDashboardStore.setState({ allClearAt: Date.now() }, false, "allClear:pulse");
+  }
+});
 
 /** Shared by the alert_resolved socket handler and the false-positive REST action. */
 function resolveAlert(alert: Alert) {
@@ -295,6 +389,7 @@ export function subscribeToServerEvents(): () => void {
   on("settings_updated", (settings) => set({ settings }, false, "ws:settings_updated"));
   on("overlay_updated", (overlay) => set({ overlay }, false, "ws:overlay_updated"));
   on("risk_area_updated", (riskArea) => set({ riskArea }, false, "ws:risk_area_updated"));
+  on("risk_score", (riskScore) => set({ riskScore }, false, "ws:risk_score"));
   on("compliance_state", (compliance) => set({ compliance }, false, "ws:compliance_state"));
   on("active_alerts", (payload) => set({ activeAlerts: payload.items }, false, "ws:active_alerts"));
   on("analysis", (payload) =>
@@ -325,12 +420,26 @@ export function subscribeToServerEvents(): () => void {
   on("timeline_event", (event) =>
     set((state) => ({ timeline: [event, ...state.timeline].slice(0, MAX_TIMELINE) }), false, "ws:timeline_event"),
   );
-  on("alert_created", upsertActiveAlert);
+  on("alert_created", (alert) => {
+    upsertActiveAlert(alert);
+    set({ lastAlertCreatedId: alert.id }, false, "ws:alert_created:lastId");
+    if (!useDashboardStore.getState().muted && SEVERITIES_WITH_CHIME.has(alert.severity)) playAlertChime();
+  });
   on("alert", upsertActiveAlert); // legacy alias, same payload as alert_created
   on("alert_updated", upsertActiveAlert);
   on("alert_resolved", resolveAlert);
 
   if (!socket.connected) socket.connect();
+
+  // Sparkline não precisa da cadência do socket (buckets são de 1h) — um
+  // refresh a cada 5min é mais que suficiente e evita bater a rota extra
+  // toda vez que risk_score chega via WS.
+  const trendInterval = setInterval(() => {
+    getRiskTrend()
+      .then((riskTrend) => set({ riskTrend }, false, "trend:refresh"))
+      .catch((err) => console.error("[risk-trend] refresh failed", err));
+  }, 5 * 60 * 1000);
+  teardown.push(() => clearInterval(trendInterval));
 
   return () => teardown.forEach((fn) => fn());
 }

@@ -6,6 +6,7 @@ from app.api.alerts import alerts_bp
 from app.api.features import features_bp
 from app.api.diagnostics import runtime_bp
 from app.api.monitor import monitor_bp
+from app.api.risk import risk_bp
 from app.api.status import status_bp
 from app.api.stream import stream_bp
 from app.config import Config
@@ -43,6 +44,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(features_bp)
     app.register_blueprint(stream_bp)
     app.register_blueprint(runtime_bp)
+    app.register_blueprint(risk_bp)
 
     if app.config.get("AUTO_CREATE_TABLES", True):
         with app.app_context():

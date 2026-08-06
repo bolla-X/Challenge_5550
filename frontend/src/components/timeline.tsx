@@ -1,5 +1,5 @@
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel, EmptyState } from "./common";
+import { Panel, EmptyState, PanelSkeleton } from "./common";
 import { listEvents } from "../api/endpoints";
 
 function formatTime(value: string | null): string {
@@ -9,6 +9,15 @@ function formatTime(value: string | null): string {
 
 export function TimelineCard() {
   const timeline = useDashboardStore((s) => s.timeline);
+  const bootstrapping = useDashboardStore((s) => s.bootstrapping);
+
+  if (bootstrapping) {
+    return (
+      <Panel id="panel-timeline" title="Linha do tempo" description="Alertas que já estiveram ativos e foram resolvidos.">
+        <PanelSkeleton lines={3} />
+      </Panel>
+    );
+  }
 
   const refresh = async () => {
     try {
@@ -21,6 +30,7 @@ export function TimelineCard() {
 
   return (
     <Panel
+      id="panel-timeline"
       title="Linha do tempo"
       description="Alertas que já estiveram ativos e foram resolvidos."
       action={

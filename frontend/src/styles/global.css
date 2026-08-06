@@ -49,8 +49,10 @@ button#startBtn {
 button#startBtn:hover { filter: brightness(1.06); }
 
 .mode-toggle { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill); }
-button.segmented { border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); padding: 7px 14px; font-size: 12.5px; }
-button.segmented.active { background: var(--surface-3); color: var(--text); box-shadow: var(--shadow-sm); }
+button.segmented { position: relative; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); padding: 7px 14px; font-size: 12.5px; }
+button.segmented.active { color: var(--text); }
+.segmented-pill { position: absolute; inset: 0; background: var(--surface-3); border-radius: var(--radius-pill); box-shadow: var(--shadow-sm); z-index: 0; }
+.segmented-label { position: relative; z-index: 1; }
 
 /* ---------------- Shell: topbar + sidebar + main ---------------- */
 .shell { display: flex; flex-direction: column; height: 100vh; }
@@ -74,6 +76,130 @@ button.segmented.active { background: var(--surface-3); color: var(--text); box-
 .status-dot.warn { background: var(--warning); }
 .status-dot.error { background: var(--danger); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* Estado precisa ser reconhecível a alguns metros (chão de fábrica): forma
+   do ícone muda (riscado) E a cor muda (--danger vs --muted), não só um dos
+   dois — redundância deliberada pra quem não consegue ler o traço fino. */
+.mute-toggle {
+  display: grid; place-items: center;
+  width: 36px; height: 36px; padding: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3); border-color: var(--border);
+  color: var(--muted);
+}
+.mute-toggle svg { width: 18px; height: 18px; }
+.mute-toggle.muted { color: var(--danger); background: rgba(239, 68, 68, .12); border-color: rgba(239, 68, 68, .35); }
+.mute-toggle:hover { color: var(--text); }
+.mute-toggle.muted:hover { color: var(--danger); }
+
+.command-palette-trigger { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.command-palette-trigger kbd {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--muted-2);
+  border: 1px solid var(--border-strong); border-radius: 5px; padding: 1px 5px; background: var(--surface);
+}
+
+/* ---------------- Command palette (cmdk) ---------------- */
+.command-palette-overlay { position: fixed; inset: 0; background: rgba(4, 6, 10, .55); backdrop-filter: blur(2px); z-index: 60; }
+.command-palette {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px)); max-height: 60vh;
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); z-index: 61; overflow: hidden;
+}
+.command-palette [cmdk-input] {
+  border: 0; border-bottom: 1px solid var(--border); border-radius: 0;
+  background: transparent; color: var(--text); font-size: 14px; padding: 14px 16px; width: 100%;
+}
+.command-palette [cmdk-input]:focus { outline: none; }
+.command-palette [cmdk-input]::placeholder { color: var(--muted-2); }
+.command-palette [cmdk-list] { overflow-y: auto; padding: 8px; }
+.command-palette [cmdk-group-heading] { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-2); padding: 8px 10px 4px; }
+.command-palette [cmdk-item] {
+  display: flex; align-items: center; padding: 9px 10px; border-radius: var(--radius-sm);
+  color: var(--text); font-size: 13.5px; cursor: pointer;
+  transition: background .1s var(--ease);
+}
+.command-palette [cmdk-item][data-selected="true"] { background: var(--surface-3); }
+.command-palette [cmdk-empty] { padding: 24px 10px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* Destino de um "ir para" no cmdk: pulso curto no accent, comunica "chegou
+   aqui" já que scrollIntoView sozinho não deixa claro qual painel é o alvo
+   quando há vários visíveis na tela ao mesmo tempo. */
+.panel-jump-highlight { animation: panel-jump-pulse .9s var(--ease); }
+@keyframes panel-jump-pulse {
+  0% { box-shadow: 0 0 0 2px var(--accent-soft-border); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+
+/* ---------------- Skeleton loading (bootstrap) ---------------- */
+.panel-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 2px 0; }
+.skeleton-block {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+.skeleton-line { height: 13px; }
+.skeleton-block.video-skeleton { position: absolute; inset: 0; border-radius: 0; }
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Conteúdo real entrando depois do skeleton — fade só, sem movimento, pra
+   não competir com a atenção do usuário no primeiro load. */
+.content-enter { animation: content-fade-in .25s var(--ease); }
+@keyframes content-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------------- Micro-interações (rauno.me check) ---------------- */
+
+/* #1 focus-visible ausente em botões/nav — só teclado navega sem mouse. */
+button:focus-visible,
+.nav-row:focus-visible,
+.profile-pill:focus-visible,
+.command-palette-trigger:focus-visible,
+.mute-toggle:focus-visible {
+  outline: 2px solid var(--accent-soft-border);
+  outline-offset: 2px;
+}
+
+/* #2 feedback de "processando" pra ações async (Iniciar/Parar/Salvar). */
+button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
+
+/* #3 fade de scroll no .main — sinaliza que há mais conteúdo abaixo do
+   drawer técnico sem precisar rolar às cegas. Estático (não acompanha a
+   posição de scroll em JS): suficiente pra comunicar "tem mais aqui". */
+.main {
+  mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
+}
+
+/* #4 hover mais vivo em chips/nav — mesma leveza que já existe em button:hover. */
+.class-chip { transition: border-color .15s var(--ease), background .15s var(--ease); }
+.class-chip:hover { border-color: var(--border-strong); background: var(--surface-3); }
+
+/* #5 toggle switch — thumb desliza, mesmo padrão do mode-toggle da Topbar,
+   em vez do checkbox de sistema sem transição nenhuma. */
+.switch { position: relative; display: inline-flex; align-items: center; flex: none; }
+.switch input {
+  position: absolute; inset: 0; opacity: 0; margin: 0; width: 34px; height: 18px; cursor: pointer; z-index: 1;
+}
+.switch-track {
+  width: 34px; height: 18px; border-radius: var(--radius-pill);
+  background: var(--surface-3); border: 1px solid var(--border-strong);
+  transition: background .18s var(--ease), border-color .18s var(--ease);
+}
+.switch-thumb {
+  display: block; width: 14px; height: 14px; margin: 1px; border-radius: 50%;
+  background: var(--muted-2); transition: transform .18s var(--ease), background .18s var(--ease);
+}
+.switch input:checked ~ .switch-track { background: var(--accent-dim); border-color: var(--accent-soft-border); }
+.switch input:checked ~ .switch-track .switch-thumb { transform: translateX(16px); background: var(--accent); }
+.switch input:focus-visible ~ .switch-track { outline: 2px solid var(--accent-soft-border); outline-offset: 2px; }
 
 .message-bar {
   margin: 14px 24px 0;
@@ -202,7 +328,7 @@ button.segmented.active { background: var(--surface-3); color: var(--text); box-
 .row-list { display: flex; flex-direction: column; }
 .row-item { display: flex; align-items: flex-start; gap: 11px; padding: 11px 0; border-top: 1px solid var(--border); }
 .row-item:first-child { border-top: 0; }
-.row-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex: none; background: var(--muted-2); }
+.row-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex: none; background: var(--muted-2); transition: background .18s var(--ease); }
 .row-dot.ok { background: var(--ok); }
 .row-dot.missing, .row-dot.critical { background: var(--danger); }
 .row-dot.warning, .row-dot.unsupported, .row-dot.waiting { background: var(--warning); }
@@ -245,6 +371,11 @@ button.segmented.active { background: var(--surface-3); color: var(--text); box-
 .all-clear { display: flex; align-items: center; gap: 12px; padding: 6px 2px 10px; }
 .all-clear-badge { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(34, 197, 94, .1); border: 1px solid rgba(34, 197, 94, .3); flex: none; }
 .all-clear-badge svg { width: 16px; height: 16px; fill: none; stroke: var(--ok); stroke-width: 2; }
+
+.risk-score-headline { display: flex; align-items: baseline; gap: 4px; margin: 2px 0 6px; }
+.risk-score-value { font-family: var(--font-mono); font-size: 34px; font-weight: 650; color: var(--text); line-height: 1; }
+.risk-score-unit { font-family: var(--font-mono); font-size: 13px; color: var(--muted-2); }
+.risk-score-driver { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; }
 .all-clear strong { display: block; font-size: 13.5px; color: var(--text); }
 .all-clear span { font-size: 12.5px; color: var(--muted); }
 
@@ -273,8 +404,9 @@ button.segmented.active { background: var(--surface-3); color: var(--text); box-
 
 .features.compact { display: flex; flex-direction: column; gap: 8px; }
 .features.compact .feature-item small { display: none; }
-.feature-item { display: grid; grid-template-columns: 20px 1fr; gap: 9px; align-items: start; padding: 10px 11px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.feature-item { display: grid; grid-template-columns: 34px 1fr; gap: 9px; align-items: start; padding: 10px 11px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
 .feature-item input { margin-top: 3px; }
+.feature-item .switch { margin-top: 1px; }
 .feature-item strong { font-size: 12.5px; }
 
 .model-status { color: var(--muted); line-height: 1.6; font-size: 12.5px; font-family: var(--font-mono); }
@@ -282,7 +414,15 @@ button.segmented.active { background: var(--surface-3); color: var(--text); box-
 .model-status.warn { color: #fed7aa; }
 .model-status.error { color: #fecaca; }
 .class-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.class-chip { font-size: 10.5px; font-family: var(--font-mono); color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 8px; background: var(--surface-2); }
+.class-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-family: var(--font-mono); color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 4px 8px; background: var(--surface-2); }
+
+/* Tendência (24h) sob o headline — prova visual de que o número é uma
+   série, não um valor isolado. Eixo fixo 0-100 (fica no Sparkline em JS)
+   pra não distorcer picos pequenos como se fossem grandes. */
+.risk-trend { margin: 4px 0 8px; }
+.risk-sparkline { display: block; width: 100%; height: 34px; }
+.risk-trend-axis { display: flex; justify-content: space-between; margin-top: 2px; font-size: 10px; color: var(--muted-2); font-family: var(--font-mono); }
+.risk-mini-sparkline { width: 30px; height: 10px; color: var(--muted-2); flex: none; }
 details { margin-top: 10px; color: var(--muted); font-size: 12.5px; }
 summary { cursor: pointer; font-weight: 600; }
 

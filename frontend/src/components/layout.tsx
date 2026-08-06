@@ -1,9 +1,56 @@
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 
+const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
+const MODES = [
+  { key: "operator", label: "Operador" },
+  { key: "technical", label: "Técnico" },
+] as const;
+
+/** Ícone de alto-falante — traço grosso, sem preenchimento fino, pra ler
+ * a distância num monitor de chão de fábrica. Riscado quando mudo, com
+ * cor de aviso (mesma --danger dos status-dots) em vez de um cinza neutro:
+ * "mudo" é um estado que precisa saltar aos olhos, não passar despercebido. */
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none" />
+      {muted ? <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7" />}
+    </svg>
+  );
+}
+
+export function MuteToggle() {
+  const muted = useDashboardStore((s) => s.muted);
+  const toggleMuted = useDashboardStore((s) => s.toggleMuted);
+  return (
+    <button
+      type="button"
+      className={`mute-toggle ${muted ? "muted" : ""}`.trim()}
+      onClick={toggleMuted}
+      aria-pressed={muted}
+      aria-label={muted ? "Ativar som de alertas" : "Silenciar som de alertas"}
+      title={muted ? "Som desligado" : "Som ligado"}
+    >
+      <SpeakerIcon muted={muted} />
+    </button>
+  );
+}
+
 export function Topbar() {
-  const { mode, setMode, start, stop, connected, running } = useDashboardStore();
+  const { mode, setMode, start, stop, connected, running, setCommandPaletteOpen } = useDashboardStore();
   const video = useVideoStatus();
+  const shouldReduceMotion = useReducedMotion();
+  // Feedback de "seu clique registrou" durante a latência real do REST —
+  // sem isso, Iniciar/Parar não dão nenhum sinal até a resposta chegar.
+  const [pending, setPending] = useState<"start" | "stop" | null>(null);
+  const runAction = (which: "start" | "stop", action: () => Promise<void>) => {
+    setPending(which);
+    action()
+      .catch((err) => console.error(err))
+      .finally(() => setPending(null));
+  };
   return (
     <header className="topbar">
       <div className="topbar-brand">
@@ -24,19 +71,43 @@ export function Topbar() {
         </div>
       </div>
       <div className="topbar-actions">
-        <div className="mode-toggle" role="group" aria-label="Modo de visualização">
-          <button className={`segmented ${mode === "operator" ? "active" : ""}`.trim()} type="button" onClick={() => setMode("operator")}>
-            Operador
-          </button>
-          <button className={`segmented ${mode === "technical" ? "active" : ""}`.trim()} type="button" onClick={() => setMode("technical")}>
-            Técnico
-          </button>
-        </div>
-        <button className="secondary" type="button" onClick={() => stop().catch((err) => console.error(err))}>
-          Parar
+        <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
+          Buscar <kbd>Ctrl K</kbd>
         </button>
-        <button type="button" id="startBtn" onClick={() => start().catch((err) => console.error(err))}>
-          Iniciar
+        <MuteToggle />
+        <div className="mode-toggle" role="group" aria-label="Modo de visualização">
+          {MODES.map((item) => (
+            <button key={item.key} className={`segmented ${mode === item.key ? "active" : ""}`.trim()} type="button" onClick={() => setMode(item.key)}>
+              {/* Comunica que o clique produziu exatamente esse destaque —
+                  a pílula desliza até o botão clicado em vez de trocar de
+                  cor abruptamente em dois lugares ao mesmo tempo. */}
+              {mode === item.key && (
+                <motion.span
+                  className="segmented-pill"
+                  layoutId="mode-pill"
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
+                />
+              )}
+              <span className="segmented-label">{item.label}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          className={`secondary ${pending === "stop" ? "is-pending" : ""}`.trim()}
+          type="button"
+          disabled={pending !== null}
+          onClick={() => runAction("stop", stop)}
+        >
+          {pending === "stop" ? "Parando…" : "Parar"}
+        </button>
+        <button
+          type="button"
+          id="startBtn"
+          className={pending === "start" ? "is-pending" : ""}
+          disabled={pending !== null}
+          onClick={() => runAction("start", start)}
+        >
+          {pending === "start" ? "Iniciando…" : "Iniciar"}
         </button>
       </div>
     </header>

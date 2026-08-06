@@ -119,15 +119,20 @@ export function OverlayControls() {
   const updateOverlay = useDashboardStore((s) => s.updateOverlay);
   if (!overlay) return null;
   return (
-    <Panel title="Overlay do vídeo" description="Controle o que aparece dentro do frame sem misturar dados operacionais.">
+    <Panel id="panel-overlay" title="Overlay do vídeo" description="Controle o que aparece dentro do frame sem misturar dados operacionais.">
       <div className="features compact">
         {Object.entries(OVERLAY_LABELS).map(([key, label]) => (
           <label className="feature-item" key={key}>
-            <input
-              type="checkbox"
-              checked={overlay[key as keyof typeof overlay] !== false}
-              onChange={(e) => updateOverlay({ [key]: e.target.checked }).catch(console.error)}
-            />
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={overlay[key as keyof typeof overlay] !== false}
+                onChange={(e) => updateOverlay({ [key]: e.target.checked }).catch(console.error)}
+              />
+              <span className="switch-track">
+                <span className="switch-thumb" />
+              </span>
+            </span>
             <span>
               <strong>{label}</strong>
               <small>Controle visual dentro do vídeo</small>

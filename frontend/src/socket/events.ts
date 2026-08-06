@@ -7,6 +7,7 @@ import type {
   MonitorStatus,
   OverlayOptions,
   RiskAreaState,
+  RiskScore,
   RuntimeSettings,
   TimelineEvent,
 } from "../api/types";
@@ -23,6 +24,7 @@ export interface ServerEvents {
   settings_updated: RuntimeSettings;
   overlay_updated: OverlayOptions;
   risk_area_updated: RiskAreaState;
+  risk_score: RiskScore;
   timeline_event: TimelineEvent;
   compliance_state: ComplianceState;
   analysis: AnalysisPayload;

@@ -1,11 +1,20 @@
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel, Badge, EmptyState } from "./common";
+import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
 
 const PPE_LABELS: Record<"helmet" | "vest" | "gloves", string> = { helmet: "Capacete", vest: "Colete", gloves: "Luvas" };
 
 export function ComplianceCard() {
   const compliance = useDashboardStore((s) => s.compliance);
+  const bootstrapping = useDashboardStore((s) => s.bootstrapping);
   const personCount = compliance?.person_count ?? 0;
+
+  if (bootstrapping) {
+    return (
+      <Panel id="panel-compliance" title="Conformidade" description="Estado atual por item, fora do vídeo.">
+        <PanelSkeleton lines={3} />
+      </Panel>
+    );
+  }
 
   const rows: { key: string; label: string; status: string; message: string }[] = [];
   if (compliance) {
@@ -21,6 +30,7 @@ export function ComplianceCard() {
 
   return (
     <Panel
+      id="panel-compliance"
       title="Conformidade"
       description="Estado atual por item, fora do vídeo."
       action={<Badge tone="neutral">{`${personCount} pessoa${personCount === 1 ? "" : "s"}`}</Badge>}
@@ -48,11 +58,21 @@ export function PersonCard() {
   const compliance = useDashboardStore((s) => s.compliance);
   const lastDetections = useDashboardStore((s) => s.lastDetections);
   const lastPose = useDashboardStore((s) => s.lastPose);
+  const bootstrapping = useDashboardStore((s) => s.bootstrapping);
   const people = compliance?.people || [];
   const detectionCount = lastDetections.length;
 
+  if (bootstrapping) {
+    return (
+      <Panel id="panel-people" title="Pessoas e detecções" description="Cards por pessoa quando o modelo PPE completo estiver disponível.">
+        <PanelSkeleton lines={2} />
+      </Panel>
+    );
+  }
+
   return (
     <Panel
+      id="panel-people"
       title="Pessoas e detecções"
       description="Cards por pessoa quando o modelo PPE completo estiver disponível."
       action={<Badge tone="neutral">{`${detectionCount} ${detectionCount === 1 ? "detecção" : "detecções"}`}</Badge>}
