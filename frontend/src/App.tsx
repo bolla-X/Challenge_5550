@@ -1,8 +1,6 @@
-import { useEffect } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { subscribeToServerEvents, useDashboardStore } from "./store/dashboardStore";
-
-const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
 import { Topbar, MessageBar } from "./components/layout";
 import { Sidebar, OverlayControls } from "./components/features";
 import { VideoCard, RiskAreaEditorPanel } from "./components/video";
@@ -12,11 +10,35 @@ import { AlertPanel, AlertHistoryPanel } from "./components/alerts";
 import { TimelineCard } from "./components/timeline";
 import { ChecklistPanel, SettingsPanel, ModelStatusPanel } from "./components/diagnostics";
 import { CommandPalette } from "./components/command-palette";
+import { Tabs } from "./components/common";
+
+// O vídeo nunca desmonta (evita reconectar o stream MJPEG a cada troca de
+// modo) — só a proporção do grid muda. As abas trocam qual painel completo
+// aparece na side-column; estado de aba fica aqui (App nunca desmonta) em
+// vez de no zustand store, então sobrevive a alternar de modo e voltar, mas
+// não precisa (nem deve) persistir em localStorage — ver dashboardStore.
+const OPERATOR_TABS = [
+  { key: "risk", label: "Risco", content: <RiskScoreCard /> },
+  { key: "alerts", label: "Alertas", content: <AlertPanel /> },
+  { key: "compliance", label: "Conformidade", content: <ComplianceCard /> },
+  { key: "people", label: "Pessoas", content: <PersonCard /> },
+  { key: "timeline", label: "Timeline", content: <TimelineCard /> },
+];
+
+const TECHNICAL_TABS = [
+  { key: "checklist", label: "Checklist", content: <ChecklistPanel /> },
+  { key: "overlay", label: "Overlay", content: <OverlayControls /> },
+  { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
+  { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
+  { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
+  { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
+];
 
 export default function App() {
   const mode = useDashboardStore((s) => s.mode);
   const bootstrap = useDashboardStore((s) => s.bootstrap);
-  const shouldReduceMotion = useReducedMotion();
+  const [operatorTab, setOperatorTab] = useState(OPERATOR_TABS[0].key);
+  const [technicalTab, setTechnicalTab] = useState(TECHNICAL_TABS[0].key);
 
   useEffect(() => {
     const unsubscribe = subscribeToServerEvents();
@@ -32,38 +54,20 @@ export default function App() {
       <MessageBar />
       <div className="shell-body">
         <Sidebar />
-        <main className="main">
-          <div className="main-grid">
+        {/* data-mode escolhe a proporção do grid instantaneamente (fr não
+            interpola de forma confiável); a prop `layout` nos dois filhos
+            é quem anima o FLIP resultante. */}
+        <main className="main" data-mode={mode}>
+          <motion.div className="stage" layout>
             <VideoCard />
-            <div className="side-column">
-              <RiskScoreCard />
-              <AlertPanel />
-              <ComplianceCard />
-              <PersonCard />
-              <TimelineCard />
-            </div>
-          </div>
-          {/* Comunica que esse conteúdo técnico está se expandindo do fluxo
-              atual, não um corte de contexto — height+opacity, sem slide. */}
-          <AnimatePresence initial={false}>
-            {mode === "technical" && (
-              <motion.div
-                className="technical-drawer"
-                initial={shouldReduceMotion ? false : { height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={shouldReduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                transition={{ duration: shouldReduceMotion ? 0.001 : 0.22, ease: EASE }}
-                style={{ overflow: "hidden" }}
-              >
-                <ChecklistPanel />
-                <OverlayControls />
-                <RiskAreaEditorPanel />
-                <SettingsPanel />
-                <ModelStatusPanel />
-                <AlertHistoryPanel />
-              </motion.div>
+          </motion.div>
+          <motion.div className="side-column" layout>
+            {mode === "operator" ? (
+              <Tabs tabs={OPERATOR_TABS} active={operatorTab} onChange={setOperatorTab} idPrefix="operator" />
+            ) : (
+              <Tabs tabs={TECHNICAL_TABS} active={technicalTab} onChange={setTechnicalTab} idPrefix="technical" />
             )}
-          </AnimatePresence>
+          </motion.div>
         </main>
       </div>
     </div>

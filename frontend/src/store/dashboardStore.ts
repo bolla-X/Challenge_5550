@@ -121,6 +121,7 @@ const MAX_HISTORY = 80;
 const FPS_SAMPLE_WINDOW = 20;
 const fpsSamples: number[] = [];
 const MUTED_STORAGE_KEY = "visionepi-muted";
+const MODE_STORAGE_KEY = "visionepi-mode";
 const SEVERITIES_WITH_CHIME = new Set(["critical", "high"]);
 
 function readStoredMuted(): boolean {
@@ -131,11 +132,23 @@ function readStoredMuted(): boolean {
   }
 }
 
+// Modo persiste (é um perfil de tela, não um estado transiente). A aba ativa
+// dentro de cada modo NÃO persiste — fica em memória no App, só pra não
+// resetar ao alternar operador<->técnico na mesma sessão (ver App.tsx).
+function readStoredMode(): ViewMode {
+  try {
+    const stored = localStorage.getItem(MODE_STORAGE_KEY);
+    return stored === "technical" ? "technical" : "operator";
+  } catch {
+    return "operator";
+  }
+}
+
 export const useDashboardStore = create<DashboardState>()(
   devtools(
     (set) => ({
       connected: socket.connected,
-      mode: "operator",
+      mode: readStoredMode(),
 
       muted: readStoredMuted(),
       toggleMuted: () =>
@@ -195,7 +208,19 @@ export const useDashboardStore = create<DashboardState>()(
           "resetRiskEditorFromServer",
         ),
 
-      setMode: (mode) => set({ mode }, false, "setMode"),
+      setMode: (mode) =>
+        set(
+          () => {
+            try {
+              localStorage.setItem(MODE_STORAGE_KEY, mode);
+            } catch {
+              // localStorage indisponível (modo privado etc.) — só não persiste
+            }
+            return { mode };
+          },
+          false,
+          "setMode",
+        ),
       showMessage: (text, tone = "warning") => set({ message: { text, tone } }, false, "showMessage"),
       hideMessage: () => set({ message: null }, false, "hideMessage"),
 

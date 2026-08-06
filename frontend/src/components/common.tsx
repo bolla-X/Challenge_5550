@@ -1,4 +1,80 @@
+import { useRef } from "react";
 import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
+
+const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
+
+export interface TabItem {
+  key: string;
+  label: string;
+  content: ReactNode;
+}
+
+/** Tab strip + panels, same active-pill pattern as Topbar's .mode-toggle
+ * (layoutId slides instead of an abrupt color swap in two places at once).
+ * Panels are full existing card components (Panel-wrapped) — Fase 1 swaps
+ * which one is visible, it doesn't restructure their internals. */
+export function Tabs({ tabs, active, onChange, idPrefix }: { tabs: TabItem[]; active: string; onChange: (key: string) => void; idPrefix: string }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const shouldReduceMotion = useReducedMotion();
+  const activeIndex = Math.max(0, tabs.findIndex((t) => t.key === active));
+
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    let nextIndex = activeIndex;
+    if (event.key === "ArrowRight") nextIndex = (activeIndex + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (activeIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    onChange(tabs[nextIndex].key);
+    listRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
+  };
+
+  return (
+    <div className="tabs">
+      <div className="tabs-list" role="tablist" ref={listRef} onKeyDown={onKeyDown}>
+        {tabs.map((tab) => {
+          const selected = tab.key === active;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              id={`${idPrefix}-tab-${tab.key}`}
+              aria-selected={selected}
+              aria-controls={`${idPrefix}-panel-${tab.key}`}
+              tabIndex={selected ? 0 : -1}
+              className={`tab ${selected ? "active" : ""}`.trim()}
+              onClick={() => onChange(tab.key)}
+            >
+              {selected && (
+                <motion.span
+                  className="tab-pill"
+                  layoutId={`${idPrefix}-tab-pill`}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
+                />
+              )}
+              <span className="tab-label">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {tabs.map((tab) => (
+        <div
+          key={tab.key}
+          className="tabs-panel"
+          role="tabpanel"
+          id={`${idPrefix}-panel-${tab.key}`}
+          aria-labelledby={`${idPrefix}-tab-${tab.key}`}
+          hidden={tab.key !== active}
+        >
+          {tab.key === active && tab.content}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function Panel({
   id,

@@ -170,10 +170,11 @@ button:focus-visible,
 /* #2 feedback de "processando" pra ações async (Iniciar/Parar/Salvar). */
 button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 
-/* #3 fade de scroll no .main — sinaliza que há mais conteúdo abaixo do
-   drawer técnico sem precisar rolar às cegas. Estático (não acompanha a
-   posição de scroll em JS): suficiente pra comunicar "tem mais aqui". */
-.main {
+/* #3 fade de scroll — sinaliza que há mais conteúdo abaixo sem precisar
+   rolar às cegas. Estático (não acompanha a posição de scroll em JS):
+   suficiente pra comunicar "tem mais aqui". Vive em .side-column agora —
+   é o painel que rola, não mais .main (Fase 1: scroll regions independentes). */
+.side-column {
   mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
 }
@@ -257,9 +258,17 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .nav-row.active .nav-row-state { color: var(--accent); }
 
 /* ---------------- Main content ---------------- */
-.main { flex: 1; overflow-y: auto; padding: 28px; }
-.main-grid { display: grid; grid-template-columns: 1.65fr 1fr; gap: 24px; align-items: start; }
-.side-column { display: flex; flex-direction: column; gap: 24px; }
+/* .main owns nothing — it's a grid with two independent scroll regions
+   (.stage for the video, .side-column for the tab panel) instead of the
+   page itself scrolling. Mode swaps which column is wider; ratio A here
+   (1fr/1.65fr) is the one under review, variant B is a one-line swap. */
+.main { flex: 1; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 1.65fr 1fr; gap: 24px; padding: 28px; }
+.main[data-mode="technical"] { grid-template-columns: 1fr 1.65fr; }
+.stage { min-height: 0; display: flex; flex-direction: column; }
+.side-column { min-height: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
+/* Variant A only: técnico panels stay single-column, so the extra width
+   becomes reading-width breathing room instead of ~120ch lines. */
+.main[data-mode="technical"] .side-column { max-width: 68ch; }
 
 .card {
   background: var(--surface);
@@ -391,8 +400,7 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .timeline-row-body small { color: var(--muted); font-size: 12px; }
 .timeline-time { color: var(--muted-2); font-size: 11.5px; font-family: var(--font-mono); display: block; margin-bottom: 2px; }
 
-/* ---------------- Technical drawer ---------------- */
-.technical-drawer { display: flex; flex-direction: column; gap: 20px; margin-top: 24px; }
+/* ---------------- Technical panels (now tab content, not a drawer) ---------------- */
 .checklist { display: flex; flex-direction: column; gap: 8px; }
 .check-item { display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: start; }
 .check-status { text-transform: uppercase; font-size: 10px; font-family: var(--font-mono); font-weight: 700; letter-spacing: .03em; padding: 4px 6px; border-radius: var(--radius-pill); text-align: center; background: var(--surface-2); color: var(--text); }
@@ -439,11 +447,31 @@ summary { cursor: pointer; font-weight: 600; }
 .risk-editor-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .risk-editor-status { padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--muted); background: var(--surface-2); font-size: 12.5px; font-family: var(--font-mono); }
 
-.alerts.history { display: flex; flex-direction: column; max-height: 34vh; overflow: auto; }
+.alerts.history { display: flex; flex-direction: column; }
+
+/* ---------------- Tabs (mode panel: operator/technical) ---------------- */
+.tabs { display: flex; flex-direction: column; min-height: 0; gap: 12px; }
+.tabs-list { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill); flex: none; overflow-x: auto; }
+.tab {
+  position: relative; border: 0; border-radius: var(--radius-pill); background: transparent;
+  color: var(--muted); padding: 7px 14px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+.tab.active { color: var(--text); }
+.tab-pill { position: absolute; inset: 0; background: var(--surface-3); border-radius: var(--radius-pill); box-shadow: var(--shadow-sm); z-index: 0; }
+.tab-label { position: relative; z-index: 1; }
+.tabs-panel { min-height: 0; }
 
 /* ---------------- Responsive ---------------- */
 @media (max-width: 1200px) {
-  .main-grid { grid-template-columns: 1fr; }
+  /* Below this width there's no room for two independently-scrolling
+     columns — .main goes back to being the single scroll owner and
+     .side-column stops competing with it for the scrollbar.
+     [data-mode] repeated here on purpose: an attribute selector like
+     .main[data-mode="technical"] outranks plain .main regardless of
+     source order, so the breakpoint has to match that specificity or
+     it silently loses to whichever mode is active. */
+  .main, .main[data-mode] { grid-template-columns: 1fr; overflow-y: auto; }
+  .side-column, .main[data-mode] .side-column { overflow: visible; max-width: none; }
 }
 @media (max-width: 860px) {
   .sidebar { position: fixed; z-index: 10; height: 100%; background: var(--bg); }
