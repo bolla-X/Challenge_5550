@@ -69,7 +69,21 @@ export function Tabs({ tabs, active, onChange, idPrefix }: { tabs: TabItem[]; ac
           aria-labelledby={`${idPrefix}-tab-${tab.key}`}
           hidden={tab.key !== active}
         >
-          {tab.key === active && tab.content}
+          {/* Troca de posição instantânea, não crossfade: o painel antigo já
+              some no mesmo commit (React desmonta, não há AnimatePresence),
+              então as duas abas nunca ocupam espaço ao mesmo tempo — sem
+              isso, abas de altura bem diferente (Checklist vs Modelo)
+              pulariam de layout durante a sobreposição. Só a entrada anima. */}
+          {tab.key === active && (
+            <motion.div
+              key={tab.key}
+              initial={shouldReduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: shouldReduceMotion ? 0.001 : 0.15, ease: EASE }}
+            >
+              {tab.content}
+            </motion.div>
+          )}
         </div>
       ))}
     </div>

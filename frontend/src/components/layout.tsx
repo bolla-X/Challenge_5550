@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 
 const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
+const EASE_IN = "easeIn" as const; // exits — tokens.css only has the ease-out curve above
 const MODES = [
   { key: "operator", label: "Operador" },
   { key: "technical", label: "Técnico" },
@@ -122,11 +123,28 @@ export function Topbar() {
 
 export function MessageBar() {
   const { message, hideMessage } = useDashboardStore();
-  if (!message) return null;
+  const shouldReduceMotion = useReducedMotion();
   return (
-    <section className={`message-bar ${message.tone === "warning" ? "" : message.tone}`.trim()} onClick={hideMessage} role="status">
-      {message.text}
-    </section>
+    <AnimatePresence initial={false}>
+      {message && (
+        <motion.section
+          key={message.text}
+          className={`message-bar ${message.tone === "warning" ? "" : message.tone}`.trim()}
+          onClick={hideMessage}
+          role="status"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={
+            shouldReduceMotion
+              ? { opacity: 0 }
+              : { opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0, transition: { duration: 0.15, ease: EASE_IN } }
+          }
+          transition={{ duration: shouldReduceMotion ? 0.001 : 0.2, ease: EASE }}
+        >
+          {message.text}
+        </motion.section>
+      )}
+    </AnimatePresence>
   );
 }
 

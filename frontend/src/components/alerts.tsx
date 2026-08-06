@@ -8,6 +8,9 @@ import type { Alert } from "../api/types";
 // Matches tokens.css --ease exactly — motion needs the numeric bezier, not
 // the CSS var, so this is the one place it's duplicated.
 const EASE = [0.16, 1, 0.3, 1] as const;
+// tokens.css only defines one curve (the ease-out above); exits use Motion's
+// built-in ease-in instead of inventing an unvalidated reverse bezier.
+const EASE_IN = "easeIn" as const;
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
 function formatDate(value: string | null): string {
@@ -83,15 +86,20 @@ function AlertRow({
     <motion.div
       className={cls}
       layout={!reduceMotion}
-      initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+      initial={reduceMotion ? false : { opacity: 0, y: -4, scale: 0.98 }}
       animate={{
         opacity: 1,
         y: 0,
+        scale: 1,
         backgroundColor: highlighted ? "rgba(47, 212, 230, .14)" : "rgba(47, 212, 230, 0)",
       }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0 }}
+      exit={
+        reduceMotion
+          ? { opacity: 0 }
+          : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0, transition: { duration: 0.2, ease: EASE_IN } }
+      }
       transition={{
-        duration: reduceMotion ? 0.001 : 0.2,
+        duration: reduceMotion ? 0.001 : 0.22,
         ease: EASE,
         backgroundColor: { duration: 0.7, ease: "easeOut" },
       }}
