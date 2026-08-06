@@ -13,6 +13,21 @@ function toCsv(header: string[], rows: unknown[][]): string {
   return [header, ...rows].map((row) => row.map(csvField).join(",")).join("\r\n");
 }
 
+// Backend grava UTC (utc_now() em app/models.py) mas o SQLite devolve o
+// datetime naive na leitura — .isoformat() sai sem sufixo de timezone
+// (ex: "2026-08-06T16:54:47.491761"). Sem forçar "Z" aqui, o Date() do JS
+// interpretaria esse valor como horário LOCAL, não UTC, adiantando/
+// atrasando a hora exibida. DD/MM/AAAA HH:MM:SS, sem microssegundos —
+// ilegível numa reunião do jeito que vinha (pedido explícito).
+function formatDateTimeLocal(value: string | null | undefined): string {
+  if (!value) return "";
+  const hasOffset = /Z$|[+-]\d\d:\d\d$/.test(value);
+  const date = new Date(hasOffset ? value : `${value}Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 // BOM (﻿) na frente do Blob: sem ele o Excel no Windows abre o CSV como
 // Latin-1 e corrompe acento (severidade, mensagem etc.) — pedido explícito.
 function downloadCsv(filename: string, csv: string) {
@@ -36,13 +51,22 @@ export function ExportPanel() {
 
   const exportAlerts = () => {
     const header = ["id", "severidade", "feature", "mensagem", "status", "falso_positivo", "criado_em", "resolvido_em"];
-    const rows = alertHistory.map((a) => [a.id, a.severity, a.feature ?? "", a.message, a.status, a.false_positive ? "sim" : "não", a.created_at ?? "", a.resolved_at ?? ""]);
+    const rows = alertHistory.map((a) => [
+      a.id,
+      a.severity,
+      a.feature ?? "",
+      a.message,
+      a.status,
+      a.false_positive ? "sim" : "não",
+      formatDateTimeLocal(a.created_at),
+      formatDateTimeLocal(a.resolved_at),
+    ]);
     downloadCsv(`visionepi-alertas-${Date.now()}.csv`, toCsv(header, rows));
   };
 
   const exportTimeline = () => {
     const header = ["horario", "severidade", "mensagem", "detalhe"];
-    const rows = timeline.map((e) => [e.created_at ?? "", e.severity ?? "", e.message, e.subject ?? e.event_type]);
+    const rows = timeline.map((e) => [formatDateTimeLocal(e.created_at), e.severity ?? "", e.message, e.subject ?? e.event_type]);
     downloadCsv(`visionepi-timeline-${Date.now()}.csv`, toCsv(header, rows));
   };
 
