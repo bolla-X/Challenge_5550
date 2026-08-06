@@ -1,11 +1,30 @@
 import { useEffect, useRef } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel, Badge } from "./common";
+import { Panel } from "./common";
 import { useVideoStreamLabel } from "./layout";
 
-export function VideoPanel() {
+function CameraOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M3 3l18 18M9 7h6l2 3h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-4M4 7h1" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="14" r="3" />
+    </svg>
+  );
+}
+
+/**
+ * Video card — the product's central element, treated as a designed
+ * surface rather than a black box. Stopped state shows a real empty state
+ * (icon badge + copy + embedded Start action) instead of ever fetching the
+ * backend's own baked-in placeholder frame (/video_feed always renders
+ * "monitoramento parado" as pixels when the loop isn't running — we avoid
+ * mounting <img> at all until running, so that never reaches the screen).
+ */
+export function VideoCard() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const running = useDashboardStore((s) => s.running);
+  const start = useDashboardStore((s) => s.start);
   const riskEditorActive = useDashboardStore((s) => s.riskEditorActive);
   const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
   const addRiskEditorPoint = useDashboardStore((s) => s.addRiskEditorPoint);
@@ -57,7 +76,7 @@ export function VideoPanel() {
     window.addEventListener("resize", draw);
     return () => window.removeEventListener("resize", draw);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [riskEditorPoints]);
+  }, [riskEditorPoints, running]);
 
   const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!riskEditorActive) return;
@@ -69,22 +88,35 @@ export function VideoPanel() {
   };
 
   return (
-    <Panel
-      title="Feed ao vivo"
-      description="O vídeo permanece limpo: apenas detecção visual. Status, conformidade e pessoas ficam fora do frame."
-      className="video-panel"
-      action={<Badge tone={video.status}>{video.label}</Badge>}
-    >
-      <div className={`video-wrap ${riskEditorActive ? "editing-risk" : ""}`.trim()} ref={wrapRef}>
-        <img src="/video_feed" alt="Feed de vídeo VisionEPI" onLoad={draw} />
-        <canvas
-          ref={canvasRef}
-          className={`risk-editor-canvas ${riskEditorActive ? "" : "hidden"}`.trim()}
-          aria-label="Editor visual de área de risco"
-          onClick={handleClick}
-        />
+    <section className="card video-card">
+      <div className={`video-frame ${riskEditorActive ? "editing-risk" : ""}`.trim()} ref={wrapRef}>
+        {running ? (
+          <>
+            <span className="video-live-dot">
+              <span className={`status-dot ${video.status}`} /> {video.label}
+            </span>
+            <img src="/video_feed" alt="Feed de vídeo VisionEPI" onLoad={draw} />
+            <canvas
+              ref={canvasRef}
+              className={`risk-editor-canvas ${riskEditorActive ? "" : "hidden"}`.trim()}
+              aria-label="Editor visual de área de risco"
+              onClick={handleClick}
+            />
+          </>
+        ) : (
+          <div className="video-empty">
+            <div className="video-empty-badge">
+              <CameraOffIcon />
+            </div>
+            <h3>Aguardando conexão de vídeo</h3>
+            <p>Inicie o monitoramento para começar a receber o feed em tempo real.</p>
+            <button type="button" id="startBtn" onClick={() => start().catch((err) => console.error(err))}>
+              Iniciar
+            </button>
+          </div>
+        )}
       </div>
-    </Panel>
+    </section>
   );
 }
 
@@ -109,11 +141,7 @@ export function RiskAreaEditorPanel() {
     : "Área atual não carregada.";
 
   return (
-    <Panel
-      title="Editor de área de risco"
-      description="Clique no vídeo para criar pontos normalizados. Salve para aplicar no backend."
-      className="technical-only"
-    >
+    <Panel title="Editor de área de risco" description="Clique no vídeo (com o monitoramento ativo) para criar pontos normalizados.">
       <div className="risk-editor-actions">
         <button className="secondary small" type="button" onClick={toggleRiskEditor}>
           {riskEditorActive ? "Encerrar edição" : "Editar no vídeo"}

@@ -14,15 +14,15 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className={`panel ${className}`.trim()}>
-      <div className="panel-title-row">
+    <section className={`card ${className}`.trim()}>
+      <div className="card-head">
         <div>
           <h2>{title}</h2>
           {description && <p>{description}</p>}
         </div>
         {action}
       </div>
-      {children}
+      <div className="card-body">{children}</div>
     </section>
   );
 }

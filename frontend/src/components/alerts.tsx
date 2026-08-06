@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel, Badge, EmptyState } from "./common";
+import { Panel, Badge } from "./common";
 import type { Alert } from "../api/types";
 
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -10,57 +10,78 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
-function AlertCard({ alert, active }: { alert: Alert; active: boolean }) {
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AlertRow({ alert, active }: { alert: Alert; active: boolean }) {
   const markFalsePositive = useDashboardStore((s) => s.markFalsePositive);
   const meta = alert.metadata || {};
   const subject = (meta.person_label as string) || (meta.person_id as string) || (meta.subject as string) || "global";
-  const cls = ["alert", alert.severity, alert.status, alert.false_positive ? "false-positive" : ""].filter(Boolean).join(" ");
+  const cls = ["alert-row", alert.resolved_at ? "resolved" : "", alert.false_positive ? "false-positive" : ""].filter(Boolean).join(" ");
 
   return (
     <div className={cls}>
-      <strong>{alert.message}</strong>
-      <div>
-        {alert.rule || ""} · {alert.feature || ""} · {alert.severity || ""} · {alert.status || "active"} · {subject}
-      </div>
-      <span className="alert-time">
-        visto: {formatDate(alert.last_seen_at)}
-        {alert.resolved_at ? ` · resolvido: ${formatDate(alert.resolved_at)}` : ""}
-      </span>
-      <div className="alert-actions">
-        {alert.frame_ref ? (
-          <a className="evidence-link" href={`/alerts/${alert.id}/evidence`} target="_blank" rel="noopener noreferrer">
-            Ver evidência
-          </a>
-        ) : (
-          <span className="muted">Sem snapshot</span>
-        )}
-        {alert.false_positive ? (
-          <span className="false-positive-label">Falso positivo</span>
-        ) : active ? (
-          <button className="secondary small" type="button" onClick={() => markFalsePositive(alert.id)}>
-            Falso positivo
-          </button>
-        ) : null}
+      <span className={`alert-stripe ${alert.severity}`} />
+      <div className="alert-row-body">
+        <strong>{alert.message}</strong>
+        <div className="alert-row-meta">
+          {alert.rule} · {alert.feature} · {subject}
+        </div>
+        <span className="alert-row-time">
+          visto: {formatDate(alert.last_seen_at)}
+          {alert.resolved_at ? ` · resolvido: ${formatDate(alert.resolved_at)}` : ""}
+        </span>
+        <div className="alert-row-actions">
+          {alert.frame_ref && (
+            <a className="evidence-link" href={`/alerts/${alert.id}/evidence`} target="_blank" rel="noopener noreferrer">
+              Ver evidência
+            </a>
+          )}
+          {alert.false_positive ? (
+            <span className="false-positive-label">Falso positivo</span>
+          ) : (
+            active && (
+              <button className="secondary small" type="button" onClick={() => markFalsePositive(alert.id)}>
+                Falso positivo
+              </button>
+            )
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-export function ActiveAlertsPanel() {
+/** Calm by default — a quiet, reassuring "all clear" moment, not an empty
+ * div. Only grows louder (accent stripe per severity) with a real alert. */
+export function AlertPanel() {
   const activeAlerts = useDashboardStore((s) => s.activeAlerts);
   const sorted = useMemo(
     () => [...activeAlerts].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9)),
     [activeAlerts],
   );
+
   return (
-    <Panel
-      title="Alertas ativos"
-      description="Somem automaticamente quando a condição normal é confirmada."
-      className={`alert-panel ${sorted.length ? "has-active-alerts" : ""}`.trim()}
-      action={<Badge tone={sorted.length ? "error" : "ok"}>{sorted.length}</Badge>}
-    >
-      <div className="alerts">
-        {sorted.length ? sorted.map((alert) => <AlertCard key={alert.id} alert={alert} active />) : <EmptyState>Nenhum alerta ativo.</EmptyState>}
+    <Panel title="Alertas ativos" description="Somem automaticamente quando a condição normal é confirmada." action={sorted.length ? <Badge tone="error">{sorted.length}</Badge> : undefined}>
+      <div className="alert-card-body">
+        {sorted.length ? (
+          sorted.map((alert) => <AlertRow key={alert.id} alert={alert} active />)
+        ) : (
+          <div className="all-clear">
+            <div className="all-clear-badge">
+              <CheckIcon />
+            </div>
+            <div>
+              <strong>Tudo certo por aqui</strong>
+              <span>Nenhum alerta ativo no momento.</span>
+            </div>
+          </div>
+        )}
       </div>
     </Panel>
   );
@@ -78,7 +99,7 @@ export function AlertHistoryPanel() {
   });
 
   return (
-    <Panel title="Histórico recente" description="Auditoria local de alertas persistidos." className="technical-only">
+    <Panel title="Histórico recente" description="Auditoria local de alertas persistidos.">
       <div className="filter-row">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">Todos</option>
@@ -95,7 +116,16 @@ export function AlertHistoryPanel() {
         </select>
       </div>
       <div className="alerts history">
-        {filtered.length ? filtered.map((alert) => <AlertCard key={alert.id} alert={alert} active={false} />) : <EmptyState>Nenhum registro.</EmptyState>}
+        {filtered.length ? (
+          filtered.map((alert) => <AlertRow key={alert.id} alert={alert} active={false} />)
+        ) : (
+          <div className="all-clear">
+            <div className="all-clear-badge">
+              <CheckIcon />
+            </div>
+            <span>Nenhum registro.</span>
+          </div>
+        )}
       </div>
     </Panel>
   );

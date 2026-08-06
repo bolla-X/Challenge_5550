@@ -1,18 +1,29 @@
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 
-export function TopBar() {
-  const { mode, setMode, start, stop } = useDashboardStore();
+export function Topbar() {
+  const { mode, setMode, start, stop, connected, running } = useDashboardStore();
+  const video = useVideoStatus();
   return (
     <header className="topbar">
-      <div className="brand">
-        <div className="brand-mark">VE</div>
-        <div>
-          <h1>VisionEPI</h1>
-          <p>Console de monitoramento: EPIs, postura, quedas, área de risco.</p>
+      <div className="topbar-brand">
+        <h1>VisionEPI</h1>
+        <div className="topbar-status">
+          <span className="status-dot-item">
+            <span className="status-dot ok" /> backend
+          </span>
+          <span className="status-dot-item">
+            <span className={`status-dot ${connected ? "ok" : "error"}`} /> conexão
+          </span>
+          <span className="status-dot-item">
+            <span className={`status-dot ${running ? "ok" : "warn"}`} /> {running ? "monitorando" : "parado"}
+          </span>
+          <span className="status-dot-item">
+            <span className={`status-dot ${video.status}`} /> {video.label}
+          </span>
         </div>
       </div>
-      <div className="top-actions">
+      <div className="topbar-actions">
         <div className="mode-toggle" role="group" aria-label="Modo de visualização">
           <button className={`segmented ${mode === "operator" ? "active" : ""}`.trim()} type="button" onClick={() => setMode("operator")}>
             Operador
@@ -21,11 +32,11 @@ export function TopBar() {
             Técnico
           </button>
         </div>
-        <button type="button" id="startBtn" onClick={() => start().catch((err) => console.error(err))}>
-          Iniciar
-        </button>
         <button className="secondary" type="button" onClick={() => stop().catch((err) => console.error(err))}>
           Parar
+        </button>
+        <button type="button" id="startBtn" onClick={() => start().catch((err) => console.error(err))}>
+          Iniciar
         </button>
       </div>
     </header>
@@ -34,7 +45,7 @@ export function TopBar() {
 
 export function MessageBar() {
   const { message, hideMessage } = useDashboardStore();
-  if (!message) return <section className="message-bar hidden" />;
+  if (!message) return null;
   return (
     <section className={`message-bar ${message.tone === "warning" ? "" : message.tone}`.trim()} onClick={hideMessage} role="status">
       {message.text}
@@ -63,37 +74,4 @@ function useVideoStatus() {
 
 export function useVideoStreamLabel() {
   return useVideoStatus();
-}
-
-export function StatusRibbon() {
-  const { connected, running, frameCounter, wsFrameCounter, fps } = useDashboardStore();
-  const video = useVideoStatus();
-  return (
-    <section className="status-grid" aria-label="Status do sistema">
-      <article className="status-card ok">
-        <span>Backend</span>
-        <strong>Online</strong>
-      </article>
-      <article className={`status-card ${connected ? "ok" : "error"}`}>
-        <span>WebSocket</span>
-        <strong>{connected ? "Conectado" : "Desconectado"}</strong>
-      </article>
-      <article className={`status-card ${running ? "ok" : "warn"}`}>
-        <span>Monitor</span>
-        <strong>{running ? "Ativo" : "Parado"}</strong>
-      </article>
-      <article className={`status-card ${video.status}`}>
-        <span>Vídeo</span>
-        <strong>{video.label}</strong>
-      </article>
-      <article className="status-card technical-only">
-        <span>Frames</span>
-        <strong>{frameCounter || wsFrameCounter}</strong>
-      </article>
-      <article className="status-card technical-only">
-        <span>FPS visual</span>
-        <strong>{fps.toFixed(1)}</strong>
-      </article>
-    </section>
-  );
 }

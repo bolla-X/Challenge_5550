@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { subscribeToServerEvents, useDashboardStore } from "./store/dashboardStore";
-import { TopBar, MessageBar, StatusRibbon } from "./components/layout";
-import { FeatureStrip, OverlayControls } from "./components/features";
-import { VideoPanel, RiskAreaEditorPanel } from "./components/video";
-import { ComplianceMatrix, PersonCards } from "./components/compliance";
-import { ActiveAlertsPanel, AlertHistoryPanel } from "./components/alerts";
-import { EventTimelinePanel } from "./components/timeline";
+import { Topbar, MessageBar } from "./components/layout";
+import { Sidebar, OverlayControls } from "./components/features";
+import { VideoCard, RiskAreaEditorPanel } from "./components/video";
+import { ComplianceCard, PersonCard } from "./components/compliance";
+import { AlertPanel, AlertHistoryPanel } from "./components/alerts";
+import { TimelineCard } from "./components/timeline";
 import { ChecklistPanel, SettingsPanel, ModelStatusPanel } from "./components/diagnostics";
 
 export default function App() {
@@ -20,32 +20,33 @@ export default function App() {
   }, []);
 
   return (
-    <div className={`app ${mode === "technical" ? "technical-mode" : "operator-mode"}`}>
-      <TopBar />
+    <div className="shell">
+      <Topbar />
       <MessageBar />
-      <StatusRibbon />
-      <FeatureStrip />
-
-      <main className="layout">
-        <section className="main-column">
-          <VideoPanel />
-          <section className="grid-two">
-            <ComplianceMatrix />
-            <PersonCards />
-          </section>
-        </section>
-
-        <aside className="side-column">
-          <ActiveAlertsPanel />
-          <EventTimelinePanel />
-          <ChecklistPanel />
-          <OverlayControls />
-          <RiskAreaEditorPanel />
-          <SettingsPanel />
-          <ModelStatusPanel />
-          <AlertHistoryPanel />
-        </aside>
-      </main>
+      <div className="shell-body">
+        <Sidebar />
+        <main className="main">
+          <div className="main-grid">
+            <VideoCard />
+            <div className="side-column">
+              <AlertPanel />
+              <ComplianceCard />
+              <PersonCard />
+              <TimelineCard />
+            </div>
+          </div>
+          {mode === "technical" && (
+            <div className="technical-drawer">
+              <ChecklistPanel />
+              <OverlayControls />
+              <RiskAreaEditorPanel />
+              <SettingsPanel />
+              <ModelStatusPanel />
+              <AlertHistoryPanel />
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
