@@ -267,8 +267,13 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .stage { min-height: 0; display: flex; flex-direction: column; }
 .side-column { min-height: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
 /* Variant A only: técnico panels stay single-column, so the extra width
-   becomes reading-width breathing room instead of ~120ch lines. */
-.main[data-mode="technical"] .side-column { max-width: 68ch; }
+   becomes reading-width breathing room instead of ~120ch lines. max-width
+   goes on .tabs (the content), not .side-column (the scroll container) —
+   otherwise the scrollbar sits at 68ch instead of the column edge, and the
+   leftover space is dead space instead of margin. No margin-inline: auto —
+   left-aligned, flush with the video's edge; padding-inline-end pushes the
+   breathing room to the outer edge instead of centering the panel. */
+.main[data-mode="technical"] .side-column > .tabs { max-width: 68ch; padding-inline-end: 24px; }
 
 .card {
   background: var(--surface);
@@ -471,7 +476,8 @@ summary { cursor: pointer; font-weight: 600; }
      source order, so the breakpoint has to match that specificity or
      it silently loses to whichever mode is active. */
   .main, .main[data-mode] { grid-template-columns: 1fr; overflow-y: auto; }
-  .side-column, .main[data-mode] .side-column { overflow: visible; max-width: none; }
+  .side-column { overflow: visible; }
+  .side-column > .tabs, .main[data-mode] .side-column > .tabs { max-width: none; padding-inline-end: 0; }
 }
 @media (max-width: 860px) {
   .sidebar { position: fixed; z-index: 10; height: 100%; background: var(--bg); }
