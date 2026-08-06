@@ -30,6 +30,7 @@ export default defineConfig({
       "/settings": FLASK_TARGET,
       "/overlay": FLASK_TARGET,
       "/risk-area": FLASK_TARGET,
+      "/risk-score": FLASK_TARGET,
       "/events": FLASK_TARGET,
       "/snapshots": FLASK_TARGET,
       "/analysis": FLASK_TARGET,
