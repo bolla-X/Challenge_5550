@@ -6,5 +6,6 @@ frontend/node_modules/
 frontend/dist/
 runtime/
 *.pt
-echo "runtime/
-*.pt" >> .gitignoreinstance/ 
+instance/
+.DS_Store
+*.save
