@@ -74,3 +74,68 @@ class EventLog(db.Model):
             "metadata": self.metadata_json or {},
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# Features padrão de uma câmera nova — mesmas chaves que o FeatureManager já
+# usa hoje (ver app/services/feature_manager.py), só que agora por câmera em
+# vez de globais. Todas ligadas por padrão: uma câmera recém-criada deveria
+# "ver tudo" até alguém restringir deliberadamente (oposto do Operador vs.
+# Técnico: aqui quem decide é o Técnico, então o padrão é permissivo).
+# Features padrão de uma câmera nova — precisa bater exatamente com as 8
+# chaves de FeatureManager.AVAILABLE_FEATURES (app/services/feature_manager.py)
+# e com o default real do sistema hoje (.env: DEFAULT_FEATURES=ppe,helmet,
+# vest,gloves,pose,falls,posture,risk_area — todas ligadas). Diverge daqui
+# e uma câmera nova nasce com comportamento diferente do que o .env sempre
+# gerou, o que quebra a paridade que o seed do Passo 1 promete.
+DEFAULT_CAMERA_FEATURES = {
+    "ppe": True,
+    "helmet": True,
+    "vest": True,
+    "gloves": True,
+    "pose": True,
+    "falls": True,
+    "posture": True,
+    "risk_area": True,
+}
+
+
+class Camera(db.Model):
+    __tablename__ = "cameras"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    location = db.Column(db.String(160), nullable=True)
+    # "USB" (índice numérico em string), "RTSP" (URL) ou "Arquivo" (path) —
+    # mesma distinção de fonte que MonitorService.parse_video_source já
+    # entende; source_type é só pra UI (formulário/validação), o worker de
+    # captura não olha pra ele, só pra `source`.
+    source_type = db.Column(db.String(20), nullable=False, default="USB")
+    source = db.Column(db.String(255), nullable=False)
+    fps = db.Column(db.Integer, nullable=False, default=12)
+    # Resolução de captura por câmera — antes era global (FRAME_WIDTH/
+    # FRAME_HEIGHT no .env, uma só pra todas). Cada câmera tem hardware
+    # diferente (ex.: webcam embutida 640x480 vs Logitech 1920x1080), então
+    # forçar a mesma resolução pra todas ou reduz demais a de alta
+    # qualidade, ou tenta um upscale impossível na de baixa qualidade.
+    width = db.Column(db.Integer, nullable=False, default=960)
+    height = db.Column(db.Integer, nullable=False, default=540)
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    features_json = db.Column(db.JSON, nullable=False, default=lambda: dict(DEFAULT_CAMERA_FEATURES))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "location": self.location,
+            "source_type": self.source_type,
+            "source": self.source,
+            "fps": self.fps,
+            "width": self.width,
+            "height": self.height,
+            "enabled": self.enabled,
+            "features": self.features_json or dict(DEFAULT_CAMERA_FEATURES),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

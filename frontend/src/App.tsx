@@ -30,8 +30,6 @@ function GridScreen() {
   const mode = useDashboardStore((s) => s.mode);
   const setScreen = useDashboardStore((s) => s.setScreen);
   const access = ROLE_ACCESS[mode];
-  const online = cameras.filter((c) => c.status === "ok").length;
-  const withAlerts = cameras.filter((c) => c.alerts.length > 0).length;
 
   return (
     <div>
@@ -39,7 +37,7 @@ function GridScreen() {
         <div className="view-bar-left">
           <h2>Câmeras</h2>
           <span>
-            {cameras.length} cadastrada{cameras.length === 1 ? "" : "s"} · {online} online · {withAlerts} com alerta ativo
+            {cameras.length} cadastrada{cameras.length === 1 ? "" : "s"}
           </span>
         </div>
         {access.hasOverview && (
@@ -57,12 +55,16 @@ export default function App() {
   const mode = useDashboardStore((s) => s.mode);
   const screen = useDashboardStore((s) => s.screen);
   const camId = useDashboardStore((s) => s.camId);
+  const camerasLoading = useDashboardStore((s) => s.camerasLoading);
+  const hasCameras = useDashboardStore((s) => s.cameras.length > 0);
   const bootstrap = useDashboardStore((s) => s.bootstrap);
+  const loadCameras = useDashboardStore((s) => s.loadCameras);
   const setScreen = useDashboardStore((s) => s.setScreen);
 
   useEffect(() => {
     const unsubscribe = subscribeToServerEvents();
     bootstrap().catch((err) => console.error("[bootstrap] failed", err));
+    loadCameras().catch((err) => console.error("[loadCameras] failed", err));
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -71,9 +73,18 @@ export default function App() {
   // no store, screen já chega como "kiosk"); Técnico/Supervisor navegam
   // entre grid/foco/overview livremente dentro do próprio `screen`.
   let content;
-  if (mode === "operator") {
-    content = <OperatorKiosk camId={camId} />;
-  } else if (screen === "focus") {
+  if (camerasLoading) {
+    content = <div style={{ padding: 40, color: "var(--muted)", fontSize: 13 }}>Carregando câmeras…</div>;
+  } else if (mode === "operator") {
+    content =
+      camId !== null ? (
+        <OperatorKiosk camId={camId} />
+      ) : (
+        <div style={{ padding: 40, color: "var(--muted)", fontSize: 13 }}>
+          Nenhuma câmera cadastrada ainda. Peça pro Técnico/Supervisor cadastrar uma câmera antes de você conseguir monitorar.
+        </div>
+      );
+  } else if (screen === "focus" && hasCameras) {
     content = <CameraFocus />;
   } else if (screen === "overview" && ROLE_ACCESS[mode].hasOverview) {
     content = <SupervisorOverviewPlaceholder onBack={() => setScreen("grid")} />;

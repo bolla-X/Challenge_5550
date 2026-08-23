@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 // origin and we never need CORS (per approved plan, question 3).
 // Prod: Flask serves this build's output directly from app/static/dist
 // (per approved plan, question 1) — outDir points straight there.
-const FLASK_TARGET = "http://localhost:5000";
+const FLASK_TARGET = "http://localhost:5003";
 
 export default defineConfig({
   plugins: [react()],
@@ -20,6 +20,9 @@ export default defineConfig({
     proxy: {
       "/socket.io": { target: FLASK_TARGET, ws: true, changeOrigin: true },
       "/video_feed": { target: FLASK_TARGET, changeOrigin: true },
+      // /api/cameras/*/video_feed também é stream MJPEG — changeOrigin
+      // igual ao /video_feed acima, senão a imagem nunca chega a carregar.
+      "/api": { target: FLASK_TARGET, changeOrigin: true },
       "/status": FLASK_TARGET,
       "/preflight": FLASK_TARGET,
       "/start": FLASK_TARGET,
