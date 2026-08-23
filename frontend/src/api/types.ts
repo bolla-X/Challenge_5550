@@ -329,3 +329,64 @@ export interface RiskTrendResponse {
   bucket_hours: number;
   buckets: RiskTrendBucket[];
 }
+
+// ---- MOCK: multi-câmera (fase de interface, antes do backend multi-source) --
+// Sem endpoint real ainda. Alimenta grid/kiosk/foco por câmera enquanto o
+// backend continua single-source (ver MonitorService). Quando o backend
+// ganhar suporte a múltiplas câmeras (GET /cameras), este bloco deve ser
+// substituído/alinhado ao shape real vindo de lá — os nomes de campo abaixo
+// já seguem a mesma convenção snake_case do resto deste arquivo por isso.
+export interface CameraFeatureSet {
+  helmet: boolean;
+  vest: boolean;
+  gloves: boolean;
+  pose: boolean;
+  falls: boolean;
+  posture: boolean;
+  risk_area: boolean;
+}
+
+export interface CameraAlertMock {
+  id: string;
+  sev: "critical" | "high" | "medium" | "low" | "info";
+  label: string;
+  meta: string;
+  time: string;
+}
+
+export interface CameraConnectivity {
+  latency_ms: number | null;
+  uptime_pct: number;
+  last_reconnect: string;
+}
+
+export interface CameraErrorLogEntry {
+  msg: string;
+  time: string;
+}
+
+export interface CameraMock {
+  id: number;
+  name: string;
+  location: string;
+  source_type: "USB" | "RTSP" | "Arquivo";
+  source: string;
+  status: "ok" | "offline";
+  fps: number;
+  features: CameraFeatureSet;
+  alerts: CameraAlertMock[];
+  risk_score: number;
+  driving_feature: string | null;
+  connectivity: CameraConnectivity;
+  error_log: CameraErrorLogEntry[];
+}
+
+// ---- MOCK: fila de auditoria de falso positivo (exclusiva do Supervisor) --
+export interface FalsePositiveAuditItem {
+  id: number;
+  camera_id: number;
+  label: string;
+  reported_by: string;
+  time: string;
+  status: "pending" | "confirmed" | "rejected";
+}
