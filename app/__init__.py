@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import Flask
 
 from app.api.alerts import alerts_bp
+from app.api.cameras import cameras_bp
 from app.api.features import features_bp
 from app.api.diagnostics import runtime_bp
 from app.api.monitor import monitor_bp
@@ -14,6 +15,7 @@ from app.extensions import db, socketio
 from app import models  # noqa: F401
 from app.services.feature_manager import FeatureManager
 from app.services.monitor_service import MonitorService
+from app.services.camera_seed import seed_default_camera
 from app.utils.logging_config import configure_logging
 
 
@@ -40,6 +42,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     app.register_blueprint(status_bp)
     app.register_blueprint(alerts_bp)
+    app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
     app.register_blueprint(features_bp)
     app.register_blueprint(stream_bp)
@@ -49,5 +52,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     if app.config.get("AUTO_CREATE_TABLES", True):
         with app.app_context():
             db.create_all()
+            seed_default_camera(app)
+            monitor_service.load_cameras_from_db()
 
     return app

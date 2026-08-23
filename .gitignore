@@ -7,4 +7,4 @@ frontend/dist/
 runtime/
 *.pt
 echo "runtime/
-*.pt" >> .gitignore
+*.pt" >> .gitignoreinstance/ 

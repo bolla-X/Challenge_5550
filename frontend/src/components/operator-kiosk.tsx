@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { MuteToggle, useVideoStreamLabel } from "./layout";
-import type { Alert } from "../api/types";
+import { MuteToggle } from "./layout";
+import { getCameraStatus, startCamera } from "../api/endpoints";
+import type { Alert, MonitorStatus } from "../api/types";
 
 // Só os itens de EPI (helmet/vest/gloves) viram chip de conformidade no
 // rodapé — pose/quedas/postura/área de risco não têm um "objeto vestível"
@@ -41,26 +43,45 @@ function kioskStateFromAlerts(running: boolean, alerts: Alert[]): KioskState {
 }
 
 /**
- * Tela do Operador — monitor de status da câmera do setor dele. Vídeo,
- * conformidade e alertas vêm do backend REAL (único, ver conversa: "usa os
- * modelos que já tem, mesma câmera em todos por enquanto" — o backend
- * ainda é single-source, então qualquer camId mostra o mesmo feed físico).
- * Só nome/local/quais EPIs essa câmera "liga" continuam vindo do mock, até
- * o backend ganhar câmeras de verdade. Deliberadamente SEM sidebar, SEM
- * abas, SEM navegação — é um kiosk, não "mais uma tela do sistema".
+ * Tela do Operador — monitor de status da câmera do setor dele. Tudo real
+ * agora (Fase A, Passo 6): vídeo via /api/cameras/<id>/video_feed, status
+ * (running/alertas) via GET /api/cameras/<id>/status com polling — cada
+ * câmera é isolada de verdade (cada CameraWorker guarda seu próprio
+ * AlertStateService em memória, então active_alerts já vem escopado por
+ * câmera mesmo a tabela Alert ainda não tendo coluna camera_id).
+ * Deliberadamente SEM sidebar, SEM abas, SEM navegação — é um kiosk, não
+ * "mais uma tela do sistema".
  */
 export function OperatorKiosk({ camId }: { camId: number }) {
   const camera = useDashboardStore((s) => s.cameras.find((c) => c.id === camId));
   const reportFalsePositive = useDashboardStore((s) => s.reportFalsePositive);
-  const running = useDashboardStore((s) => s.running);
-  const bootstrapping = useDashboardStore((s) => s.bootstrapping);
-  const start = useDashboardStore((s) => s.start);
-  const compliance = useDashboardStore((s) => s.compliance);
-  const activeAlerts = useDashboardStore((s) => s.activeAlerts);
-  const video = useVideoStreamLabel();
+  const [status, setStatus] = useState<MonitorStatus | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    setStatus(null);
+    let cancelled = false;
+    const refresh = () => {
+      getCameraStatus(camId)
+        .then((s) => {
+          if (!cancelled) setStatus(s);
+        })
+        .catch(() => {
+          if (!cancelled) setStatus(null);
+        });
+    };
+    refresh();
+    const interval = setInterval(refresh, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [camId]);
 
   if (!camera) return null;
 
+  const running = Boolean(status?.running);
+  const activeAlerts = status?.active_alerts ?? [];
   const state = kioskStateFromAlerts(running, activeAlerts);
   const critical = activeAlerts.find((a) => a.severity === "critical");
   const primaryAlert = critical || activeAlerts[0] || null;
@@ -74,6 +95,14 @@ export function OperatorKiosk({ camId }: { camId: number }) {
       ? `${primaryAlert.rule} · ${primaryAlert.feature ?? ""}`
       : "Nenhum alerta ativo no momento.";
 
+  const handleStart = () => {
+    setStarting(true);
+    startCamera(camId)
+      .then(setStatus)
+      .catch((err) => console.error(err))
+      .finally(() => setStarting(false));
+  };
+
   return (
     <div className="kiosk-wrap">
       <div className={`kiosk-status-banner ${state}`}>
@@ -86,20 +115,18 @@ export function OperatorKiosk({ camId }: { camId: number }) {
 
       <div className={`kiosk-video-wrap ${state === "critical" ? "critical" : ""}`.trim()}>
         <span className="kiosk-live-tag">
-          <span className={`status-dot ${running ? video.status : "warn"}`} />
-          {running ? video.label : "parado"}
+          <span className={`status-dot ${running ? "ok" : "warn"}`} />
+          {running ? "recebendo" : "parado"}
         </span>
         <span className="kiosk-cam-name">{camera.name}</span>
         {running ? (
-          <img src="/video_feed" alt={`Feed de vídeo — ${camera.name}`} />
+          <img src={`/api/cameras/${camId}/video_feed`} alt={`Feed de vídeo — ${camera.name}`} />
         ) : (
           <div className="kiosk-video-empty">
-            <p>{bootstrapping ? "Carregando…" : "Sem sinal — monitoramento parado."}</p>
-            {!bootstrapping && (
-              <button type="button" onClick={() => start().catch((err) => console.error(err))}>
-                Iniciar
-              </button>
-            )}
+            <p>{status === null ? "Carregando…" : "Sem sinal — monitoramento parado."}</p>
+            <button type="button" disabled={starting} onClick={handleStart}>
+              {starting ? "Iniciando…" : "Iniciar"}
+            </button>
           </div>
         )}
       </div>
@@ -107,8 +134,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
       <div className="kiosk-footer">
         <div className="kiosk-compliance-row">
           {COMPLIANCE_KEYS.filter((key) => camera.features[key]).map((key) => {
-            const card = compliance?.ppe[key];
-            const violated = card ? card.status === "missing" || card.status === "critical" : false;
+            const violated = activeAlerts.some((a) => a.feature === key);
             return (
               <span key={key} className={`kiosk-chip ${violated ? "bad" : "ok"}`}>
                 {violated ? <CrossIcon /> : <CheckIcon />}
@@ -130,7 +156,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
             type="button"
             className="kiosk-report-btn"
             onClick={() => {
-              if (primaryAlert) reportFalsePositive(camera.id, primaryAlert.message);
+              if (primaryAlert) reportFalsePositive(camId, primaryAlert.message);
               alert("Enviado pra fila de auditoria do Supervisor.");
             }}
           >

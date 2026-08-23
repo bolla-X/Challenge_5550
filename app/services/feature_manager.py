@@ -48,6 +48,25 @@ class FeatureManager:
         }
         return cls(features)
 
+    @classmethod
+    def from_camera_features(cls, camera_features: dict[str, bool]) -> "FeatureManager":
+        """Constrói um FeatureManager a partir de Camera.features_json (Fase A,
+        Passo 4 — multi-câmera). Cada câmera tem seu próprio FeatureManager
+        independente, mesma classe/interface de sempre (is_enabled/list/
+        as_dict/update), só a fonte do estado inicial que muda: em vez do
+        .env global (DEFAULT_FEATURES), vem do banco, por câmera."""
+        features = {
+            item.key: FeatureFlag(
+                key=item.key,
+                label=item.label,
+                description=item.description,
+                enabled=bool(camera_features.get(item.key, True)),
+                group=item.group,
+            )
+            for item in cls.AVAILABLE_FEATURES
+        }
+        return cls(features)
+
     def is_enabled(self, key: str) -> bool:
         with self._lock:
             feature = self._features.get(key)

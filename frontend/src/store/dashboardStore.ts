@@ -12,6 +12,7 @@ import {
   getSettings,
   getStatus,
   listAlerts,
+  listCameras,
   listEvents,
   markFalsePositive as apiMarkFalsePositive,
   patchFeatures as apiPatchFeatures,
@@ -20,11 +21,12 @@ import {
   patchSettings as apiPatchSettings,
   startMonitor,
   stopMonitor,
+  updateCamera as apiUpdateCamera,
 } from "../api/endpoints";
 import type {
   Alert,
   CameraFeatureSet,
-  CameraMock,
+  CameraRecord,
   ComplianceState,
   Detection,
   FalsePositiveAuditItem,
@@ -38,7 +40,7 @@ import type {
   RuntimeSettings,
   TimelineEvent,
 } from "../api/types";
-import { MOCK_AUDIT_QUEUE, MOCK_CAMERAS } from "./mockCameras";
+import { MOCK_AUDIT_QUEUE } from "./mockCameras";
 
 export type ViewMode = "operator" | "technical" | "supervisor";
 
@@ -145,18 +147,23 @@ interface DashboardState {
   updateRiskArea: (payload: { name?: string; polygon: { x: number; y: number }[] }) => Promise<void>;
   markFalsePositive: (alertId: number, reason?: string) => Promise<void>;
 
-  // ---- MOCK: multi-câmera (ver mockCameras.ts) ----------------------------
+  // ---- multi-câmera REAL (Fase A, Passo 6 — ver app/api/cameras.py) -------
   // `screen` decide qual tela do "espaço multi-câmera" aparece; é ortogonal
   // a `mode`, mas setMode força screen="kiosk" pro Operador (trava de
   // navegação: ele nunca deveria conseguir cair no grid/foco de propósito).
-  cameras: CameraMock[];
-  camId: number;
+  // Sem seed automático no backend — cameras começa vazio até loadCameras()
+  // resolver, e continua vazio até o usuário cadastrar a primeira.
+  cameras: CameraRecord[];
+  camerasLoading: boolean;
+  camId: number | null;
   screen: CameraScreen;
   // Câmera "do setor" do Operador — simulado por enquanto (seletor na UI).
   // Vira sessão/login mais adiante; é por isso que fica separado de `camId`
-  // (que é só "qual câmera está sendo exibida agora").
-  operatorCam: number;
+  // (que é só "qual câmera está sendo exibida agora"). null enquanto não
+  // existe nenhuma câmera cadastrada.
+  operatorCam: number | null;
   auditQueue: FalsePositiveAuditItem[];
+  loadCameras: () => Promise<void>;
   setScreen: (screen: CameraScreen) => void;
   setCamId: (camId: number) => void;
   setOperatorCam: (camId: number) => void;
@@ -310,12 +317,35 @@ export const useDashboardStore = create<DashboardState>()(
           "setMode",
         ),
 
-      // ---- MOCK: multi-câmera --------------------------------------------
-      cameras: MOCK_CAMERAS,
-      camId: 1,
-      operatorCam: 1,
+      // ---- multi-câmera REAL (Fase A, Passo 6) ----------------------------
+      cameras: [],
+      camerasLoading: true,
+      camId: null,
+      operatorCam: null,
       screen: readStoredMode() === "operator" ? "kiosk" : "grid",
       auditQueue: MOCK_AUDIT_QUEUE,
+      loadCameras: async () => {
+        try {
+          const res = await listCameras();
+          set(
+            (state) => {
+              const cameras = res.items;
+              const ids = cameras.map((c) => c.id);
+              // Se a câmera selecionada/simulada sumiu (ou nenhuma nunca foi
+              // escolhida ainda), cai pra primeira da lista — sem isso, o
+              // kiosk/foco ficam presos numa id que não existe mais.
+              const camId = state.camId !== null && ids.includes(state.camId) ? state.camId : (cameras[0]?.id ?? null);
+              const operatorCam = state.operatorCam !== null && ids.includes(state.operatorCam) ? state.operatorCam : (cameras[0]?.id ?? null);
+              return { cameras, camerasLoading: false, camId, operatorCam };
+            },
+            false,
+            "loadCameras",
+          );
+        } catch (error) {
+          console.error("[loadCameras] failed", error);
+          set({ camerasLoading: false }, false, "loadCameras:error");
+        }
+      },
       setScreen: (screen) => set({ screen }, false, "setScreen"),
       setCamId: (camId) => set({ camId }, false, "setCamId"),
       setOperatorCam: (camId) =>
@@ -330,14 +360,31 @@ export const useDashboardStore = create<DashboardState>()(
           false,
           "setOperatorCam",
         ),
-      toggleCameraFeature: (camId, key) =>
+      toggleCameraFeature: (camId, key) => {
+        const current = useDashboardStore.getState().cameras.find((c) => c.id === camId);
+        if (!current) return;
+        const nextValue = !current.features[key];
+        // Otimista: atualiza a UI na hora, sem esperar a resposta — reverte
+        // sozinho no próximo loadCameras() se a chamada falhar (o catch já
+        // loga o erro; não reverte manualmente pra não complicar o fluxo
+        // por um caso raro de falha de rede numa ação de toggle).
         set(
           (state) => ({
-            cameras: state.cameras.map((cam) => (cam.id === camId ? { ...cam, features: { ...cam.features, [key]: !cam.features[key] } } : cam)),
+            cameras: state.cameras.map((cam) => (cam.id === camId ? { ...cam, features: { ...cam.features, [key]: nextValue } } : cam)),
           }),
           false,
-          "toggleCameraFeature",
-        ),
+          "toggleCameraFeature:optimistic",
+        );
+        apiUpdateCamera(camId, { features: { [key]: nextValue } })
+          .then((updated) =>
+            set(
+              (state) => ({ cameras: state.cameras.map((cam) => (cam.id === camId ? updated : cam)) }),
+              false,
+              "toggleCameraFeature:confirmed",
+            ),
+          )
+          .catch((error) => console.error("[toggleCameraFeature] failed", error));
+      },
       reportFalsePositive: (camId, label) =>
         set(
           (state) => ({

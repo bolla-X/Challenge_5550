@@ -2,9 +2,14 @@ import { apiFetch } from "./client";
 import type {
   AlertsResponse,
   Alert,
+  CameraDiscoveryResponse,
+  CameraFeatureSet,
+  CameraRecord,
+  CamerasResponse,
   EventsResponse,
   FeaturesResponse,
   ModelDiagnostics,
+  MonitorStatus,
   OverlayOptions,
   PreflightResponse,
   RiskAreaState,
@@ -25,6 +30,46 @@ export const stopMonitor = () => apiFetch<StatusResponse>("/stop", { method: "PO
 export const getFeatures = () => apiFetch<FeaturesResponse>("/features");
 export const patchFeatures = (features: Record<string, boolean>) =>
   apiFetch<FeaturesResponse>("/features", { method: "PATCH", body: JSON.stringify({ features }) });
+
+// ---- controle por câmera (Fase A, Passo 5/6 — ver app/api/cameras.py) ----
+// Mesmo shape de resposta do /status legado (MonitorStatus), só que
+// escopado a uma câmera. video_feed não tem função própria aqui — é usado
+// direto como `src` de <img>, não faz sentido "buscar" um MJPEG via fetch.
+export const getCameraStatus = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/status`);
+export const startCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/start`, { method: "POST" });
+export const stopCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/stop`, { method: "POST" });
+
+// ---- CRUD real de câmeras (Fase A, Passo 6 — substitui mockCameras.ts) ---
+export const listCameras = () => apiFetch<CamerasResponse>("/api/cameras");
+export const createCamera = (payload: {
+  name: string;
+  location?: string | null;
+  source_type: "USB" | "RTSP" | "Arquivo";
+  source: string;
+  fps?: number;
+  width?: number;
+  height?: number;
+  features?: Partial<CameraFeatureSet>;
+}) => apiFetch<CameraRecord>("/api/cameras", { method: "POST", body: JSON.stringify(payload) });
+export const updateCamera = (
+  cameraId: number,
+  payload: Partial<{
+    name: string;
+    location: string | null;
+    source_type: "USB" | "RTSP" | "Arquivo";
+    source: string;
+    fps: number;
+    width: number;
+    height: number;
+    enabled: boolean;
+    features: Partial<CameraFeatureSet>;
+  }>,
+) => apiFetch<CameraRecord>(`/api/cameras/${cameraId}`, { method: "PUT", body: JSON.stringify(payload) });
+export const deleteCamera = (cameraId: number) => apiFetch<{ deleted: boolean; id: number }>(`/api/cameras/${cameraId}`, { method: "DELETE" });
+
+// Testa de verdade quais índices USB respondem agora — ver docstring de
+// discover_cameras() no backend. maxIndex vira ?max_index=N.
+export const discoverCameras = (maxIndex = 5) => apiFetch<CameraDiscoveryResponse>(`/api/cameras/discover?max_index=${maxIndex}`);
 
 export const listAlerts = (params: { limit?: number; severity?: string; status?: string } = {}) => {
   const query = new URLSearchParams();

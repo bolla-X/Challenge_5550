@@ -344,6 +344,10 @@ export interface CameraFeatureSet {
   falls: boolean;
   posture: boolean;
   risk_area: boolean;
+  // Toggle de grupo do backend (liga/desliga capacete+colete+luvas juntos)
+  // — existe na API real mas a UI nunca expôs um controle próprio pra ele,
+  // então fica opcional aqui pra não quebrar nada que já lia esse tipo.
+  ppe?: boolean;
 }
 
 export interface CameraAlertMock {
@@ -379,6 +383,45 @@ export interface CameraMock {
   driving_feature: string | null;
   connectivity: CameraConnectivity;
   error_log: CameraErrorLogEntry[];
+}
+
+// ---- REAL: câmeras multi-source (Fase A, Passo 6 — ver app/api/cameras.py) --
+// Câmeras de verdade cadastradas pelo usuário, sem seed automático. Mesmo
+// shape de Camera.to_dict() no backend.
+export interface CameraRecord {
+  id: number;
+  name: string;
+  location: string | null;
+  source_type: "USB" | "RTSP" | "Arquivo";
+  source: string;
+  fps: number;
+  width: number;
+  height: number;
+  enabled: boolean;
+  features: CameraFeatureSet;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CamerasResponse {
+  items: CameraRecord[];
+  count: number;
+}
+
+// ---- GET /api/cameras/discover: testa índices USB reais na hora ----------
+export interface CameraDiscoveryEntry {
+  index: number;
+  source: string;
+  available: boolean;
+  width: number | null;
+  height: number | null;
+  already_registered: boolean;
+  registered_as: string | null;
+}
+
+export interface CameraDiscoveryResponse {
+  items: CameraDiscoveryEntry[];
+  count: number;
 }
 
 // ---- MOCK: fila de auditoria de falso positivo (exclusiva do Supervisor) --
