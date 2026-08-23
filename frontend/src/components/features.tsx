@@ -1,6 +1,6 @@
-import { useDashboardStore } from "../store/dashboardStore";
+import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { Panel } from "./common";
-import type { ComplianceState, FeatureFlag } from "../api/types";
+import type { CameraFeatureSet, ComplianceState, FeatureFlag } from "../api/types";
 
 const FEATURE_ORDER = ["ppe", "helmet", "vest", "gloves", "pose", "falls", "posture", "risk_area"];
 
@@ -143,6 +143,75 @@ export function Sidebar() {
         <div className="nav-list">
           {sorted.map((feature) => (
             <NavRow key={feature.key} feature={feature} />
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// Ordem das features específicas de câmera (sem "ppe" — o mock de câmera
+// não tem grupo guarda-chuva, só os itens individuais que o Técnico liga
+// um a um por câmera).
+const CAMERA_FEATURE_ORDER: (keyof CameraFeatureSet)[] = ["helmet", "vest", "gloves", "pose", "falls", "posture", "risk_area"];
+const CAMERA_FEATURE_LABELS: Record<keyof CameraFeatureSet, string> = {
+  helmet: "Capacete",
+  vest: "Colete",
+  gloves: "Luvas",
+  pose: "Pose",
+  falls: "Quedas",
+  posture: "Postura",
+  risk_area: "Área de risco",
+};
+
+function CameraNavRow({ camId, featureKey, on }: { camId: number; featureKey: keyof CameraFeatureSet; on: boolean }) {
+  const toggleCameraFeature = useDashboardStore((s) => s.toggleCameraFeature);
+  const access = useDashboardStore((s) => ROLE_ACCESS[s.mode]);
+  const iconPath = FEATURE_ICONS[featureKey];
+  return (
+    <button
+      type="button"
+      className={`nav-row ${on ? "on" : ""} ${on ? "live" : ""}`.trim()}
+      disabled={!access.canConfigure}
+      onClick={() => toggleCameraFeature(camId, featureKey)}
+    >
+      <span className={`nav-row-icon ${iconPath ? "" : "dot"}`.trim()}>
+        {iconPath && (
+          <svg viewBox="0 0 24 24">
+            <path d={iconPath} />
+          </svg>
+        )}
+      </span>
+      <span className="nav-row-body">
+        <strong>{CAMERA_FEATURE_LABELS[featureKey]}</strong>
+        <small>{access.canConfigure ? `clique pra ${on ? "desligar" : "ligar"}` : "somente leitura"}</small>
+      </span>
+      <span className="nav-row-state">
+        <span className="nav-row-live-dot" />
+        {on ? "on" : "off"}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Sidebar de features por câmera — mock (ver mockCameras.ts). Existe ao
+ * lado da <Sidebar> original (que continua ligada ao backend single-camera
+ * real) em vez de substituí-la, pra não quebrar o fluxo atual enquanto o
+ * grid/foco por câmera ainda não está integrado no App.tsx. Quando o
+ * backend ganhar multi-source de verdade, as duas tendem a convergir numa
+ * só, parametrizada por camId sempre (não só no mock).
+ */
+export function CameraSidebar({ camId }: { camId: number }) {
+  const camera = useDashboardStore((s) => s.cameras.find((c) => c.id === camId));
+  if (!camera) return null;
+  return (
+    <nav className="sidebar" aria-label={`Features da ${camera.name}`}>
+      <div className="sidebar-group">
+        <div className="sidebar-group-label">Features desta câmera</div>
+        <div className="nav-list">
+          {CAMERA_FEATURE_ORDER.map((key) => (
+            <CameraNavRow key={key} camId={camId} featureKey={key} on={camera.features[key]} />
           ))}
         </div>
       </div>

@@ -23,8 +23,11 @@ import {
 } from "../api/endpoints";
 import type {
   Alert,
+  CameraFeatureSet,
+  CameraMock,
   ComplianceState,
   Detection,
+  FalsePositiveAuditItem,
   FeatureFlag,
   ModelDiagnostics,
   OverlayOptions,
@@ -35,8 +38,29 @@ import type {
   RuntimeSettings,
   TimelineEvent,
 } from "../api/types";
+import { MOCK_AUDIT_QUEUE, MOCK_CAMERAS } from "./mockCameras";
 
 export type ViewMode = "operator" | "technical" | "supervisor";
+
+// Tela dentro do "espaço multi-câmera". Independente de `mode`: o mesmo
+// `mode` pode passear entre grid/foco (Técnico/Supervisor), e Operador fica
+// travado em "kiosk" (ver setMode e setScreenForMode abaixo).
+export type CameraScreen = "grid" | "focus" | "kiosk" | "overview";
+
+// Acesso por papel — hoje é só UI (sem login real ainda, ver conversa no
+// chat), mas centralizado aqui pra não espalhar `mode === "operator"` por
+// componente. Quando o login real chegar, isso troca de fonte (derivado de
+// sessão), não de forma.
+export interface RoleAccess {
+  seeAllCameras: boolean;
+  canConfigure: boolean;
+  hasOverview: boolean;
+}
+export const ROLE_ACCESS: Record<ViewMode, RoleAccess> = {
+  operator: { seeAllCameras: false, canConfigure: false, hasOverview: false },
+  technical: { seeAllCameras: true, canConfigure: true, hasOverview: false },
+  supervisor: { seeAllCameras: true, canConfigure: true, hasOverview: true },
+};
 
 interface DashboardState {
   // connection
@@ -120,6 +144,25 @@ interface DashboardState {
   updateSettings: (updates: Partial<RuntimeSettings>) => Promise<void>;
   updateRiskArea: (payload: { name?: string; polygon: { x: number; y: number }[] }) => Promise<void>;
   markFalsePositive: (alertId: number, reason?: string) => Promise<void>;
+
+  // ---- MOCK: multi-câmera (ver mockCameras.ts) ----------------------------
+  // `screen` decide qual tela do "espaço multi-câmera" aparece; é ortogonal
+  // a `mode`, mas setMode força screen="kiosk" pro Operador (trava de
+  // navegação: ele nunca deveria conseguir cair no grid/foco de propósito).
+  cameras: CameraMock[];
+  camId: number;
+  screen: CameraScreen;
+  // Câmera "do setor" do Operador — simulado por enquanto (seletor na UI).
+  // Vira sessão/login mais adiante; é por isso que fica separado de `camId`
+  // (que é só "qual câmera está sendo exibida agora").
+  operatorCam: number;
+  auditQueue: FalsePositiveAuditItem[];
+  setScreen: (screen: CameraScreen) => void;
+  setCamId: (camId: number) => void;
+  setOperatorCam: (camId: number) => void;
+  toggleCameraFeature: (camId: number, key: keyof CameraFeatureSet) => void;
+  reportFalsePositive: (camId: number, label: string) => void;
+  resolveAudit: (id: number, status: "confirmed" | "rejected") => void;
 }
 
 const MAX_TIMELINE = 90;
@@ -252,12 +295,67 @@ export const useDashboardStore = create<DashboardState>()(
             } catch {
               // localStorage indisponível (modo privado etc.) — só não persiste
             }
+            // Trava de navegação do Operador: ele só tem a câmera do setor
+            // dele, então trocar pra Operador sempre pousa direto no kiosk
+            // daquela câmera, nunca no grid (ele não pode "ver as outras").
+            // Técnico/Supervisor voltam pro grid — não têm uma câmera "dona"
+            // fixa, então grid é o ponto de partida natural dos dois.
+            const nextScreen: CameraScreen = mode === "operator" ? "kiosk" : "grid";
+            const nextCamId = mode === "operator" ? state.operatorCam : state.camId;
             // Som "ao vivo" segue o default/última preferência do perfil pra
             // onde se está indo, não do perfil anterior.
-            return { mode, muted: state.mutedByProfile[mode] };
+            return { mode, muted: state.mutedByProfile[mode], screen: nextScreen, camId: nextCamId };
           },
           false,
           "setMode",
+        ),
+
+      // ---- MOCK: multi-câmera --------------------------------------------
+      cameras: MOCK_CAMERAS,
+      camId: 1,
+      operatorCam: 1,
+      screen: readStoredMode() === "operator" ? "kiosk" : "grid",
+      auditQueue: MOCK_AUDIT_QUEUE,
+      setScreen: (screen) => set({ screen }, false, "setScreen"),
+      setCamId: (camId) => set({ camId }, false, "setCamId"),
+      setOperatorCam: (camId) =>
+        set(
+          (state) => ({
+            operatorCam: camId,
+            // Se o Operador já está olhando o kiosk, trocar o "setor
+            // simulado" precisa refletir na tela na hora — senão o
+            // seletor muda mas o vídeo continua mostrando a câmera antiga.
+            camId: state.mode === "operator" ? camId : state.camId,
+          }),
+          false,
+          "setOperatorCam",
+        ),
+      toggleCameraFeature: (camId, key) =>
+        set(
+          (state) => ({
+            cameras: state.cameras.map((cam) => (cam.id === camId ? { ...cam, features: { ...cam.features, [key]: !cam.features[key] } } : cam)),
+          }),
+          false,
+          "toggleCameraFeature",
+        ),
+      reportFalsePositive: (camId, label) =>
+        set(
+          (state) => ({
+            auditQueue: [
+              { id: Date.now(), camera_id: camId, label, reported_by: `Operador (Cam ${camId})`, time: "agora", status: "pending" },
+              ...state.auditQueue,
+            ],
+          }),
+          false,
+          "reportFalsePositive",
+        ),
+      resolveAudit: (id, status) =>
+        set(
+          (state) => ({
+            auditQueue: state.auditQueue.map((item) => (item.id === id ? { ...item, status } : item)),
+          }),
+          false,
+          "resolveAudit",
         ),
       showMessage: (text, tone = "warning") => set({ message: { text, tone } }, false, "showMessage"),
       hideMessage: () => set({ message: null }, false, "hideMessage"),

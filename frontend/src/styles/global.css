@@ -281,7 +281,7 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
    lógica de "não é o vídeo que precisa de espaço aqui". */
 .main[data-mode="technical"], .main[data-mode="supervisor"] { grid-template-columns: 1fr 1.65fr; }
 .stage { min-height: 0; display: flex; flex-direction: column; }
-.side-column { min-height: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
+.side-column { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
 /* Variant A only: técnico panels stay single-column, so the extra width
    becomes reading-width breathing room instead of ~120ch lines. max-width
    goes on .tabs (the content), not .side-column (the scroll container) —
@@ -512,3 +512,106 @@ summary { cursor: pointer; font-weight: 600; }
   .main { padding: 18px; }
   .filter-row, .settings-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------------- Camera grid (multi-câmera, ver mockCameras.ts) -------- */
+.view-bar { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 0; }
+.view-bar-left { display: flex; align-items: baseline; gap: 12px; }
+.view-bar-left h2 { font-size: 15px; font-weight: 650; color: var(--text); }
+.view-bar-left span { font-size: 12px; color: var(--muted); }
+
+.sim-select-wrap { display: flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px dashed var(--border-strong); padding: 5px 10px 5px 5px; border-radius: var(--radius-sm); }
+.sim-select-wrap label { font-size: 10px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .04em; padding: 0 4px; }
+.sim-select-wrap select { background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--text); font-size: 12px; padding: 5px 8px; border-radius: 7px; }
+/* Reaproveita .card/.card-head/.card-body/.badge já existentes — só o
+   grid em si e os elementos específicos de card-de-câmera são novos. */
+.camera-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding: 20px; }
+.cam-card { display: flex; flex-direction: column; transition: border-color .15s var(--ease); }
+.cam-card:hover { border-color: var(--border-strong); }
+.cam-card.warn { border-color: rgba(245, 158, 11, .35); }
+.cam-card.error { border-color: rgba(239, 68, 68, .4); }
+.cam-frame { position: relative; aspect-ratio: 16 / 9; background: #05070a; overflow: hidden; }
+.cam-frame img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .92; }
+.cam-frame.offline { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--muted-2); }
+.cam-frame.offline svg { width: 24px; height: 24px; opacity: .5; }
+.cam-frame.offline span { font-size: 12px; }
+.cam-live-tag {
+  position: absolute; top: 10px; left: 10px; background: rgba(10, 13, 18, .75); backdrop-filter: blur(6px);
+  font-size: 10.5px; padding: 4px 8px; border-radius: var(--radius-pill); display: flex; align-items: center; gap: 5px; z-index: 2;
+}
+.cam-alert-tag {
+  position: absolute; top: 10px; right: 10px; background: rgba(239, 68, 68, .9); color: #fff;
+  font-size: 10.5px; font-weight: 650; padding: 4px 8px; border-radius: var(--radius-pill); z-index: 2;
+}
+.cam-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.cam-title-row h3 { font-size: 13.5px; font-weight: 650; display: flex; align-items: center; gap: 7px; }
+.cam-location { font-size: 11px; color: var(--muted-2); }
+.cam-conn-row { display: flex; gap: 10px; font-size: 10.5px; color: var(--muted-2); flex-wrap: wrap; }
+.cam-conn-row b { color: var(--muted); font-weight: 600; }
+.cam-feature-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.cam-chip { font-size: 10.5px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+.cam-chip.on { color: var(--accent); border-color: var(--accent-soft-border); background: var(--accent-dim); }
+.cam-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); }
+.cam-footer-stat { font-size: 11px; color: var(--muted); }
+.cam-configure { font-size: 11.5px; color: var(--accent); background: transparent; border: 0; display: flex; align-items: center; gap: 4px; padding: 4px 0; }
+.cam-configure svg { width: 12px; height: 12px; }
+.cam-add-card {
+  border: 1px dashed var(--border-strong); border-radius: var(--radius); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; color: var(--muted); background: var(--surface-2); min-height: 180px;
+}
+.cam-add-card:hover { color: var(--text); border-color: var(--accent-soft-border); }
+.cam-add-card svg { width: 24px; height: 24px; opacity: .6; }
+.cam-add-card span { font-size: 12.5px; }
+
+/* ---------------- Kiosk do Operador (mock, ver operator-kiosk.tsx) ------ */
+/* Deliberadamente fora do vocabulário .card/.tabs/.sidebar — o kiosk não é
+   "mais uma tela do sistema", é um monitor de status. Vídeo dominante,
+   banner de estado gigante, nada de navegação. */
+.kiosk-wrap { padding: 20px; max-width: 1100px; margin: 0 auto; }
+.kiosk-status-banner {
+  display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: var(--radius);
+  margin-bottom: 16px; border: 1px solid var(--border); background: var(--surface);
+}
+.kiosk-status-banner.ok { background: rgba(34, 197, 94, .08); border-color: rgba(34, 197, 94, .3); }
+.kiosk-status-banner.warn { background: rgba(245, 158, 11, .08); border-color: rgba(245, 158, 11, .35); }
+.kiosk-status-banner.critical { background: rgba(239, 68, 68, .1); border-color: rgba(239, 68, 68, .4); animation: kioskPulseBorder 1.6s ease-in-out infinite; }
+@keyframes kioskPulseBorder { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .25); } 50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } }
+.kiosk-status-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none; }
+.kiosk-status-banner.ok .kiosk-status-icon { background: rgba(34, 197, 94, .18); color: var(--ok); }
+.kiosk-status-banner.warn .kiosk-status-icon { background: rgba(245, 158, 11, .18); color: var(--warning); }
+.kiosk-status-banner.critical .kiosk-status-icon { background: rgba(239, 68, 68, .2); color: var(--danger); }
+.kiosk-status-icon svg { width: 24px; height: 24px; }
+.kiosk-status-text h2 { font-size: 19px; font-weight: 700; color: var(--text); }
+.kiosk-status-text p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.kiosk-video-wrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: #05070a; }
+.kiosk-video-wrap img { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+.kiosk-video-wrap.critical { border-color: rgba(239, 68, 68, .5); }
+.kiosk-video-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; aspect-ratio: 16 / 9; color: var(--muted); }
+.kiosk-video-empty p { font-size: 13px; max-width: 34ch; text-align: center; }
+.kiosk-live-tag {
+  position: absolute; top: 14px; left: 14px; background: rgba(10, 13, 18, .8); backdrop-filter: blur(6px);
+  font-size: 13px; padding: 6px 12px; border-radius: var(--radius-pill); display: flex; align-items: center; gap: 7px; z-index: 2;
+}
+.kiosk-cam-name {
+  position: absolute; top: 14px; right: 14px; background: rgba(10, 13, 18, .8); backdrop-filter: blur(6px);
+  font-size: 13px; font-weight: 650; padding: 6px 12px; border-radius: var(--radius-pill); z-index: 2;
+}
+.kiosk-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+.kiosk-compliance-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.kiosk-chip { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 8px 14px; border-radius: var(--radius-pill); background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+.kiosk-chip.ok { color: var(--ok); border-color: rgba(34, 197, 94, .3); background: rgba(34, 197, 94, .08); }
+.kiosk-chip.bad { color: var(--danger); border-color: rgba(239, 68, 68, .35); background: rgba(239, 68, 68, .1); }
+.kiosk-chip svg { width: 14px; height: 14px; }
+.kiosk-footer .mute-toggle { width: 46px; height: 46px; flex: none; }
+.kiosk-footer .mute-toggle svg { width: 20px; height: 20px; }
+.kiosk-report-row { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+.kiosk-report-btn { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); padding: 10px 16px; border-radius: var(--radius-sm); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.kiosk-report-btn:hover { border-color: var(--accent-soft-border); color: var(--accent); }
+.kiosk-sim-note { text-align: center; font-size: 11px; color: var(--muted-2); margin-top: 14px; }
+
+/* ---------------- Foco individual por câmera (Técnico/Supervisor) ------- */
+.focus-topstrip { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+.focus-cam-select { display: flex; gap: 6px; margin-left: 4px; }
+.focus-cam-pill { font-size: 12px; padding: 6px 12px; border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+.focus-cam-pill.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-soft-border); }
+.focus-title { margin-left: auto; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; flex-shrink: 1; }
+.focus-title b { color: var(--text); font-weight: 600; }

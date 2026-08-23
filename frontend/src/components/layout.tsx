@@ -42,6 +42,28 @@ export function MuteToggle() {
   );
 }
 
+// Seletor "simular setor" do Operador — existe só nessa fase de testes
+// (sem login real ainda, ver conversa no chat). Escreve em operatorCam no
+// store; quando o login chegar, isso vira derivado de sessão, não um
+// <select> na topbar.
+function OperatorCameraSimSelect() {
+  const cameras = useDashboardStore((s) => s.cameras);
+  const operatorCam = useDashboardStore((s) => s.operatorCam);
+  const setOperatorCam = useDashboardStore((s) => s.setOperatorCam);
+  return (
+    <div className="sim-select-wrap" title="Simula qual câmera é 'do setor' deste Operador — provisório, some quando o login real existir.">
+      <label htmlFor="operator-sim-select">simular setor</label>
+      <select id="operator-sim-select" value={operatorCam} onChange={(e) => setOperatorCam(Number(e.target.value))}>
+        {cameras.map((cam) => (
+          <option key={cam.id} value={cam.id}>
+            {cam.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function Topbar() {
   const { mode, setMode, start, stop, connected, running, setCommandPaletteOpen } = useDashboardStore();
   const video = useVideoStatus();
@@ -80,6 +102,7 @@ export function Topbar() {
           </div>
         </div>
         <div className="topbar-actions">
+          {mode === "operator" && <OperatorCameraSimSelect />}
           <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
             Buscar <kbd>Ctrl K</kbd>
           </button>
