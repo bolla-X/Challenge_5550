@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Flask
+from flask import Flask, jsonify
 
 from app.api.alerts import alerts_bp
 from app.api.cameras import cameras_bp
@@ -14,8 +14,7 @@ from app.config import Config
 from app.extensions import db, socketio
 from app import models  # noqa: F401
 from app.services.feature_manager import FeatureManager
-from app.services.monitor_service import MonitorService
-from app.services.camera_seed import seed_default_camera
+from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.logging_config import configure_logging
 
 
@@ -49,10 +48,22 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(runtime_bp)
     app.register_blueprint(risk_bp)
 
+    # Cobre toda rota LEGADA que opera sobre "a câmera padrão" (/start,
+    # /stop, /status, /preflight, /settings, /overlay, /risk-area,
+    # /analysis/latest) quando não existe nenhuma câmera cadastrada ainda —
+    # em vez de deixar cada rota individual lidar com isso, um handler só.
+    # (/video_feed é streaming e trata isso dentro do próprio generator,
+    # ver app/api/stream.py — um erro aqui não alcançaria o cliente depois
+    # que a resposta já começou a ser enviada.)
+    @app.errorhandler(CameraNotFoundError)
+    def _handle_no_camera(exc: CameraNotFoundError):
+        return jsonify({"error": str(exc), "hint": "Cadastre e inicie uma câmera em /api/cameras antes de usar esta rota."}), 404
+
     if app.config.get("AUTO_CREATE_TABLES", True):
         with app.app_context():
             db.create_all()
-            seed_default_camera(app)
+            # Sem seed automático de propósito — o usuário cadastra as
+            # câmeras dele pela tela/API, nada fictício nasce sozinho.
             monitor_service.load_cameras_from_db()
 
     return app

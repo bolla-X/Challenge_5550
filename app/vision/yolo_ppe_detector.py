@@ -71,14 +71,25 @@ class YoloPPEDetector:
         return YOLO(self.model_path)
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        results = self.model.predict(
-            source=frame,
-            conf=self.confidence,
-            device=self.device,
-            classes=self.classes,
-            verbose=False,
-            max_det=self.max_detections,
-        )
+        try:
+            results = self.model.predict(
+                source=frame,
+                conf=self.confidence,
+                device=self.device,
+                classes=self.classes,
+                verbose=False,
+                max_det=self.max_detections,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Modelo ausente/corrompido não pode derrubar o frame inteiro —
+            # sem isso, uma câmera nova (que nasce com "ppe" ligado por
+            # padrão) nunca produz nenhum frame até alguém configurar
+            # PPE_MODEL_PATH, mesmo a captura de vídeo em si funcionando.
+            # diagnostics() já expõe esse erro (ppe_ready=False + warning);
+            # aqui só evita propagar e travar o restante do pipeline.
+            self._last_diagnostics = self._build_diagnostics(names={}, error=str(exc))
+            self._log_model_warning_once(self._last_diagnostics)
+            return []
         detections: list[Detection] = []
         if not results:
             return detections
