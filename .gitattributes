@@ -1,0 +1,11 @@
+# Normaliza fim de linha no repositorio (LF) e deixa o checkout com o formato
+# nativo de cada sistema. Sem isto, um script que le CRLF e reescreve em
+# Windows pode gerar `\r\r\n` — foi o que aconteceu no merge do PR #4 e passou
+# despercebido porque Python e TypeScript toleram CR solto.
+* text=auto
+
+# Binarios: nunca converter.
+*.woff2 binary
+*.pt     binary
+*.png    binary
+*.jpg    binary
