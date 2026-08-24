@@ -74,6 +74,11 @@ class Config:
     YOLO_MAX_DETECTIONS = env_int("YOLO_MAX_DETECTIONS", 100)
     MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", False)
 
+    # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
+    # frame. E o que permite atribuir queda/postura a um individuo. Custa N
+    # inferencias por frame, entao POSE_MAX_PEOPLE limita o pior caso.
+    POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)
+    POSE_MAX_PEOPLE = env_int("POSE_MAX_PEOPLE", 4)
     POSE_MIN_DETECTION_CONFIDENCE = env_float("POSE_MIN_DETECTION_CONFIDENCE", 0.5)
     POSE_MIN_TRACKING_CONFIDENCE = env_float("POSE_MIN_TRACKING_CONFIDENCE", 0.5)
 

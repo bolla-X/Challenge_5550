@@ -16,7 +16,7 @@ class FrameAnnotator:
         self,
         frame: np.ndarray,
         detections: list[Detection],
-        pose: PoseResult | None,
+        poses: list[PoseResult] | None,
         enabled_features: dict[str, bool],
         compliance_state: dict[str, Any] | None = None,
         overlay_options: dict[str, bool] | None = None,
@@ -26,8 +26,10 @@ class FrameAnnotator:
         if options.get("risk_area", True):
             self._draw_risk_area(output, enabled_features)
         self._draw_detections(output, detections, options)
-        if pose and pose.found and enabled_features.get("pose", False) and options.get("pose", True):
-            self._draw_pose_points(output, pose)
+        if enabled_features.get("pose", False) and options.get("pose", True):
+            for pose in poses or []:
+                if pose and pose.found:
+                    self._draw_pose_points(output, pose)
         return output
 
     def _draw_detections(self, frame: np.ndarray, detections: list[Detection], options: dict[str, bool]) -> None:

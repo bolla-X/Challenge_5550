@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
 
@@ -87,7 +87,18 @@ class PoseLandmark:
 
 @dataclass(frozen=True)
 class PoseResult:
+    """Uma pose. Os landmarks estao SEMPRE em coordenadas normalizadas do frame
+    inteiro, mesmo quando a estimativa veio de um recorte por pessoa — quem
+    recorta remapeia antes de devolver, para que anotador e frontend nao
+    precisem saber de onde a pose veio.
+
+    `person_id`/`track_id` dizem de QUEM e a pose. Ficam None na pose global
+    (frame inteiro), que e o caminho usado quando nao ha caixa de pessoa.
+    """
+
     landmarks: list[PoseLandmark]
+    person_id: str | None = None
+    track_id: int | None = None
 
     @property
     def found(self) -> bool:
@@ -99,8 +110,27 @@ class PoseResult:
                 return landmark
         return None
 
+    def point_px(self, name: str, frame_shape: tuple[int, int, int]) -> tuple[float, float] | None:
+        """Landmark em PIXELS do frame.
+
+        Comparar dx com dy em coordenadas normalizadas mistura escalas: num
+        frame 960x540, 0.1 em x sao 96 px e 0.1 em y sao 54 px. Toda geometria
+        de pose (queda, inclinacao) precisa de pixels para o limiar significar
+        o que diz significar.
+        """
+        landmark = self.by_name(name)
+        if landmark is None:
+            return None
+        height, width = frame_shape[:2]
+        return (landmark.x * width, landmark.y * height)
+
     def to_dict(self) -> dict[str, Any]:
-        return {"found": self.found, "landmarks": [item.to_dict() for item in self.landmarks]}
+        return {
+            "found": self.found,
+            "person_id": self.person_id,
+            "track_id": self.track_id,
+            "landmarks": [item.to_dict() for item in self.landmarks],
+        }
 
 
 @dataclass(frozen=True)
@@ -108,10 +138,16 @@ class FrameAnalysis:
     detections: list[Detection]
     pose: PoseResult | None
     risk_events: list[dict[str, Any]]
+    # Uma pose por pessoa detectada. `pose` acima continua sendo a primeira
+    # delas (ou a global, quando nao ha caixa de pessoa) para nao quebrar
+    # clientes que ja liam esse campo.
+    poses: list[PoseResult] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        vazio = {"found": False, "person_id": None, "track_id": None, "landmarks": []}
         return {
             "detections": [item.to_dict() for item in self.detections],
-            "pose": self.pose.to_dict() if self.pose else {"found": False, "landmarks": []},
+            "pose": self.pose.to_dict() if self.pose else vazio,
+            "poses": [item.to_dict() for item in self.poses],
             "risk_events": self.risk_events,
         }

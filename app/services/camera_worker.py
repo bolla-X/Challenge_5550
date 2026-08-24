@@ -25,7 +25,7 @@ from app.services.storage_cleanup_service import StorageCleanupService
 from app.vision.annotator import FrameAnnotator
 from app.vision.person_tracker import PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
-from app.vision.schemas import FrameAnalysis
+from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
@@ -378,7 +378,12 @@ class CameraWorker:
                     # estado por pessoa) alimenta tanto o AlertStateService
                     # quanto o ComplianceService — que antes refazia todo o
                     # trabalho por conta própria.
-                    evaluation = self.rule_engine.analyze(analysis.detections, analysis.pose, frame.shape)
+                    evaluation = self.rule_engine.analyze(
+                        analysis.detections,
+                        analysis.pose,
+                        frame.shape,
+                        poses=analysis.poses,
+                    )
                     alert_state = self.alert_state_service.process(evaluation.alerts)
                     model_diagnostics = self._safe_model_diagnostics()
                     compliance_state = self.compliance_service.build_state(
@@ -394,7 +399,7 @@ class CameraWorker:
                     annotated = self.annotator.annotate(
                         frame,
                         analysis.detections,
-                        analysis.pose,
+                        analysis.poses or ([analysis.pose] if analysis.pose else []),
                         enabled_map,
                         compliance_state,
                         self.overlay_options,
@@ -466,6 +471,7 @@ class CameraWorker:
     def _analyze_frame(self, frame) -> FrameAnalysis:
         detections = []
         pose = None
+        poses: list[PoseResult] = []
         # inference_lock: modelos são compartilhados entre workers (Passo 4)
         # — serializa quem usa a GPU por vez. Numa GPU só isso não perde
         # paralelismo real (ela já processa um kernel de cada vez), só evita
@@ -480,8 +486,44 @@ class CameraWorker:
                     people = self.person_tracker.update(self.person_detector.detect(frame))
                     detections = detections + people
             if self.feature_manager.is_enabled("pose"):
-                pose = self.pose_estimator.estimate(frame)
-        return FrameAnalysis(detections=detections, pose=pose, risk_events=[])
+                poses = self._estimate_poses(frame, detections)
+                # `pose` continua sendo a primeira (ou a global) pra nao quebrar
+                # quem ja lia esse campo — frontend inclusive.
+                pose = poses[0] if poses else None
+        return FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses)
+
+    def _estimate_poses(self, frame, detections) -> list[PoseResult]:
+        """Uma pose por pessoa quando ha caixa de pessoa; senao, a global.
+
+        A pose global cobre o caso em que o modelo nao detectou ninguem mas o
+        MediaPipe ainda encontra um corpo — comportamento de sempre, mantido
+        como rede de seguranca.
+        """
+        if not bool(self.app.config.get("POSE_PER_PERSON", True)):
+            global_pose = self.pose_estimator.estimate(frame)
+            return [global_pose] if global_pose.found else []
+
+        pessoas = [item for item in detections if item.label == "person" or item.category == "person"]
+        pessoas.sort(key=lambda item: item.track_id if item.track_id is not None else 0)
+        alvos = [
+            (
+                f"person_{item.track_id}" if item.track_id is not None else f"person_{indice}",
+                item.track_id,
+                item.box,
+            )
+            for indice, item in enumerate(pessoas, start=1)
+        ]
+        if alvos:
+            poses = self.pose_estimator.estimate_for_people(
+                frame,
+                alvos,
+                max_people=int(self.app.config.get("POSE_MAX_PEOPLE", 4)),
+            )
+            if poses:
+                return poses
+
+        global_pose = self.pose_estimator.estimate(frame)
+        return [global_pose] if global_pose.found else []
 
     def _needs_yolo_detection(self) -> bool:
         return bool(
