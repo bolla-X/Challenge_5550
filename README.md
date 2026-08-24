@@ -129,6 +129,8 @@ supervisor pode tudo que o técnico pode, e assim por diante:
 | Alterar configurações, overlay e área de risco | — | ✅ | ✅ |
 | Gerir usuários | — | — | ✅ |
 
+O Operador é restrito à **câmera do setor dele** (`User.camera_id`, definido pelo supervisor): lista de câmeras, vídeo, alertas, evidências, linha do tempo e score de risco vêm só daquela área, e ele não consegue iniciar nem parar o monitoramento de outra. Uma conta de operador **sem setor atribuído não vê nada** até o supervisor definir — deixar passar daria acesso amplo justamente à conta incompleta. Técnico e Supervisor veem o parque inteiro, porque é o trabalho deles.
+
 Comandos de gestão:
 
 ```bash

@@ -7,7 +7,7 @@ from flask import Blueprint, current_app, jsonify, request, send_from_directory
 from app.config import BASE_DIR
 from app.models import ROLE_TECHNICAL
 from app.repositories.event_repository import EventRepository
-from app.utils.auth import login_required, require_role
+from app.utils.auth import _operador_sem_setor, camera_scope, escopo_ou_erro, login_required, require_role
 
 runtime_bp = Blueprint("runtime", __name__)
 
@@ -15,15 +15,23 @@ runtime_bp = Blueprint("runtime", __name__)
 @runtime_bp.get("/model")
 @login_required
 def model_diagnostics():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     monitor = current_app.extensions["monitor_service"]
-    return jsonify(monitor.status().get("model", {}))
+    return jsonify(monitor.status(camera_id=camera_id).get("model", {}))
 
 
 @runtime_bp.get("/settings")
 @login_required
 def get_settings():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     monitor = current_app.extensions["monitor_service"]
-    return jsonify({"settings": monitor.settings(), "overlay": monitor.get_overlay()})
+    return jsonify(
+        {"settings": monitor.settings(camera_id=camera_id), "overlay": monitor.get_overlay(camera_id=camera_id)}
+    )
 
 
 @runtime_bp.patch("/settings")
@@ -39,8 +47,11 @@ def patch_settings():
 @runtime_bp.get("/overlay")
 @login_required
 def get_overlay():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     monitor = current_app.extensions["monitor_service"]
-    return jsonify({"overlay": monitor.get_overlay()})
+    return jsonify({"overlay": monitor.get_overlay(camera_id=camera_id)})
 
 
 @runtime_bp.patch("/overlay")
@@ -56,10 +67,13 @@ def patch_overlay():
 @runtime_bp.get("/risk-area")
 @login_required
 def get_risk_area():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "risk_area_state"):
         return jsonify({"error": "monitor atual não suporta área de risco runtime"}), 501
-    return jsonify({"risk_area": monitor.risk_area_state()})
+    return jsonify({"risk_area": monitor.risk_area_state(camera_id=camera_id)})
 
 
 @runtime_bp.patch("/risk-area")
@@ -86,11 +100,15 @@ def list_events():
         limit = 80
     event_type = request.args.get("event_type")
     severity = request.args.get("severity")
+    if _operador_sem_setor():
+        return jsonify({"items": [], "count": 0})
+
+    escopo = camera_scope()
     events = EventRepository().list_recent(
         limit=limit,
         event_type=event_type,
         severity=severity,
-        camera_id=request.args.get("camera_id", type=int),
+        camera_id=escopo if escopo is not None else request.args.get("camera_id", type=int),
     )
     return jsonify({"items": [item.to_dict() for item in events], "count": len(events)})
 
