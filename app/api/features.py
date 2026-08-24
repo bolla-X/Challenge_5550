@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
+from app.models import ROLE_TECHNICAL
+from app.utils.auth import login_required, require_role
+
 features_bp = Blueprint("features", __name__)
 
 
 @features_bp.get("/features")
+@login_required
 def get_features():
     manager = current_app.extensions["feature_manager"]
     return jsonify({"features": [item.to_dict() for item in manager.list()]})
@@ -13,6 +17,7 @@ def get_features():
 
 @features_bp.put("/features")
 @features_bp.patch("/features")
+@require_role(ROLE_TECHNICAL)
 def update_features():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):

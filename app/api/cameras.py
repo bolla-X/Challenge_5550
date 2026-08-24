@@ -7,7 +7,8 @@ from flask import Blueprint, Response, current_app, jsonify, request
 
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
-from app.models import DEFAULT_CAMERA_FEATURES, Camera
+from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
+from app.utils.auth import login_required, require_role
 
 cameras_bp = Blueprint("cameras", __name__)
 
@@ -91,6 +92,7 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
 
 
 @cameras_bp.get("/api/cameras/discover")
+@require_role(ROLE_TECHNICAL)
 def discover_cameras():
     """Testa de verdade quais índices USB respondem AGORA (Fase A, Passo 6
     — ver conversa: 'as câmeras que são detectadas apareçam na parte de
@@ -136,12 +138,14 @@ def discover_cameras():
 
 
 @cameras_bp.get("/api/cameras")
+@login_required
 def list_cameras():
     cameras = Camera.query.order_by(Camera.id.asc()).all()
     return jsonify({"items": [c.to_dict() for c in cameras], "count": len(cameras)})
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>")
+@login_required
 def get_camera(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -150,6 +154,7 @@ def get_camera(camera_id: int):
 
 
 @cameras_bp.post("/api/cameras")
+@require_role(ROLE_TECHNICAL)
 def create_camera():
     payload = request.get_json(silent=True) or {}
     camera = Camera(features_json=dict(DEFAULT_CAMERA_FEATURES))
@@ -164,6 +169,7 @@ def create_camera():
 
 @cameras_bp.put("/api/cameras/<int:camera_id>")
 @cameras_bp.patch("/api/cameras/<int:camera_id>")
+@require_role(ROLE_TECHNICAL)
 def update_camera(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -178,6 +184,7 @@ def update_camera(camera_id: int):
 
 
 @cameras_bp.delete("/api/cameras/<int:camera_id>")
+@require_role(ROLE_TECHNICAL)
 def delete_camera(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -200,6 +207,7 @@ def delete_camera(camera_id: int):
 # por camera_id, é o que a tela de "Configurar câmera" do frontend vai usar
 # pra ligar/desligar uma câmera específica em vez da global.
 @cameras_bp.get("/api/cameras/<int:camera_id>/status")
+@login_required
 def camera_status(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -214,6 +222,7 @@ def camera_status(camera_id: int):
 
 
 @cameras_bp.post("/api/cameras/<int:camera_id>/start")
+@require_role(ROLE_OPERATOR)
 def camera_start(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -226,6 +235,7 @@ def camera_start(camera_id: int):
 
 
 @cameras_bp.post("/api/cameras/<int:camera_id>/stop")
+@require_role(ROLE_OPERATOR)
 def camera_stop(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -238,6 +248,7 @@ def camera_stop(camera_id: int):
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/video_feed")
+@login_required
 def camera_video_feed(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:
@@ -259,6 +270,7 @@ def camera_video_feed(camera_id: int):
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/analysis")
+@login_required
 def camera_analysis(camera_id: int):
     camera = db.session.get(Camera, camera_id)
     if camera is None:

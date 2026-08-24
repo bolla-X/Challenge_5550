@@ -5,24 +5,29 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from app.config import BASE_DIR
+from app.models import ROLE_TECHNICAL
 from app.repositories.event_repository import EventRepository
+from app.utils.auth import login_required, require_role
 
 runtime_bp = Blueprint("runtime", __name__)
 
 
 @runtime_bp.get("/model")
+@login_required
 def model_diagnostics():
     monitor = current_app.extensions["monitor_service"]
     return jsonify(monitor.status().get("model", {}))
 
 
 @runtime_bp.get("/settings")
+@login_required
 def get_settings():
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"settings": monitor.settings(), "overlay": monitor.get_overlay()})
 
 
 @runtime_bp.patch("/settings")
+@require_role(ROLE_TECHNICAL)
 def patch_settings():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
@@ -32,12 +37,14 @@ def patch_settings():
 
 
 @runtime_bp.get("/overlay")
+@login_required
 def get_overlay():
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"overlay": monitor.get_overlay()})
 
 
 @runtime_bp.patch("/overlay")
+@require_role(ROLE_TECHNICAL)
 def patch_overlay():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
@@ -47,6 +54,7 @@ def patch_overlay():
 
 
 @runtime_bp.get("/risk-area")
+@login_required
 def get_risk_area():
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "risk_area_state"):
@@ -55,6 +63,7 @@ def get_risk_area():
 
 
 @runtime_bp.patch("/risk-area")
+@require_role(ROLE_TECHNICAL)
 def patch_risk_area():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
@@ -69,6 +78,7 @@ def patch_risk_area():
 
 
 @runtime_bp.get("/events")
+@login_required
 def list_events():
     try:
         limit = min(int(request.args.get("limit", 80)), 300)
@@ -86,6 +96,7 @@ def list_events():
 
 
 @runtime_bp.get("/snapshots/<path:filename>")
+@login_required
 def get_snapshot(filename: str):
     monitor = current_app.extensions.get("monitor_service")
     snapshot_dir = "runtime/snapshots"

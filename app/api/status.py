@@ -4,6 +4,8 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, send_from_directory
 
+from app.utils.auth import login_required
+
 status_bp = Blueprint("status", __name__)
 
 
@@ -19,12 +21,14 @@ def index():
 
 
 @status_bp.get("/status")
+@login_required
 def status():
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"system": "VisionEPI", **monitor.status()})
 
 
 @status_bp.get("/preflight")
+@login_required
 def preflight():
     monitor = current_app.extensions["monitor_service"]
     return jsonify(monitor.preflight())

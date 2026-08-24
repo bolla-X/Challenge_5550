@@ -15,6 +15,9 @@ import {
   listCameras,
   listEvents,
   acknowledgeAlert as apiAcknowledgeAlert,
+  getMe,
+  login as apiLogin,
+  logout as apiLogout,
   markFalsePositive as apiMarkFalsePositive,
   patchFeatures as apiPatchFeatures,
   patchOverlay as apiPatchOverlay,
@@ -26,6 +29,7 @@ import {
 } from "../api/endpoints";
 import type {
   Alert,
+  AuthUser,
   CameraFeatureSet,
   CameraRecord,
   ComplianceState,
@@ -49,10 +53,9 @@ export type ViewMode = "operator" | "technical" | "supervisor";
 // travado em "kiosk" (ver setMode e setScreenForMode abaixo).
 export type CameraScreen = "grid" | "focus" | "kiosk" | "overview";
 
-// Acesso por papel — hoje é só UI (sem login real ainda, ver conversa no
-// chat), mas centralizado aqui pra não espalhar `mode === "operator"` por
-// componente. Quando o login real chegar, isso troca de fonte (derivado de
-// sessão), não de forma.
+// Acesso por papel. A FONTE é a sessão (`user.role`), não um seletor de tela —
+// e o backend valida de novo em cada rota, então isto aqui é só para a UI não
+// oferecer o que a pessoa não pode fazer. Nunca é a única barreira.
 export interface RoleAccess {
   seeAllCameras: boolean;
   canConfigure: boolean;
@@ -65,6 +68,14 @@ export const ROLE_ACCESS: Record<ViewMode, RoleAccess> = {
 };
 
 interface DashboardState {
+  // ---- sessão ------------------------------------------------------------
+  // `mode` deixa de ser um seletor na topbar: é o PAPEL da pessoa logada.
+  user: AuthUser | null;
+  authChecked: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  checkSession: () => Promise<void>;
+
   // connection
   connected: boolean;
   mode: ViewMode;
@@ -227,9 +238,78 @@ function readStoredMode(): ViewMode {
   }
 }
 
+/**
+ * Tudo que é DADO DE CONTA e não pode sobreviver a um logout.
+ *
+ * Num terminal compartilhado de chão de fábrica, a próxima pessoa a entrar não
+ * pode ver, nem por um instante, os alertas e as detecções da anterior. Só
+ * `mode`/`screen` ficam de fora porque o login seguinte os define na hora.
+ */
+const ESTADO_LIMPO: Partial<DashboardState> = {
+  cameras: [],
+  camerasLoading: true,
+  camId: null,
+  operatorCam: null,
+  activeAlerts: [],
+  alertHistory: [],
+  lastAlertCreatedId: null,
+  timeline: [],
+  compliance: null,
+  riskScore: null,
+  riskTrend: null,
+  model: null,
+  settings: null,
+  overlay: null,
+  riskArea: null,
+  features: [],
+  lastDetections: [],
+  lastPose: null,
+  videoStream: null,
+  running: false,
+  frameCounter: 0,
+  wsFrameCounter: 0,
+  fps: 0,
+  lastAnalysisAt: null,
+  lastError: null,
+  message: null,
+  bootstrapping: true,
+  riskEditorActive: false,
+  riskEditorPoints: [],
+};
+
 export const useDashboardStore = create<DashboardState>()(
   devtools(
     (set) => ({
+      user: null,
+      authChecked: false,
+      login: async (email, password) => {
+        const res = await apiLogin(email, password);
+        aplicarSessao(res.user);
+      },
+      logout: async () => {
+        try {
+          await apiLogout();
+        } finally {
+          // Derruba o socket junto: a conexão foi autorizada pela sessão que
+          // acabou de morrer.
+          socket.disconnect();
+          // E ZERA o estado sensível. Sem isto, o próximo login (possivelmente
+          // de outra pessoa, no mesmo terminal de chão de fábrica) abria a tela
+          // já pintada com alertas, pessoas detectadas e câmeras da conta
+          // anterior, antes de qualquer request novo responder.
+          set({ ...ESTADO_LIMPO, user: null, authChecked: true }, false, "logout");
+        }
+      },
+      checkSession: async () => {
+        try {
+          const res = await getMe();
+          if (res.user) aplicarSessao(res.user);
+          set({ authChecked: true }, false, "checkSession:done");
+        } catch {
+          set({ user: null, authChecked: true }, false, "checkSession:error");
+        }
+      },
+
       connected: socket.connected,
       mode: readStoredMode(),
 
@@ -533,6 +613,21 @@ function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean
   return focused == null || payload.camera_id === focused;
 }
 
+/**
+ * Aplica a sessão recém-obtida ao estado.
+ *
+ * O papel define o modo — quem entra como operador cai no kiosk. E a câmera do
+ * setor vem de `user.camera_id`, definido pelo supervisor: é isso que substitui
+ * o antigo seletor "simular setor" da topbar.
+ */
+function aplicarSessao(user: AuthUser) {
+  useDashboardStore.setState({ user, authChecked: true }, false, "sessao:aplicar");
+  useDashboardStore.getState().setMode(user.role);
+  if (user.camera_id != null) {
+    useDashboardStore.getState().setOperatorCam(user.camera_id);
+  }
+}
+
 /** Shared by the alert_resolved socket handler and the false-positive REST action. */
 function resolveAlert(alert: Alert) {
   useDashboardStore.setState(
@@ -678,6 +773,15 @@ export function subscribeToServerEvents(): () => void {
   on("alert_resolved", resolveAlert);
 
   if (!socket.connected) socket.connect();
+
+  // Revalida a sessão do socket periodicamente. Um socket aberto vive horas:
+  // sem isto, desativar alguém (ou trocar a senha dela) não teria efeito
+  // nenhum sobre o feed ao vivo que já estava chegando — vídeo, alertas e
+  // pessoas detectadas continuariam fluindo pra quem perdeu o acesso.
+  const revalidacao = setInterval(() => {
+    if (socket.connected) socket.emit("revalidate");
+  }, 30_000);
+  teardown.push(() => clearInterval(revalidacao));
 
   // Sparkline não precisa da cadência do socket (buckets são de 1h) — um
   // refresh a cada 5min é mais que suficiente e evita bater a rota extra

@@ -6,6 +6,7 @@ import { OperatorKiosk } from "./components/operator-kiosk";
 import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
 import { Panel } from "./components/common";
+import { LoginScreen } from "./components/login";
 
 // Placeholder do dashboard agregado do Supervisor — o conteúdo de verdade
 // (risco consolidado, ranking por criticidade, feed de alertas combinado,
@@ -52,6 +53,9 @@ function GridScreen() {
 }
 
 export default function App() {
+  const user = useDashboardStore((s) => s.user);
+  const authChecked = useDashboardStore((s) => s.authChecked);
+  const checkSession = useDashboardStore((s) => s.checkSession);
   const mode = useDashboardStore((s) => s.mode);
   const screen = useDashboardStore((s) => s.screen);
   const camId = useDashboardStore((s) => s.camId);
@@ -61,13 +65,28 @@ export default function App() {
   const loadCameras = useDashboardStore((s) => s.loadCameras);
   const setScreen = useDashboardStore((s) => s.setScreen);
 
+  // Primeiro descobre QUEM está logado. Só depois vale a pena abrir socket e
+  // buscar dados: sem sessão, tudo isso responderia 401.
   useEffect(() => {
+    checkSession().catch((err) => console.error("[checkSession] failed", err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
     const unsubscribe = subscribeToServerEvents();
     bootstrap().catch((err) => console.error("[bootstrap] failed", err));
     loadCameras().catch((err) => console.error("[loadCameras] failed", err));
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
+
+  if (!authChecked) {
+    return <div className="login-shell" aria-busy="true" />;
+  }
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   // Roteamento por papel: Operador sempre kiosk (trava aplicada em setMode
   // no store, screen já chega como "kiosk"); Técnico/Supervisor navegam

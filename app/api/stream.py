@@ -5,11 +5,13 @@ import time
 from flask import Blueprint, Response, current_app, jsonify
 
 from app.api.placeholder import placeholder_jpeg
+from app.utils.auth import login_required
 
 stream_bp = Blueprint("stream", __name__)
 
 
 @stream_bp.get("/video_feed")
+@login_required
 def video_feed():
     monitor = current_app.extensions["monitor_service"]
     target_fps = max(1, current_app.config.get("TARGET_FPS", 12))
@@ -35,6 +37,7 @@ def video_feed():
 
 
 @stream_bp.get("/analysis/latest")
+@login_required
 def latest_analysis():
     monitor = current_app.extensions["monitor_service"]
     try:

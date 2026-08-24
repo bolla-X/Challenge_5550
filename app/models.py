@@ -164,3 +164,73 @@ class Camera(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+# Papeis, do menor pro maior privilegio. A hierarquia e explicita aqui porque
+# `require_role` compara NIVEL, nao igualdade: quem e supervisor passa em tudo
+# que o tecnico passa. Sao os mesmos tres perfis que a UI ja tinha — a
+# diferenca e que agora vem da sessao, nao de um seletor na topbar.
+ROLE_OPERATOR = "operator"
+ROLE_TECHNICAL = "technical"
+ROLE_SUPERVISOR = "supervisor"
+ROLE_LEVELS: dict[str, int] = {ROLE_OPERATOR: 1, ROLE_TECHNICAL: 2, ROLE_SUPERVISOR: 3}
+VALID_ROLES = frozenset(ROLE_LEVELS)
+
+
+class User(db.Model):
+    """Pessoa real que opera o sistema.
+
+    Sem cadastro publico: usuario e criado por quem ja tem acesso (CLI
+    `flask users create` ou POST /api/users por um supervisor). Um sistema de
+    seguranca do trabalho nao tem "criar conta".
+    """
+
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(180), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    # scrypt (padrao do werkzeug 3.x). A senha em si nunca e persistida nem
+    # registrada em log.
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default=ROLE_OPERATOR, index=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    # Camera "do setor" do Operador. Substitui o seletor "simular setor" que
+    # existia na topbar enquanto nao havia login. Sem ForeignKey pelo mesmo
+    # motivo de Alert.camera_id: apagar uma camera nao pode apagar a pessoa.
+    camera_id = db.Column(db.Integer, nullable=True, index=True)
+
+    # Epoca da sessao. Toda sessao carrega a epoca vigente no momento do
+    # login; `current_user` compara. Incrementar este numero invalida
+    # IMEDIATAMENTE todo cookie ja emitido pra essa pessoa, inclusive um que
+    # tenha sido copiado. E o que faz 'trocar a senha expulsa o invasor' e
+    # 'desativar derruba a sessao' serem verdade, e nao so promessa.
+    session_epoch = db.Column(db.Integer, nullable=False, default=1)
+
+    # Protecao contra forca bruta — ver AuthService.
+    failed_attempts = db.Column(db.Integer, nullable=False, default=0)
+    locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_login_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    @property
+    def level(self) -> int:
+        return ROLE_LEVELS.get(self.role, 0)
+
+    def has_role(self, minimo: str) -> bool:
+        return self.level >= ROLE_LEVELS.get(minimo, 99)
+
+    def to_dict(self) -> dict:
+        """NUNCA inclui password_hash: este dicionario vai pro cliente."""
+        return {
+            "id": self.id,
+            "email": self.email,
+            "name": self.name,
+            "role": self.role,
+            "active": self.active,
+            "camera_id": self.camera_id,
+            "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

@@ -1,9 +1,12 @@
 import { io, type Socket } from "socket.io-client";
 import type { ServerEvents } from "./events";
 
-// Client -> server events: this app only ever emits via REST, never over the
-// socket itself, so the emit side of the typed contract is empty.
-type ClientEvents = Record<string, never>;
+// Client -> server: quase tudo vai por REST. A exceção é `revalidate`, que o
+// cliente dispara periodicamente para o servidor reconferir a sessão daquele
+// socket — sem isso, um socket aberto sobreviveria à revogação do acesso.
+type ClientEvents = {
+  revalidate: () => void;
+};
 
 // Same-origin socket: Vite proxies /socket.io to Flask in dev (vite.config.ts),
 // Flask serves both in prod. No URL/CORS config needed either way.
