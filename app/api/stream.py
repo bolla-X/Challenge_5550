@@ -5,7 +5,7 @@ import time
 from flask import Blueprint, Response, current_app, jsonify
 
 from app.api.placeholder import placeholder_jpeg
-from app.utils.auth import login_required
+from app.utils.auth import escopo_ou_erro, login_required
 
 stream_bp = Blueprint("stream", __name__)
 
@@ -13,6 +13,9 @@ stream_bp = Blueprint("stream", __name__)
 @stream_bp.get("/video_feed")
 @login_required
 def video_feed():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     monitor = current_app.extensions["monitor_service"]
     target_fps = max(1, current_app.config.get("TARGET_FPS", 12))
 
@@ -25,7 +28,7 @@ def video_feed():
             # conexão com traceback. O comentário em app/__init__.py afirmava
             # que isto era tratado aqui; agora é de fato.
             try:
-                jpeg = monitor.latest_jpeg()
+                jpeg = monitor.latest_jpeg(camera_id=camera_id)
             except LookupError:
                 jpeg = None
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + (
@@ -39,8 +42,11 @@ def video_feed():
 @stream_bp.get("/analysis/latest")
 @login_required
 def latest_analysis():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     monitor = current_app.extensions["monitor_service"]
     try:
-        return jsonify(monitor.latest_analysis() or {})
+        return jsonify(monitor.latest_analysis(camera_id=camera_id) or {})
     except LookupError:
         return jsonify({})

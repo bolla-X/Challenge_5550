@@ -35,7 +35,7 @@ class DummyMonitor:
         self.feature_manager = feature_manager
         self.started = False
 
-    def status(self):
+    def status(self, camera_id=None):
         return {
             "camera_id": None,
             "running": self.started,
@@ -44,37 +44,37 @@ class DummyMonitor:
             "features": self.feature_manager.as_dict(),
         }
 
-    def start(self):
+    def start(self, camera_id=None):
         self.started = True
         return self.status()
 
-    def stop(self):
+    def stop(self, camera_id=None):
         self.started = False
         return self.status()
 
-    def latest_analysis(self):
+    def latest_analysis(self, camera_id=None):
         return {}
 
-    def latest_jpeg(self):
+    def latest_jpeg(self, camera_id=None):
         return None
 
-    def settings(self):
+    def settings(self, camera_id=None):
         return {"camera_id": None, "target_fps": 12, "snapshot_enabled": True}
 
-    def get_overlay(self):
+    def get_overlay(self, camera_id=None):
         return {"camera_id": None, "boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True}
 
-    def update_settings(self, updates):
+    def update_settings(self, updates, camera_id=None):
         current = self.settings()
         current.update(updates)
         return current
 
-    def update_overlay(self, updates):
+    def update_overlay(self, updates, camera_id=None):
         current = self.get_overlay()
         current.update(updates)
         return current
 
-    def risk_area_state(self):
+    def risk_area_state(self, camera_id=None):
         return {
             "camera_id": None,
             "name": "Área de risco",
@@ -82,7 +82,7 @@ class DummyMonitor:
             "enabled": True,
         }
 
-    def update_risk_area(self, payload):
+    def update_risk_area(self, payload, camera_id=None):
         return {"camera_id": None, "name": payload.get("name", "Área de risco"), "polygon": payload["polygon"], "enabled": True}
 
 

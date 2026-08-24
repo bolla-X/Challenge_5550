@@ -8,7 +8,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
-from app.utils.auth import login_required, require_role
+from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
 
 cameras_bp = Blueprint("cameras", __name__)
 
@@ -17,6 +17,13 @@ VALID_SOURCE_TYPES = {"USB", "RTSP", "Arquivo"}
 # nunca deixar entrar uma chave de feature que o resto do sistema (Sidebar,
 # RuleEngine) não reconhece.
 VALID_FEATURE_KEYS = set(DEFAULT_CAMERA_FEATURES.keys())
+
+
+def _sem_setor() -> bool:
+    """Operador logado mas sem camera atribuida."""
+    from app.utils.auth import _operador_sem_setor
+
+    return _operador_sem_setor()
 
 
 def _validation_error(message: str):
@@ -140,13 +147,22 @@ def discover_cameras():
 @cameras_bp.get("/api/cameras")
 @login_required
 def list_cameras():
-    cameras = Camera.query.order_by(Camera.id.asc()).all()
+    query = Camera.query
+    escopo = camera_scope()
+    if escopo is not None:
+        query = query.filter(Camera.id == escopo)
+    elif _sem_setor():
+        # Operador ainda sem setor: lista vazia, nao o parque inteiro.
+        return jsonify({"items": [], "count": 0})
+    cameras = query.order_by(Camera.id.asc()).all()
     return jsonify({"items": [c.to_dict() for c in cameras], "count": len(cameras)})
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>")
 @login_required
 def get_camera(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     camera = db.session.get(Camera, camera_id)
     if camera is None:
         return jsonify({"error": "câmera não encontrada"}), 404
@@ -209,6 +225,8 @@ def delete_camera(camera_id: int):
 @cameras_bp.get("/api/cameras/<int:camera_id>/status")
 @login_required
 def camera_status(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     camera = db.session.get(Camera, camera_id)
     if camera is None:
         return jsonify({"error": "câmera não encontrada"}), 404
@@ -224,6 +242,8 @@ def camera_status(camera_id: int):
 @cameras_bp.post("/api/cameras/<int:camera_id>/start")
 @require_role(ROLE_OPERATOR)
 def camera_start(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     camera = db.session.get(Camera, camera_id)
     if camera is None:
         return jsonify({"error": "câmera não encontrada"}), 404
@@ -237,6 +257,8 @@ def camera_start(camera_id: int):
 @cameras_bp.post("/api/cameras/<int:camera_id>/stop")
 @require_role(ROLE_OPERATOR)
 def camera_stop(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     camera = db.session.get(Camera, camera_id)
     if camera is None:
         return jsonify({"error": "câmera não encontrada"}), 404
@@ -250,6 +272,9 @@ def camera_stop(camera_id: int):
 @cameras_bp.get("/api/cameras/<int:camera_id>/video_feed")
 @login_required
 def camera_video_feed(camera_id: int):
+    # O feed e o dado mais sensivel do sistema: imagem de pessoas trabalhando.
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     camera = db.session.get(Camera, camera_id)
     if camera is None:
         return jsonify({"error": "câmera não encontrada"}), 404
@@ -272,6 +297,8 @@ def camera_video_feed(camera_id: int):
 @cameras_bp.get("/api/cameras/<int:camera_id>/analysis")
 @login_required
 def camera_analysis(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     camera = db.session.get(Camera, camera_id)
     if camera is None:
         return jsonify({"error": "câmera não encontrada"}), 404

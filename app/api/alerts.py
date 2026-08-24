@@ -8,9 +8,28 @@ from flask import Blueprint, current_app, jsonify, request, send_from_directory
 from app.models import ROLE_OPERATOR
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
-from app.utils.auth import login_required, require_role
+from app.utils.auth import (
+    _operador_sem_setor,
+    camera_permitida,
+    camera_scope,
+    erro_fora_do_escopo,
+    login_required,
+    require_role,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _camera_filtrada() -> int | None:
+    """A camera pedida na query, limitada ao setor de quem esta pedindo.
+
+    O escopo VENCE o parametro: um Operador que passe ?camera_id=99 continua
+    vendo so o proprio setor.
+    """
+    escopo = camera_scope()
+    if escopo is not None:
+        return escopo
+    return request.args.get("camera_id", type=int)
 
 alerts_bp = Blueprint("alerts", __name__)
 
@@ -30,12 +49,17 @@ def list_alerts():
         false_positive = false_positive_raw.lower() in {"1", "true", "yes", "on"}
     if status and status not in {"active", "resolved"}:
         return jsonify({"error": "status deve ser 'active' ou 'resolved'"}), 400
+    if _operador_sem_setor():
+        # Sem setor atribuido, nao ve alerta nenhum. Cair no filtro None
+        # entregaria o parque INTEIRO — exatamente o oposto da intencao.
+        return jsonify({"items": [], "count": 0})
+
     alerts = AlertRepository().list_recent(
         limit=limit,
         severity=severity,
         status=status,
         false_positive=false_positive,
-        camera_id=request.args.get("camera_id", type=int),
+        camera_id=_camera_filtrada(),
     )
     return jsonify({"items": [item.to_dict() for item in alerts], "count": len(alerts)})
 
@@ -46,6 +70,8 @@ def get_alert_evidence(alert_id: int):
     alert = AlertRepository().get(alert_id)
     if alert is None:
         return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
     if not alert.frame_ref:
         return jsonify({"error": "alerta sem evidência vinculada"}), 404
 
@@ -72,6 +98,8 @@ def mark_false_positive(alert_id: int):
     alert = repository.get(alert_id)
     if alert is None:
         return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
     reason = str(payload.get("reason", "")).strip() or None
     alert = repository.mark_false_positive(alert, reason=reason)
     alert_payload = alert.to_dict()
@@ -101,6 +129,8 @@ def acknowledge_alert(alert_id: int):
     alert = repository.get(alert_id)
     if alert is None:
         return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
 
     note = str(payload.get("note", "")).strip()[:200] or None
     alert = repository.acknowledge(alert, note=note)

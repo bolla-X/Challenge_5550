@@ -152,13 +152,20 @@ def test_cadastrar_camera_exige_tecnico(client, papel, esperado):
 
 
 def test_operador_pode_marcar_falso_positivo(app, client):
-    """É a ação dele no kiosk — precisa passar."""
+    """É a ação dele no kiosk — precisa passar.
+
+    O operador precisa ter SETOR atribuído: sem câmera, por desenho, ele não
+    enxerga alerta nenhum (ver tests/test_escopo_camera.py).
+    """
     from app.repositories.alert_repository import AlertRepository
 
     with app.app_context():
+        operador = User.query.filter_by(email="operator@fabrica.com").first()
+        operador.camera_id = 7
+        db.session.commit()
         alerta_id = AlertRepository().create(
             rule="missing_helmet", severity="critical", message="m", feature="helmet",
-            metadata={"person_id": "person_1"},
+            camera_id=7, metadata={"person_id": "person_1"},
         ).id
 
     entrar(client, ROLE_OPERATOR)

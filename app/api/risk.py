@@ -3,14 +3,21 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from app.services.risk_score_service import compute_risk_score, compute_risk_trend
-from app.utils.auth import login_required
+from app.utils.auth import camera_scope, login_required
 
 risk_bp = Blueprint("risk", __name__)
 
 
 def _camera_id() -> int | None:
-    """`?camera_id=N` restringe o score a uma câmera. Ausente = todas —
-    é o que o painel consolidado do Supervisor quer."""
+    """`?camera_id=N` restringe o score a uma câmera. Ausente = todas — é o que
+    o painel consolidado do Supervisor quer.
+
+    Para o Operador o escopo do setor VENCE o parâmetro: o risco que ele vê é o
+    da área dele, mesmo que peça outra.
+    """
+    escopo = camera_scope()
+    if escopo is not None:
+        return escopo
     return request.args.get("camera_id", type=int)
 
 

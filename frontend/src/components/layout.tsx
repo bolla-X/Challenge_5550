@@ -41,30 +41,20 @@ export function MuteToggle() {
   );
 }
 
-/** Escolha de câmera do Operador — SÓ para quem ainda não tem câmera atribuída.
+/** Aviso para o Operador cuja conta ainda não tem setor atribuído.
  *
- * O normal é a câmera vir da conta (`user.camera_id`, definido pelo supervisor).
- * Este seletor é a saída de emergência para o intervalo entre criar a pessoa e
- * atribuir o setor dela: sem ele, o operador abriria o kiosk sem nada pra ver.
+ * O backend não entrega câmera nenhuma nesse estado (ver camera_scope em
+ * app/utils/auth.py), então não há o que escolher — o que cabe aqui é dizer
+ * a quem pedir. O seletor que existia antes prometia uma escolha que o
+ * servidor recusaria.
  */
-function OperatorCameraFallback() {
-  const cameras = useDashboardStore((s) => s.cameras);
-  const operatorCam = useDashboardStore((s) => s.operatorCam);
-  const setOperatorCam = useDashboardStore((s) => s.setOperatorCam);
+function OperadorSemSetor() {
   const user = useDashboardStore((s) => s.user);
-
-  if (user?.camera_id != null) return null; // já tem setor definido na conta
-  if (cameras.length === 0) return null;
+  if (user?.camera_id != null) return null;
   return (
-    <div className="sim-select-wrap" title="Sua conta ainda não tem câmera atribuída — peça ao supervisor. Enquanto isso, escolha uma aqui.">
-      <label htmlFor="operator-cam-select">setor</label>
-      <select id="operator-cam-select" value={operatorCam ?? ""} onChange={(e) => setOperatorCam(Number(e.target.value))}>
-        {cameras.map((cam) => (
-          <option key={cam.id} value={cam.id}>
-            {cam.name}
-          </option>
-        ))}
-      </select>
+    <div className="sim-select-wrap" role="status">
+      <label>sem setor</label>
+      <span title="Peça ao supervisor para atribuir a câmera do seu setor.">peça ao supervisor</span>
     </div>
   );
 }
@@ -134,7 +124,7 @@ export function Topbar() {
           </div>
         </div>
         <div className="topbar-actions">
-          {mode === "operator" && <OperatorCameraFallback />}
+          {mode === "operator" && <OperadorSemSetor />}
           <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
             Buscar <kbd>Ctrl K</kbd>
           </button>
