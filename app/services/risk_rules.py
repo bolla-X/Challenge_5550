@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from app.services.feature_manager import FeatureManager
@@ -9,6 +9,12 @@ from app.vision.schemas import Detection, PoseResult
 
 # feature -> (mensagem, severidade). Fonte única das regras de EPI: a mesma
 # lista de tuplas aparecia duplicada em dois pontos deste arquivo.
+# Torso considerado "deitado": quanto o deslocamento horizontal
+# ombro->quadril precisa superar o vertical. Medido em PIXELS (ver _is_fallen).
+FALLEN_TORSO_RATIO = 1.6
+# Cabeca projetada a frente, em fracao da altura do torso da propria pessoa.
+HEAD_FORWARD_RATIO = 0.45
+
 PPE_RULES: dict[str, tuple[str, str]] = {
     "helmet": ("Sem capacete", "critical"),
     "vest": ("Sem colete", "high"),
@@ -32,6 +38,8 @@ class RuleEvaluation:
 
     alerts: list[RuleAlert]
     people: list[dict[str, Any]]
+    # Uma pose por pessoa (so a global quando nao ha caixa de pessoa).
+    poses: list[PoseResult] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -62,16 +70,23 @@ class RuleEngine:
         self.supported_ppe_getter = supported_ppe_getter
         self.person_matcher = PersonComplianceMatcher()
 
-    def analyze(self, detections: list[Detection], pose: PoseResult | None, frame_shape: tuple[int, int, int]) -> RuleEvaluation:
+    def analyze(
+        self,
+        detections: list[Detection],
+        pose: PoseResult | None,
+        frame_shape: tuple[int, int, int],
+        poses: list[PoseResult] | None = None,
+    ) -> RuleEvaluation:
         """Passada única: monta o estado por pessoa uma vez e deriva todos os
         alertas dele. Use isto no loop de captura; `evaluate()` continua
         existindo para quem só quer os alertas."""
         people = self.build_people(detections, frame_shape)
+        poses_avaliadas = list(poses) if poses else ([pose] if pose else [])
         alerts: list[RuleAlert] = []
         alerts.extend(self._evaluate_ppe(detections, pose, people))
-        alerts.extend(self._evaluate_pose(pose))
+        alerts.extend(self._evaluate_pose(poses_avaliadas, frame_shape))
         alerts.extend(self._evaluate_risk_area(people, pose))
-        return RuleEvaluation(alerts=alerts, people=people)
+        return RuleEvaluation(alerts=alerts, people=people, poses=poses_avaliadas)
 
     def evaluate(self, detections: list[Detection], pose: PoseResult | None, frame_shape: tuple[int, int, int]) -> list[RuleAlert]:
         return self.analyze(detections, pose, frame_shape).alerts
@@ -142,65 +157,111 @@ class RuleEngine:
                 )
         return alerts
 
-    def _evaluate_pose(self, pose: PoseResult | None) -> list[RuleAlert]:
-        if not pose or not pose.found or not self.feature_manager.is_enabled("pose"):
+    def _evaluate_pose(self, poses: list[PoseResult], frame_shape: tuple[int, int, int]) -> list[RuleAlert]:
+        """Avalia queda e postura POR POSE.
+
+        Com uma pose por pessoa, cada alerta sai atribuido ao `person_id` do
+        PersonTracker. Antes era sempre `subject: "global_pose"` e, com mais de
+        uma pessoa em cena, "pessoa caida" nao dizia qual. Quando so existe a
+        pose global (nenhuma caixa de pessoa), o comportamento antigo continua.
+        """
+        if not self.feature_manager.is_enabled("pose"):
             return []
 
         alerts: list[RuleAlert] = []
-        if self.feature_manager.is_enabled("falls") and self._is_fallen(pose):
-            alerts.append(
-                RuleAlert(
-                    rule="fallen_person",
-                    severity="critical",
-                    message="Pessoa caída detectada",
-                    feature="falls",
-                    metadata={"subject": "global_pose", "method": "torso_orientation"},
+        for pose in poses:
+            if not pose or not pose.found:
+                continue
+            sujeito = self._pose_subject(pose)
+            rotulo = self._pose_label(pose)
+
+            if self.feature_manager.is_enabled("falls") and self._is_fallen(pose, frame_shape):
+                alerts.append(
+                    RuleAlert(
+                        rule="fallen_person",
+                        severity="critical",
+                        message=f"Pessoa caída detectada{rotulo}",
+                        feature="falls",
+                        metadata={**sujeito, "method": "torso_orientation"},
+                    )
                 )
-            )
-        if self.feature_manager.is_enabled("posture") and self._is_bad_posture(pose):
-            alerts.append(
-                RuleAlert(
-                    rule="suspicious_posture",
-                    severity="medium",
-                    message="Postura suspeita detectada",
-                    feature="posture",
-                    metadata={"subject": "global_pose", "method": "shoulder_hip_alignment"},
+            if self.feature_manager.is_enabled("posture") and self._is_bad_posture(pose, frame_shape):
+                alerts.append(
+                    RuleAlert(
+                        rule="suspicious_posture",
+                        severity="medium",
+                        message=f"Postura suspeita detectada{rotulo}",
+                        feature="posture",
+                        metadata={**sujeito, "method": "shoulder_hip_alignment"},
+                    )
                 )
-            )
         return alerts
 
-    def _is_fallen(self, pose: PoseResult) -> bool:
-        left_shoulder = pose.by_name("left_shoulder")
-        right_shoulder = pose.by_name("right_shoulder")
-        left_hip = pose.by_name("left_hip")
-        right_hip = pose.by_name("right_hip")
-        required = [left_shoulder, right_shoulder, left_hip, right_hip]
-        if any(item is None or item.visibility < 0.4 for item in required):
-            return False
-        shoulder_x = (left_shoulder.x + right_shoulder.x) / 2
-        shoulder_y = (left_shoulder.y + right_shoulder.y) / 2
-        hip_x = (left_hip.x + right_hip.x) / 2
-        hip_y = (left_hip.y + right_hip.y) / 2
-        torso_dx = abs(shoulder_x - hip_x)
-        torso_dy = abs(shoulder_y - hip_y)
-        return torso_dx > torso_dy * 1.6
+    @staticmethod
+    def _pose_subject(pose: PoseResult) -> dict[str, Any]:
+        if pose.person_id:
+            return {"person_id": pose.person_id, "person_label": f"Pessoa {pose.track_id}"}
+        return {"subject": "global_pose"}
 
-    def _is_bad_posture(self, pose: PoseResult) -> bool:
-        left_shoulder = pose.by_name("left_shoulder")
-        right_shoulder = pose.by_name("right_shoulder")
-        left_hip = pose.by_name("left_hip")
-        right_hip = pose.by_name("right_hip")
-        nose = pose.by_name("nose")
-        required = [left_shoulder, right_shoulder, left_hip, right_hip, nose]
-        if any(item is None or item.visibility < 0.4 for item in required):
+    @staticmethod
+    def _pose_label(pose: PoseResult) -> str:
+        return f" — Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
+
+    def _torso_px(self, pose: PoseResult, frame_shape: tuple[int, int, int]):
+        """Centro dos ombros e dos quadris, em pixels. None se nao der pra confiar."""
+        nomes = ("left_shoulder", "right_shoulder", "left_hip", "right_hip")
+        for nome in nomes:
+            landmark = pose.by_name(nome)
+            if landmark is None or landmark.visibility < 0.4:
+                return None
+        pontos = {nome: pose.point_px(nome, frame_shape) for nome in nomes}
+        if any(valor is None for valor in pontos.values()):
+            return None
+        ombro = (
+            (pontos["left_shoulder"][0] + pontos["right_shoulder"][0]) / 2,
+            (pontos["left_shoulder"][1] + pontos["right_shoulder"][1]) / 2,
+        )
+        quadril = (
+            (pontos["left_hip"][0] + pontos["right_hip"][0]) / 2,
+            (pontos["left_hip"][1] + pontos["right_hip"][1]) / 2,
+        )
+        return ombro, quadril
+
+    def _is_fallen(self, pose: PoseResult, frame_shape: tuple[int, int, int]) -> bool:
+        """Torso mais horizontal que vertical.
+
+        Em PIXELS, nao em coordenadas normalizadas. Num frame 960x540, 0.1 em x
+        sao 96 px e 0.1 em y sao 54 px — comparar os dois normalizados fazia o
+        limiar declarado de 1.6 valer 2.84 na pratica. Com pose por pessoa seria
+        pior: num recorte de pessoa em pe (80x300) o mesmo 1.6 viraria 0.43,
+        marcando como caida qualquer pessoa levemente inclinada.
+        """
+        torso = self._torso_px(pose, frame_shape)
+        if torso is None:
             return False
-        shoulder_y = (left_shoulder.y + right_shoulder.y) / 2
-        hip_y = (left_hip.y + right_hip.y) / 2
-        torso_height = max(0.001, hip_y - shoulder_y)
-        head_forward_offset = abs(nose.x - ((left_shoulder.x + right_shoulder.x) / 2))
-        excessive_forward = head_forward_offset > 0.18
-        compressed_torso = torso_height < 0.10
-        return bool(excessive_forward or compressed_torso)
+        (ombro_x, ombro_y), (quadril_x, quadril_y) = torso
+        return abs(ombro_x - quadril_x) > abs(ombro_y - quadril_y) * FALLEN_TORSO_RATIO
+
+    def _is_bad_posture(self, pose: PoseResult, frame_shape: tuple[int, int, int]) -> bool:
+        """Cabeca projetada a frente do eixo dos ombros.
+
+        Medido em fracao da ALTURA DO TORSO da propria pessoa, nao do frame:
+        assim o limiar independe de a pessoa estar perto ou longe da camera — o
+        que a versao anterior, normalizada pelo frame, nao garantia.
+        """
+        torso = self._torso_px(pose, frame_shape)
+        nariz_lm = pose.by_name("nose")
+        nariz = pose.point_px("nose", frame_shape)
+        if torso is None or nariz is None or nariz_lm is None or nariz_lm.visibility < 0.4:
+            return False
+
+        (ombro_x, ombro_y), (_quadril_x, quadril_y) = torso
+        altura_torso = abs(quadril_y - ombro_y)
+        if altura_torso < 1.0:
+            # Torso com menos de 1 px de altura: pessoa dobrada ao meio ou
+            # deteccao ruim. Nos dois casos vale sinalizar.
+            return True
+        return abs(nariz[0] - ombro_x) / altura_torso > HEAD_FORWARD_RATIO
 
     def _evaluate_risk_area(self, people: list[dict[str, Any]], pose: PoseResult | None) -> list[RuleAlert]:
         if not self.feature_manager.is_enabled("risk_area"):

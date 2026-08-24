@@ -8,6 +8,14 @@ from app.vision.person_compliance_matcher import PPE_LABELS
 from app.vision.schemas import Detection, PoseResult
 
 
+def _e_desta_pessoa(alerta: dict[str, Any], pessoa: dict[str, Any]) -> bool:
+    """O alerta de pose e desta pessoa? Alerta global (sem person_id) conta
+    pra todas — e o comportamento antigo, preservado quando so ha a pose do
+    frame inteiro."""
+    person_id = (alerta.get("metadata") or {}).get("person_id")
+    return person_id is None or person_id == pessoa.get("id")
+
+
 class ComplianceService:
     def __init__(self, feature_manager: FeatureManager, rule_engine: RuleEngine) -> None:
         self.feature_manager = feature_manager
@@ -83,6 +91,16 @@ class ComplianceService:
                 "supported": bool(supported_ppe.get(key, False)),
                 "detections": [item.to_dict() for item in detections if item.label == key],
                 "active_alert": active_by_feature.get(key),
+            }
+
+        # Cada pessoa recebe o estado da SUA pose, quando existe uma.
+        poses_por_pessoa = {item.person_id: item for item in evaluation.poses if item.person_id}
+        for pessoa in people:
+            pose_da_pessoa = poses_por_pessoa.get(pessoa["id"])
+            pessoa["pose"] = {
+                "found": bool(pose_da_pessoa and pose_da_pessoa.found),
+                "fallen": bool(active_by_feature.get("falls") and _e_desta_pessoa(active_by_feature["falls"], pessoa)),
+                "bad_posture": bool(active_by_feature.get("posture") and _e_desta_pessoa(active_by_feature["posture"], pessoa)),
             }
 
         pose_state = self._pose_state(pose, active_by_feature)
