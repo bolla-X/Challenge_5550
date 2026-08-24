@@ -203,10 +203,10 @@ class MonitorService:
     def update_settings(self, updates: dict[str, Any], camera_id: int | None = None) -> dict[str, Any]:
         return self._get_worker(camera_id).update_settings(updates)
 
-    def get_overlay(self, camera_id: int | None = None) -> dict[str, bool]:
+    def get_overlay(self, camera_id: int | None = None) -> dict[str, Any]:
         return self._get_worker(camera_id).get_overlay()
 
-    def update_overlay(self, updates: dict[str, Any], camera_id: int | None = None) -> dict[str, bool]:
+    def update_overlay(self, updates: dict[str, Any], camera_id: int | None = None) -> dict[str, Any]:
         return self._get_worker(camera_id).update_overlay(updates)
 
     def risk_area_state(self, camera_id: int | None = None) -> dict[str, Any]:

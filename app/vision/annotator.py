@@ -62,15 +62,15 @@ class FrameAnnotator:
             cv2.polylines(frame, [points], isClosed=True, color=(0, 165, 255), thickness=2)
             cv2.putText(frame, "AREA DE RISCO", tuple(points[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 165, 255), 2)
 
-    # SEM acento de proposito: cv2.putText usa fonte Hershey, que nao tem
-    # glifo pra acentuacao — "oculos" com acento sairia como caixinha
-    # desenhada por cima do frame.
+    # Sem acento de proposito: cv2.putText usa fonte Hershey, que nao tem
+    # glifo pra acentuacao — sairia caixinha desenhada no frame.
     _LABELS = {
         "helmet": "capacete",
         "vest": "colete",
         "gloves": "luvas",
         "glasses": "oculos",
         "mask": "mascara",
+        "safety_shoe": "calcado",
         "safety_cone": "cone",
         "fall_detected": "queda",
         "person": "pessoa",
@@ -83,6 +83,7 @@ class FrameAnnotator:
         "gloves": (255, 0, 255),
         "glasses": (0, 255, 255),
         "mask": (180, 105, 255),
+        "safety_shoe": (128, 255, 128),
         "safety_cone": (0, 140, 255),
         "fall_detected": (0, 0, 255),
         "person": (255, 128, 0),

@@ -1,3 +1,5 @@
+import type { PpeKey } from "./ppe";
+
 /**
  * DTOs mirroring the Flask backend contract exactly as read from source
  * (not from the old app.js). Each type links back to the Python source of
@@ -14,7 +16,17 @@ export interface FeatureFlag {
 }
 
 // ---- app/models.py: Alert.to_dict() --------------------------------------
-export interface Alert {
+/**
+ * Toda carga vinda de um CameraWorker carrega a câmera de origem. `null` =
+ * evento global/legado (ex.: um alerta gravado antes do multi-câmera). O store
+ * usa isso pra descartar o que não é da câmera em foco — ver
+ * `belongsToFocusedCamera` em store/dashboardStore.ts.
+ */
+export interface CameraScoped {
+  camera_id?: number | null;
+}
+
+export interface Alert extends CameraScoped {
   id: number;
   key: string;
   rule: string;
@@ -33,7 +45,7 @@ export interface Alert {
 }
 
 // ---- app/models.py: EventLog.to_dict() -----------------------------------
-export interface TimelineEvent {
+export interface TimelineEvent extends CameraScoped {
   id: number;
   event_type: string;
   severity: string;
@@ -77,7 +89,7 @@ export interface PoseResult {
 
 // ---- app/vision/schemas.py: FrameAnalysis.to_dict(), extended in --------
 // ---- monitor_service.py._loop() with alerts/compliance/model ------------
-export interface AnalysisPayload {
+export interface AnalysisPayload extends CameraScoped {
   detections: Detection[];
   pose: PoseResult;
   risk_events: Record<string, unknown>[];
@@ -95,14 +107,12 @@ export interface ModelClassInfo {
   normalized: string;
 }
 
-export interface SupportedPpe {
-  helmet: boolean;
-  vest: boolean;
-  gloves: boolean;
-  glasses: boolean;
-}
+// Chaveado por PpeKey (api/ppe.ts) — as 6 classes que o modelo pode reportar.
+// Record<> em vez de campos soltos: assim adicionar uma classe nova em PPE_KEYS
+// quebra o typecheck em todo lugar que precisa saber dela, em vez de silenciar.
+export type SupportedPpe = Record<PpeKey, boolean>;
 
-export interface ModelDiagnostics {
+export interface ModelDiagnostics extends CameraScoped {
   model_path: string;
   confidence: number;
   device: string | null;
@@ -136,12 +146,7 @@ export interface PersonCompliance {
   label: string;
   confidence: number;
   box: BoundingBox;
-  ppe: {
-    helmet: PersonPpeCheck;
-    vest: PersonPpeCheck;
-    gloves: PersonPpeCheck;
-    glasses: PersonPpeCheck;
-  };
+  ppe: Record<PpeKey, PersonPpeCheck>;
   risk_area?: PersonRiskArea;
 }
 
@@ -171,16 +176,11 @@ export interface RiskAreaComplianceState {
   active_alert?: Alert;
 }
 
-export interface ComplianceState {
+export interface ComplianceState extends CameraScoped {
   person_present: boolean;
   person_count: number;
   people: PersonCompliance[];
-  ppe: {
-    helmet: PpeComplianceCard;
-    vest: PpeComplianceCard;
-    gloves: PpeComplianceCard;
-    glasses: PpeComplianceCard;
-  };
+  ppe: Record<PpeKey, PpeComplianceCard>;
   pose: PoseComplianceState;
   risk_area: RiskAreaComplianceState;
   model: ModelDiagnostics;
@@ -188,7 +188,7 @@ export interface ComplianceState {
 }
 
 // ---- app/services/monitor_service.py: settings() -------------------------
-export interface RuntimeSettings {
+export interface RuntimeSettings extends CameraScoped {
   video_source: string;
   target_fps: number;
   jpeg_quality: number;
@@ -204,7 +204,7 @@ export interface RuntimeSettings {
 }
 
 // ---- app/services/monitor_service.py: overlay_options --------------------
-export interface OverlayOptions {
+export interface OverlayOptions extends CameraScoped {
   boxes: boolean;
   labels: boolean;
   confidence: boolean;
@@ -218,7 +218,7 @@ export interface RiskAreaPoint {
   y: number;
 }
 
-export interface RiskAreaState {
+export interface RiskAreaState extends CameraScoped {
   name: string;
   polygon: RiskAreaPoint[];
   enabled: boolean;
@@ -233,7 +233,7 @@ export interface SnapshotInfo {
 }
 
 // ---- app/services/monitor_service.py: status() ---------------------------
-export interface MonitorStatus {
+export interface MonitorStatus extends CameraScoped {
   running: boolean;
   frame_counter: number;
   last_error: string | null;
@@ -310,7 +310,7 @@ export interface RiskScoreOverall extends RiskFeatureScore {
   driving_feature: string | null;
 }
 
-export interface RiskScore {
+export interface RiskScore extends CameraScoped {
   window_minutes: number;
   overall: RiskScoreOverall;
   features: Record<string, RiskFeatureScore>;
@@ -335,58 +335,23 @@ export interface RiskTrendResponse {
 
 // ---- MOCK: multi-câmera (fase de interface, antes do backend multi-source) --
 // Sem endpoint real ainda. Alimenta grid/kiosk/foco por câmera enquanto o
-// backend continua single-source (ver MonitorService). Quando o backend
-// ganhar suporte a múltiplas câmeras (GET /cameras), este bloco deve ser
-// substituído/alinhado ao shape real vindo de lá — os nomes de campo abaixo
-// já seguem a mesma convenção snake_case do resto deste arquivo por isso.
+// Espelha DEFAULT_CAMERA_FEATURES em app/models.py — mesmas chaves que o
+// FeatureManager reconhece, validadas em VALID_FEATURE_KEYS (app/api/cameras.py).
 export interface CameraFeatureSet {
   helmet: boolean;
   vest: boolean;
   gloves: boolean;
   glasses: boolean;
+  mask: boolean;
+  safety_shoe: boolean;
   pose: boolean;
   falls: boolean;
   posture: boolean;
   risk_area: boolean;
-  // Toggle de grupo do backend (liga/desliga capacete+colete+luvas juntos)
-  // — existe na API real mas a UI nunca expôs um controle próprio pra ele,
-  // então fica opcional aqui pra não quebrar nada que já lia esse tipo.
+  // Toggle de grupo do backend (liga/desliga todos os EPIs juntos) — existe
+  // na API real, mas a UI só o expõe na sidebar de features, não como chip
+  // por câmera; opcional aqui por isso.
   ppe?: boolean;
-}
-
-export interface CameraAlertMock {
-  id: string;
-  sev: "critical" | "high" | "medium" | "low" | "info";
-  label: string;
-  meta: string;
-  time: string;
-}
-
-export interface CameraConnectivity {
-  latency_ms: number | null;
-  uptime_pct: number;
-  last_reconnect: string;
-}
-
-export interface CameraErrorLogEntry {
-  msg: string;
-  time: string;
-}
-
-export interface CameraMock {
-  id: number;
-  name: string;
-  location: string;
-  source_type: "USB" | "RTSP" | "Arquivo";
-  source: string;
-  status: "ok" | "offline";
-  fps: number;
-  features: CameraFeatureSet;
-  alerts: CameraAlertMock[];
-  risk_score: number;
-  driving_feature: string | null;
-  connectivity: CameraConnectivity;
-  error_log: CameraErrorLogEntry[];
 }
 
 // ---- REAL: câmeras multi-source (Fase A, Passo 6 — ver app/api/cameras.py) --
@@ -428,12 +393,3 @@ export interface CameraDiscoveryResponse {
   count: number;
 }
 
-// ---- MOCK: fila de auditoria de falso positivo (exclusiva do Supervisor) --
-export interface FalsePositiveAuditItem {
-  id: number;
-  camera_id: number;
-  label: string;
-  reported_by: string;
-  time: string;
-  status: "pending" | "confirmed" | "rejected";
-}

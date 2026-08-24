@@ -14,6 +14,7 @@ import {
   listAlerts,
   listCameras,
   listEvents,
+  acknowledgeAlert as apiAcknowledgeAlert,
   markFalsePositive as apiMarkFalsePositive,
   patchFeatures as apiPatchFeatures,
   patchOverlay as apiPatchOverlay,
@@ -29,7 +30,6 @@ import type {
   CameraRecord,
   ComplianceState,
   Detection,
-  FalsePositiveAuditItem,
   FeatureFlag,
   ModelDiagnostics,
   OverlayOptions,
@@ -40,7 +40,6 @@ import type {
   RuntimeSettings,
   TimelineEvent,
 } from "../api/types";
-import { MOCK_AUDIT_QUEUE } from "./mockCameras";
 
 export type ViewMode = "operator" | "technical" | "supervisor";
 
@@ -146,6 +145,7 @@ interface DashboardState {
   updateSettings: (updates: Partial<RuntimeSettings>) => Promise<void>;
   updateRiskArea: (payload: { name?: string; polygon: { x: number; y: number }[] }) => Promise<void>;
   markFalsePositive: (alertId: number, reason?: string) => Promise<void>;
+  acknowledgeAlert: (alertId: number, note?: string) => Promise<void>;
 
   // ---- multi-câmera REAL (Fase A, Passo 6 — ver app/api/cameras.py) -------
   // `screen` decide qual tela do "espaço multi-câmera" aparece; é ortogonal
@@ -162,14 +162,11 @@ interface DashboardState {
   // (que é só "qual câmera está sendo exibida agora"). null enquanto não
   // existe nenhuma câmera cadastrada.
   operatorCam: number | null;
-  auditQueue: FalsePositiveAuditItem[];
   loadCameras: () => Promise<void>;
   setScreen: (screen: CameraScreen) => void;
   setCamId: (camId: number) => void;
   setOperatorCam: (camId: number) => void;
   toggleCameraFeature: (camId: number, key: keyof CameraFeatureSet) => void;
-  reportFalsePositive: (camId: number, label: string) => void;
-  resolveAudit: (id: number, status: "confirmed" | "rejected") => void;
 }
 
 const MAX_TIMELINE = 90;
@@ -323,7 +320,6 @@ export const useDashboardStore = create<DashboardState>()(
       camId: null,
       operatorCam: null,
       screen: readStoredMode() === "operator" ? "kiosk" : "grid",
-      auditQueue: MOCK_AUDIT_QUEUE,
       loadCameras: async () => {
         try {
           const res = await listCameras();
@@ -385,31 +381,19 @@ export const useDashboardStore = create<DashboardState>()(
           )
           .catch((error) => console.error("[toggleCameraFeature] failed", error));
       },
-      reportFalsePositive: (camId, label) =>
-        set(
-          (state) => ({
-            auditQueue: [
-              { id: Date.now(), camera_id: camId, label, reported_by: `Operador (Cam ${camId})`, time: "agora", status: "pending" },
-              ...state.auditQueue,
-            ],
-          }),
-          false,
-          "reportFalsePositive",
-        ),
-      resolveAudit: (id, status) =>
-        set(
-          (state) => ({
-            auditQueue: state.auditQueue.map((item) => (item.id === id ? { ...item, status } : item)),
-          }),
-          false,
-          "resolveAudit",
-        ),
       showMessage: (text, tone = "warning") => set({ message: { text, tone } }, false, "showMessage"),
       hideMessage: () => set({ message: null }, false, "hideMessage"),
 
       bootstrap: async () => {
-        try {
-          const [status, featuresRes, settingsRes, overlayRes, riskAreaRes, riskScoreRes, riskTrendRes, eventsRes, alertsRes] = await Promise.all([
+        // allSettled, não all: /status, /settings, /overlay e /risk-area
+        // operam sobre "a câmera padrão" e respondem 404 quando NENHUMA câmera
+        // está cadastrada — que é o estado inicial legítimo de todo clone novo
+        // (não existe mais seed automático). Com Promise.all, esse 404
+        // rejeitava a promessa inteira e derrubava junto os dados que não
+        // dependem de câmera nenhuma (features, alertas, eventos, risco), e a
+        // primeira tela abria completamente vazia.
+        const [status, featuresRes, settingsRes, overlayRes, riskAreaRes, riskScoreRes, riskTrendRes, eventsRes, alertsRes] =
+          await Promise.allSettled([
             getStatus(),
             getFeatures(),
             getSettings(),
@@ -420,32 +404,41 @@ export const useDashboardStore = create<DashboardState>()(
             listEvents({ limit: 80, eventType: "alert_resolved" }),
             listAlerts({ limit: 50 }),
           ]);
-          set(
-            {
-              running: status.running,
-              frameCounter: status.frame_counter,
-              lastError: status.last_error,
-              model: status.model,
-              activeAlerts: status.active_alerts,
-              features: featuresRes.features,
-              settings: settingsRes.settings,
-              overlay: overlayRes.overlay,
-              riskArea: riskAreaRes.risk_area,
-              riskScore: riskScoreRes,
-              riskTrend: riskTrendRes,
-              timeline: eventsRes.items,
-              alertHistory: alertsRes.items,
-              riskEditorPoints: (riskAreaRes.risk_area.polygon || []).map((p) => ({ x: p.x, y: p.y })),
-              bootstrapping: false,
-            },
-            false,
-            "bootstrap",
-          );
-        } catch (error) {
-          // Skeleton não pode ficar preso pra sempre se o bootstrap falhar —
-          // cai pros empty states de cada card, que já tratam dado ausente.
-          set({ bootstrapping: false }, false, "bootstrap:error");
-          throw error;
+
+        const value = <T,>(result: PromiseSettledResult<T>): T | null => (result.status === "fulfilled" ? result.value : null);
+
+        const statusValue = value(status);
+        const riskArea = value(riskAreaRes)?.risk_area ?? null;
+        set(
+          {
+            running: statusValue?.running ?? false,
+            frameCounter: statusValue?.frame_counter ?? 0,
+            lastError: statusValue?.last_error ?? null,
+            model: statusValue?.model ?? null,
+            activeAlerts: statusValue?.active_alerts ?? [],
+            features: value(featuresRes)?.features ?? [],
+            settings: value(settingsRes)?.settings ?? null,
+            overlay: value(overlayRes)?.overlay ?? null,
+            riskArea,
+            riskScore: value(riskScoreRes),
+            riskTrend: value(riskTrendRes),
+            timeline: value(eventsRes)?.items ?? [],
+            alertHistory: value(alertsRes)?.items ?? [],
+            riskEditorPoints: (riskArea?.polygon || []).map((p) => ({ x: p.x, y: p.y })),
+            bootstrapping: false,
+          },
+          false,
+          "bootstrap",
+        );
+
+        // Só as chamadas que NÃO dependem de câmera contam como falha real de
+        // bootstrap. As escopadas na câmera padrão falharem sem câmera
+        // cadastrada é esperado, e a tela já tem empty state pra isso.
+        const cameraIndependent = [featuresRes, riskScoreRes, riskTrendRes, eventsRes, alertsRes];
+        const failed = cameraIndependent.filter((item) => item.status === "rejected");
+        if (failed.length) {
+          set({ message: { text: "Não foi possível carregar todos os dados do painel.", tone: "error" } }, false, "bootstrap:partial");
+          throw (failed[0] as PromiseRejectedResult).reason;
         }
       },
 
@@ -487,6 +480,15 @@ export const useDashboardStore = create<DashboardState>()(
           set({ message: { text: error instanceof Error ? error.message : "Falha ao marcar falso positivo.", tone: "error" } }, false, "markFalsePositive:error");
         }
       },
+      acknowledgeAlert: async (alertId, note) => {
+        try {
+          const res = await apiAcknowledgeAlert(alertId, note);
+          upsertActiveAlert(res.alert);
+          set({ message: { text: "Registrado: colaborador avisado.", tone: "ok" } }, false, "acknowledgeAlert");
+        } catch (error) {
+          set({ message: { text: error instanceof Error ? error.message : "Falha ao registrar o aviso.", tone: "error" } }, false, "acknowledgeAlert:error");
+        }
+      },
     }),
     { name: "visionepi-dashboard" },
   ),
@@ -509,6 +511,23 @@ useDashboardStore.subscribe((state) => {
     useDashboardStore.setState({ allClearAt: Date.now() }, false, "allClear:pulse");
   }
 });
+
+/**
+ * Um payload de socket só entra no estado "da tela" se for da câmera em foco.
+ *
+ * O backend roda um CameraWorker por câmera e todos emitem no mesmo canal.
+ * Antes do carimbo de `camera_id`, dois workers ativos sobrescreviam
+ * `compliance`/`model`/`activeAlerts` um do outro a cada frame (~12x/s cada),
+ * e um `stop()` numa câmera marcava `running: false` pro dashboard inteiro.
+ *
+ * `camera_id` ausente/null = evento global ou legado: aceita, porque é o
+ * comportamento single-camera de sempre.
+ */
+function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean {
+  if (payload.camera_id == null) return true;
+  const focused = useDashboardStore.getState().camId;
+  return focused == null || payload.camera_id === focused;
+}
 
 /** Shared by the alert_resolved socket handler and the false-positive REST action. */
 function resolveAlert(alert: Alert) {
@@ -534,10 +553,9 @@ function upsertActiveAlert(alert: Alert) {
 }
 
 /**
- * Wires every Socket.IO event the backend emits to a store update.
- * Call once at app root (see main.tsx). Logs each event so the checkpoint
- * ("quero ver os eventos chegando") is visible without needing the Redux
- * DevTools extension installed.
+ * Liga cada evento Socket.IO do backend a uma atualização do store.
+ * Chamar uma vez na raiz do app (ver main.tsx). Em dev, loga cada evento para
+ * inspeção sem precisar da extensão Redux DevTools.
  */
 export function subscribeToServerEvents(): () => void {
   const set = useDashboardStore.setState;
@@ -549,7 +567,10 @@ export function subscribeToServerEvents(): () => void {
 
   function on<K extends ServerEventName>(event: K, handler: (payload: ServerEvents[K]) => void) {
     const wrapped = (payload: ServerEvents[K]) => {
-      console.log(`[ws] ${event}`, payload);
+      // Só em dev: `analysis` chega ~12x/s com detecções + 33 landmarks de
+      // pose. Em produção isso inundava o console e mantinha cada payload
+      // vivo na memória do devtools.
+      if (import.meta.env.DEV) console.log(`[ws] ${event}`, payload);
       handler(payload);
     };
     // TS can't prove `wrapped`'s type lines up with the overloaded, K-indexed
@@ -560,19 +581,14 @@ export function subscribeToServerEvents(): () => void {
     teardown.push(() => (socket.off as (event: K, handler: (payload: ServerEvents[K]) => void) => void)(event, wrapped));
   }
 
-  const onConnect = () => {
-    console.log("[ws] connect");
-    set({ connected: true }, false, "ws:connect");
-  };
-  const onDisconnect = () => {
-    console.log("[ws] disconnect");
-    set({ connected: false }, false, "ws:disconnect");
-  };
+  const onConnect = () => set({ connected: true }, false, "ws:connect");
+  const onDisconnect = () => set({ connected: false }, false, "ws:disconnect");
   socket.on("connect", onConnect);
   socket.on("disconnect", onDisconnect);
   teardown.push(() => socket.off("connect", onConnect), () => socket.off("disconnect", onDisconnect));
 
-  on("monitor_status", (status) =>
+  on("monitor_status", (status) => {
+    if (!belongsToFocusedCamera(status)) return;
     set(
       {
         running: status.running,
@@ -586,21 +602,35 @@ export function subscribeToServerEvents(): () => void {
       },
       false,
       "ws:monitor_status",
-    ),
-  );
+    );
+  });
   on("features_updated", (payload) => set({ features: payload.features }, false, "ws:features_updated"));
   on("model_diagnostics", (model) => {
+    if (!belongsToFocusedCamera(model)) return;
     set({ model }, false, "ws:model_diagnostics");
     if (model.warning) useDashboardStore.getState().showMessage(model.warning, model.error ? "error" : "warning");
     else useDashboardStore.getState().hideMessage();
   });
-  on("settings_updated", (settings) => set({ settings }, false, "ws:settings_updated"));
-  on("overlay_updated", (overlay) => set({ overlay }, false, "ws:overlay_updated"));
-  on("risk_area_updated", (riskArea) => set({ riskArea }, false, "ws:risk_area_updated"));
-  on("risk_score", (riskScore) => set({ riskScore }, false, "ws:risk_score"));
-  on("compliance_state", (compliance) => set({ compliance }, false, "ws:compliance_state"));
-  on("active_alerts", (payload) => set({ activeAlerts: payload.items }, false, "ws:active_alerts"));
-  on("analysis", (payload) =>
+  on("settings_updated", (settings) => {
+    if (belongsToFocusedCamera(settings)) set({ settings }, false, "ws:settings_updated");
+  });
+  on("overlay_updated", (overlay) => {
+    if (belongsToFocusedCamera(overlay)) set({ overlay }, false, "ws:overlay_updated");
+  });
+  on("risk_area_updated", (riskArea) => {
+    if (belongsToFocusedCamera(riskArea)) set({ riskArea }, false, "ws:risk_area_updated");
+  });
+  on("risk_score", (riskScore) => {
+    if (belongsToFocusedCamera(riskScore)) set({ riskScore }, false, "ws:risk_score");
+  });
+  on("compliance_state", (compliance) => {
+    if (belongsToFocusedCamera(compliance)) set({ compliance }, false, "ws:compliance_state");
+  });
+  on("active_alerts", (payload) => {
+    if (belongsToFocusedCamera(payload)) set({ activeAlerts: payload.items }, false, "ws:active_alerts");
+  });
+  on("analysis", (payload) => {
+    if (!belongsToFocusedCamera(payload)) return;
     set(
       (state) => {
         const now = Date.now();
@@ -623,18 +653,23 @@ export function subscribeToServerEvents(): () => void {
       },
       false,
       "ws:analysis",
-    ),
-  );
+    );
+  });
+  // timeline_event / alert_* NÃO passam pelo gate de propósito: o histórico e
+  // a linha do tempo são consolidados (todas as câmeras). Quem é por câmera é
+  // o estado "ao vivo" acima.
   on("timeline_event", (event) =>
     set((state) => ({ timeline: [event, ...state.timeline].slice(0, MAX_TIMELINE) }), false, "ws:timeline_event"),
   );
   on("alert_created", (alert) => {
-    upsertActiveAlert(alert);
+    if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
     set({ lastAlertCreatedId: alert.id }, false, "ws:alert_created:lastId");
     if (!useDashboardStore.getState().muted && SEVERITIES_WITH_CHIME.has(alert.severity)) playAlertChime();
   });
   on("alert", upsertActiveAlert); // legacy alias, same payload as alert_created
-  on("alert_updated", upsertActiveAlert);
+  on("alert_updated", (alert) => {
+    if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
+  });
   on("alert_resolved", resolveAlert);
 
   if (!socket.connected) socket.connect();

@@ -1,11 +1,15 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Dev: Vite proxies everything to Flask on :5000 so the browser sees one
-// origin and we never need CORS (per approved plan, question 3).
+// Dev: Vite proxies everything to Flask so the browser sees one origin and
+// we never need CORS (per approved plan, question 3).
 // Prod: Flask serves this build's output directly from app/static/dist
 // (per approved plan, question 1) — outDir points straight there.
-const FLASK_TARGET = "http://localhost:5003";
+//
+// A porta tem que bater com Config.PORT (app/config.py) / .env PORT — é a
+// mesma que Dockerfile, docker-compose e README usam.
+const FLASK_PORT = process.env.PORT ?? "5000";
+const FLASK_TARGET = `http://localhost:${FLASK_PORT}`;
 
 export default defineConfig({
   plugins: [react()],

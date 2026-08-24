@@ -1,18 +1,35 @@
 from __future__ import annotations
 
 import pytest
-
 from app import create_app
 from app.config import TestConfig
 from app.extensions import db
 
 
 class DummySocket:
-    def emit(self, *args, **kwargs):
+    """Coleta os emits em vez de mandar pra rede. `events` fica disponível pra
+    quem quiser afirmar sobre o que foi emitido."""
+
+    def __init__(self):
+        self.events: list[tuple[str, object]] = []
+
+    def emit(self, event, payload=None, *args, **kwargs):
+        self.events.append((event, payload))
+
+    def start_background_task(self, target, *args, **kwargs):
+        # Nunca dispara a thread: nos testes ninguém quer um loop de captura
+        # tentando abrir webcam. Quem precisa exercitar o loop chama-o direto.
         return None
 
 
 class DummyMonitor:
+    """Stub das ROTAS LEGADAS (/status, /start, /settings, ...).
+
+    Existe só pra essas rotas, que operam sobre "a câmera padrão" e não têm
+    nada de multi-câmera pra exercitar. As rotas /api/cameras/* são testadas
+    contra o MonitorService REAL — ver a fixture `real_monitor_app`.
+    """
+
     def __init__(self, feature_manager):
         self.socketio = DummySocket()
         self.feature_manager = feature_manager
@@ -20,6 +37,7 @@ class DummyMonitor:
 
     def status(self):
         return {
+            "camera_id": None,
             "running": self.started,
             "frame_counter": 0,
             "last_error": None,
@@ -41,10 +59,10 @@ class DummyMonitor:
         return None
 
     def settings(self):
-        return {"target_fps": 12, "snapshot_enabled": True}
+        return {"camera_id": None, "target_fps": 12, "snapshot_enabled": True}
 
     def get_overlay(self):
-        return {"boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True}
+        return {"camera_id": None, "boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True}
 
     def update_settings(self, updates):
         current = self.settings()
@@ -57,10 +75,15 @@ class DummyMonitor:
         return current
 
     def risk_area_state(self):
-        return {"name": "Área de risco", "polygon": [{"x": 0.7, "y": 0.1}, {"x": 0.98, "y": 0.1}, {"x": 0.98, "y": 0.95}], "enabled": True}
+        return {
+            "camera_id": None,
+            "name": "Área de risco",
+            "polygon": [{"x": 0.7, "y": 0.1}, {"x": 0.98, "y": 0.1}, {"x": 0.98, "y": 0.95}],
+            "enabled": True,
+        }
 
     def update_risk_area(self, payload):
-        return {"name": payload.get("name", "Área de risco"), "polygon": payload["polygon"], "enabled": True}
+        return {"camera_id": None, "name": payload.get("name", "Área de risco"), "polygon": payload["polygon"], "enabled": True}
 
 
 @pytest.fixture()
@@ -78,3 +101,28 @@ def app():
 @pytest.fixture()
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture()
+def real_monitor_app():
+    """App com o MonitorService DE VERDADE, sem stub.
+
+    Seguro em teste porque os pesos YOLO e o MediaPipe são carregados de forma
+    preguiçosa (`cached_property`) — construir MonitorService/CameraWorker não
+    toca em modelo nem em câmera. O que não pode acontecer é `start()`, que
+    abriria a captura; por isso o socketio é trocado por um DummySocket cujo
+    `start_background_task` não faz nada.
+    """
+    app = create_app(TestConfig)
+    with app.app_context():
+        db.create_all()
+        monitor = app.extensions["monitor_service"]
+        monitor.socketio = DummySocket()
+        yield app
+        db.session.remove()
+        db.drop_all()
+
+
+@pytest.fixture()
+def real_monitor_client(real_monitor_app):
+    return real_monitor_app.test_client()

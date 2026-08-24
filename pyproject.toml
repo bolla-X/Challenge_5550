@@ -1,10 +1,13 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "--strict-markers"
 
 [tool.ruff]
 line-length = 140
 src = ["app", "tests"]
+# Scaffolding gerado pelo Alembic: o estilo dele é o do template, não o nosso.
+extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]

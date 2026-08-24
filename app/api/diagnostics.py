@@ -76,7 +76,12 @@ def list_events():
         limit = 80
     event_type = request.args.get("event_type")
     severity = request.args.get("severity")
-    events = EventRepository().list_recent(limit=limit, event_type=event_type, severity=severity)
+    events = EventRepository().list_recent(
+        limit=limit,
+        event_type=event_type,
+        severity=severity,
+        camera_id=request.args.get("camera_id", type=int),
+    )
     return jsonify({"items": [item.to_dict() for item in events], "count": len(events)})
 
 

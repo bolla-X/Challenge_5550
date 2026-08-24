@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 
@@ -23,6 +23,27 @@ class BoundingBox:
     def center(self) -> tuple[int, int]:
         return (self.x1 + self.width // 2, self.y1 + self.height // 2)
 
+    @property
+    def area(self) -> int:
+        return self.width * self.height
+
+    def intersection_area(self, other: "BoundingBox") -> int:
+        dx = min(self.x2, other.x2) - max(self.x1, other.x1)
+        dy = min(self.y2, other.y2) - max(self.y1, other.y1)
+        return dx * dy if dx > 0 and dy > 0 else 0
+
+    def iou(self, other: "BoundingBox") -> float:
+        """Intersection over Union — base do tracking e do matching EPI-pessoa."""
+        inter = self.intersection_area(other)
+        union = self.area + other.area - inter
+        return inter / union if union > 0 else 0.0
+
+    def containment_in(self, other: "BoundingBox") -> float:
+        """Fração DESTA caixa que cai dentro de `other`. Assimétrico de
+        propósito: um capacete pequeno pode estar 100% contido numa pessoa
+        grande, e é isso que interessa — não o IoU, que seria baixíssimo."""
+        return self.intersection_area(other) / self.area if self.area > 0 else 0.0
+
     def to_dict(self) -> dict[str, int]:
         return asdict(self)
 
@@ -34,6 +55,12 @@ class Detection:
     box: BoundingBox
     class_id: int | None = None
     category: str = "object"
+    # Id estável ENTRE frames, atribuído pelo PersonTracker (só para pessoas).
+    # None = objeto não rastreado (EPIs) ou tracking desligado.
+    track_id: int | None = None
+
+    def with_track_id(self, track_id: int | None) -> "Detection":
+        return replace(self, track_id=track_id)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +69,7 @@ class Detection:
             "box": self.box.to_dict(),
             "class_id": self.class_id,
             "category": self.category,
+            "track_id": self.track_id,
         }
 
 

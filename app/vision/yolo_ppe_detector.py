@@ -39,6 +39,15 @@ PPE_CLASS_ALIASES = {
     "safety goggles": "glasses",
     "safety_goggles": "glasses",
     "eye protection": "glasses",
+    "mask": "mask",
+    "masks": "mask",
+    "face mask": "mask",
+    "respirator": "mask",
+    "safety_shoe": "safety_shoe",
+    "safety shoe": "safety_shoe",
+    "safety shoes": "safety_shoe",
+    "boots": "safety_shoe",
+    "safety boots": "safety_shoe",
     "safety cone": "safety_cone",
     "safety_cone": "safety_cone",
     "person": "person",
@@ -48,10 +57,11 @@ PPE_CLASS_ALIASES = {
 # Nucleo: sem estas tres o sistema nao cumpre o que promete, entao sao elas
 # que definem se o modelo esta "pronto".
 PPE_CORE_CLASSES = ("helmet", "vest", "gloves")
-# Opcionais: o Vyra detecta Goggles, mas um modelo so com o nucleo continua
-# PRONTO. Marcar `glasses` como obrigatoria faria todo modelo de 3 classes
-# ja em uso passar a reportar "modelo parcial" sem nada ter piorado.
-PPE_OPTIONAL_CLASSES = ("glasses",)
+# Opcionais: o Vyra (modelo padrao) detecta Goggles e Mask; safety_shoe fica
+# como "unsupported" ate entrar um peso que a tenha. Um modelo so com o
+# nucleo continua PRONTO — marcar estas como obrigatorias faria todo peso
+# de 3 classes ja em uso reportar "modelo parcial" sem nada ter piorado.
+PPE_OPTIONAL_CLASSES = ("glasses", "mask", "safety_shoe")
 PPE_REQUIRED_CLASSES = PPE_CORE_CLASSES + PPE_OPTIONAL_CLASSES
 
 
@@ -176,13 +186,18 @@ class YoloPPEDetector:
 
         supported_ppe = {key: key in normalized_values for key in PPE_REQUIRED_CLASSES}
         has_person = "person" in normalized_values
+        # Prontidao olha so o nucleo: um modelo com helmet/vest/gloves esta
+        # pronto mesmo sem oculos/mascara/calcado.
         core_ok = all(supported_ppe[key] for key in PPE_CORE_CLASSES)
         ready = core_ok and (has_person if self.require_person else True)
         warning = None
         if error:
             warning = f"Modelo YOLO indisponível: {error}"
         elif not any(supported_ppe.values()):
-            warning = "O modelo YOLO carregado não possui classes de EPI. Configure PPE_MODEL_PATH com pesos treinados para helmet/vest/gloves."
+            warning = (
+                "O modelo YOLO carregado não possui classes de EPI. "
+                "Configure PPE_MODEL_PATH com pesos treinados para helmet/vest/gloves."
+            )
         elif not ready:
             missing = [key for key in PPE_CORE_CLASSES if not supported_ppe[key]]
             if self.require_person and not has_person:

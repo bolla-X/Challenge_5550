@@ -3,9 +3,9 @@ from __future__ import annotations
 import time
 
 import cv2
-import numpy as np
 from flask import Blueprint, Response, current_app, jsonify, request
 
+from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.models import DEFAULT_CAMERA_FEATURES, Camera
 
@@ -193,13 +193,6 @@ def delete_camera(camera_id: int):
     return jsonify({"deleted": True, "id": camera_id})
 
 
-def _placeholder_jpeg(message: str) -> bytes:
-    frame = np.zeros((540, 960, 3), dtype=np.uint8)
-    cv2.putText(frame, message, (40, 270), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-    ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
-    return buffer.tobytes() if ok else b""
-
-
 # ---- controle por câmera (Fase A, Passo 5) --------------------------------
 # As rotas legadas (/start, /stop, /status, /video_feed em app/api/monitor.py
 # e stream.py) continuam existindo e operando sobre "a câmera padrão" — sem
@@ -258,7 +251,8 @@ def camera_video_feed(camera_id: int):
                 jpeg = monitor.latest_jpeg(camera_id=camera_id)
             except LookupError:
                 jpeg = None
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + (jpeg or _placeholder_jpeg(f"Câmera {camera_id}: parada ou sem frame")) + b"\r\n"
+            body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
+            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + body + b"\r\n"
             time.sleep(1 / target_fps)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
