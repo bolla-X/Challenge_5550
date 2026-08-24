@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Command } from "cmdk";
-import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
-import { MODES } from "./layout";
+import { ROLE_ACCESS, useDashboardStore, type ViewMode } from "../store/dashboardStore";
 
 // Alvo é o id do WRAPPER da aba (gerado por Tabs em common.tsx como
 // `${idPrefix}-panel-${tabKey}`), não o id do Panel interno — o Panel só
@@ -45,7 +44,6 @@ export function CommandPalette() {
   const open = useDashboardStore((s) => s.commandPaletteOpen);
   const setOpen = useDashboardStore((s) => s.setCommandPaletteOpen);
   const mode = useDashboardStore((s) => s.mode);
-  const setMode = useDashboardStore((s) => s.setMode);
   const setActiveTab = useDashboardStore((s) => s.setActiveTab);
   const running = useDashboardStore((s) => s.running);
   const start = useDashboardStore((s) => s.start);
@@ -64,13 +62,27 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // Um alvo sem `profile` (o video) e de todo mundo. Com `profile`, so aparece
+  // pra quem tem aquele papel — ou pra quem esta acima dele na hierarquia, ja
+  // que o supervisor enxerga os paineis do tecnico.
+  const acesso = ROLE_ACCESS[mode];
+  const alvosVisiveis = JUMP_TARGETS.filter((alvo) => {
+    if (!alvo.profile) return true;
+    if (alvo.profile === mode) return true;
+    if (alvo.profile === "technical") return acesso.canConfigure;
+    if (alvo.profile === "supervisor") return acesso.hasOverview;
+    return false;
+  });
+
   const runAndClose = (fn: () => void) => {
     fn();
     setOpen(false);
   };
 
   const jumpTo = (target: JumpTarget) => {
-    if (target.profile && mode !== target.profile) setMode(target.profile);
+    // NAO troca mais de perfil: o perfil e o papel da pessoa logada. A paleta
+    // so oferece o que ela ja pode ver (ver `alvosVisiveis`), entao pular pra
+    // um alvo nunca escala privilegio.
     if (target.profile && target.tabKey) setActiveTab(target.profile, target.tabKey);
     setOpen(false);
     // setTimeout, não requestAnimationFrame: rAF fica pausado em aba em
@@ -91,13 +103,6 @@ export function CommandPalette() {
       <Command.Input placeholder="Buscar uma ação…" autoFocus />
       <Command.List>
         <Command.Empty>Nenhum resultado.</Command.Empty>
-        <Command.Group heading="Perfil">
-          {MODES.filter((m) => m.key !== mode).map((m) => (
-            <Command.Item key={m.key} onSelect={() => runAndClose(() => setMode(m.key))}>
-              Mudar para perfil {m.label}
-            </Command.Item>
-          ))}
-        </Command.Group>
         <Command.Group heading="Monitoramento">
           <Command.Item onSelect={() => runAndClose(() => (running ? stop() : start()).catch(console.error))}>
             {running ? "Parar monitoramento" : "Iniciar monitoramento"}
@@ -105,7 +110,7 @@ export function CommandPalette() {
           <Command.Item onSelect={() => runAndClose(toggleMuted)}>{muted ? "Ativar som de alertas" : "Silenciar som de alertas"}</Command.Item>
         </Command.Group>
         <Command.Group heading="Ir para">
-          {JUMP_TARGETS.map((target) => (
+          {alvosVisiveis.map((target) => (
             <Command.Item key={target.id} onSelect={() => jumpTo(target)}>
               {target.label}
             </Command.Item>

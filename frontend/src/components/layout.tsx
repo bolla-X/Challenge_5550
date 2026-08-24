@@ -4,13 +4,12 @@ import { useDashboardStore } from "../store/dashboardStore";
 
 const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
 const EASE_IN = "easeIn" as const; // exits — tokens.css only has the ease-out curve above
-// Exportado pra command-palette.tsx reaproveitar (não duplicar os 3 perfis
-// e seus rótulos em dois arquivos).
-export const MODES = [
-  { key: "operator", label: "Operador" },
-  { key: "technical", label: "Técnico" },
-  { key: "supervisor", label: "Supervisor" },
-] as const;
+
+const ROTULO_DO_PAPEL: Record<string, string> = {
+  operator: "Operador",
+  technical: "Técnico",
+  supervisor: "Supervisor",
+};
 
 /** Ícone de alto-falante — traço grosso, sem preenchimento fino, pra ler
  * a distância num monitor de chão de fábrica. Riscado quando mudo, com
@@ -42,19 +41,24 @@ export function MuteToggle() {
   );
 }
 
-// Seletor "simular setor" do Operador — existe só nessa fase de testes
-// (sem login real ainda, ver conversa no chat). Escreve em operatorCam no
-// store; quando o login chegar, isso vira derivado de sessão, não um
-// <select> na topbar.
-function OperatorCameraSimSelect() {
+/** Escolha de câmera do Operador — SÓ para quem ainda não tem câmera atribuída.
+ *
+ * O normal é a câmera vir da conta (`user.camera_id`, definido pelo supervisor).
+ * Este seletor é a saída de emergência para o intervalo entre criar a pessoa e
+ * atribuir o setor dela: sem ele, o operador abriria o kiosk sem nada pra ver.
+ */
+function OperatorCameraFallback() {
   const cameras = useDashboardStore((s) => s.cameras);
   const operatorCam = useDashboardStore((s) => s.operatorCam);
   const setOperatorCam = useDashboardStore((s) => s.setOperatorCam);
-  if (cameras.length === 0) return null; // nada pra simular ainda — sem câmera cadastrada
+  const user = useDashboardStore((s) => s.user);
+
+  if (user?.camera_id != null) return null; // já tem setor definido na conta
+  if (cameras.length === 0) return null;
   return (
-    <div className="sim-select-wrap" title="Simula qual câmera é 'do setor' deste Operador — provisório, some quando o login real existir.">
-      <label htmlFor="operator-sim-select">simular setor</label>
-      <select id="operator-sim-select" value={operatorCam ?? ""} onChange={(e) => setOperatorCam(Number(e.target.value))}>
+    <div className="sim-select-wrap" title="Sua conta ainda não tem câmera atribuída — peça ao supervisor. Enquanto isso, escolha uma aqui.">
+      <label htmlFor="operator-cam-select">setor</label>
+      <select id="operator-cam-select" value={operatorCam ?? ""} onChange={(e) => setOperatorCam(Number(e.target.value))}>
         {cameras.map((cam) => (
           <option key={cam.id} value={cam.id}>
             {cam.name}
@@ -65,10 +69,37 @@ function OperatorCameraSimSelect() {
   );
 }
 
+/** Quem está logado + sair. Substitui o seletor de perfil da topbar. */
+function UserMenu() {
+  const user = useDashboardStore((s) => s.user);
+  const logout = useDashboardStore((s) => s.logout);
+  const [saindo, setSaindo] = useState(false);
+  if (!user) return null;
+
+  return (
+    <div className="user-menu">
+      <div className="user-menu-info">
+        <strong>{user.name}</strong>
+        <span>{ROTULO_DO_PAPEL[user.role] ?? user.role}</span>
+      </div>
+      <button
+        type="button"
+        className="secondary small"
+        disabled={saindo}
+        onClick={() => {
+          setSaindo(true);
+          logout().finally(() => setSaindo(false));
+        }}
+      >
+        {saindo ? "Saindo…" : "Sair"}
+      </button>
+    </div>
+  );
+}
+
 export function Topbar() {
-  const { mode, setMode, start, stop, connected, running, setCommandPaletteOpen } = useDashboardStore();
+  const { mode, start, stop, connected, running, setCommandPaletteOpen } = useDashboardStore();
   const video = useVideoStatus();
-  const shouldReduceMotion = useReducedMotion();
   // Feedback de "seu clique registrou" durante a latência real do REST —
   // sem isso, Iniciar/Parar não dão nenhum sinal até a resposta chegar.
   const [pending, setPending] = useState<"start" | "stop" | null>(null);
@@ -103,28 +134,15 @@ export function Topbar() {
           </div>
         </div>
         <div className="topbar-actions">
-          {mode === "operator" && <OperatorCameraSimSelect />}
+          {mode === "operator" && <OperatorCameraFallback />}
           <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
             Buscar <kbd>Ctrl K</kbd>
           </button>
           <MuteToggle />
-          <div className="mode-toggle" role="group" aria-label="Modo de visualização">
-            {MODES.map((item) => (
-              <button key={item.key} className={`segmented ${mode === item.key ? "active" : ""}`.trim()} type="button" onClick={() => setMode(item.key)}>
-                {/* Comunica que o clique produziu exatamente esse destaque —
-                    a pílula desliza até o botão clicado em vez de trocar de
-                    cor abruptamente em dois lugares ao mesmo tempo. */}
-                {mode === item.key && (
-                  <motion.span
-                    className="segmented-pill"
-                    layoutId="mode-pill"
-                    transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
-                  />
-                )}
-                <span className="segmented-label">{item.label}</span>
-              </button>
-            ))}
-          </div>
+          {/* O seletor de perfil virou identidade: o modo agora É o papel da
+              pessoa logada, não um botão. Trocar de perfil exige outra conta —
+              é o ponto de ter autenticação de verdade. */}
+          <UserMenu />
           <button
             className={`secondary ${pending === "stop" ? "is-pending" : ""}`.trim()}
             type="button"

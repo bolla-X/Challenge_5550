@@ -1,5 +1,20 @@
 import type { PpeKey } from "./ppe";
 
+/** Papéis reais, vindos da sessão. Hierárquicos: supervisor > technical > operator. */
+export type UserRole = "operator" | "technical" | "supervisor";
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  name: string;
+  role: UserRole;
+  active: boolean;
+  /** Câmera do setor — só faz sentido para operator. */
+  camera_id: number | null;
+  last_login_at: string | null;
+  created_at: string | null;
+}
+
 /**
  * DTOs mirroring the Flask backend contract exactly as read from source
  * (not from the old app.js). Each type links back to the Python source of

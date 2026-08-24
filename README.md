@@ -17,6 +17,7 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 - **Tendência de risco** — score agregado por categoria (os seis EPIs + quedas/postura/área de risco), opcionalmente filtrado por câmera, calculado sobre o histórico real de alertas em janela deslizante, com sparkline de 24h. Estatística honesta sobre o histórico — não é predição de IA, é isso que os dados sustentam hoje.
 - **Command palette (Ctrl/Cmd+K)** — navegação rápida entre painéis, troca de modo, iniciar/parar monitoramento, sem precisar do mouse.
 - **Alertas sonoros** — som curto para alertas críticos e para o retorno a "tudo certo", com mute persistente e sempre visível.
+- **Autenticação real com papéis** — login por e-mail e senha (hash scrypt), sessão em cookie HttpOnly, e três papéis hierárquicos que decidem o que cada pessoa pode fazer. Sem cadastro público: quem cria acesso é quem já tem acesso.
 - **Modo Operador / Técnico / Supervisor** — visão essencial para o campo (com ações reais de "avisei o colaborador" e "marcar falso positivo"), e um painel de diagnóstico completo (FPS, classes do modelo, diagnósticos de detecção) para quem precisa investigar.
 - **Dashboard em tempo real** via WebSocket (Socket.IO) — feed de vídeo, conformidade por pessoa, linha do tempo de eventos, tudo atualizado ao vivo.
 
@@ -76,6 +77,12 @@ Crie o esquema do banco:
 flask --app wsgi db upgrade
 ```
 
+Crie a primeira conta — sem ela não há como entrar:
+
+```bash
+flask --app wsgi users create --role supervisor
+```
+
 > Já tinha um banco criado pela versão anterior (que usava `db.create_all()`)? Rode `flask --app wsgi db stamp f6cd160ae4e0` **uma vez** antes do `upgrade` — assim o Alembic aplica só a migração nova (`camera_id`) em vez de tentar recriar tabelas que já existem.
 
 ### Frontend
@@ -107,6 +114,44 @@ Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve
 Esse modelo já traz a classe `Person` (índice 11), então `MULTI_PERSON_DETECTION=false` desliga o segundo modelo YOLO (COCO, `PERSON_MODEL_PATH`) que antes rodava em paralelo só para suprir essa falta. Ele continua configurável: ligue `MULTI_PERSON_DETECTION=true` ao usar um modelo de EPI sem classe `person` (ex.: `models/epi_pretrained.pt`) — e, nesse caso, **limpe `YOLO_CLASSES`**, porque os índices em `.env.example` são específicos do Vyra.
 
 Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso de "modelo não suportado" — o restante do sistema (detecção de pessoa, pose, área de risco) funciona normalmente mesmo assim.
+
+## Autenticação e papéis
+
+Todas as rotas da API exigem sessão. Os três papéis são **hierárquicos** —
+supervisor pode tudo que o técnico pode, e assim por diante:
+
+| | Operador | Técnico | Supervisor |
+|---|---|---|---|
+| Ver vídeo, alertas, conformidade, linha do tempo | ✅ | ✅ | ✅ |
+| Iniciar/parar monitoramento | ✅ | ✅ | ✅ |
+| Marcar falso positivo / avisar colaborador | ✅ | ✅ | ✅ |
+| Cadastrar e configurar câmeras | — | ✅ | ✅ |
+| Alterar configurações, overlay e área de risco | — | ✅ | ✅ |
+| Gerir usuários | — | — | ✅ |
+
+Comandos de gestão:
+
+```bash
+flask --app wsgi users create --role operator --camera-id 1
+```
+
+```bash
+flask --app wsgi users list
+```
+
+```bash
+flask --app wsgi users set-password --email pessoa@empresa.com
+```
+
+Detalhes que importam para a avaliação de segurança:
+
+- Senha nunca é persistida nem registrada em log — só o hash **scrypt** do werkzeug.
+- Sessão em cookie **HttpOnly** (JavaScript da página não lê, então XSS não rouba a sessão) e **SameSite=Lax**. Atrás de HTTPS, ligue `SESSION_COOKIE_SECURE=true`.
+- A aplicação **não sobe** com `SECRET_KEY` no valor padrão do repositório enquanto a autenticação estiver ligada: esse segredo assina a sessão, e o valor padrão é público.
+- E-mail inexistente e senha errada devolvem a **mesma** resposta, e o custo de verificação é constante — não dá para descobrir quais contas existem.
+- Cinco tentativas erradas travam a conta por um tempo que dobra a cada rodada (até 30 min).
+- Desativar uma pessoa derruba a sessão dela no request seguinte: não existe token válido fora do banco.
+- O **WebSocket** também exige sessão — proteger só o REST deixaria o feed de análise e alertas acessível pela porta dos fundos.
 
 ## Testes
 
@@ -149,7 +194,7 @@ tests/                  Testes backend (pytest)
 
 - [x] Tracking estável de pessoa entre frames — feito com um tracker IoU por câmera (`app/vision/person_tracker.py`) em vez de `model.track(persist=True)`: o estado do tracker do Ultralytics vive dentro do objeto do modelo, e os modelos aqui são compartilhados entre câmeras.
 - [x] Matching geométrico EPI–pessoa por posição real, com atribuição exclusiva
-- [ ] **Autenticação nos endpoints REST sensíveis** — hoje qualquer um que alcance a porta pode iniciar/parar câmeras, alterar configurações e marcar alertas como falso positivo
+- [x] Autenticação nos endpoints REST sensíveis — login com papéis, cobrindo REST e WebSocket
 - [ ] Retry/backoff no stream de vídeo (uma fonte RTSP que cai fica em "Frame indisponível" indefinidamente)
 - [ ] Pose por pessoa — hoje o MediaPipe roda uma pose global por frame, então alertas de queda/postura não são atribuíveis a um indivíduo quando há mais de um em cena
 - [ ] Feature por câmera em runtime — `PUT /api/cameras/<id>` grava no banco, mas o worker em execução só relê a configuração quando é reconstruído (mudança de fonte/fps/resolução)

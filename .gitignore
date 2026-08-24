@@ -10,3 +10,6 @@ runtime/
 instance/
 .DS_Store
 *.save
+
+# Saida de diagnostico do tsc — nunca deve ser versionada.
+tsc.log

@@ -5,8 +5,10 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
+from app.models import ROLE_OPERATOR
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
+from app.utils.auth import login_required, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,7 @@ alerts_bp = Blueprint("alerts", __name__)
 
 
 @alerts_bp.get("/alerts")
+@login_required
 def list_alerts():
     try:
         limit = min(int(request.args.get("limit", 100)), 500)
@@ -38,6 +41,7 @@ def list_alerts():
 
 
 @alerts_bp.get("/alerts/<int:alert_id>/evidence")
+@login_required
 def get_alert_evidence(alert_id: int):
     alert = AlertRepository().get(alert_id)
     if alert is None:
@@ -61,6 +65,7 @@ def get_alert_evidence(alert_id: int):
 
 
 @alerts_bp.post("/alerts/<int:alert_id>/false-positive")
+@require_role(ROLE_OPERATOR)
 def mark_false_positive(alert_id: int):
     payload = request.get_json(silent=True) or {}
     repository = AlertRepository()
@@ -82,6 +87,7 @@ def mark_false_positive(alert_id: int):
 
 
 @alerts_bp.post("/alerts/<int:alert_id>/acknowledge")
+@require_role(ROLE_OPERATOR)
 def acknowledge_alert(alert_id: int):
     """Operador confirma que tratou o alerta em campo ("avisei o colaborador").
 

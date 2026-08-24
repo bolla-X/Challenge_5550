@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import type { AuthUser } from "./types";
 import type {
   AlertsResponse,
   Alert,
@@ -21,6 +22,12 @@ import type {
 } from "./types";
 
 // One function per Flask route, named after the route. See app/api/*.py.
+
+// ---- autenticação (sessão em cookie HttpOnly; não há token no JS) -------
+export const getMe = () => apiFetch<{ user: AuthUser | null }>("/api/auth/me");
+export const login = (email: string, password: string) =>
+  apiFetch<{ user: AuthUser }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+export const logout = () => apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
 
 export const getStatus = () => apiFetch<StatusResponse>("/status");
 export const getPreflight = () => apiFetch<PreflightResponse>("/preflight");

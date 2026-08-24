@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -44,6 +45,18 @@ class Config:
     # proxy do Vite. Antes o run.py escutava 5003 enquanto Dockerfile/compose/
     # README falavam em 5000 — o container subia com a porta publicada errada
     # e ninguém alcançava a aplicação.
+    # Autenticacao. Desligar so faz sentido em teste automatizado; num
+    # ambiente com camera apontada pra pessoas, exigir login e o padrao.
+    AUTH_REQUIRED = env_bool("AUTH_REQUIRED", True)
+    # Sessao assinada com SECRET_KEY, em cookie HttpOnly (o JS da pagina
+    # nao le, entao XSS nao rouba a sessao).
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    # LIGUE em producao (exige HTTPS). Fica desligado por padrao porque
+    # cookie Secure nao viaja em http://localhost e quebraria o dev.
+    SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", False)
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=env_int("SESSION_HOURS", 12))
+
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = env_int("PORT", 5000)
     # Werkzeug em modo debug expõe console interativo = execução remota de
@@ -147,4 +160,16 @@ class TestConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     AUTO_CREATE_TABLES = False
-    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,pose,falls,posture,risk_area"
+    # Cada teste foca no proprio assunto; exigir login em todos so adicionaria
+    # ruido. Quem exercita a autenticacao de verdade e tests/test_auth.py, que
+    # sobe com AUTH_REQUIRED=True e verifica rota por rota — inclusive uma
+    # varredura que falha se aparecer rota nova desprotegida.
+    AUTH_REQUIRED = False
+    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area"
+
+
+class AuthTestConfig(TestConfig):
+    """TestConfig com autenticacao LIGADA."""
+
+    AUTH_REQUIRED = True
+    SECRET_KEY = "chave-de-teste-nao-usada-em-lugar-nenhum"

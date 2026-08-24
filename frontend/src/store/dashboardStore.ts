@@ -15,6 +15,9 @@ import {
   listCameras,
   listEvents,
   acknowledgeAlert as apiAcknowledgeAlert,
+  getMe,
+  login as apiLogin,
+  logout as apiLogout,
   markFalsePositive as apiMarkFalsePositive,
   patchFeatures as apiPatchFeatures,
   patchOverlay as apiPatchOverlay,
@@ -26,6 +29,7 @@ import {
 } from "../api/endpoints";
 import type {
   Alert,
+  AuthUser,
   CameraFeatureSet,
   CameraRecord,
   ComplianceState,
@@ -49,10 +53,9 @@ export type ViewMode = "operator" | "technical" | "supervisor";
 // travado em "kiosk" (ver setMode e setScreenForMode abaixo).
 export type CameraScreen = "grid" | "focus" | "kiosk" | "overview";
 
-// Acesso por papel — hoje é só UI (sem login real ainda, ver conversa no
-// chat), mas centralizado aqui pra não espalhar `mode === "operator"` por
-// componente. Quando o login real chegar, isso troca de fonte (derivado de
-// sessão), não de forma.
+// Acesso por papel. A FONTE é a sessão (`user.role`), não um seletor de tela —
+// e o backend valida de novo em cada rota, então isto aqui é só para a UI não
+// oferecer o que a pessoa não pode fazer. Nunca é a única barreira.
 export interface RoleAccess {
   seeAllCameras: boolean;
   canConfigure: boolean;
@@ -65,6 +68,14 @@ export const ROLE_ACCESS: Record<ViewMode, RoleAccess> = {
 };
 
 interface DashboardState {
+  // ---- sessão ------------------------------------------------------------
+  // `mode` deixa de ser um seletor na topbar: é o PAPEL da pessoa logada.
+  user: AuthUser | null;
+  authChecked: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  checkSession: () => Promise<void>;
+
   // connection
   connected: boolean;
   mode: ViewMode;
@@ -230,6 +241,32 @@ function readStoredMode(): ViewMode {
 export const useDashboardStore = create<DashboardState>()(
   devtools(
     (set) => ({
+      user: null,
+      authChecked: false,
+      login: async (email, password) => {
+        const res = await apiLogin(email, password);
+        aplicarSessao(res.user);
+      },
+      logout: async () => {
+        try {
+          await apiLogout();
+        } finally {
+          // Derruba o socket junto: a conexão foi autorizada pela sessão que
+          // acabou de morrer.
+          socket.disconnect();
+          set({ user: null, authChecked: true }, false, "logout");
+        }
+      },
+      checkSession: async () => {
+        try {
+          const res = await getMe();
+          if (res.user) aplicarSessao(res.user);
+          set({ authChecked: true }, false, "checkSession:done");
+        } catch {
+          set({ user: null, authChecked: true }, false, "checkSession:error");
+        }
+      },
+
       connected: socket.connected,
       mode: readStoredMode(),
 
@@ -531,6 +568,21 @@ function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean
   if (payload.camera_id == null) return true;
   const focused = useDashboardStore.getState().camId;
   return focused == null || payload.camera_id === focused;
+}
+
+/**
+ * Aplica a sessão recém-obtida ao estado.
+ *
+ * O papel define o modo — quem entra como operador cai no kiosk. E a câmera do
+ * setor vem de `user.camera_id`, definido pelo supervisor: é isso que substitui
+ * o antigo seletor "simular setor" da topbar.
+ */
+function aplicarSessao(user: AuthUser) {
+  useDashboardStore.setState({ user, authChecked: true }, false, "sessao:aplicar");
+  useDashboardStore.getState().setMode(user.role);
+  if (user.camera_id != null) {
+    useDashboardStore.getState().setOperatorCam(user.camera_id);
+  }
 }
 
 /** Shared by the alert_resolved socket handler and the false-positive REST action. */
