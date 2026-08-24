@@ -39,7 +39,7 @@ export const getCameraStatus = (cameraId: number) => apiFetch<MonitorStatus>(`/a
 export const startCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/start`, { method: "POST" });
 export const stopCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/stop`, { method: "POST" });
 
-// ---- CRUD real de câmeras (Fase A, Passo 6 — substitui mockCameras.ts) ---
+// ---- CRUD de câmeras (ver app/api/cameras.py) ---------------------------
 export const listCameras = () => apiFetch<CamerasResponse>("/api/cameras");
 export const createCamera = (payload: {
   name: string;
@@ -82,6 +82,14 @@ export const markFalsePositive = (alertId: number, reason?: string) =>
   apiFetch<{ alert: Alert }>(`/alerts/${alertId}/false-positive`, {
     method: "POST",
     body: JSON.stringify({ reason }),
+  });
+// "Avisei o colaborador": registra na linha do tempo quem tratou o alerta em
+// campo, sem resolvê-lo (a detecção é quem resolve). Ver acknowledge_alert()
+// em app/api/alerts.py.
+export const acknowledgeAlert = (alertId: number, note?: string) =>
+  apiFetch<{ alert: Alert }>(`/alerts/${alertId}/acknowledge`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
   });
 
 export const getModel = () => apiFetch<ModelDiagnostics>("/model");

@@ -15,8 +15,10 @@ class EventRepository:
         severity: str = "info",
         subject: str | None = None,
         metadata: dict[str, Any] | None = None,
+        camera_id: int | None = None,
     ) -> EventLog:
         event = EventLog(
+            camera_id=camera_id,
             event_type=event_type,
             severity=severity,
             message=message,
@@ -33,12 +35,15 @@ class EventRepository:
         limit: int = 100,
         event_type: str | None = None,
         severity: str | None = None,
+        camera_id: int | None = None,
     ) -> list[EventLog]:
         query = EventLog.query
         if event_type:
             query = query.filter(EventLog.event_type == event_type)
         if severity:
             query = query.filter(EventLog.severity == severity)
+        if camera_id is not None:
+            query = query.filter(EventLog.camera_id == camera_id)
         return query.order_by(EventLog.created_at.desc()).limit(limit).all()
 
     def create_alert_resolved_once(
@@ -49,22 +54,34 @@ class EventRepository:
         severity: str = "info",
         subject: str | None = None,
         metadata: dict[str, Any] | None = None,
+        camera_id: int | None = None,
     ) -> EventLog | None:
         """Cria um evento de timeline para alerta resolvido sem duplicar o mesmo alert_id."""
         alert_id = alert_payload.get("id")
+        camera_id = camera_id if camera_id is not None else alert_payload.get("camera_id")
         if alert_id is None:
             return self.create(
                 event_type="alert_resolved",
                 message=message or alert_payload.get("message") or "Alerta resolvido",
                 severity=severity,
                 subject=subject,
+                camera_id=camera_id,
                 metadata=(metadata or {}) | {"alert": alert_payload},
             )
 
-        existing_items = EventLog.query.filter(EventLog.event_type == "alert_resolved").order_by(EventLog.created_at.desc()).limit(500).all()
-        for existing in existing_items:
-            if str((existing.metadata_json or {}).get("alert_id")) == str(alert_id):
-                return None
+        # Checagem de duplicata no SQL. Antes isto carregava as 500 últimas
+        # linhas e comparava em Python — a cada alerta resolvido, no meio do
+        # loop de captura.
+        duplicate = (
+            db.session.query(EventLog.id)
+            .filter(
+                EventLog.event_type == "alert_resolved",
+                EventLog.metadata_json["alert_id"].as_string() == str(alert_id),
+            )
+            .first()
+        )
+        if duplicate is not None:
+            return None
 
         event_metadata = {"alert_id": str(alert_id), "alert": alert_payload}
         if metadata:
@@ -74,5 +91,6 @@ class EventRepository:
             message=message or alert_payload.get("message") or "Alerta resolvido",
             severity=severity,
             subject=subject,
+            camera_id=camera_id,
             metadata=event_metadata,
         )

@@ -16,7 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 class SnapshotService:
-    def __init__(self, *, base_dir: Path | None = None, snapshot_dir: str = "runtime/snapshots", enabled: bool = True, jpeg_quality: int = 86) -> None:
+    def __init__(
+        self,
+        *,
+        base_dir: Path | None = None,
+        snapshot_dir: str = "runtime/snapshots",
+        enabled: bool = True,
+        jpeg_quality: int = 86,
+    ) -> None:
         self.base_dir = Path(base_dir or BASE_DIR)
         self.snapshot_dir = snapshot_dir.strip() or "runtime/snapshots"
         self.enabled = bool(enabled)

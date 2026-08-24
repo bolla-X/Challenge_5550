@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from sqlalchemy.ext.mutable import MutableDict
+
 from app.extensions import db
 
 
@@ -13,13 +15,22 @@ class Alert(db.Model):
     __tablename__ = "alerts"
 
     id = db.Column(db.Integer, primary_key=True)
+    # Sem ForeignKey de propósito: o histórico de alertas precisa SOBREVIVER ao
+    # DELETE da câmera (auditoria de segurança do trabalho não some porque
+    # alguém descadastrou uma webcam). Indexado porque toda listagem/score
+    # filtra por ele.
+    camera_id = db.Column(db.Integer, nullable=True, index=True)
     rule = db.Column(db.String(80), nullable=False, index=True)
     severity = db.Column(db.String(30), nullable=False, index=True)
     message = db.Column(db.String(255), nullable=False)
     feature = db.Column(db.String(80), nullable=True, index=True)
     status = db.Column(db.String(30), nullable=False, default="active", index=True)
     frame_ref = db.Column(db.String(240), nullable=True)
-    metadata_json = db.Column(db.JSON, nullable=False, default=dict)
+    # MutableDict, não db.JSON puro: sem isso o SQLAlchemy não detecta mutação
+    # in-place do dicionário (`meta = alert.metadata_json; meta["x"] = 1`) e a
+    # escrita se perde silenciosamente no commit — era assim que a marcação de
+    # falso positivo sumia do banco enquanto a resposta HTTP parecia correta.
+    metadata_json = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default=dict)
     occurrences = db.Column(db.Integer, nullable=False, default=1)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
     first_seen_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
@@ -36,6 +47,7 @@ class Alert(db.Model):
         metadata = self.metadata_json or {}
         return {
             "id": self.id,
+            "camera_id": self.camera_id,
             "key": self.key,
             "rule": self.rule,
             "severity": self.severity,
@@ -45,6 +57,7 @@ class Alert(db.Model):
             "frame_ref": self.frame_ref,
             "metadata": metadata,
             "false_positive": bool(metadata.get("false_positive")),
+            "acknowledged": bool(metadata.get("acknowledged")),
             "occurrences": self.occurrences,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "first_seen_at": self.first_seen_at.isoformat() if self.first_seen_at else None,
@@ -57,16 +70,20 @@ class EventLog(db.Model):
     __tablename__ = "event_logs"
 
     id = db.Column(db.Integer, primary_key=True)
+    # Mesmo raciocínio de Alert.camera_id (ver acima).
+    camera_id = db.Column(db.Integer, nullable=True, index=True)
     event_type = db.Column(db.String(80), nullable=False, index=True)
     severity = db.Column(db.String(30), nullable=False, default="info", index=True)
     message = db.Column(db.String(255), nullable=False)
     subject = db.Column(db.String(120), nullable=True, index=True)
-    metadata_json = db.Column(db.JSON, nullable=False, default=dict)
+    # MutableDict pelo mesmo motivo de Alert.metadata_json (ver acima).
+    metadata_json = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default=dict)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
+            "camera_id": self.camera_id,
             "event_type": self.event_type,
             "severity": self.severity,
             "message": self.message,
@@ -93,6 +110,8 @@ DEFAULT_CAMERA_FEATURES = {
     "vest": True,
     "gloves": True,
     "glasses": True,
+    "mask": True,
+    "safety_shoe": True,
     "pose": True,
     "falls": True,
     "posture": True,
@@ -136,7 +155,12 @@ class Camera(db.Model):
             "width": self.width,
             "height": self.height,
             "enabled": self.enabled,
-            "features": self.features_json or dict(DEFAULT_CAMERA_FEATURES),
+            # Merge com os defaults, não substituição: uma câmera cadastrada
+            # ANTES de uma feature nova existir tem o JSON sem aquela chave, e
+            # devolvê-lo cru faria a UI ler `undefined` e mostrar a feature
+            # como desligada — quando o comportamento real do worker é o
+            # default (ligada). Foi o caso ao habilitar óculos/máscara/calçado.
+            "features": {**DEFAULT_CAMERA_FEATURES, **(self.features_json or {})},
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

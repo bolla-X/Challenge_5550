@@ -8,21 +8,23 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 
 ## Funcionalidades
 
-- **Detecção de EPIs em tempo real** — capacete, colete, luvas e óculos de proteção, via modelo YOLOv8 dedicado, rodando em paralelo a um segundo modelo para detecção de pessoa (arquitetura dual-model).
-- **Multi-pessoa** — múltiplas pessoas detectadas e avaliadas simultaneamente no mesmo frame.
+- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos, máscara e calçado de segurança, via modelo YOLOv8 dedicado (Vyra, 14 classes). O segundo modelo para detecção de pessoa continua disponível para pesos que não trazem a classe `Person` (arquitetura dual-model opcional).
+- **Multi-pessoa com identidade estável** — múltiplas pessoas detectadas e avaliadas no mesmo frame, cada uma com id que persiste entre frames (tracking por IoU). O EPI é associado à pessoa por geometria e de forma exclusiva: um capacete pertence a uma pessoa só, mesmo com as caixas se sobrepondo.
+- **Multi-câmera de verdade** — um worker por câmera, modelos YOLO carregados uma única vez e compartilhados. Todo alerta, evento e mensagem de WebSocket carrega `camera_id`.
 - **Análise de postura e quedas** — via MediaPipe Pose, sinalizando posturas suspeitas e pessoas caídas.
 - **Área de risco configurável** — editor visual de zona de risco; alerta quando uma pessoa entra na área.
 - **Ciclo de vida de alertas com histerese** — alertas são criados/resolvidos após N frames consecutivos (não a cada frame instável), evitando ruído de falso positivo.
-- **Tendência de risco** — score agregado por categoria (capacete/colete/luvas/quedas/postura/área de risco), calculado sobre o histórico real de alertas em janela deslizante, com sparkline de 24h. Estatística honesta sobre o histórico — não é predição de IA, é isso que os dados sustentam hoje.
+- **Tendência de risco** — score agregado por categoria (os seis EPIs + quedas/postura/área de risco), opcionalmente filtrado por câmera, calculado sobre o histórico real de alertas em janela deslizante, com sparkline de 24h. Estatística honesta sobre o histórico — não é predição de IA, é isso que os dados sustentam hoje.
 - **Command palette (Ctrl/Cmd+K)** — navegação rápida entre painéis, troca de modo, iniciar/parar monitoramento, sem precisar do mouse.
 - **Alertas sonoros** — som curto para alertas críticos e para o retorno a "tudo certo", com mute persistente e sempre visível.
-- **Modo Operador / Técnico** — visão essencial para o campo, e um painel de diagnóstico completo (FPS, classes do modelo, diagnósticos de detecção) para quem precisa investigar.
+- **Modo Operador / Técnico / Supervisor** — visão essencial para o campo (com ações reais de "avisei o colaborador" e "marcar falso positivo"), e um painel de diagnóstico completo (FPS, classes do modelo, diagnósticos de detecção) para quem precisa investigar.
 - **Dashboard em tempo real** via WebSocket (Socket.IO) — feed de vídeo, conformidade por pessoa, linha do tempo de eventos, tudo atualizado ao vivo.
 
 ## Stack
 
 **Backend**
-- Python 3.11 · Flask · Flask-SQLAlchemy · Flask-SocketIO
+- Python 3.11–3.12 · Flask · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-SocketIO
+- gunicorn em produção (o servidor de desenvolvimento do Werkzeug nunca é usado fora de dev)
 - Ultralytics YOLOv8 (detecção de EPI e de pessoa, dual-model)
 - MediaPipe Pose (postura e quedas)
 - SQLite (dev) / PostgreSQL (produção, via Docker)
@@ -50,7 +52,7 @@ Em desenvolvimento, o Vite roda como servidor separado (`:5173`) com proxy para 
 ## Como rodar
 
 ### Pré-requisitos
-- Python 3.11+
+- **Python 3.11 ou 3.12** — não 3.13+. `mediapipe==0.10.14` e `numpy==1.26.4` não publicam wheel para versões acima da 3.12, e `pip install` falha antes de instalar qualquer coisa.
 - Node.js + npm
 - (Opcional) Docker, se for usar PostgreSQL em vez de SQLite
 
@@ -68,6 +70,14 @@ copy .env.example .env          # Windows
 
 Edite o `.env`: comente `DATABASE_URL` para usar SQLite local, ou suba um Postgres via `docker compose up -d postgres` e mantenha a URL configurada.
 
+Crie o esquema do banco:
+
+```bash
+flask --app wsgi db upgrade
+```
+
+> Já tinha um banco criado pela versão anterior (que usava `db.create_all()`)? Rode `flask --app wsgi db stamp f6cd160ae4e0` **uma vez** antes do `upgrade` — assim o Alembic aplica só a migração nova (`camera_id`) em vez de tentar recriar tabelas que já existem.
+
 ### Frontend
 
 ```bash
@@ -82,7 +92,9 @@ npm run build
 python run.py
 ```
 
-Acesse `http://localhost:5000`.
+Acesse `http://localhost:5000`. A porta vem de `PORT` no `.env` e é a mesma usada por `run.py`, Dockerfile, docker-compose e pelo proxy do Vite.
+
+`python run.py` é o servidor de **desenvolvimento**. Em produção quem serve é o gunicorn sobre `wsgi:app` — é o que o `Dockerfile` faz. `FLASK_DEBUG` nunca deve ser `true` fora da sua máquina: o modo debug do Werkzeug expõe um console interativo que executa código arbitrário.
 
 Para desenvolvimento do frontend com hot-reload, rode `npm run dev` dentro de `frontend/` em paralelo ao `python run.py` — o Vite abre em `http://localhost:5173` e faz proxy das chamadas de API/WebSocket para o Flask.
 
@@ -102,30 +114,45 @@ Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso 
 pytest
 ```
 
+Lint:
+
+```bash
+ruff check .
+```
+
+Typecheck do frontend:
+
+```bash
+npm --prefix frontend run build
+```
+
 ## Estrutura do projeto
 
 ```
 app/                    Backend Flask
-  api/                  Blueprints REST (status, alerts, monitor, risk, ...)
-  services/             Lógica de negócio (monitor, alertas, compliance, risk score)
-  repositories/          Acesso a dados
-  vision/                Detecção YOLO, pose, matching pessoa-EPI
-  models.py              Modelos SQLAlchemy
-frontend/                SPA React + TypeScript + Vite
+  api/                  Blueprints REST (status, alerts, cameras, monitor, risk, ...)
+  services/             Lógica de negócio (monitor, workers, alertas, compliance, risk score)
+  repositories/         Acesso a dados
+  vision/               Detecção YOLO, tracking, pose, matching pessoa-EPI
+  models.py             Modelos SQLAlchemy
+migrations/             Migrações Alembic (Flask-Migrate)
+frontend/               SPA React + TypeScript + Vite
   src/
-    api/                 Cliente REST e tipos
-    socket/               Cliente WebSocket
-    store/                Estado global (Zustand)
-    components/           Componentes por domínio (vídeo, alertas, features, etc.)
-tests/                    Testes backend (pytest)
+    api/                Cliente REST, tipos e chaves de EPI
+    socket/             Cliente WebSocket
+    store/              Estado global (Zustand)
+    components/         Componentes por domínio (vídeo, alertas, features, etc.)
+tests/                  Testes backend (pytest)
 ```
 
 ## Roadmap
 
-- [ ] Tracking estável (`model.track(persist=True)`) no lugar da ordenação espacial atual
-- [ ] Matching geométrico EPI–pessoa por posição real, não por ordem de detecção
-- [ ] Autenticação nos endpoints REST sensíveis
-- [ ] Retry/backoff no stream de vídeo
+- [x] Tracking estável de pessoa entre frames — feito com um tracker IoU por câmera (`app/vision/person_tracker.py`) em vez de `model.track(persist=True)`: o estado do tracker do Ultralytics vive dentro do objeto do modelo, e os modelos aqui são compartilhados entre câmeras.
+- [x] Matching geométrico EPI–pessoa por posição real, com atribuição exclusiva
+- [ ] **Autenticação nos endpoints REST sensíveis** — hoje qualquer um que alcance a porta pode iniciar/parar câmeras, alterar configurações e marcar alertas como falso positivo
+- [ ] Retry/backoff no stream de vídeo (uma fonte RTSP que cai fica em "Frame indisponível" indefinidamente)
+- [ ] Pose por pessoa — hoje o MediaPipe roda uma pose global por frame, então alertas de queda/postura não são atribuíveis a um indivíduo quando há mais de um em cena
+- [ ] Feature por câmera em runtime — `PUT /api/cameras/<id>` grava no banco, mas o worker em execução só relê a configuração quando é reconstruído (mudança de fonte/fps/resolução)
 
 ## Equipe
 

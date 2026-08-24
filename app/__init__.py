@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+import logging
+
 from flask import Flask, jsonify
 
 from app.api.alerts import alerts_bp
 from app.api.cameras import cameras_bp
-from app.api.features import features_bp
 from app.api.diagnostics import runtime_bp
+from app.api.features import features_bp
 from app.api.monitor import monitor_bp
 from app.api.risk import risk_bp
 from app.api.status import status_bp
 from app.api.stream import stream_bp
 from app.config import Config
-from app.extensions import db, socketio
-from app import models  # noqa: F401
+from app.extensions import db, migrate, socketio
+from app.models import Alert  # noqa: F401  (registra os modelos no metadata)
 from app.services.feature_manager import FeatureManager
 from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.logging_config import configure_logging
@@ -21,10 +23,20 @@ from app.utils.logging_config import configure_logging
 def create_app(config_class: type[Config] = Config) -> Flask:
     configure_logging()
 
-    app = Flask(__name__, static_folder="static", template_folder="templates")
+    app = Flask(__name__, static_folder="static")
     app.config.from_object(config_class)
 
+    # SECRET_KEY padrão assina sessão/cookie com um valor que está no código
+    # aberto. Em dev é conveniente; fora dele é falha de segurança, então grita
+    # alto no log em vez de passar despercebido.
+    if not app.config.get("TESTING") and app.config["SECRET_KEY"] == "dev-secret-change-me":
+        logging.getLogger(__name__).warning(
+            "insecure_secret_key",
+            extra={"hint": "Defina SECRET_KEY no .env antes de expor esta aplicação."},
+        )
+
     db.init_app(app)
+    migrate.init_app(app, db)
     socketio.init_app(
         app,
         cors_allowed_origins=app.config.get("SOCKETIO_CORS_ALLOWED_ORIGINS", "*"),

@@ -35,9 +35,14 @@ class AlertStateService:
         *,
         create_after_frames: int = 3,
         resolve_after_frames: int = 5,
+        camera_id: int | None = None,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
+        # Toda emissão e todo Alert criado carimba a câmera de origem. Sem
+        # isso, dois workers emitindo `active_alerts` sobrescreviam a lista um
+        # do outro no dashboard ~12x por segundo.
+        self.camera_id = camera_id
         self.create_after_frames = max(1, int(create_after_frames))
         self.resolve_after_frames = max(1, int(resolve_after_frames))
         self._states: dict[str, AlertRuntimeState] = {}
@@ -60,6 +65,7 @@ class AlertStateService:
 
             if state.alert is None and state.violation_frames >= self.create_after_frames:
                 state.alert = self.repository.create(
+                    camera_id=self.camera_id,
                     rule=item.rule,
                     severity=item.severity,
                     message=item.message,
@@ -102,8 +108,11 @@ class AlertStateService:
                 del self._states[key]
 
         active = self.active_alerts()
-        self.socketio.emit("active_alerts", {"items": active, "count": len(active)})
+        self._emit_active(active)
         return {"active": active, "changed": created_or_updated, "created": created, "updated": updated, "resolved": resolved}
+
+    def _emit_active(self, active: list[dict[str, Any]]) -> None:
+        self.socketio.emit("active_alerts", {"camera_id": self.camera_id, "items": active, "count": len(active)})
 
     def active_alerts(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
@@ -126,7 +135,7 @@ class AlertStateService:
                 resolved.append(payload)
                 self.socketio.emit("alert_resolved", payload)
         self._states.clear()
-        self.socketio.emit("active_alerts", {"items": [], "count": 0})
+        self._emit_active([])
         return resolved
 
     def reset(self) -> None:

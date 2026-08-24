@@ -28,7 +28,7 @@ export interface ServerEvents {
   timeline_event: TimelineEvent;
   compliance_state: ComplianceState;
   analysis: AnalysisPayload;
-  active_alerts: { items: Alert[]; count: number };
+  active_alerts: { camera_id?: number | null; items: Alert[]; count: number };
   alert_created: Alert;
   alert: Alert; // legacy alias of alert_created, same payload
   alert_updated: Alert;

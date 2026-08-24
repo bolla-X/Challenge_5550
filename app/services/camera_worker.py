@@ -8,8 +8,8 @@ from typing import Any
 
 import cv2
 from flask import Flask
-from sqlalchemy import text as sql_text
 from flask_socketio import SocketIO
+from sqlalchemy import text as sql_text
 
 from app.config import BASE_DIR, Config
 from app.extensions import db
@@ -20,9 +20,10 @@ from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
 from app.services.risk_rules import RuleEngine
 from app.services.risk_score_service import compute_risk_score
-from app.services.storage_cleanup_service import StorageCleanupService
 from app.services.snapshot_service import SnapshotService
+from app.services.storage_cleanup_service import StorageCleanupService
 from app.vision.annotator import FrameAnnotator
+from app.vision.person_tracker import PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.schemas import FrameAnalysis
 from app.vision.video_stream import VideoStream
@@ -97,6 +98,10 @@ class CameraWorker:
         self.person_detector = person_detector
         self.pose_estimator = pose_estimator
         self.inference_lock = inference_lock
+        # Um tracker POR câmera (ver docstring de PersonTracker): os modelos
+        # YOLO são compartilhados, então o estado de tracking não pode morar
+        # dentro deles.
+        self.person_tracker = PersonTracker()
         self.rule_engine = RuleEngine(
             feature_manager=feature_manager,
             cooldown_seconds=app.config.get("ALERT_COOLDOWN_SECONDS", 0),
@@ -108,6 +113,7 @@ class CameraWorker:
             socketio,
             create_after_frames=app.config.get("ALERT_CREATE_AFTER_FRAMES", 3),
             resolve_after_frames=app.config.get("ALERT_RESOLVE_AFTER_FRAMES", 5),
+            camera_id=camera_id,
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -115,6 +121,8 @@ class CameraWorker:
             base_dir=Path(BASE_DIR),
             directories=cleanup_dirs,
             enabled=bool(app.config.get("CLEANUP_ON_MONITOR_START", True)),
+            # Preserva snapshots que alertas do historico ainda referenciam.
+            protected_files=AlertRepository().referenced_frame_filenames,
         )
         self.snapshot_service = SnapshotService(
             base_dir=Path(BASE_DIR),
@@ -139,16 +147,20 @@ class CameraWorker:
                 return self.status()
             self._last_cleanup = self.cleanup_service.cleanup_startup_artifacts()
             try:
-                stale_count = AlertRepository().resolve_all_active(reason="monitor_start_reset")
+                stale_count = AlertRepository().resolve_all_active(
+                    reason="monitor_start_reset",
+                    camera_id=self.camera_id,
+                )
                 self._last_cleanup = (self._last_cleanup or {}) | {"resolved_stale_alerts": stale_count}
             except Exception as exc:  # noqa: BLE001
                 logger.warning("stale_alert_cleanup_failed", extra={"error": str(exc)})
             self.alert_state_service.reset()
-            self.socketio.emit("active_alerts", {"items": [], "count": 0})
+            self.socketio.emit("active_alerts", {"camera_id": self.camera_id, "items": [], "count": 0})
             self._latest_jpeg = None
             self._latest_analysis = None
             self._last_error = None
             self._frame_counter = 0
+            self.person_tracker.reset()
             self._running.set()
             self._task = self.socketio.start_background_task(self._loop)
             logger.info("monitor_started", extra={"camera_id": self.camera_id, "cleanup": self._last_cleanup})
@@ -173,6 +185,7 @@ class CameraWorker:
 
     def status(self) -> dict[str, Any]:
         return {
+            "camera_id": self.camera_id,
             "running": self._running.is_set(),
             "frame_counter": self._frame_counter,
             "last_error": self._last_error,
@@ -277,11 +290,15 @@ class CameraWorker:
             self._emit_resolved_alert_event_once(payload)
 
     def _emit_resolved_alert_event_once(self, payload: dict[str, Any], *, false_positive: bool = False) -> dict[str, Any] | None:
-        subject = (payload.get("metadata") or {}).get("person_label") or (payload.get("metadata") or {}).get("person_id") or payload.get("feature")
+        metadata = payload.get("metadata") or {}
+        subject = metadata.get("person_label") or metadata.get("person_id") or payload.get("feature")
         try:
             event = self.event_repository.create_alert_resolved_once(
                 alert_payload=payload,
-                message=("Falso positivo resolvido: " if false_positive else "Alerta resolvido: ") + str(payload.get("message") or "Alerta"),
+                message=(
+                    ("Falso positivo resolvido: " if false_positive else "Alerta resolvido: ")
+                    + str(payload.get("message") or "Alerta")
+                ),
                 severity="info",
                 subject=subject,
                 metadata={"false_positive": bool(false_positive)},
@@ -306,6 +323,7 @@ class CameraWorker:
     ) -> dict[str, Any] | None:
         try:
             event = self.event_repository.create(
+                camera_id=self.camera_id,
                 event_type=event_type,
                 message=message,
                 severity=severity,
@@ -349,8 +367,12 @@ class CameraWorker:
                         continue
 
                     analysis = self._analyze_frame(frame)
-                    rule_alerts = self.rule_engine.evaluate(analysis.detections, analysis.pose, frame.shape)
-                    alert_state = self.alert_state_service.process(rule_alerts)
+                    # UMA passada de regras por frame. O resultado (alertas +
+                    # estado por pessoa) alimenta tanto o AlertStateService
+                    # quanto o ComplianceService — que antes refazia todo o
+                    # trabalho por conta própria.
+                    evaluation = self.rule_engine.analyze(analysis.detections, analysis.pose, frame.shape)
+                    alert_state = self.alert_state_service.process(evaluation.alerts)
                     model_diagnostics = self._safe_model_diagnostics()
                     compliance_state = self.compliance_service.build_state(
                         detections=analysis.detections,
@@ -358,10 +380,18 @@ class CameraWorker:
                         frame_shape=frame.shape,
                         model_diagnostics=model_diagnostics,
                         active_alerts=alert_state["active"],
+                        evaluation=evaluation,
                     )
 
                     enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
-                    annotated = self.annotator.annotate(frame, analysis.detections, analysis.pose, enabled_map, compliance_state, self.overlay_options)
+                    annotated = self.annotator.annotate(
+                        frame,
+                        analysis.detections,
+                        analysis.pose,
+                        enabled_map,
+                        compliance_state,
+                        self.overlay_options,
+                    )
                     self._attach_snapshots_and_log_events(alert_state, annotated)
                     alert_state["active"] = self.alert_state_service.active_alerts()
                     encode_ok, buffer = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
@@ -377,10 +407,14 @@ class CameraWorker:
                             }
                             self._frame_counter += 1
 
+                    # camera_id em TODO payload: o dashboard usa isso pra
+                    # descartar o que não é da câmera em foco. Sem o carimbo,
+                    # duas câmeras rodando sobrescreviam o estado uma da outra
+                    # a cada frame.
                     payload = self.latest_analysis() or {}
-                    self.socketio.emit("analysis", payload)
-                    self.socketio.emit("compliance_state", compliance_state)
-                    self.socketio.emit("model_diagnostics", model_diagnostics)
+                    self.socketio.emit("analysis", payload | {"camera_id": self.camera_id})
+                    self.socketio.emit("compliance_state", compliance_state | {"camera_id": self.camera_id})
+                    self.socketio.emit("model_diagnostics", model_diagnostics | {"camera_id": self.camera_id})
                     self._maybe_emit_risk_score()
                     self._last_error = None
                 except Exception as exc:  # noqa: BLE001
@@ -401,15 +435,19 @@ class CameraWorker:
         with self.inference_lock:
             if self._needs_yolo_detection():
                 detections = self.detector.detect(frame)
-                if self.app.config.get("MULTI_PERSON_DETECTION", False):
-                    detections = detections + self.person_detector.detect(frame)
+                if self.app.config.get("MULTI_PERSON_DETECTION", True):
+                    # Só as pessoas passam pelo tracker — EPIs são associados
+                    # geometricamente a elas (PersonComplianceMatcher), não
+                    # rastreados por conta própria.
+                    people = self.person_tracker.update(self.person_detector.detect(frame))
+                    detections = detections + people
             if self.feature_manager.is_enabled("pose"):
                 pose = self.pose_estimator.estimate(frame)
         return FrameAnalysis(detections=detections, pose=pose, risk_events=[])
 
     def _needs_yolo_detection(self) -> bool:
         return bool(
-            self.app.config.get("MULTI_PERSON_DETECTION", False)
+            self.app.config.get("MULTI_PERSON_DETECTION", True)
             or self.feature_manager.is_enabled("ppe")
             or self.feature_manager.is_enabled("risk_area")
         )
@@ -425,12 +463,8 @@ class CameraWorker:
                 "error": None,
             }
         diagnostics = dict(self.detector.diagnostics())
-        multi_person = bool(self.app.config.get("MULTI_PERSON_DETECTION", False))
-        # Com MULTI_PERSON_DETECTION desligado quem detecta pessoa e o PROPRIO
-        # modelo de EPI (o Vyra traz "Person" na classe 11). Sem esta linha o
-        # painel reportava "modelo nao detecta pessoa" mesmo detectando: o valor
-        # ficava fixo em False e so era preenchido dentro do ramo multi_person.
-        person_supported = bool(diagnostics.get("person_supported"))
+        multi_person = bool(self.app.config.get("MULTI_PERSON_DETECTION", True))
+        person_supported = False
         warning_parts = [diagnostics.get("warning")] if diagnostics.get("warning") else []
         if multi_person:
             person_diagnostics = self.person_detector.diagnostics()
@@ -457,18 +491,19 @@ class CameraWorker:
             return
         self._last_risk_score_emit_at = now
         try:
-            self.socketio.emit("risk_score", compute_risk_score())
+            self.socketio.emit("risk_score", compute_risk_score(camera_id=self.camera_id))
         except Exception as exc:  # noqa: BLE001
             logger.warning("risk_score_emit_failed", extra={"error": str(exc)})
 
     def settings(self) -> dict[str, Any]:
         return {
+            "camera_id": self.camera_id,
             "video_source": str(self.video_stream.source),
             "target_fps": int(self.app.config.get("TARGET_FPS", 12)),
             "jpeg_quality": int(self.app.config.get("JPEG_QUALITY", 80)),
             "yolo_confidence": float(self.detector.confidence),
             "yolo_max_detections": int(self.detector.max_detections),
-            "multi_person_detection": bool(self.app.config.get("MULTI_PERSON_DETECTION", False)),
+            "multi_person_detection": bool(self.app.config.get("MULTI_PERSON_DETECTION", True)),
             "alert_create_after_frames": int(self.alert_state_service.create_after_frames),
             "alert_resolve_after_frames": int(self.alert_state_service.resolve_after_frames),
             "cleanup_on_monitor_start": bool(self.cleanup_service.enabled),
@@ -512,12 +547,18 @@ class CameraWorker:
             self.snapshot_service.enabled = bool(updates["snapshot_enabled"])
         if "risk_area_name" in updates and str(updates["risk_area_name"]).strip():
             self.risk_area_name = str(updates["risk_area_name"]).strip()[:80]
-        self._emit_timeline_event("settings_updated", "Configurações runtime atualizadas", "info", metadata={"updates": list(updates.keys())})
+        self._emit_timeline_event(
+            "settings_updated",
+            "Configurações runtime atualizadas",
+            "info",
+            metadata={"updates": list(updates.keys())},
+        )
         self.socketio.emit("settings_updated", self.settings())
         return self.settings()
 
     def risk_area_state(self) -> dict[str, Any]:
         return {
+            "camera_id": self.camera_id,
             "name": self.risk_area_name,
             "polygon": [{"x": round(float(x), 4), "y": round(float(y), 4)} for x, y in self.rule_engine.risk_polygon],
             "enabled": self.feature_manager.is_enabled("risk_area"),
@@ -547,10 +588,10 @@ class CameraWorker:
         self.socketio.emit("risk_area_updated", state)
         return state
 
-    def get_overlay(self) -> dict[str, bool]:
-        return dict(self.overlay_options)
+    def get_overlay(self) -> dict[str, Any]:
+        return {"camera_id": self.camera_id, **self.overlay_options}
 
-    def update_overlay(self, updates: dict[str, Any]) -> dict[str, bool]:
+    def update_overlay(self, updates: dict[str, Any]) -> dict[str, Any]:
         for key in ("boxes", "labels", "confidence", "pose", "risk_area"):
             if key in updates:
                 self.overlay_options[key] = bool(updates[key])

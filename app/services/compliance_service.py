@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.feature_manager import FeatureManager
-from app.services.risk_rules import RuleEngine
-from app.vision.person_compliance_matcher import PersonComplianceMatcher
+from app.services.risk_rules import RuleEngine, RuleEvaluation
+from app.vision.person_compliance_matcher import PPE_LABELS
 from app.vision.schemas import Detection, PoseResult
 
 
@@ -12,7 +12,6 @@ class ComplianceService:
     def __init__(self, feature_manager: FeatureManager, rule_engine: RuleEngine) -> None:
         self.feature_manager = feature_manager
         self.rule_engine = rule_engine
-        self.person_matcher = PersonComplianceMatcher()
 
     def build_state(
         self,
@@ -22,35 +21,28 @@ class ComplianceService:
         frame_shape: tuple[int, int, int],
         model_diagnostics: dict[str, Any],
         active_alerts: list[dict[str, Any]],
+        evaluation: RuleEvaluation | None = None,
     ) -> dict[str, Any]:
+        """Monta o payload de conformidade do frame.
+
+        `evaluation` é o resultado que o loop de captura JÁ calculou. Quando
+        vem preenchido (caminho normal), nada é recomputado aqui. Quando vem
+        None, este serviço faz a passada sozinho — só para chamadas avulsas
+        (testes, uso pontual) continuarem funcionando.
+        """
+        if evaluation is None:
+            evaluation = self.rule_engine.analyze(detections, pose, frame_shape)
+        people = evaluation.people
+        rule_alerts = evaluation.alerts
+
         labels = {item.label for item in detections}
         people_detections = [item for item in detections if item.label == "person" or item.category == "person"]
         person_present = bool(people_detections) or bool(pose and pose.found)
         supported_ppe = model_diagnostics.get("supported_ppe", {}) or {}
-        rule_alerts = self.rule_engine.evaluate(detections, pose, frame_shape)
         active_by_feature = {item.get("feature"): item for item in active_alerts if item.get("status") == "active"}
-        enabled_ppe = {
-            "helmet": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("helmet"),
-            "vest": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("vest"),
-            "gloves": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("gloves"),
-            "glasses": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("glasses"),
-        }
-        people = self.person_matcher.build(
-            detections,
-            supported_ppe=supported_ppe,
-            enabled_ppe=enabled_ppe,
-            risk_polygon=self.rule_engine.risk_polygon if self.feature_manager.is_enabled("risk_area") else None,
-            frame_shape=frame_shape,
-        )
 
-        checks = [
-            ("helmet", "Capacete"),
-            ("vest", "Colete"),
-            ("gloves", "Luvas"),
-            ("glasses", "Óculos"),
-        ]
         ppe: dict[str, dict[str, Any]] = {}
-        for key, label in checks:
+        for key, label in PPE_LABELS.items():
             if not self.feature_manager.is_enabled("ppe") or not self.feature_manager.is_enabled(key):
                 status = "disabled"
                 message = "Feature desativada"

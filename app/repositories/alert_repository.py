@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import PurePosixPath
 from typing import Any
 
 from app.extensions import db
@@ -22,9 +23,11 @@ class AlertRepository:
         metadata: dict[str, Any] | None = None,
         frame_ref: str | None = None,
         status: str = "active",
+        camera_id: int | None = None,
     ) -> Alert:
         now = utc_now()
         alert = Alert(
+            camera_id=camera_id,
             rule=rule,
             severity=severity,
             message=message,
@@ -64,15 +67,14 @@ class AlertRepository:
 
     def update_frame_ref(self, alert: Alert, frame_ref: str) -> Alert:
         alert.frame_ref = frame_ref
-        metadata = alert.metadata_json or {}
-        metadata["snapshot_available"] = True
-        alert.metadata_json = metadata
+        alert.metadata_json = {**(alert.metadata_json or {}), "snapshot_available": True}
         db.session.commit()
         return alert
 
     def mark_false_positive(self, alert: Alert, *, reason: str | None = None) -> Alert:
-        metadata = alert.metadata_json or {}
-        metadata["false_positive"] = True
+        # Dicionário NOVO, nunca mutação in-place do que veio do banco: ver o
+        # comentário de Alert.metadata_json em app/models.py.
+        metadata = {**(alert.metadata_json or {}), "false_positive": True}
         if reason:
             metadata["false_positive_reason"] = reason
         metadata["false_positive_at"] = utc_now().isoformat()
@@ -85,6 +87,16 @@ class AlertRepository:
         db.session.commit()
         return alert
 
+    def acknowledge(self, alert: Alert, *, note: str | None = None) -> Alert:
+        """Marca que alguém tratou o alerta em campo. Não muda `status` — o
+        alerta continua ativo enquanto a violação estiver acontecendo."""
+        metadata = {**(alert.metadata_json or {}), "acknowledged": True, "acknowledged_at": utc_now().isoformat()}
+        if note:
+            metadata["acknowledged_note"] = note
+        alert.metadata_json = metadata
+        db.session.commit()
+        return alert
+
     def list_recent(
         self,
         *,
@@ -92,29 +104,50 @@ class AlertRepository:
         severity: str | None = None,
         status: str | None = None,
         false_positive: bool | None = None,
+        camera_id: int | None = None,
     ) -> list[Alert]:
         query = Alert.query
         if severity:
             query = query.filter(Alert.severity == severity)
         if status:
             query = query.filter(Alert.status == status)
-        items = query.order_by(Alert.last_seen_at.desc()).limit(limit).all()
+        if camera_id is not None:
+            query = query.filter(Alert.camera_id == camera_id)
         if false_positive is not None:
-            items = [item for item in items if bool((item.metadata_json or {}).get("false_positive")) is false_positive]
-        return items
+            # Filtra no SQL, ANTES do LIMIT. Filtrar em Python depois do
+            # .limit() fazia `?limit=100&false_positive=true` devolver só os
+            # falsos positivos que por acaso estivessem entre os 100 mais
+            # recentes — quase sempre menos itens do que o cliente pediu.
+            flag = Alert.metadata_json["false_positive"].as_boolean()
+            query = query.filter(flag.is_(True) if false_positive else db.or_(flag.is_(False), flag.is_(None)))
+        return query.order_by(Alert.last_seen_at.desc()).limit(limit).all()
 
-    def resolve_all_active(self, *, reason: str = "startup_reset") -> int:
-        active_alerts = Alert.query.filter(Alert.status == "active").all()
+    def resolve_all_active(self, *, reason: str = "startup_reset", camera_id: int | None = None) -> int:
+        """Resolve alertas ativos. `camera_id=None` significa TODAS as câmeras —
+        use só em reset global. O start de uma câmera passa o próprio id: sem
+        isso, iniciar a câmera 2 resolvia (e apagava da tela) os alertas vivos
+        da câmera 1."""
+        query = Alert.query.filter(Alert.status == "active")
+        if camera_id is not None:
+            query = query.filter(Alert.camera_id == camera_id)
+        active_alerts = query.all()
         now = utc_now()
         for alert in active_alerts:
             alert.status = "resolved"
             alert.last_seen_at = now
             alert.resolved_at = now
-            metadata = alert.metadata_json or {}
-            metadata["resolution_reason"] = reason
-            alert.metadata_json = metadata
+            alert.metadata_json = {**(alert.metadata_json or {}), "resolution_reason": reason}
         db.session.commit()
         return len(active_alerts)
 
-    def list_active(self, *, limit: int = 100) -> list[Alert]:
-        return self.list_recent(limit=limit, status="active")
+    def referenced_frame_filenames(self) -> set[str]:
+        """Nomes de arquivo de evidencia que algum alerta ainda aponta.
+
+        Usado pela limpeza de startup pra nao apagar snapshot que o historico
+        ainda referencia (GET /alerts/<id>/evidence).
+        """
+        rows = db.session.query(Alert.frame_ref).filter(Alert.frame_ref.isnot(None)).all()
+        return {PurePosixPath(str(row[0])).name for row in rows if row[0]}
+
+    def list_active(self, *, limit: int = 100, camera_id: int | None = None) -> list[Alert]:
+        return self.list_recent(limit=limit, status="active", camera_id=camera_id)

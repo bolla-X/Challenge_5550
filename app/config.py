@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 
@@ -40,6 +39,16 @@ class RiskAreaConfig:
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
+    # Porta única, lida daqui por run.py, Dockerfile, docker-compose e pelo
+    # proxy do Vite. Antes o run.py escutava 5003 enquanto Dockerfile/compose/
+    # README falavam em 5000 — o container subia com a porta publicada errada
+    # e ninguém alcançava a aplicação.
+    HOST = os.getenv("HOST", "0.0.0.0")
+    PORT = env_int("PORT", 5000)
+    # Werkzeug em modo debug expõe console interativo = execução remota de
+    # código. Nunca liga sozinho: só com FLASK_DEBUG explícito no ambiente.
+    DEBUG = env_bool("FLASK_DEBUG", False)
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
         "sqlite:///visionepi-dev.db",
@@ -90,7 +99,7 @@ class Config:
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",
-        "ppe,helmet,vest,gloves,glasses,pose,falls,posture,risk_area",
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area",
     )
     RISK_AREA_POLYGON = os.getenv("RISK_AREA_POLYGON", "0.70,0.10;0.98,0.10;0.98,0.95;0.70,0.95")
 
