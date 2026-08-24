@@ -200,6 +200,13 @@ class User(db.Model):
     # motivo de Alert.camera_id: apagar uma camera nao pode apagar a pessoa.
     camera_id = db.Column(db.Integer, nullable=True, index=True)
 
+    # Epoca da sessao. Toda sessao carrega a epoca vigente no momento do
+    # login; `current_user` compara. Incrementar este numero invalida
+    # IMEDIATAMENTE todo cookie ja emitido pra essa pessoa, inclusive um que
+    # tenha sido copiado. E o que faz 'trocar a senha expulsa o invasor' e
+    # 'desativar derruba a sessao' serem verdade, e nao so promessa.
+    session_epoch = db.Column(db.Integer, nullable=False, default=1)
+
     # Protecao contra forca bruta — ver AuthService.
     failed_attempts = db.Column(db.Integer, nullable=False, default=0)
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)

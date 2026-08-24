@@ -63,13 +63,20 @@ class AuthService:
     pelo werkzeug. `authenticate` e o unico ponto que compara senha.
     """
 
-    def authenticate(self, email: str, senha: str) -> User:
+    def authenticate(self, email: str, senha: str, *, conta_como_tentativa: bool = True) -> User:
+        """Confere e-mail e senha.
+
+        `conta_como_tentativa=False` para quem JA esta autenticado e so esta
+        reconfirmando a propria senha (troca de senha). Sem isso, errar a
+        senha atual cinco vezes trancava o proprio login — auto-DoS por uma
+        rota que ja exige sessao valida.
+        """
         email = normalize_email(email)
         user = User.query.filter_by(email=email).first()
 
         agora = datetime.now(timezone.utc)
         travado_ate = _aware(user.locked_until) if user else None
-        if user and travado_ate and travado_ate > agora:
+        if user and travado_ate and travado_ate > agora and conta_como_tentativa:
             restante = int((travado_ate - agora).total_seconds())
             # Isto revela que a conta EXISTE. E uma troca consciente: sem a
             # mensagem, uma pessoa legitima travada fica sem entender por que
@@ -91,7 +98,7 @@ class AuthService:
         if user is None or not senha_confere or not user.active:
             if user is not None and senha_confere and not user.active:
                 logger.warning("login_inactive_user", extra={"email": email})
-            elif user is not None:
+            elif user is not None and conta_como_tentativa:
                 self._register_failure(user)
             else:
                 logger.info("login_unknown_email", extra={"email": email})
@@ -152,9 +159,23 @@ class AuthService:
         user.password_hash = hash_password(senha)
         user.failed_attempts = 0
         user.locked_until = None
+        # Trocar a senha DERRUBA todas as sessoes existentes — e a resposta
+        # padrao a uma conta comprometida, e sem isto o invasor com o cookie
+        # copiado continuaria dentro.
+        self.revoke_sessions(user, motivo="password_changed")
         db.session.commit()
         logger.info("password_changed", extra={"email": user.email})
         return user
+
+    @staticmethod
+    def revoke_sessions(user: User, *, motivo: str) -> None:
+        """Invalida todo cookie ja emitido pra esta pessoa.
+
+        Nao faz commit: quem chama decide o momento (as vezes ha mais coisa na
+        mesma transacao).
+        """
+        user.session_epoch = int(user.session_epoch or 1) + 1
+        logger.info("sessions_revoked", extra={"email": user.email, "reason": motivo})
 
 
 # Hash descartavel usado quando o e-mail nao existe: manter o custo de

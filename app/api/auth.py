@@ -53,7 +53,7 @@ def me():
 
 
 @auth_bp.post("/api/auth/password")
-@login_required
+@login_required(sempre=True)
 def change_own_password():
     payload = request.get_json(silent=True) or {}
     atual = str(payload.get("current_password", ""))
@@ -63,7 +63,7 @@ def change_own_password():
     # Exige a senha atual mesmo com sessao valida: protege contra um terminal
     # deixado aberto no chao de fabrica.
     try:
-        AuthService().authenticate(usuario.email, atual)
+        AuthService().authenticate(usuario.email, atual, conta_como_tentativa=False)
     except AuthError:
         return jsonify({"error": "Senha atual incorreta."}), 403
 
@@ -78,14 +78,14 @@ def change_own_password():
 # Sem auto-cadastro: quem cria conta e o supervisor. Num sistema de seguranca
 # do trabalho, "criar conta" nao e uma acao publica.
 @auth_bp.get("/api/users")
-@require_role(ROLE_SUPERVISOR)
+@require_role(ROLE_SUPERVISOR, sempre=True)
 def list_users():
     usuarios = User.query.order_by(User.name.asc()).all()
     return jsonify({"items": [u.to_dict() for u in usuarios], "count": len(usuarios)})
 
 
 @auth_bp.post("/api/users")
-@require_role(ROLE_SUPERVISOR)
+@require_role(ROLE_SUPERVISOR, sempre=True)
 def create_user():
     payload = request.get_json(silent=True) or {}
     try:
@@ -104,7 +104,7 @@ def create_user():
 
 
 @auth_bp.patch("/api/users/<int:user_id>")
-@require_role(ROLE_SUPERVISOR)
+@require_role(ROLE_SUPERVISOR, sempre=True)
 def update_user(user_id: int):
     usuario = db.session.get(User, user_id)
     if usuario is None:
@@ -139,8 +139,16 @@ def update_user(user_id: int):
         ativo = bool(payload["active"])
         if atual is not None and usuario.id == atual.id and not ativo:
             return jsonify({"error": "Você não pode desativar a própria conta."}), 400
+        if usuario.active and not ativo:
+            AuthService.revoke_sessions(usuario, motivo="deactivated")
         usuario.active = ativo
     if payload.get("password"):
+        # Trocar a PROPRIA senha exige a senha atual — senao o supervisor
+        # furava, por esta rota, a trava que /api/auth/password impoe.
+        if atual is not None and usuario.id == atual.id:
+            return jsonify(
+                {"error": "Para trocar a própria senha use POST /api/auth/password (exige a senha atual)."}
+            ), 400
         try:
             AuthService().set_password(usuario, str(payload["password"]))
         except WeakPassword as exc:
@@ -151,7 +159,7 @@ def update_user(user_id: int):
 
 
 @auth_bp.delete("/api/users/<int:user_id>")
-@require_role(ROLE_SUPERVISOR)
+@require_role(ROLE_SUPERVISOR, sempre=True)
 def delete_user(user_id: int):
     usuario = db.session.get(User, user_id)
     if usuario is None:

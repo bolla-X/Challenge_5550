@@ -147,10 +147,12 @@ Detalhes que importam para a avaliação de segurança:
 
 - Senha nunca é persistida nem registrada em log — só o hash **scrypt** do werkzeug.
 - Sessão em cookie **HttpOnly** (JavaScript da página não lê, então XSS não rouba a sessão) e **SameSite=Lax**. Atrás de HTTPS, ligue `SESSION_COOKIE_SECURE=true`.
-- A aplicação **não sobe** com `SECRET_KEY` no valor padrão do repositório enquanto a autenticação estiver ligada: esse segredo assina a sessão, e o valor padrão é público.
+- A aplicação **não sobe** com uma `SECRET_KEY` que conste no repositório (`change-me` do `.env.example`, o default do `config.py`, e afins) nem com uma chave curta demais. Esse segredo assina a sessão: com um valor público, qualquer pessoa forja o cookie de um supervisor sem credencial.
 - E-mail inexistente e senha errada devolvem a **mesma** resposta, e o custo de verificação é constante — não dá para descobrir quais contas existem.
 - Cinco tentativas erradas travam a conta por um tempo que dobra a cada rodada (até 30 min).
-- Desativar uma pessoa derruba a sessão dela no request seguinte: não existe token válido fora do banco.
+- Desativar uma pessoa, ou trocar a senha dela, **revoga todas as sessões** já emitidas — inclusive um cookie que tivesse sido copiado. Cada sessão carrega a `session_epoch` vigente no login, e o servidor compara a cada request.
+- Sair encerra a sessão **naquele navegador**, não em todos: derrubar tudo a cada logout expulsaria a pessoa do kiosk do chão de fábrica quando ela saísse do desktop. Para revogar em todos os lugares (conta comprometida), troque a senha.
+- O socket revalida a sessão a cada 30 s. Sem isso, uma conexão já aberta seguiria recebendo vídeo e alertas depois de o acesso ser revogado.
 - O **WebSocket** também exige sessão — proteger só o REST deixaria o feed de análise e alertas acessível pela porta dos fundos.
 
 ## Testes

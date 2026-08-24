@@ -40,6 +40,13 @@ class RiskAreaConfig:
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
+    # Valores que aparecem NO PROPRIO REPOSITORIO — qualquer um que leia o
+    # projeto os conhece. Checar so o default do codigo nao bastava: o
+    # .env.example (que o README manda copiar) entrega outro literal, e a
+    # aplicacao subia com chave publica.
+    SECRET_KEYS_PUBLICAS = frozenset({"dev-secret-change-me", "change-me", "changeme", "secret", ""})
+    # Abaixo disto a chave e curta demais pra assinatura de sessao.
+    SECRET_KEY_MIN_LENGTH = 32
 
     # Porta única, lida daqui por run.py, Dockerfile, docker-compose e pelo
     # proxy do Vite. Antes o run.py escutava 5003 enquanto Dockerfile/compose/

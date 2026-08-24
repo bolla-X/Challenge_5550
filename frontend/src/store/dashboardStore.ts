@@ -238,6 +238,45 @@ function readStoredMode(): ViewMode {
   }
 }
 
+/**
+ * Tudo que é DADO DE CONTA e não pode sobreviver a um logout.
+ *
+ * Num terminal compartilhado de chão de fábrica, a próxima pessoa a entrar não
+ * pode ver, nem por um instante, os alertas e as detecções da anterior. Só
+ * `mode`/`screen` ficam de fora porque o login seguinte os define na hora.
+ */
+const ESTADO_LIMPO: Partial<DashboardState> = {
+  cameras: [],
+  camerasLoading: true,
+  camId: null,
+  operatorCam: null,
+  activeAlerts: [],
+  alertHistory: [],
+  lastAlertCreatedId: null,
+  timeline: [],
+  compliance: null,
+  riskScore: null,
+  riskTrend: null,
+  model: null,
+  settings: null,
+  overlay: null,
+  riskArea: null,
+  features: [],
+  lastDetections: [],
+  lastPose: null,
+  videoStream: null,
+  running: false,
+  frameCounter: 0,
+  wsFrameCounter: 0,
+  fps: 0,
+  lastAnalysisAt: null,
+  lastError: null,
+  message: null,
+  bootstrapping: true,
+  riskEditorActive: false,
+  riskEditorPoints: [],
+};
+
 export const useDashboardStore = create<DashboardState>()(
   devtools(
     (set) => ({
@@ -254,7 +293,11 @@ export const useDashboardStore = create<DashboardState>()(
           // Derruba o socket junto: a conexão foi autorizada pela sessão que
           // acabou de morrer.
           socket.disconnect();
-          set({ user: null, authChecked: true }, false, "logout");
+          // E ZERA o estado sensível. Sem isto, o próximo login (possivelmente
+          // de outra pessoa, no mesmo terminal de chão de fábrica) abria a tela
+          // já pintada com alertas, pessoas detectadas e câmeras da conta
+          // anterior, antes de qualquer request novo responder.
+          set({ ...ESTADO_LIMPO, user: null, authChecked: true }, false, "logout");
         }
       },
       checkSession: async () => {
@@ -730,6 +773,15 @@ export function subscribeToServerEvents(): () => void {
   on("alert_resolved", resolveAlert);
 
   if (!socket.connected) socket.connect();
+
+  // Revalida a sessão do socket periodicamente. Um socket aberto vive horas:
+  // sem isto, desativar alguém (ou trocar a senha dela) não teria efeito
+  // nenhum sobre o feed ao vivo que já estava chegando — vídeo, alertas e
+  // pessoas detectadas continuariam fluindo pra quem perdeu o acesso.
+  const revalidacao = setInterval(() => {
+    if (socket.connected) socket.emit("revalidate");
+  }, 30_000);
+  teardown.push(() => clearInterval(revalidacao));
 
   // Sparkline não precisa da cadência do socket (buckets são de 1h) — um
   // refresh a cada 5min é mais que suficiente e evita bater a rota extra

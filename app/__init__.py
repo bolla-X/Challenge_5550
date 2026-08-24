@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 
 from flask import Flask, jsonify
+from flask import session as socket_session
+from flask_socketio import disconnect as socketio_disconnect
 
 from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
@@ -23,26 +25,51 @@ from app.utils.auth import current_user
 from app.utils.logging_config import configure_logging
 
 
+def _validar_secret_key(app: Flask) -> None:
+    """A sessão de login é assinada com SECRET_KEY.
+
+    Uma chave que esteja no repositório — ou curta demais — deixa qualquer
+    pessoa forjar o cookie de um supervisor sem nenhuma credencial. Por isso
+    aqui é ERRO de inicialização, não aviso.
+
+    Checar apenas o default do `config.py` não bastava: o `.env.example`, que o
+    README manda copiar, entrega `SECRET_KEY=change-me`. Seguindo o passo a
+    passo documentado, a aplicação subia com chave pública. Agora a checagem
+    olha o CONJUNTO de literais que vivem no repositório, e também o tamanho.
+    """
+    if not app.config.get("AUTH_REQUIRED", True):
+        return
+
+    chave = app.config.get("SECRET_KEY") or ""
+    publicas = app.config.get("SECRET_KEYS_PUBLICAS", frozenset())
+    minimo = int(app.config.get("SECRET_KEY_MIN_LENGTH", 32))
+
+    if chave in publicas:
+        problema = "está num valor que consta no próprio repositório"
+    elif len(chave) < minimo:
+        problema = f"tem menos de {minimo} caracteres"
+    else:
+        return
+
+    if not app.config.get("TESTING") and not app.config.get("DEBUG"):
+        raise RuntimeError(
+            f"SECRET_KEY {problema}. Com autenticação ligada, isso permite forjar a sessão "
+            "de qualquer usuário sem credencial. Gere uma chave real e ponha no .env:\n"
+            '  python -c "import secrets; print(secrets.token_hex(32))"'
+        )
+    logging.getLogger(__name__).warning(
+        "insecure_secret_key",
+        extra={"problema": problema, "hint": "aceitável só em desenvolvimento"},
+    )
+
+
 def create_app(config_class: type[Config] = Config) -> Flask:
     configure_logging()
 
     app = Flask(__name__, static_folder="static")
     app.config.from_object(config_class)
 
-    # A sessão de login é assinada com SECRET_KEY. Com o valor padrão — que
-    # está no código aberto — qualquer pessoa forja o cookie de um supervisor.
-    # Por isso aqui é ERRO, não aviso: só passa em teste ou com FLASK_DEBUG.
-    if app.config["SECRET_KEY"] == "dev-secret-change-me" and app.config.get("AUTH_REQUIRED", True):
-        if not app.config.get("TESTING") and not app.config.get("DEBUG"):
-            raise RuntimeError(
-                "SECRET_KEY está no valor padrão do repositório. Com autenticação ligada isso "
-                "permite forjar a sessão de qualquer usuário. Defina SECRET_KEY no .env "
-                "(ex.: python -c \"import secrets; print(secrets.token_hex(32))\")."
-            )
-        logging.getLogger(__name__).warning(
-            "insecure_secret_key",
-            extra={"hint": "SECRET_KEY padrão — aceitável só em desenvolvimento."},
-        )
+    _validar_secret_key(app)
     if app.config.get("AUTH_REQUIRED", True) and not app.config.get("SESSION_COOKIE_SECURE") and not app.config.get("DEBUG"):
         logging.getLogger(__name__).warning(
             "session_cookie_not_secure",
@@ -93,10 +120,40 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     def _authorize_socket(auth=None):  # noqa: ARG001  (assinatura do Flask-SocketIO)
         if not app.config.get("AUTH_REQUIRED", True):
             return True
-        if current_user() is None:
+        usuario = current_user()
+        if usuario is None:
             logging.getLogger(__name__).warning("socket_rejected_unauthenticated")
             return False
+        # Guarda a identidade NA sessao do socket pra poder revalidar depois.
+        # Só checar no connect deixava o feed ao vivo (vídeo, alertas, pessoas
+        # detectadas) chegando a quem foi desativado ou trocou a senha.
+        socket_session["user_id"] = usuario.id
+        socket_session["epoch"] = usuario.session_epoch
         return True
+
+    @socketio.on("revalidate")
+    def _revalidate_socket():
+        """O cliente chama isto periodicamente; se a sessao morreu, cai fora.
+
+        Um socket aberto vive horas. Sem revalidação, revogar acesso não teria
+        efeito nenhum sobre quem já estava conectado.
+        """
+        if not app.config.get("AUTH_REQUIRED", True):
+            return
+        if not _socket_ainda_vale():
+            logging.getLogger(__name__).info("socket_revoked")
+            socketio_disconnect()
+
+    def _socket_ainda_vale() -> bool:
+        user_id = socket_session.get("user_id")
+        if user_id is None:
+            return False
+        usuario = db.session.get(User, user_id)
+        return bool(
+            usuario is not None
+            and usuario.active
+            and usuario.session_epoch == socket_session.get("epoch")
+        )
 
     register_cli(app)
 
