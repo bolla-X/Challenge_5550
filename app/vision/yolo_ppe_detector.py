@@ -33,11 +33,26 @@ PPE_CLASS_ALIASES = {
     "safety gloves": "gloves",
     "safety_gloves": "gloves",
     "work gloves": "gloves",
+    "goggles": "glasses",
+    "goggle": "glasses",
+    "glasses": "glasses",
+    "safety goggles": "glasses",
+    "safety_goggles": "glasses",
+    "eye protection": "glasses",
+    "safety cone": "safety_cone",
+    "safety_cone": "safety_cone",
     "person": "person",
     "worker": "person",
 }
 
-PPE_REQUIRED_CLASSES = ("helmet", "vest", "gloves")
+# Nucleo: sem estas tres o sistema nao cumpre o que promete, entao sao elas
+# que definem se o modelo esta "pronto".
+PPE_CORE_CLASSES = ("helmet", "vest", "gloves")
+# Opcionais: o Vyra detecta Goggles, mas um modelo so com o nucleo continua
+# PRONTO. Marcar `glasses` como obrigatoria faria todo modelo de 3 classes
+# ja em uso passar a reportar "modelo parcial" sem nada ter piorado.
+PPE_OPTIONAL_CLASSES = ("glasses",)
+PPE_REQUIRED_CLASSES = PPE_CORE_CLASSES + PPE_OPTIONAL_CLASSES
 
 
 class YoloPPEDetector:
@@ -161,14 +176,15 @@ class YoloPPEDetector:
 
         supported_ppe = {key: key in normalized_values for key in PPE_REQUIRED_CLASSES}
         has_person = "person" in normalized_values
-        ready = all(supported_ppe.values()) and (has_person if self.require_person else True)
+        core_ok = all(supported_ppe[key] for key in PPE_CORE_CLASSES)
+        ready = core_ok and (has_person if self.require_person else True)
         warning = None
         if error:
             warning = f"Modelo YOLO indisponível: {error}"
         elif not any(supported_ppe.values()):
             warning = "O modelo YOLO carregado não possui classes de EPI. Configure PPE_MODEL_PATH com pesos treinados para helmet/vest/gloves."
         elif not ready:
-            missing = [key for key, enabled in supported_ppe.items() if not enabled]
+            missing = [key for key in PPE_CORE_CLASSES if not supported_ppe[key]]
             if self.require_person and not has_person:
                 missing.append("person")
             warning = f"Modelo YOLO parcial para EPI. Classes ausentes: {', '.join(missing)}."

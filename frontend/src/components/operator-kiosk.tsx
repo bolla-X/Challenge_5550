@@ -7,8 +7,8 @@ import type { Alert, MonitorStatus } from "../api/types";
 // Só os itens de EPI (helmet/vest/gloves) viram chip de conformidade no
 // rodapé — pose/quedas/postura/área de risco não têm um "objeto vestível"
 // pra checar visualmente, então ficariam sem sentido como ✓/✗ pro Operador.
-const COMPLIANCE_KEYS: ("helmet" | "vest" | "gloves")[] = ["helmet", "vest", "gloves"];
-const COMPLIANCE_LABELS: Record<string, string> = { helmet: "Capacete", vest: "Colete", gloves: "Luvas" };
+const COMPLIANCE_KEYS: ("helmet" | "vest" | "gloves" | "glasses")[] = ["helmet", "vest", "gloves", "glasses"];
+const COMPLIANCE_LABELS: Record<string, string> = { helmet: "Capacete", vest: "Colete", gloves: "Luvas", glasses: "Óculos" };
 
 function CheckIcon() {
   return (

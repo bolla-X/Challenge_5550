@@ -8,7 +8,7 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 
 ## Funcionalidades
 
-- **Detecção de EPIs em tempo real** — capacete, colete e luvas, via modelo YOLOv8 dedicado, rodando em paralelo a um segundo modelo para detecção de pessoa (arquitetura dual-model).
+- **Detecção de EPIs em tempo real** — capacete, colete, luvas e óculos de proteção, via modelo YOLOv8 dedicado, rodando em paralelo a um segundo modelo para detecção de pessoa (arquitetura dual-model).
 - **Multi-pessoa** — múltiplas pessoas detectadas e avaliadas simultaneamente no mesmo frame.
 - **Análise de postura e quedas** — via MediaPipe Pose, sinalizando posturas suspeitas e pessoas caídas.
 - **Área de risco configurável** — editor visual de zona de risco; alerta quando uma pessoa entra na área.
@@ -88,7 +88,13 @@ Para desenvolvimento do frontend com hot-reload, rode `npm run dev` dentro de `f
 
 ### Configuração do modelo de EPI
 
-O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI e `PERSON_MODEL_PATH` para o modelo de detecção de pessoa (COCO, `yolov8n.pt` por padrão). Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso de "modelo não suportado" — o restante do sistema (detecção de pessoa, pose, área de risco) funciona normalmente mesmo assim.
+O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI. O padrão é **`models/vyra_ppe.pt`** ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
+
+Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve em `models/vyra_ppe.pt`.
+
+Esse modelo já traz a classe `Person` (índice 11), então `MULTI_PERSON_DETECTION=false` desliga o segundo modelo YOLO (COCO, `PERSON_MODEL_PATH`) que antes rodava em paralelo só para suprir essa falta. Ele continua configurável: ligue `MULTI_PERSON_DETECTION=true` ao usar um modelo de EPI sem classe `person` (ex.: `models/epi_pretrained.pt`) — e, nesse caso, **limpe `YOLO_CLASSES`**, porque os índices em `.env.example` são específicos do Vyra.
+
+Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso de "modelo não suportado" — o restante do sistema (detecção de pessoa, pose, área de risco) funciona normalmente mesmo assim.
 
 ## Testes
 

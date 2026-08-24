@@ -1,7 +1,12 @@
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
 
-const PPE_LABELS: Record<"helmet" | "vest" | "gloves", string> = { helmet: "Capacete", vest: "Colete", gloves: "Luvas" };
+const PPE_LABELS: Record<"helmet" | "vest" | "gloves" | "glasses", string> = {
+  helmet: "Capacete",
+  vest: "Colete",
+  gloves: "Luvas",
+  glasses: "Óculos",
+};
 
 export function ComplianceCard() {
   const compliance = useDashboardStore((s) => s.compliance);
@@ -18,7 +23,7 @@ export function ComplianceCard() {
 
   const rows: { key: string; label: string; status: string; message: string }[] = [];
   if (compliance) {
-    (["helmet", "vest", "gloves"] as const).forEach((key) => {
+    (["helmet", "vest", "gloves", "glasses"] as const).forEach((key) => {
       const item = compliance.ppe[key];
       if (!item) return;
       rows.push({ key, label: item.label, status: item.status, message: item.supported === false ? "Modelo incompatível" : item.message });
@@ -88,7 +93,7 @@ export function PersonCard() {
                   Confiança {(person.confidence * 100).toFixed(1)}% · box {person.box.x1},{person.box.y1} → {person.box.x2},{person.box.y2}
                 </span>
                 <div className="metrics">
-                  {(["helmet", "vest", "gloves"] as const).map((key) => {
+                  {(["helmet", "vest", "gloves", "glasses"] as const).map((key) => {
                     const item = person.ppe[key];
                     return (
                       <span className={`metric ${item?.status || ""}`} key={key}>

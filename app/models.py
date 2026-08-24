@@ -92,6 +92,7 @@ DEFAULT_CAMERA_FEATURES = {
     "helmet": True,
     "vest": True,
     "gloves": True,
+    "glasses": True,
     "pose": True,
     "falls": True,
     "posture": True,

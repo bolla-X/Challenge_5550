@@ -4,7 +4,7 @@ from typing import Any
 
 from app.vision.schemas import BoundingBox, Detection
 
-PPE_KEYS = ("helmet", "vest", "gloves")
+PPE_KEYS = ("helmet", "vest", "gloves", "glasses")
 
 
 class PersonComplianceMatcher:
@@ -89,6 +89,10 @@ class PersonComplianceMatcher:
 
         if ppe.label == "helmet":
             return rel_y <= 0.38
+        if ppe.label == "glasses":
+            # Faixa mais restrita que a do capacete: oculos ficam na altura
+            # dos olhos, o capacete cobre o topo da cabeca inteiro.
+            return rel_y <= 0.30
         if ppe.label == "vest":
             return 0.18 <= rel_y <= 0.78 and 0.12 <= rel_x <= 0.88
         if ppe.label == "gloves":
