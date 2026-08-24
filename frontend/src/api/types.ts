@@ -233,10 +233,28 @@ export interface SnapshotInfo {
 }
 
 // ---- app/services/monitor_service.py: status() ---------------------------
+/**
+ * Estado real da captura, reportado pelo VideoStream do backend.
+ *
+ * Antes o dashboard só conseguia INFERIR isso pela idade do último frame
+ * ("congelado" depois de 4,5s). Agora dá pra distinguir uma fonte que acabou
+ * de cair de uma que está morta há minutos, e mostrar quando será a próxima
+ * tentativa. Espelha StreamStatus em app/vision/video_stream.py.
+ */
+export interface VideoStreamStatus {
+  state: "idle" | "live" | "reconnecting" | "unavailable";
+  consecutive_failures: number;
+  reconnect_attempts: number;
+  total_reconnects: number;
+  last_error: string | null;
+  seconds_until_retry: number;
+}
+
 export interface MonitorStatus extends CameraScoped {
   running: boolean;
   frame_counter: number;
   last_error: string | null;
+  video?: VideoStreamStatus;
   features: Record<string, FeatureFlag>;
   model: ModelDiagnostics;
   active_alerts: Alert[];

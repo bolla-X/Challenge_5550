@@ -39,6 +39,7 @@ import type {
   RiskTrendResponse,
   RuntimeSettings,
   TimelineEvent,
+  VideoStreamStatus,
 } from "../api/types";
 
 export type ViewMode = "operator" | "technical" | "supervisor";
@@ -101,6 +102,7 @@ interface DashboardState {
   running: boolean;
   frameCounter: number;
   lastError: string | null;
+  videoStream: VideoStreamStatus | null;
 
   // domain slices, each owned by exactly one socket event / REST call
   features: FeatureFlag[];
@@ -258,6 +260,7 @@ export const useDashboardStore = create<DashboardState>()(
       running: false,
       frameCounter: 0,
       lastError: null,
+      videoStream: null,
 
       features: [],
       overlay: null,
@@ -414,6 +417,7 @@ export const useDashboardStore = create<DashboardState>()(
             running: statusValue?.running ?? false,
             frameCounter: statusValue?.frame_counter ?? 0,
             lastError: statusValue?.last_error ?? null,
+            videoStream: statusValue?.video ?? null,
             model: statusValue?.model ?? null,
             activeAlerts: statusValue?.active_alerts ?? [],
             features: value(featuresRes)?.features ?? [],
@@ -594,6 +598,7 @@ export function subscribeToServerEvents(): () => void {
         running: status.running,
         frameCounter: status.frame_counter,
         lastError: status.last_error,
+        videoStream: status.video ?? null,
         model: status.model,
         activeAlerts: status.active_alerts,
         overlay: status.overlay,
