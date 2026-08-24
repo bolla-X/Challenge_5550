@@ -33,6 +33,7 @@ class ComplianceService:
             "helmet": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("helmet"),
             "vest": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("vest"),
             "gloves": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("gloves"),
+            "glasses": self.feature_manager.is_enabled("ppe") and self.feature_manager.is_enabled("glasses"),
         }
         people = self.person_matcher.build(
             detections,
@@ -46,6 +47,7 @@ class ComplianceService:
             ("helmet", "Capacete"),
             ("vest", "Colete"),
             ("gloves", "Luvas"),
+            ("glasses", "Óculos"),
         ]
         ppe: dict[str, dict[str, Any]] = {}
         for key, label in checks:

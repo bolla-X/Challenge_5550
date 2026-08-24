@@ -99,6 +99,7 @@ export interface SupportedPpe {
   helmet: boolean;
   vest: boolean;
   gloves: boolean;
+  glasses: boolean;
 }
 
 export interface ModelDiagnostics {
@@ -139,6 +140,7 @@ export interface PersonCompliance {
     helmet: PersonPpeCheck;
     vest: PersonPpeCheck;
     gloves: PersonPpeCheck;
+    glasses: PersonPpeCheck;
   };
   risk_area?: PersonRiskArea;
 }
@@ -177,6 +179,7 @@ export interface ComplianceState {
     helmet: PpeComplianceCard;
     vest: PpeComplianceCard;
     gloves: PpeComplianceCard;
+    glasses: PpeComplianceCard;
   };
   pose: PoseComplianceState;
   risk_area: RiskAreaComplianceState;
@@ -340,6 +343,7 @@ export interface CameraFeatureSet {
   helmet: boolean;
   vest: boolean;
   gloves: boolean;
+  glasses: boolean;
   pose: boolean;
   falls: boolean;
   posture: boolean;

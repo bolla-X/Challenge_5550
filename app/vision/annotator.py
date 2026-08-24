@@ -62,23 +62,36 @@ class FrameAnnotator:
             cv2.polylines(frame, [points], isClosed=True, color=(0, 165, 255), thickness=2)
             cv2.putText(frame, "AREA DE RISCO", tuple(points[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 165, 255), 2)
 
-    @staticmethod
-    def _display_label(label: str) -> str:
-        return {
-            "helmet": "capacete",
-            "vest": "colete",
-            "gloves": "luvas",
-            "person": "pessoa",
-        }.get(label, label)
+    # SEM acento de proposito: cv2.putText usa fonte Hershey, que nao tem
+    # glifo pra acentuacao — "oculos" com acento sairia como caixinha
+    # desenhada por cima do frame.
+    _LABELS = {
+        "helmet": "capacete",
+        "vest": "colete",
+        "gloves": "luvas",
+        "glasses": "oculos",
+        "mask": "mascara",
+        "safety_cone": "cone",
+        "fall_detected": "queda",
+        "person": "pessoa",
+    }
 
-    @staticmethod
-    def _color_for(label: str) -> tuple[int, int, int]:
-        if label == "helmet":
-            return (0, 255, 0)
-        if label == "vest":
-            return (255, 255, 0)
-        if label == "gloves":
-            return (255, 0, 255)
-        if label == "person":
-            return (255, 128, 0)
-        return (255, 255, 255)
+    # BGR (OpenCV), nao RGB.
+    _COLORS = {
+        "helmet": (0, 255, 0),
+        "vest": (255, 255, 0),
+        "gloves": (255, 0, 255),
+        "glasses": (0, 255, 255),
+        "mask": (180, 105, 255),
+        "safety_cone": (0, 140, 255),
+        "fall_detected": (0, 0, 255),
+        "person": (255, 128, 0),
+    }
+
+    @classmethod
+    def _display_label(cls, label: str) -> str:
+        return cls._LABELS.get(label, label)
+
+    @classmethod
+    def _color_for(cls, label: str) -> tuple[int, int, int]:
+        return cls._COLORS.get(label, (255, 255, 255))

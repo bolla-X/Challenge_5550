@@ -14,7 +14,7 @@ RISK_SCORE_MAX_POINTS = float(os.getenv("RISK_SCORE_MAX_POINTS", "20"))
 
 SEVERITY_WEIGHTS: dict[str, float] = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
 
-FEATURES: tuple[str, ...] = ("helmet", "vest", "gloves", "falls", "posture", "risk_area")
+FEATURES: tuple[str, ...] = ("helmet", "vest", "gloves", "glasses", "falls", "posture", "risk_area")
 
 # (limiar mínimo de score, rótulo) — checado do maior pro menor.
 LEVEL_THRESHOLDS: tuple[tuple[float, str], ...] = (

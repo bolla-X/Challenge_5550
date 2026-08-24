@@ -57,6 +57,7 @@ class RuleEngine:
             ("helmet", "helmet", "Sem capacete", "critical"),
             ("vest", "vest", "Sem colete", "high"),
             ("gloves", "gloves", "Sem luvas", "medium"),
+            ("glasses", "glasses", "Sem óculos de proteção", "high"),
         ]
 
         if people:

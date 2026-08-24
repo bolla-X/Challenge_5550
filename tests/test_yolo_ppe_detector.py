@@ -1,6 +1,24 @@
 from __future__ import annotations
 
-from app.vision.yolo_ppe_detector import YoloPPEDetector
+from app.vision.yolo_ppe_detector import PPE_CORE_CLASSES, PPE_OPTIONAL_CLASSES, YoloPPEDetector
+
+# Modelo padrão: Hexmon/vyra-yolo-ppe-detection (14 classes).
+VYRA_MODEL = {
+    0: "Fall-Detected",
+    1: "Gloves",
+    2: "Goggles",
+    3: "Hardhat",
+    4: "Ladder",
+    5: "Mask",
+    6: "NO-Gloves",
+    7: "NO-Goggles",
+    8: "NO-Hardhat",
+    9: "NO-Mask",
+    10: "NO-Safety Vest",
+    11: "Person",
+    12: "Safety Cone",
+    13: "Safety Vest",
+}
 
 
 def _diagnostics_for(names: dict[int, str], *, require_person: bool) -> dict:
@@ -8,12 +26,34 @@ def _diagnostics_for(names: dict[int, str], *, require_person: bool) -> dict:
     return detector._build_diagnostics(names=names, error=None)
 
 
+def test_vyra_cobre_todas_as_classes_e_detecta_pessoa():
+    """O modelo padrão traz EPI e `Person` no mesmo peso — é isso que permite
+    rodar com MULTI_PERSON_DETECTION=false."""
+    diagnostics = _diagnostics_for(VYRA_MODEL, require_person=True)
+
+    assert diagnostics["supported_ppe"] == {"helmet": True, "vest": True, "gloves": True, "glasses": True}
+    assert diagnostics["person_supported"] is True
+    assert diagnostics["ppe_ready"] is True
+    assert diagnostics["warning"] is None
+
+
+def test_modelo_so_com_o_nucleo_continua_pronto():
+    """`glasses` é OPCIONAL: um modelo de 3 classes já em uso não pode passar a
+    reportar "modelo parcial" só porque a classe nova existe."""
+    diagnostics = _diagnostics_for({0: "helmet", 1: "vest", 2: "gloves"}, require_person=False)
+
+    assert all(diagnostics["supported_ppe"][key] for key in PPE_CORE_CLASSES)
+    assert not any(diagnostics["supported_ppe"][key] for key in PPE_OPTIONAL_CLASSES)
+    assert diagnostics["ppe_ready"] is True
+    assert diagnostics["warning"] is None
+
+
 def test_ppe_only_model_is_ready_without_person_when_require_person_false():
     # epi_pretrained.pt: 6 classes de EPI, sem "person".
     names = {0: "Gloves", 1: "Vest", 2: "goggles", 3: "helmet", 4: "mask", 5: "safety_shoe"}
     diagnostics = _diagnostics_for(names, require_person=False)
 
-    assert diagnostics["supported_ppe"] == {"helmet": True, "vest": True, "gloves": True}
+    assert diagnostics["supported_ppe"] == {"helmet": True, "vest": True, "gloves": True, "glasses": True}
     assert diagnostics["person_supported"] is False
     assert diagnostics["ppe_ready"] is True  # não deve travar por falta de "person"
     assert diagnostics["warning"] is None
@@ -28,19 +68,23 @@ def test_same_model_without_person_warns_when_require_person_true():
 
 
 def test_coco_person_model_reports_person_supported():
-    # yolov8n.pt (COCO): classe 0 = person, sem helmet/vest/gloves.
-    names = {0: "person", 1: "bicycle"}
-    diagnostics = _diagnostics_for(names, require_person=True)
+    # yolov8n.pt (COCO): classe 0 = person, sem nenhuma classe de EPI.
+    diagnostics = _diagnostics_for({0: "person", 1: "bicycle"}, require_person=True)
 
     assert diagnostics["person_supported"] is True
-    assert diagnostics["supported_ppe"] == {"helmet": False, "vest": False, "gloves": False}
+    assert not any(diagnostics["supported_ppe"].values())
 
 
 def test_normalize_label_maps_new_model_raw_names():
     assert YoloPPEDetector.normalize_label("Gloves") == "gloves"
     assert YoloPPEDetector.normalize_label("Vest") == "vest"
     assert YoloPPEDetector.normalize_label("helmet") == "helmet"
-    # goggles/mask/safety_shoe não têm nome interno hoje: ficam como vieram.
-    assert YoloPPEDetector.normalize_label("goggles") == "goggles"
+    # Nomes crus do Vyra.
+    assert YoloPPEDetector.normalize_label("Hardhat") == "helmet"
+    assert YoloPPEDetector.normalize_label("Safety Vest") == "vest"
+    assert YoloPPEDetector.normalize_label("Goggles") == "glasses"
+    assert YoloPPEDetector.normalize_label("Safety Cone") == "safety_cone"
+    assert YoloPPEDetector.normalize_label("Person") == "person"
+    # Sem nome interno hoje: ficam como vieram.
     assert YoloPPEDetector.normalize_label("mask") == "mask"
     assert YoloPPEDetector.normalize_label("safety_shoe") == "safety_shoe"

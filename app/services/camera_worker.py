@@ -401,7 +401,7 @@ class CameraWorker:
         with self.inference_lock:
             if self._needs_yolo_detection():
                 detections = self.detector.detect(frame)
-                if self.app.config.get("MULTI_PERSON_DETECTION", True):
+                if self.app.config.get("MULTI_PERSON_DETECTION", False):
                     detections = detections + self.person_detector.detect(frame)
             if self.feature_manager.is_enabled("pose"):
                 pose = self.pose_estimator.estimate(frame)
@@ -409,7 +409,7 @@ class CameraWorker:
 
     def _needs_yolo_detection(self) -> bool:
         return bool(
-            self.app.config.get("MULTI_PERSON_DETECTION", True)
+            self.app.config.get("MULTI_PERSON_DETECTION", False)
             or self.feature_manager.is_enabled("ppe")
             or self.feature_manager.is_enabled("risk_area")
         )
@@ -425,8 +425,12 @@ class CameraWorker:
                 "error": None,
             }
         diagnostics = dict(self.detector.diagnostics())
-        multi_person = bool(self.app.config.get("MULTI_PERSON_DETECTION", True))
-        person_supported = False
+        multi_person = bool(self.app.config.get("MULTI_PERSON_DETECTION", False))
+        # Com MULTI_PERSON_DETECTION desligado quem detecta pessoa e o PROPRIO
+        # modelo de EPI (o Vyra traz "Person" na classe 11). Sem esta linha o
+        # painel reportava "modelo nao detecta pessoa" mesmo detectando: o valor
+        # ficava fixo em False e so era preenchido dentro do ramo multi_person.
+        person_supported = bool(diagnostics.get("person_supported"))
         warning_parts = [diagnostics.get("warning")] if diagnostics.get("warning") else []
         if multi_person:
             person_diagnostics = self.person_detector.diagnostics()
@@ -464,7 +468,7 @@ class CameraWorker:
             "jpeg_quality": int(self.app.config.get("JPEG_QUALITY", 80)),
             "yolo_confidence": float(self.detector.confidence),
             "yolo_max_detections": int(self.detector.max_detections),
-            "multi_person_detection": bool(self.app.config.get("MULTI_PERSON_DETECTION", True)),
+            "multi_person_detection": bool(self.app.config.get("MULTI_PERSON_DETECTION", False)),
             "alert_create_after_frames": int(self.alert_state_service.create_after_frames),
             "alert_resolve_after_frames": int(self.alert_state_service.resolve_after_frames),
             "cleanup_on_monitor_start": bool(self.cleanup_service.enabled),

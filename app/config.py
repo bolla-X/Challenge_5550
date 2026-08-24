@@ -53,15 +53,17 @@ class Config:
     TARGET_FPS = env_int("TARGET_FPS", 12)
     JPEG_QUALITY = env_int("JPEG_QUALITY", 80)
 
-    PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "yolov8n.pt")
-    # Modelo dedicado a detectar "person" (classe 0 COCO). Necessário porque modelos
-    # de EPI treinados sem merge de dataset (ex: epi_pretrained.pt) não têm essa classe.
+    PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
+    # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
+    # PPE_MODEL_PATH aponta pra um modelo de EPI sem classe "person" própria
+    # (ex: epi_pretrained.pt). O Vyra já traz "Person" (classe 11), então roda
+    # desligado por padrão — ver MULTI_PERSON_DETECTION abaixo.
     PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "yolov8n.pt")
     YOLO_CONFIDENCE = env_float("YOLO_CONFIDENCE", 0.35)
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
     YOLO_CLASSES = os.getenv("YOLO_CLASSES", "")
     YOLO_MAX_DETECTIONS = env_int("YOLO_MAX_DETECTIONS", 100)
-    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", True)
+    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", False)
 
     POSE_MIN_DETECTION_CONFIDENCE = env_float("POSE_MIN_DETECTION_CONFIDENCE", 0.5)
     POSE_MIN_TRACKING_CONFIDENCE = env_float("POSE_MIN_TRACKING_CONFIDENCE", 0.5)
@@ -88,7 +90,7 @@ class Config:
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",
-        "ppe,helmet,vest,gloves,pose,falls,posture,risk_area",
+        "ppe,helmet,vest,gloves,glasses,pose,falls,posture,risk_area",
     )
     RISK_AREA_POLYGON = os.getenv("RISK_AREA_POLYGON", "0.70,0.10;0.98,0.10;0.98,0.95;0.70,0.95")
 

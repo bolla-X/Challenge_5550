@@ -52,9 +52,11 @@ class MonitorService:
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
             require_person=False,
         )
-        # Modelo de EPI dedicado não detecta "person" — um segundo YOLO
-        # (COCO, classe 0) roda em paralelo pra suprir isso. Mesmo par de
-        # modelos, agora compartilhado por todas as câmeras.
+        # Segundo YOLO (COCO, classe 0) usado APENAS quando
+        # MULTI_PERSON_DETECTION=true — isto e, quando PPE_MODEL_PATH aponta pra
+        # um modelo de EPI sem classe "person" propria (ex: epi_pretrained.pt).
+        # Com o Vyra, que ja detecta "Person", fica ocioso.
+        # Mesmo par de modelos, compartilhado por todas as cameras.
         self.person_detector = YoloPPEDetector(
             model_path=app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"),
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),

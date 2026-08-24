@@ -22,6 +22,7 @@ class FeatureManager:
         FeatureFlag("helmet", "Capacete", "Detecta ausência/presença de capacete", True, "EPIs"),
         FeatureFlag("vest", "Colete", "Detecta ausência/presença de colete refletivo", True, "EPIs"),
         FeatureFlag("gloves", "Luvas", "Detecta ausência/presença de luvas", True, "EPIs"),
+        FeatureFlag("glasses", "Óculos", "Detecta ausência/presença de óculos de proteção", True, "EPIs"),
         FeatureFlag("pose", "Pose", "Ativa MediaPipe Pose Estimation", True, "Postura"),
         FeatureFlag("falls", "Quedas", "Detecta pessoa caída por landmarks de pose", True, "Postura"),
         FeatureFlag("posture", "Postura inadequada", "Detecta inclinação/curvatura suspeita", True, "Postura"),

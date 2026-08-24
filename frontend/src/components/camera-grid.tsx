@@ -3,11 +3,12 @@ import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
 import type { CameraDiscoveryEntry, CameraFeatureSet, CameraRecord } from "../api/types";
 
-const CAMERA_FEATURE_ORDER: (keyof CameraFeatureSet)[] = ["helmet", "vest", "gloves", "pose", "falls", "posture", "risk_area"];
+const CAMERA_FEATURE_ORDER: (keyof CameraFeatureSet)[] = ["helmet", "vest", "gloves", "glasses", "pose", "falls", "posture", "risk_area"];
 const CAMERA_FEATURE_LABELS: Record<keyof CameraFeatureSet, string> = {
   helmet: "Capacete",
   vest: "Colete",
   gloves: "Luvas",
+  glasses: "Óculos",
   pose: "Pose",
   falls: "Quedas",
   posture: "Postura",

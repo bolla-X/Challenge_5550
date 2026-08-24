@@ -2,7 +2,7 @@ import { useDashboardStore } from "../store/dashboardStore";
 import { Panel } from "./common";
 import type { ComplianceState, FeatureFlag } from "../api/types";
 
-const FEATURE_ORDER = ["ppe", "helmet", "vest", "gloves", "pose", "falls", "posture", "risk_area"];
+const FEATURE_ORDER = ["ppe", "helmet", "vest", "gloves", "glasses", "pose", "falls", "posture", "risk_area"];
 
 const FEATURE_PROFILES: Record<string, Record<string, boolean>> = {
   basic: { ppe: false, helmet: false, vest: false, gloves: false, pose: true, falls: true, posture: true, risk_area: false },
@@ -17,6 +17,7 @@ const SHORT_DESCRIPTION: Record<string, string> = {
   helmet: "Proteção da cabeça",
   vest: "Proteção visual",
   gloves: "Proteção das mãos",
+  glasses: "Proteção ocular",
   pose: "Pontos corporais",
   falls: "Pessoa caída",
   posture: "Postura suspeita",
@@ -59,7 +60,7 @@ function isFeatureLive(key: string, compliance: ComplianceState | null): boolean
     case "gloves":
       return (compliance.ppe[key]?.detections.length ?? 0) > 0;
     case "ppe":
-      return (["helmet", "vest", "gloves"] as const).some((k) => (compliance.ppe[k]?.detections.length ?? 0) > 0);
+      return (["helmet", "vest", "gloves", "glasses"] as const).some((k) => (compliance.ppe[k]?.detections.length ?? 0) > 0);
     case "pose":
       return compliance.pose ? !["disabled", "waiting"].includes(compliance.pose.status) : false;
     case "falls":
@@ -75,7 +76,7 @@ function isFeatureLive(key: string, compliance: ComplianceState | null): boolean
 function supportMessage(key: string, model: ReturnType<typeof useDashboardStore.getState>["model"]): string {
   if (!model) return "aguardando diagnóstico";
   const supported = model.supported_ppe || ({} as Record<string, boolean>);
-  if (["helmet", "vest", "gloves"].includes(key) && !supported[key as keyof typeof supported]) return "indisponível no modelo atual";
+  if (["helmet", "vest", "gloves", "glasses"].includes(key) && !supported[key as keyof typeof supported]) return "indisponível no modelo atual";
   if (key === "ppe" && !model.ppe_ready) return "aguardando modelo PPE completo";
   if (["pose", "falls", "posture"].includes(key)) return "via MediaPipe";
   if (key === "risk_area") return "zona + YOLO pessoa";
