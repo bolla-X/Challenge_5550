@@ -79,6 +79,9 @@ class CameraWorker:
         self._latest_jpeg: bytes | None = None
         self._latest_analysis: dict[str, Any] | None = None
         self._last_error: str | None = None
+        # Ultimo estado de captura JA comunicado — so emite evento na transicao,
+        # nao a cada frame ruim (a 12 FPS seriam 12 eventos por segundo).
+        self._last_stream_state: str | None = None
         self._frame_counter = 0
         self._last_risk_score_emit_at = 0.0
         self.risk_score_interval_seconds = 30
@@ -160,6 +163,7 @@ class CameraWorker:
             self._latest_analysis = None
             self._last_error = None
             self._frame_counter = 0
+            self._last_stream_state = None
             self.person_tracker.reset()
             self._running.set()
             self._task = self.socketio.start_background_task(self._loop)
@@ -189,6 +193,10 @@ class CameraWorker:
             "running": self._running.is_set(),
             "frame_counter": self._frame_counter,
             "last_error": self._last_error,
+            # Estado da captura (live/reconnecting/unavailable + backoff): sem
+            # isso o dashboard so via "Frame indisponivel" e nao distinguia
+            # "caiu agora" de "morta ha 10 minutos".
+            "video": self.video_stream.status().to_dict(),
             "features": self.feature_manager.as_dict(),
             "model": self._safe_model_diagnostics(),
             "active_alerts": self.alert_state_service.active_alerts(),
@@ -362,8 +370,7 @@ class CameraWorker:
                 try:
                     ok, frame = self.video_stream.read()
                     if not ok or frame is None:
-                        self._last_error = "Frame indisponível"
-                        time.sleep(0.2)
+                        self._handle_capture_failure()
                         continue
 
                     analysis = self._analyze_frame(frame)
@@ -411,6 +418,16 @@ class CameraWorker:
                     # descartar o que não é da câmera em foco. Sem o carimbo,
                     # duas câmeras rodando sobrescreviam o estado uma da outra
                     # a cada frame.
+                    if self._last_stream_state not in (None, "live"):
+                        self._last_stream_state = "live"
+                        self._emit_timeline_event(
+                            "camera_reconnected",
+                            "Sinal restabelecido",
+                            "info",
+                            metadata=self.video_stream.status().to_dict(),
+                        )
+                        self.socketio.emit("monitor_status", self.status())
+
                     payload = self.latest_analysis() or {}
                     self.socketio.emit("analysis", payload | {"camera_id": self.camera_id})
                     self.socketio.emit("compliance_state", compliance_state | {"camera_id": self.camera_id})
@@ -424,6 +441,27 @@ class CameraWorker:
 
                 elapsed = time.perf_counter() - start_time
                 time.sleep(max(0.0, frame_interval - elapsed))
+
+    def _handle_capture_failure(self) -> None:
+        """Frame nao veio. Anota o estado, avisa a UI quando ele MUDA e dorme
+        o tempo certo — nem loop apertado, nem parado alem do backoff."""
+        estado = self.video_stream.status()
+        self._last_error = estado.last_error or "Frame indisponível"
+
+        if estado.state != self._last_stream_state:
+            self._last_stream_state = estado.state
+            if estado.state in ("reconnecting", "unavailable"):
+                self._emit_timeline_event(
+                    "camera_disconnected",
+                    f"Sinal perdido — tentando reconectar (tentativa {estado.reconnect_attempts + 1})",
+                    "warning",
+                    metadata=estado.to_dict(),
+                )
+            self.socketio.emit("monitor_status", self.status())
+
+        # Dentro da janela de backoff nao adianta girar a 12 FPS; fora dela,
+        # 0.2s mantem a resposta rapida quando a fonte volta.
+        time.sleep(min(max(estado.seconds_until_retry, 0.2), 1.0))
 
     def _analyze_frame(self, frame) -> FrameAnalysis:
         detections = []

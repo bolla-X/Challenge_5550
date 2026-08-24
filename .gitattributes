@@ -4,6 +4,12 @@
 # despercebido porque Python e TypeScript toleram CR solto.
 * text=auto
 
+# Entrada e saida do build do frontend ficam SEMPRE em LF: o vite injeta as
+# tags com "\n" e, se o arquivo-fonte estiver em CRLF, a saida sai misturada
+# (inclusive com CR solto).
+frontend/index.html   text eol=lf
+app/static/dist/**    text eol=lf
+
 # Binarios: nunca converter.
 *.woff2 binary
 *.pt     binary

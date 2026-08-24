@@ -181,12 +181,26 @@ export function MessageBar() {
 function useVideoStatus() {
   const running = useDashboardStore((s) => s.running);
   const lastAnalysisAt = useDashboardStore((s) => s.lastAnalysisAt);
+  const video = useDashboardStore((s) => s.videoStream);
   const [, forceTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => forceTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
   if (!running) return { status: "warn" as const, label: "parado" };
+
+  // O backend sabe o estado real da captura (VideoStream.status()). Quando ele
+  // chega, vale mais que a heurística de idade do frame abaixo: "reconectando,
+  // 3ª tentativa" diz o que "congelado" não dizia.
+  if (video) {
+    if (video.state === "unavailable") {
+      return { status: "error" as const, label: `sem sinal — nova tentativa em ${Math.ceil(video.seconds_until_retry)}s` };
+    }
+    if (video.state === "reconnecting") {
+      return { status: "error" as const, label: `reconectando (tentativa ${video.reconnect_attempts + 1})` };
+    }
+  }
+
   if (!lastAnalysisAt) return { status: "warn" as const, label: "aguardando frame" };
   const age = Date.now() - lastAnalysisAt;
   if (age > 4500) return { status: "error" as const, label: "congelado" };
