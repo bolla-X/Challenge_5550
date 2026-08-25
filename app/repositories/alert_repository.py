@@ -47,9 +47,12 @@ class AlertRepository:
     def get(self, alert_id: int) -> Alert | None:
         return db.session.get(Alert, int(alert_id))
 
-    def touch(self, alert: Alert, *, metadata: dict[str, Any] | None = None) -> Alert:
+    def touch(self, alert: Alert, *, metadata: dict[str, Any] | None = None, incremento: int = 1) -> Alert:
+        """Renova o alerta ativo. `incremento` permite gravar de uma vez as
+        ocorrências acumuladas desde o último commit — ver
+        AlertStateService.intervalo_touch, que espaça esta gravação."""
         alert.last_seen_at = utc_now()
-        alert.occurrences = int(alert.occurrences or 0) + 1
+        alert.occurrences = int(alert.occurrences or 0) + max(1, int(incremento))
         if metadata is not None:
             alert.metadata_json = metadata
         db.session.commit()

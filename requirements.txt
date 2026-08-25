@@ -6,6 +6,12 @@ python-dotenv==1.0.1
 psycopg2-binary==2.9.9
 opencv-python==4.10.0.84
 ultralytics==8.3.40
+# OpenVINO fica FORA de proposito. Em teste de bancada ele parece 5,6x melhor
+# (24 ms/frame contra 186 ms), mas dentro do worker real fica MAIS LENTO que o
+# PyTorch — 435-614 ms contra 237 ms, medido. E nao publica wheel para Apple
+# Silicon: torna-lo obrigatorio quebraria o pip install inteiro no macOS ARM.
+# Para experimentar em CPU Intel, instale a mao e aponte PPE_MODEL_PATH para um
+# diretorio *_openvino_model (o codigo ja suporta).
 mediapipe==0.10.14
 numpy==1.26.4
 gunicorn==22.0.0

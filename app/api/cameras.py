@@ -9,6 +9,7 @@ from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
 from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
+from app.vision.video_stream import capture_api
 
 cameras_bp = Blueprint("cameras", __name__)
 
@@ -121,7 +122,7 @@ def discover_cameras():
 
     results = []
     for index in range(max_index + 1):
-        cap = cv2.VideoCapture(index)
+        cap = cv2.VideoCapture(index, capture_api(index))
         available = bool(cap.isOpened())
         width = height = None
         if available:
@@ -282,14 +283,32 @@ def camera_video_feed(camera_id: int):
     target_fps = max(1, int(camera.fps or 12))
 
     def generate():
+        # Manda cada frame UMA vez, esperando aparecer um novo em vez de
+        # reenviar o último num relógio próprio. Os dois relógios (o do worker
+        # e o deste gerador) nunca estiveram em fase, então antes o mesmo
+        # quadro saía repetido e outros eram pulados — no navegador isso é
+        # engasgo, e ainda inflava qualquer contagem de quadros feita no
+        # cliente, mascarando o problema.
+        espera = 1 / (target_fps * 4)  # amostra mais fino que a taxa de frames
+        limite_ocioso = max(1.0, 2 / target_fps)  # sem frame novo? reenvia pra manter a conexão viva
+        ultima_versao = -1
+        ultimo_envio = time.monotonic()
         while True:
             try:
-                jpeg = monitor.latest_jpeg(camera_id=camera_id)
+                jpeg, versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
             except LookupError:
-                jpeg = None
+                jpeg, versao = None, -1
+
+            agora = time.monotonic()
+            novo = versao != ultima_versao
+            if not novo and agora - ultimo_envio < limite_ocioso:
+                time.sleep(espera)
+                continue
+
+            ultima_versao = versao
+            ultimo_envio = agora
             body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
             yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + body + b"\r\n"
-            time.sleep(1 / target_fps)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 

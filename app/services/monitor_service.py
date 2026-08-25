@@ -51,6 +51,7 @@ class MonitorService:
             classes=CameraWorker._parse_yolo_classes(app.config.get("YOLO_CLASSES", "")),
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
             require_person=False,
+            imgsz=app.config.get("YOLO_IMGSZ", 640),
         )
         # Segundo YOLO (COCO, classe 0) usado APENAS quando
         # MULTI_PERSON_DETECTION=true — isto e, quando PPE_MODEL_PATH aponta pra
@@ -63,6 +64,7 @@ class MonitorService:
             device=app.config.get("YOLO_DEVICE"),
             classes=[0],
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
+            imgsz=app.config.get("YOLO_IMGSZ", 640),
         )
         self.pose_estimator = MediaPipePoseEstimator(
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
@@ -193,6 +195,9 @@ class MonitorService:
 
     def latest_jpeg(self, camera_id: int | None = None) -> bytes | None:
         return self._get_worker(camera_id).latest_jpeg()
+
+    def latest_jpeg_versionado(self, camera_id: int | None = None) -> tuple[bytes | None, int]:
+        return self._get_worker(camera_id).latest_jpeg_versionado()
 
     def latest_analysis(self, camera_id: int | None = None) -> dict[str, Any] | None:
         return self._get_worker(camera_id).latest_analysis()
