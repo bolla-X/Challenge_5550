@@ -53,7 +53,10 @@ def capturas(monkeypatch):
     fila: list[FakeCapture] = []
     criadas: list[FakeCapture] = []
 
-    def fabrica(_source):
+    def fabrica(_source, _api=None):
+        # `_api` existe porque VideoStream escolhe o backend explicitamente
+        # (DirectShow para webcam no Windows, ver video_stream.capture_api).
+        # Fica opcional para o dublê servir aos dois formatos de chamada.
         cap = fila.pop(0) if fila else FakeCapture([], abre=False)
         criadas.append(cap)
         return cap

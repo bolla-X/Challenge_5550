@@ -92,6 +92,30 @@ class Config:
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
     YOLO_CLASSES = os.getenv("YOLO_CLASSES", "")
     YOLO_MAX_DETECTIONS = env_int("YOLO_MAX_DETECTIONS", 100)
+    # Lado maior da imagem que entra na rede. O ultralytics usa 640 quando não
+    # se diz nada, e é o custo dominante do pipeline: medido nesta máquina
+    # (CPU, sem CUDA), o YOLOv8m leva 327 ms/frame a 640 contra 135 ms a 320 —
+    # 2,4x. Abaixar melhora FPS e piora objetos pequenos/distantes, então é
+    # escolha de operação, não constante: fica no .env.
+    YOLO_IMGSZ = env_int("YOLO_IMGSZ", 640)
+    # Roda a detecção 1 frame a cada N; os intermediários reaproveitam as
+    # últimas caixas. Serve para desacoplar a fluidez do vídeo da velocidade da
+    # inferência — com N=1 o comportamento é exatamente o de antes.
+    DETECTION_EVERY_N_FRAMES = env_int("DETECTION_EVERY_N_FRAMES", 1)
+    # Segundos entre gravações de um alerta que continua ativo. Cada gravação
+    # é um commit (9,2 ms aqui) feito DENTRO do loop de captura, e antes
+    # acontecia por alerta a cada frame — o vídeo travava justamente quando
+    # havia infração. Criar e resolver seguem imediatos. 0 volta ao antigo.
+    ALERT_TOUCH_INTERVAL_SECONDS = env_float("ALERT_TOUCH_INTERVAL_SECONDS", 2.0)
+    # Quantas vezes por segundo a telemetria (analysis/compliance) vai pro
+    # navegador. O VÍDEO não passa por aqui — ele é MJPEG com as caixas já
+    # desenhadas — então baixar isto não deixa a imagem menos fluida; evita
+    # que ~26 KB por evento por câmera afoguem o browser a 24 FPS.
+    TELEMETRY_HZ = env_float("TELEMETRY_HZ", 8.0)
+    # Diagnostico: a cada N frames, loga quanto cada etapa do loop custou.
+    # 0 = desligado (padrao). Use quando o video estiver travado pra ver ONDE
+    # o tempo vai, em vez de adivinhar pelo FPS medio.
+    PROFILE_FRAMES = env_int("PROFILE_FRAMES", 0)
     MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", False)
 
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do

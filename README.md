@@ -159,6 +159,10 @@ Detalhes que importam para a avaliação de segurança:
 
 ## Testes
 
+Roteiro de teste **manual** (do zero até os casos de borda), em [`docs/TESTE-MANUAL.md`](docs/TESTE-MANUAL.md).
+
+Verificação automatizada:
+
 ```bash
 pytest
 ```

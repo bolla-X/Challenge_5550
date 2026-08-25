@@ -105,6 +105,26 @@ class CameraWorker:
         # YOLO são compartilhados, então o estado de tracking não pode morar
         # dentro deles.
         self.person_tracker = PersonTracker()
+        # Detecção intercalada (ver Config.DETECTION_EVERY_N_FRAMES). Contador
+        # e último resultado são POR câmera: cada uma tem seu próprio ritmo, e
+        # misturar as caixas de uma com as da outra seria pior que o lag.
+        # Contador PRÓPRIO: `_frame_counter` conta frames publicados e sai no
+        # status: reaproveitá-lo aqui faria a contagem andar em dobro.
+        self.detect_every_n = max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1)))
+        self._detect_counter = 0
+        self._cached_analysis: FrameAnalysis | None = None
+        # Telemetria (ver _deve_emitir_telemetria e Config.TELEMETRY_HZ).
+        hz = float(app.config.get("TELEMETRY_HZ", 8.0))
+        self._intervalo_telemetria = (1.0 / hz) if hz > 0 else 0.0
+        self._ultima_telemetria = 0.0
+        self._ultimo_diagnostico: tuple | None = None
+        # Perfil por etapa do loop (ver _perf_fim). Número de frames por
+        # relatório; 0 desliga e os métodos saem na primeira linha.
+        self._perf_ativo = max(0, int(app.config.get("PROFILE_FRAMES", 0)))
+        self._perf_t = 0.0
+        self._perf_atual: dict[str, float] = {}
+        self._perf_soma: dict[str, float] = {}
+        self._perf_n = 0
         self.rule_engine = RuleEngine(
             feature_manager=feature_manager,
             cooldown_seconds=app.config.get("ALERT_COOLDOWN_SECONDS", 0),
@@ -117,6 +137,7 @@ class CameraWorker:
             create_after_frames=app.config.get("ALERT_CREATE_AFTER_FRAMES", 3),
             resolve_after_frames=app.config.get("ALERT_RESOLVE_AFTER_FRAMES", 5),
             camera_id=camera_id,
+            intervalo_touch=app.config.get("ALERT_TOUCH_INTERVAL_SECONDS", 2.0),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -163,6 +184,10 @@ class CameraWorker:
             self._latest_analysis = None
             self._last_error = None
             self._frame_counter = 0
+            # Sem isto, a câmera volta exibindo as caixas da sessão anterior
+            # até a primeira inferência nova concluir.
+            self._detect_counter = 0
+            self._cached_analysis = None
             self._last_stream_state = None
             self.person_tracker.reset()
             self._running.set()
@@ -278,6 +303,19 @@ class CameraWorker:
         with self._thread_lock:
             return self._latest_jpeg
 
+    def latest_jpeg_versionado(self) -> tuple[bytes | None, int]:
+        """O frame e um número que muda a cada frame novo.
+
+        O stream MJPEG usa a versão para mandar cada frame UMA vez. Antes ele
+        reenviava `latest_jpeg` num relógio próprio, sem saber se havia frame
+        novo: como esse relógio e o do worker não são sincronizados, o mesmo
+        quadro ia repetido e outros eram pulados. No navegador isso aparece
+        como engasgo — imagem parada e depois um salto — mesmo com a contagem
+        de quadros parecendo alta, porque as repetições contam.
+        """
+        with self._thread_lock:
+            return self._latest_jpeg, self._frame_counter
+
     def latest_analysis(self) -> dict[str, Any] | None:
         with self._thread_lock:
             return self._latest_analysis
@@ -367,13 +405,16 @@ class CameraWorker:
         with self.app.app_context():
             while self._running.is_set():
                 start_time = time.perf_counter()
+                self._perf_inicio()
                 try:
                     ok, frame = self.video_stream.read()
+                    self._perf_marca("captura")
                     if not ok or frame is None:
                         self._handle_capture_failure()
                         continue
 
                     analysis = self._analyze_frame(frame)
+                    self._perf_marca("analise")
                     # UMA passada de regras por frame. O resultado (alertas +
                     # estado por pessoa) alimenta tanto o AlertStateService
                     # quanto o ComplianceService — que antes refazia todo o
@@ -384,7 +425,9 @@ class CameraWorker:
                         frame.shape,
                         poses=analysis.poses,
                     )
+                    self._perf_marca("regras")
                     alert_state = self.alert_state_service.process(evaluation.alerts)
+                    self._perf_marca("alertas")
                     model_diagnostics = self._safe_model_diagnostics()
                     compliance_state = self.compliance_service.build_state(
                         detections=analysis.detections,
@@ -404,9 +447,11 @@ class CameraWorker:
                         compliance_state,
                         self.overlay_options,
                     )
+                    self._perf_marca("anotacao")
                     self._attach_snapshots_and_log_events(alert_state, annotated)
                     alert_state["active"] = self.alert_state_service.active_alerts()
                     encode_ok, buffer = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
+                    self._perf_marca("encode")
                     if encode_ok:
                         with self._thread_lock:
                             self._latest_jpeg = buffer.tobytes()
@@ -433,11 +478,25 @@ class CameraWorker:
                         )
                         self.socketio.emit("monitor_status", self.status())
 
-                    payload = self.latest_analysis() or {}
-                    self.socketio.emit("analysis", payload | {"camera_id": self.camera_id})
-                    self.socketio.emit("compliance_state", compliance_state | {"camera_id": self.camera_id})
-                    self.socketio.emit("model_diagnostics", model_diagnostics | {"camera_id": self.camera_id})
+                    # Telemetria com taxa própria, separada da do vídeo. O
+                    # `analysis` sozinho pesa ~26 KB (detecções + landmarks de
+                    # pose por pessoa); mandá-lo a 24 FPS por duas câmeras
+                    # empurrava ~1,2 MB/s pro navegador, e cada evento dispara
+                    # re-render. As caixas que aparecem no vídeo NÃO dependem
+                    # disto — vêm desenhadas no MJPEG.
+                    #
+                    # Mudança de alerta fura o intervalo: quando alguém tira o
+                    # capacete, o painel tem que reagir na hora, não no
+                    # próximo tique.
+                    mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"])
+                    if mudou_alerta or self._deve_emitir_telemetria():
+                        payload = self.latest_analysis() or {}
+                        self.socketio.emit("analysis", payload | {"camera_id": self.camera_id})
+                        self.socketio.emit("compliance_state", compliance_state | {"camera_id": self.camera_id})
+                        self._emitir_diagnostico_se_mudou(model_diagnostics)
                     self._maybe_emit_risk_score()
+                    self._perf_marca("emissao")
+                    self._perf_fim()
                     self._last_error = None
                 except Exception as exc:  # noqa: BLE001
                     self._last_error = str(exc)
@@ -446,6 +505,74 @@ class CameraWorker:
 
                 elapsed = time.perf_counter() - start_time
                 time.sleep(max(0.0, frame_interval - elapsed))
+
+    # ------------------------------------------------------- perfil do loop -
+    # Diagnóstico de "por que o vídeo está travado". FPS médio engana: quadros
+    # repetidos inflam a contagem e uma etapa cara esconde-se na média. Ligado
+    # por PROFILE_FRAMES no .env (0 = desligado, sem custo).
+    def _perf_inicio(self) -> None:
+        if not self._perf_ativo:
+            return
+        self._perf_t = time.perf_counter()
+        self._perf_atual = {}
+
+    def _perf_marca(self, etapa: str) -> None:
+        if not self._perf_ativo:
+            return
+        agora = time.perf_counter()
+        self._perf_atual[etapa] = (agora - self._perf_t) * 1000.0
+        self._perf_t = agora
+
+    def _perf_fim(self) -> None:
+        if not self._perf_ativo:
+            return
+        for etapa, ms in self._perf_atual.items():
+            self._perf_soma[etapa] = self._perf_soma.get(etapa, 0.0) + ms
+        self._perf_n += 1
+        if self._perf_n < self._perf_ativo:
+            return
+        media = {k: round(v / self._perf_n, 1) for k, v in sorted(self._perf_soma.items(), key=lambda kv: -kv[1])}
+        total = round(sum(media.values()), 1)
+        logger.warning(
+            "perfil_do_frame",
+            extra={
+                "camera_id": self.camera_id,
+                "frames": self._perf_n,
+                "ms_por_etapa": media,
+                "ms_total": total,
+                "fps_possivel": round(1000.0 / total, 1) if total else None,
+            },
+        )
+        self._perf_soma, self._perf_n = {}, 0
+
+    def _deve_emitir_telemetria(self) -> bool:
+        """True no máximo TELEMETRY_HZ vezes por segundo."""
+        if self._intervalo_telemetria <= 0:
+            return True
+        agora = time.perf_counter()
+        if agora - self._ultima_telemetria < self._intervalo_telemetria:
+            return False
+        self._ultima_telemetria = agora
+        return True
+
+    def _emitir_diagnostico_se_mudou(self, diagnostics: dict[str, Any]) -> None:
+        """Só manda o diagnóstico do modelo quando ele muda de verdade.
+
+        São ~1,3 KB com a lista das 14 classes — conteúdo que só muda se
+        alguém trocar de modelo ou o carregamento falhar. Reenviar a cada
+        frame era puro desperdício de banda e de re-render.
+        """
+        assinatura = (
+            diagnostics.get("model_path"),
+            diagnostics.get("ppe_ready"),
+            diagnostics.get("error"),
+            diagnostics.get("warning"),
+            diagnostics.get("raw_class_count"),
+        )
+        if assinatura == self._ultimo_diagnostico:
+            return
+        self._ultimo_diagnostico = assinatura
+        self.socketio.emit("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
 
     def _handle_capture_failure(self) -> None:
         """Frame nao veio. Anota o estado, avisa a UI quando ele MUDA e dorme
@@ -469,6 +596,20 @@ class CameraWorker:
         time.sleep(min(max(estado.seconds_until_retry, 0.2), 1.0))
 
     def _analyze_frame(self, frame) -> FrameAnalysis:
+        # Detecção intercalada: com detect_every_n > 1, os frames do meio
+        # reaproveitam as caixas da última inferência em vez de rodar o modelo.
+        # O vídeo continua saindo na taxa de captura (fluido) enquanto a
+        # detecção anda no ritmo que a máquina aguenta.
+        #
+        # O que isso custa: as caixas ficam até (N-1) frames defasadas em
+        # relação ao vídeo. Como EPI não aparece e some entre frames, a
+        # conformidade não muda; o que "atrasa" é a caixa acompanhar alguém em
+        # movimento. Por isso o padrão é 1 — quem liga escolhe essa troca.
+        self._detect_counter += 1
+        if self.detect_every_n > 1 and self._cached_analysis is not None:
+            if self._detect_counter % self.detect_every_n != 0:
+                return self._cached_analysis
+
         detections = []
         pose = None
         poses: list[PoseResult] = []
@@ -476,9 +617,12 @@ class CameraWorker:
         # — serializa quem usa a GPU por vez. Numa GPU só isso não perde
         # paralelismo real (ela já processa um kernel de cada vez), só evita
         # dois threads chamando forward() no mesmo objeto simultaneamente.
+        self._perf_marca("espera_do_lock_pre")
         with self.inference_lock:
+            self._perf_marca("espera_do_lock")
             if self._needs_yolo_detection():
                 detections = self.detector.detect(frame)
+                self._perf_marca("yolo")
                 if self.app.config.get("MULTI_PERSON_DETECTION", True):
                     # Só as pessoas passam pelo tracker — EPIs são associados
                     # geometricamente a elas (PersonComplianceMatcher), não
@@ -487,10 +631,13 @@ class CameraWorker:
                     detections = detections + people
             if self.feature_manager.is_enabled("pose"):
                 poses = self._estimate_poses(frame, detections)
+                self._perf_marca("pose")
                 # `pose` continua sendo a primeira (ou a global) pra nao quebrar
                 # quem ja lia esse campo — frontend inclusive.
                 pose = poses[0] if poses else None
-        return FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses)
+        analise = FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses)
+        self._cached_analysis = analise
+        return analise
 
     def _estimate_poses(self, frame, detections) -> list[PoseResult]:
         """Uma pose por pessoa quando ha caixa de pessoa; senao, a global.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from functools import cached_property
 from typing import Any
 
@@ -74,10 +75,15 @@ class YoloPPEDetector:
         classes: list[int] | None = None,
         max_detections: int = 100,
         require_person: bool = True,
+        imgsz: int = 640,
     ) -> None:
         self.model_path = model_path
         self.confidence = confidence
         self.device = device
+        # Lado maior da entrada da rede (ver Config.YOLO_IMGSZ). O ultralytics
+        # exige múltiplo de 32 e arredonda sozinho avisando; arredondar aqui
+        # evita o aviso a cada frame quando alguém põe 500 no .env.
+        self.imgsz = max(160, int(round(imgsz / 32)) * 32)
         self.classes = classes
         self.max_detections = max(1, int(max_detections))
         # ponytail: modelos dedicados a EPI (sem classe "person") não devem ser
@@ -86,14 +92,88 @@ class YoloPPEDetector:
         self.require_person = require_person
         self._last_diagnostics: dict[str, Any] | None = None
 
+    @property
+    def is_openvino(self) -> bool:
+        """Modelo exportado pra OpenVINO (um diretório, não um arquivo .pt).
+
+        Muda duas coisas: o ultralytics não consegue deduzir a tarefa a partir
+        do diretório (precisa de `task="detect"`), e o `imgsz` fica CONGELADO
+        no valor usado na exportação — ver `_validar_imgsz`.
+        """
+        return os.path.isdir(self.model_path) and self.model_path.rstrip("/\\").endswith("_openvino_model")
+
+    @staticmethod
+    def _compatibilizar_openvino() -> None:
+        """Religa `openvino.runtime`, que o OpenVINO 2026 removeu.
+
+        O ultralytics 8.3.40 ainda chama `ov.runtime.AsyncInferQueue` no
+        caminho de inferência em lote (autobackend.py:573). Como ele decide o
+        modo a partir do batch PADRÃO do predictor (16) antes de ler o
+        metadata do modelo (que diz 1), esse caminho é alcançado mesmo aqui,
+        onde todo predict é de um frame só. Sem este religamento o detector
+        levanta `module 'openvino' has no attribute 'runtime'` a cada frame —
+        e como `detect()` engole exceções para não derrubar o pipeline, o
+        sintoma é silencioso: vídeo fluido e ZERO detecções.
+
+        Só reexpõe o que já existe no namespace novo; não altera comportamento
+        de quem usa o `openvino` diretamente. Vira desnecessário quando o
+        ultralytics passar a usar `ov.AsyncInferQueue`.
+        """
+        import sys
+        import types
+
+        try:
+            import openvino as ov
+        except ImportError:
+            return
+        if hasattr(ov, "runtime"):
+            return
+        ponte = types.ModuleType("openvino.runtime")
+        for nome in dir(ov):
+            if not nome.startswith("_"):
+                setattr(ponte, nome, getattr(ov, nome))
+        ov.runtime = ponte
+        sys.modules["openvino.runtime"] = ponte
+        logger.info("openvino_runtime_shim_aplicado")
+
     @cached_property
     def model(self):
         try:
             from ultralytics import YOLO
         except ImportError as exc:
             raise RuntimeError("Pacote ultralytics não instalado. Rode pip install -r requirements.txt") from exc
-        logger.info("loading_yolo_model", extra={"model_path": self.model_path})
-        return YOLO(self.model_path)
+        if self.is_openvino:
+            self._compatibilizar_openvino()
+        logger.info("loading_yolo_model", extra={"model_path": self.model_path, "openvino": self.is_openvino})
+        # task="detect" só é obrigatório no OpenVINO, mas informar sempre é
+        # correto (este projeto só faz detecção) e evita um ramo a mais.
+        modelo = YOLO(self.model_path, task="detect")
+        if self.is_openvino:
+            self._validar_imgsz(modelo)
+        return modelo
+
+    def _validar_imgsz(self, modelo) -> None:
+        """Falha cedo e em português quando o imgsz não bate com o do export.
+
+        Um modelo OpenVINO tem a forma de entrada fixada na exportação. Pedir
+        outra resolução estoura lá no fundo do runtime C++ com
+        "Exception from infer_request.cpp", que não diz nada a quem configurou
+        `YOLO_IMGSZ` no .env. Aqui o erro nomeia a causa e a saída.
+        """
+        exportado = None
+        args = getattr(modelo, "overrides", None) or {}
+        valor = args.get("imgsz")
+        if isinstance(valor, (list, tuple)) and valor:
+            exportado = int(valor[0])
+        elif isinstance(valor, int):
+            exportado = int(valor)
+        if exportado and exportado != self.imgsz:
+            raise RuntimeError(
+                f"O modelo OpenVINO em '{self.model_path}' foi exportado com imgsz={exportado}, "
+                f"mas YOLO_IMGSZ={self.imgsz}. O OpenVINO congela a resolução na exportação: "
+                f"ou ajuste YOLO_IMGSZ para {exportado}, ou exporte o modelo de novo na "
+                f"resolução desejada."
+            )
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         try:
@@ -104,6 +184,7 @@ class YoloPPEDetector:
                 classes=self.classes,
                 verbose=False,
                 max_det=self.max_detections,
+                imgsz=self.imgsz,
             )
         except Exception as exc:  # noqa: BLE001
             # Modelo ausente/corrompido não pode derrubar o frame inteiro —
@@ -210,6 +291,7 @@ class YoloPPEDetector:
             "device": self.device,
             "class_filter": self.classes,
             "max_detections": self.max_detections,
+            "imgsz": self.imgsz,
             "raw_class_count": len(normalized_by_id),
             "classes": normalized_by_id,
             "supported_ppe": supported_ppe,

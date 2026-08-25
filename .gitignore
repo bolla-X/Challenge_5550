@@ -13,3 +13,9 @@ instance/
 
 # Saida de diagnostico do tsc — nunca deve ser versionada.
 tsc.log
+
+# Pesos do YOLO tambem chegam empacotados (~52 MB). Um .pt do PyTorch JA e um
+# zip por dentro, entao `vyra_ppe.pt.zip` e o proprio checkpoint renomeado —
+# passa batido pela regra `*.pt` acima e estoura o aviso de 50 MB do GitHub.
+*.pt.zip
+models/

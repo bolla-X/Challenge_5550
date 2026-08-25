@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 from dataclasses import dataclass
 from time import monotonic, sleep
@@ -9,6 +10,23 @@ from typing import Any
 import cv2
 
 logger = logging.getLogger(__name__)
+
+
+def capture_api(source: Any) -> int:
+    """Backend do OpenCV a usar para abrir `source`.
+
+    No Windows o padrão é o MSMF, e ele é ruim para webcam USB: medido nesta
+    máquina, abrir o índice 1 (webcam externa) levou **20 segundos** contra
+    0,86s do DirectShow — a captura em si roda a ~30 FPS nos dois. Esse custo
+    de abertura é o que fazia a descoberta de câmeras varrer 0..5 e parecer
+    travada, e o que atrasava a subida da segunda câmera no multicam.
+
+    Só vale para índice numérico (USB/webcam): RTSP e arquivo têm o próprio
+    caminho no FFMPEG, onde o padrão (CAP_ANY) já é o certo.
+    """
+    if sys.platform == "win32" and isinstance(source, int):
+        return cv2.CAP_DSHOW
+    return cv2.CAP_ANY
 
 
 class VideoStreamError(RuntimeError):
@@ -128,7 +146,7 @@ class VideoStream:
             return True
         self._release_locked(quiet=True)
         try:
-            capture = cv2.VideoCapture(self.source)
+            capture = cv2.VideoCapture(self.source, capture_api(self.source))
         except Exception as exc:  # noqa: BLE001  (cv2 levanta tipos variados)
             self._last_error = str(exc)
             return False
@@ -139,6 +157,14 @@ class VideoStream:
 
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        # Buffer de 1 frame: a câmera entrega ~30 FPS, mas o pipeline consome
+        # bem menos (a inferência é o gargalo). Com o buffer padrão, os frames
+        # não consumidos ENFILEIRAM e `read()` devolve imagem velha — o vídeo
+        # aparece atrasado em segundos e piora quanto mais tempo roda. Com 1,
+        # `read()` sempre pega o frame mais recente e o atraso não acumula.
+        # Nem todo backend respeita; quando ignora, o comportamento é o de
+        # antes, então não há risco em pedir.
+        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._capture = capture
         self._last_error = None
         logger.info("video_stream_opened", extra={"source": str(self.source)})
