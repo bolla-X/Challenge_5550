@@ -20,11 +20,10 @@ import re
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
-
 from app import create_app
 from app.config import TestConfig
 from app.extensions import db
+from sqlalchemy import create_engine, inspect, text
 
 RAIZ = Path(__file__).resolve().parent.parent
 

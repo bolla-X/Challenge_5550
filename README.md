@@ -69,7 +69,11 @@ copy .env.example .env          # Windows
 # cp .env.example .env          # macOS/Linux
 ```
 
-Edite o `.env`: comente `DATABASE_URL` para usar SQLite local, ou suba um Postgres via `docker compose up -d postgres` e mantenha a URL configurada.
+Edite o `.env`: gere a `SECRET_KEY` (a aplicação **não sobe** sem ela); mantenha `DATABASE_URL` comentada para usar SQLite local, ou suba um Postgres via `docker compose up -d postgres` e descomente a URL.
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
 
 Crie o esquema do banco:
 
@@ -83,7 +87,11 @@ Crie a primeira conta — sem ela não há como entrar:
 flask --app wsgi users create --role supervisor
 ```
 
-> Já tinha um banco criado pela versão anterior (que usava `db.create_all()`)? Rode `flask --app wsgi db stamp f6cd160ae4e0` **uma vez** antes do `upgrade` — assim o Alembic aplica só a migração nova (`camera_id`) em vez de tentar recriar tabelas que já existem.
+> **`AUTO_CREATE_TABLES` precisa estar `false`** (é o padrão do `.env.example`). Quem é dono do esquema é o Alembic. Com `true`, `create_app()` chama `db.create_all()` — e o CLI do Flask constrói a aplicação **antes** de executar o subcomando, então as tabelas nascem sem `alembic_version` e o `db upgrade` seguinte morre com `table alerts already exists`, **num clone limpo**. Se você ligou `AUTO_CREATE_TABLES=true` e caiu nesse erro, apague o banco (`instance/visionepi-dev.db`) e rode o `upgrade` de novo com a variável em `false`.
+>
+> Caso diferente: **já tinha um banco da versão anterior**, criado por `db.create_all()` quando ainda não havia migrações? Aí sim rode `flask --app wsgi db stamp f6cd160ae4e0` **uma vez** antes do `upgrade`, para o Alembic aplicar só as migrações novas em vez de recriar tabelas existentes. Isso **não** resolve o caso do clone limpo acima — são problemas distintos.
+
+O caminho documentado acima é coberto por `tests/test_onboarding.py`.
 
 ### Frontend
 
