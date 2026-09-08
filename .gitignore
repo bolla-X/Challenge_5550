@@ -19,3 +19,11 @@ tsc.log
 # passa batido pela regra `*.pt` acima e estoura o aviso de 50 MB do GitHub.
 *.pt.zip
 models/
+
+# Fixtures de video: baixadas por scripts/fetch_fixtures.py, nunca versionadas.
+# Repositorio publico + binario grande. Origem, licenca e checksum em docs/FIXTURES.md.
+tests/fixtures/*.mp4
+tests/fixtures/_source/
+
+# Artefato do pytest-cov.
+.coverage
