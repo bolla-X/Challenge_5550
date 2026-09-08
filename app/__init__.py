@@ -5,6 +5,7 @@ import logging
 from flask import Flask, jsonify
 from flask import session as socket_session
 from flask_socketio import disconnect as socketio_disconnect
+from flask_socketio import join_room
 
 from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
@@ -23,6 +24,7 @@ from app.services.feature_manager import FeatureManager
 from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.auth import current_user
 from app.utils.logging_config import configure_logging
+from app.utils.salas import salas_do_usuario
 
 
 def _validar_secret_key(app: Flask) -> None:
@@ -119,6 +121,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     @socketio.on("connect")
     def _authorize_socket(auth=None):  # noqa: ARG001  (assinatura do Flask-SocketIO)
         if not app.config.get("AUTH_REQUIRED", True):
+            for sala in salas_do_usuario(None):
+                join_room(sala)
             return True
         usuario = current_user()
         if usuario is None:
@@ -129,6 +133,12 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         # detectadas) chegando a quem foi desativado ou trocou a senha.
         socket_session["user_id"] = usuario.id
         socket_session["epoch"] = usuario.session_epoch
+        # O escopo de câmera do Operador precisa valer aqui também. Enquanto
+        # todo emit era broadcast, ele recebia o feed inteiro do parque pelo
+        # socket mesmo levando 404 nas rotas REST das outras áreas.
+        # Operador sem setor não entra em sala nenhuma, de propósito.
+        for sala in salas_do_usuario(usuario):
+            join_room(sala)
         return True
 
     @socketio.on("revalidate")

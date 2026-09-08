@@ -119,9 +119,38 @@ O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI. O padrão �
 
 Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve em `models/vyra_ppe.pt`.
 
-Esse modelo já traz a classe `Person` (índice 11), então `MULTI_PERSON_DETECTION=false` desliga o segundo modelo YOLO (COCO, `PERSON_MODEL_PATH`) que antes rodava em paralelo só para suprir essa falta. Ele continua configurável: ligue `MULTI_PERSON_DETECTION=true` ao usar um modelo de EPI sem classe `person` (ex.: `models/epi_pretrained.pt`) — e, nesse caso, **limpe `YOLO_CLASSES`**, porque os índices em `.env.example` são específicos do Vyra.
+Esse modelo tem a classe `Person` no índice 11 — mas veja a ressalva abaixo antes de confiar nela.
+
+#### A classe `Person` do Vyra não generaliza — use `MULTI_PERSON_DETECTION=true`
+
+O modelo **tem** a classe `Person`, e por isso o projeto nasceu com `MULTI_PERSON_DETECTION=false`. Medindo, a premissa não se sustenta:
+
+- **36 células testadas** (3 fotos independentes de canteiro de obra com pessoas de corpo inteiro × `imgsz` ∈ {416, 640, 960, 1280} × `conf` ∈ {0,35; 0,10; 0,02}, instância nova do modelo a cada célula): **zero detecções de `Person`**. Nas mesmas imagens o modelo detecta `Hardhat` e `Safety Vest` normalmente.
+- Somando ~650 quadros amostrados de quatro vídeos de segurança do trabalho (CDC/NIOSH), também **zero** `Person`.
+- A causa está na **matriz de confusão publicada pelo próprio autor** ([confusion_matrix.png](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection/blob/main/confusion_matrix.png)): `Person` tem ~**277 instâncias** de validação contra ~**8.946** de `Hardhat`. É a menor classe real do dataset — ~32x menos suportada. Ela funciona na distribuição de treino dela e falha fora.
+- Para comparação, na mesma imagem `yolov8n.pt` (COCO) detecta as duas pessoas com confiança **0,87** e **0,73**.
+
+**Consequência:** com `MULTI_PERSON_DETECTION=false`, `person_compliance_matcher.py:83` recebe lista de pessoas vazia. O sistema desenha capacetes e coletes no vídeo e **nunca avalia a conformidade de ninguém** — nenhum alerta de EPI é criado. Ligue `MULTI_PERSON_DETECTION=true` (custo medido: **−20% de FPS**, ver [docs/BENCH.md](docs/BENCH.md)).
+
+#### `YOLO_IMGSZ=416` está abaixo da resolução de treino
+
+O `args.yaml` publicado com os pesos registra `imgsz: 640`. O projeto infere a **416** por custo — a 640 o YOLO custa **166 ms** contra **82 ms** (medido, [docs/BENCH.md](docs/BENCH.md)). O preço da economia é detecção: na foto de teste, a 416 o modelo encontra **1** caixa e a 640 encontra **2**, e o capacete só aparece a partir de 640.
+
+#### Classes detectadas que nenhuma regra consome
+
+`Fall-Detected` (0) e `Safety Cone` (12) estão em `YOLO_CLASSES`, são detectadas, **desenhadas no vídeo** (`annotator.py:77,90`) e vão no payload do WebSocket — mas **nenhuma regra as lê**. Quem decide "pessoa caiu" é exclusivamente a geometria de landmarks do MediaPipe (`risk_rules.py:230-243`); a detecção de queda do YOLO é sinal não consumido.
+
+Removê-las de `YOLO_CLASSES` **não economizaria nada**: o filtro `classes=` do ultralytics é aplicado **depois** do NMS (`ultralytics/utils/ops.py:273`), então o forward pass calcula as 14 classes de qualquer jeito. Por isso elas continuam ali.
+
+#### Alternativa
+
+Ligue `MULTI_PERSON_DETECTION=true` também ao usar um modelo de EPI sem classe `person` (ex.: `models/epi_pretrained.pt`) — e, nesse caso, **limpe `YOLO_CLASSES`**, porque os índices em `.env.example` são específicos do Vyra.
 
 Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso de "modelo não suportado" — o restante do sistema (detecção de pessoa, pose, área de risco) funciona normalmente mesmo assim.
+
+#### OpenVINO e ONNX: avaliados e não adotados
+
+O código aceita `PPE_MODEL_PATH` apontando para um diretório `*_openvino_model`, mas o `requirements.txt` **não instala OpenVINO** — ele foi avaliado e rejeitado (commit `2d74e96`). O ONNX foi medido nesta máquina com o `best.onnx` que o próprio Hexmon publica: **33% mais lento** que o PyTorch, não os "up to 3x" que a documentação da Ultralytics anuncia. Números em [docs/BENCH.md](docs/BENCH.md). `onnxruntime` **não** está no `requirements.txt`.
 
 ## Autenticação e papéis
 
@@ -164,6 +193,7 @@ Detalhes que importam para a avaliação de segurança:
 - Sair encerra a sessão **naquele navegador**, não em todos: derrubar tudo a cada logout expulsaria a pessoa do kiosk do chão de fábrica quando ela saísse do desktop. Para revogar em todos os lugares (conta comprometida), troque a senha.
 - O socket revalida a sessão a cada 30 s. Sem isso, uma conexão já aberta seguiria recebendo vídeo e alertas depois de o acesso ser revogado.
 - O **WebSocket** também exige sessão — proteger só o REST deixaria o feed de análise e alertas acessível pela porta dos fundos.
+- O **escopo de câmera vale no WebSocket também**, via rooms do Socket.IO (`app/utils/salas.py`). Técnico e Supervisor entram na sala `parque`; o Operador entra só em `camera:<id>` do setor dele; Operador sem setor não entra em sala nenhuma. Antes disso, todo `emit` era broadcast: o operador que recebia 404 ao pedir outra área por HTTP recebia `analysis`, `compliance_state` e `active_alerts` daquela área pelo socket, ~12 vezes por segundo. Coberto por `tests/test_escopo_socket.py`.
 
 ## Testes
 

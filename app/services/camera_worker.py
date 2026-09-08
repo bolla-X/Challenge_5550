@@ -22,6 +22,7 @@ from app.services.risk_rules import RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
+from app.utils.salas import emitir_para_camera
 from app.vision.annotator import FrameAnnotator
 from app.vision.person_tracker import PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
@@ -179,7 +180,7 @@ class CameraWorker:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("stale_alert_cleanup_failed", extra={"error": str(exc)})
             self.alert_state_service.reset()
-            self.socketio.emit("active_alerts", {"camera_id": self.camera_id, "items": [], "count": 0})
+            self._emitir("active_alerts", {"camera_id": self.camera_id, "items": [], "count": 0})
             self._latest_jpeg = None
             self._latest_analysis = None
             self._last_error = None
@@ -194,7 +195,7 @@ class CameraWorker:
             self._task = self.socketio.start_background_task(self._loop)
             logger.info("monitor_started", extra={"camera_id": self.camera_id, "cleanup": self._last_cleanup})
             self._emit_timeline_event("monitor_started", "Monitoramento iniciado", "info", metadata={"cleanup": self._last_cleanup})
-            self.socketio.emit("monitor_status", self.status())
+            self._emitir("monitor_status", self.status())
             return self.status()
 
     def stop(self) -> dict[str, Any]:
@@ -209,7 +210,7 @@ class CameraWorker:
         logger.info("monitor_stopped", extra={"camera_id": self.camera_id})
         self._emit_timeline_event("monitor_stopped", "Monitoramento parado", "info")
         status = self.status()
-        self.socketio.emit("monitor_status", status)
+        self._emitir("monitor_status", status)
         return status
 
     def status(self) -> dict[str, Any]:
@@ -330,7 +331,7 @@ class CameraWorker:
                 updated_alert = self.snapshot_service.attach_to_alert(alert, frame)
                 payload = updated_alert.to_dict()
                 runtime_state.alert = updated_alert
-                self.socketio.emit("alert_updated", payload)
+                self._emitir("alert_updated", payload)
                 # Linha do tempo registra apenas alertas que saíram do estado ativo.
         for payload in alert_state.get("resolved", []):
             self._emit_resolved_alert_event_once(payload)
@@ -352,7 +353,7 @@ class CameraWorker:
             if event is None:
                 return None
             event_payload = event.to_dict()
-            self.socketio.emit("timeline_event", event_payload)
+            self._emitir("timeline_event", event_payload)
             return event_payload
         except Exception as exc:  # noqa: BLE001
             logger.warning("resolved_timeline_event_failed", extra={"alert_id": payload.get("id"), "error": str(exc)})
@@ -377,7 +378,7 @@ class CameraWorker:
                 metadata=metadata or {},
             )
             payload = event.to_dict()
-            self.socketio.emit("timeline_event", payload)
+            self._emitir("timeline_event", payload)
             return payload
         except Exception as exc:  # noqa: BLE001
             logger.warning("timeline_event_failed", extra={"event_type": event_type, "error": str(exc)})
@@ -476,7 +477,7 @@ class CameraWorker:
                             "info",
                             metadata=self.video_stream.status().to_dict(),
                         )
-                        self.socketio.emit("monitor_status", self.status())
+                        self._emitir("monitor_status", self.status())
 
                     # Telemetria com taxa própria, separada da do vídeo. O
                     # `analysis` sozinho pesa ~26 KB (detecções + landmarks de
@@ -491,8 +492,8 @@ class CameraWorker:
                     mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"])
                     if mudou_alerta or self._deve_emitir_telemetria():
                         payload = self.latest_analysis() or {}
-                        self.socketio.emit("analysis", payload | {"camera_id": self.camera_id})
-                        self.socketio.emit("compliance_state", compliance_state | {"camera_id": self.camera_id})
+                        self._emitir("analysis", payload | {"camera_id": self.camera_id})
+                        self._emitir("compliance_state", compliance_state | {"camera_id": self.camera_id})
                         self._emitir_diagnostico_se_mudou(model_diagnostics)
                     self._maybe_emit_risk_score()
                     self._perf_marca("emissao")
@@ -510,6 +511,14 @@ class CameraWorker:
     # Diagnóstico de "por que o vídeo está travado". FPS médio engana: quadros
     # repetidos inflam a contagem e uma etapa cara esconde-se na média. Ligado
     # por PROFILE_FRAMES no .env (0 = desligado, sem custo).
+    def _emitir(self, evento: str, payload) -> None:
+        """Emite respeitando o escopo de camera do Operador.
+
+        Ver `app/utils/salas.py`. Antes disto todo emit era broadcast e o
+        operador de um setor recebia o feed de todos os outros.
+        """
+        emitir_para_camera(self.socketio, evento, payload, self.camera_id)
+
     def _perf_inicio(self) -> None:
         if not self._perf_ativo:
             return
@@ -572,7 +581,7 @@ class CameraWorker:
         if assinatura == self._ultimo_diagnostico:
             return
         self._ultimo_diagnostico = assinatura
-        self.socketio.emit("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
+        self._emitir("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
 
     def _handle_capture_failure(self) -> None:
         """Frame nao veio. Anota o estado, avisa a UI quando ele MUDA e dorme
@@ -589,7 +598,7 @@ class CameraWorker:
                     "warning",
                     metadata=estado.to_dict(),
                 )
-            self.socketio.emit("monitor_status", self.status())
+            self._emitir("monitor_status", self.status())
 
         # Dentro da janela de backoff nao adianta girar a 12 FPS; fora dela,
         # 0.2s mantem a resposta rapida quando a fonte volta.
@@ -718,7 +727,7 @@ class CameraWorker:
             return
         self._last_risk_score_emit_at = now
         try:
-            self.socketio.emit("risk_score", compute_risk_score(camera_id=self.camera_id))
+            self._emitir("risk_score", compute_risk_score(camera_id=self.camera_id))
         except Exception as exc:  # noqa: BLE001
             logger.warning("risk_score_emit_failed", extra={"error": str(exc)})
 
@@ -780,7 +789,7 @@ class CameraWorker:
             "info",
             metadata={"updates": list(updates.keys())},
         )
-        self.socketio.emit("settings_updated", self.settings())
+        self._emitir("settings_updated", self.settings())
         return self.settings()
 
     def risk_area_state(self) -> dict[str, Any]:
@@ -812,7 +821,7 @@ class CameraWorker:
             self.risk_area_name = str(payload.get("name")).strip()[:80]
         state = self.risk_area_state()
         self._emit_timeline_event("risk_area_updated", "Área de risco atualizada", "info", metadata=state)
-        self.socketio.emit("risk_area_updated", state)
+        self._emitir("risk_area_updated", state)
         return state
 
     def get_overlay(self) -> dict[str, Any]:
@@ -822,5 +831,5 @@ class CameraWorker:
         for key in ("boxes", "labels", "confidence", "pose", "risk_area"):
             if key in updates:
                 self.overlay_options[key] = bool(updates[key])
-        self.socketio.emit("overlay_updated", self.get_overlay())
+        self._emitir("overlay_updated", self.get_overlay())
         return self.get_overlay()

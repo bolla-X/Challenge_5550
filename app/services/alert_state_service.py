@@ -10,6 +10,7 @@ from flask_socketio import SocketIO
 from app.models import Alert
 from app.repositories.alert_repository import AlertRepository
 from app.services.risk_rules import RuleAlert
+from app.utils.salas import emitir_para_camera
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +106,8 @@ class AlertStateService:
                 state.ocorrencias_pendentes = 0
                 created.append(payload)
                 created_or_updated.append(payload)
-                self.socketio.emit("alert_created", payload)
-                self.socketio.emit("alert", payload)  # compatibilidade com clientes antigos
+                self._emitir("alert_created", payload)
+                self._emitir("alert", payload)  # compatibilidade com clientes antigos
                 logger.warning("alert_created", extra={"alert": payload})
             elif state.snapshot is not None and state.snapshot.get("status") == "active":
                 # Alerta que continua ativo: acumula e só grava de tempos em
@@ -128,7 +129,7 @@ class AlertStateService:
                 state.snapshot = payload
                 updated.append(payload)
                 created_or_updated.append(payload)
-                self.socketio.emit("alert_updated", payload)
+                self._emitir("alert_updated", payload)
 
         for key in list(self._states.keys()):
             if key in current_by_key:
@@ -145,7 +146,7 @@ class AlertStateService:
                     payload = state.alert.to_dict()
                     state.snapshot = payload
                     resolved.append(payload)
-                    self.socketio.emit("alert_resolved", payload)
+                    self._emitir("alert_resolved", payload)
                     logger.info("alert_resolved", extra={"alert": payload})
                 del self._states[key]
 
@@ -153,8 +154,16 @@ class AlertStateService:
         self._emit_active(active)
         return {"active": active, "changed": created_or_updated, "created": created, "updated": updated, "resolved": resolved}
 
+    def _emitir(self, evento: str, payload) -> None:
+        """Emite respeitando o escopo de camera do Operador.
+
+        Ver `app/utils/salas.py`. Antes disto todo emit era broadcast e o
+        operador de um setor recebia o feed de todos os outros.
+        """
+        emitir_para_camera(self.socketio, evento, payload, self.camera_id)
+
     def _emit_active(self, active: list[dict[str, Any]]) -> None:
-        self.socketio.emit("active_alerts", {"camera_id": self.camera_id, "items": active, "count": len(active)})
+        self._emitir("active_alerts", {"camera_id": self.camera_id, "items": active, "count": len(active)})
 
     def active_alerts(self) -> list[dict[str, Any]]:
         """Alertas ativos como dados puros.
@@ -184,7 +193,7 @@ class AlertStateService:
                 payload = state.alert.to_dict()
                 state.snapshot = payload
                 resolved.append(payload)
-                self.socketio.emit("alert_resolved", payload)
+                self._emitir("alert_resolved", payload)
         self._states.clear()
         self._emit_active([])
         return resolved

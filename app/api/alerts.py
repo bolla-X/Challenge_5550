@@ -16,6 +16,7 @@ from app.utils.auth import (
     login_required,
     require_role,
 )
+from app.utils.salas import emitir_para_camera
 
 logger = logging.getLogger(__name__)
 
@@ -181,16 +182,24 @@ def _log_and_broadcast(alert, alert_payload: dict, *, message: str, metadata: di
         event_payload = event.to_dict() if event is not None else None
 
         if socketio is not None:
+            # Escopo de camera tambem aqui: o operador de um setor nao pode
+            # receber pelo socket o alerta que a rota REST lhe negaria.
+            # Ver app/utils/salas.py e tests/test_escopo_socket.py.
             if event_payload is not None:
-                socketio.emit("timeline_event", event_payload)
+                emitir_para_camera(socketio, "timeline_event", event_payload, alert.camera_id)
             if broadcast_resolved:
-                socketio.emit("alert_resolved", alert_payload)
+                emitir_para_camera(socketio, "alert_resolved", alert_payload, alert.camera_id)
                 active = getattr(monitor, "alert_state_service", None)
                 if active is not None:
                     items = active.active_alerts()
-                    socketio.emit("active_alerts", {"camera_id": alert.camera_id, "items": items, "count": len(items)})
+                    emitir_para_camera(
+                        socketio,
+                        "active_alerts",
+                        {"camera_id": alert.camera_id, "items": items, "count": len(items)},
+                        alert.camera_id,
+                    )
             else:
-                socketio.emit("alert_updated", alert_payload)
+                emitir_para_camera(socketio, "alert_updated", alert_payload, alert.camera_id)
         return event_payload
     except Exception as exc:  # noqa: BLE001
         logger.warning("alert_action_broadcast_failed", extra={"alert_id": alert.id, "error": str(exc)})
