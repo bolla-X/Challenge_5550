@@ -92,10 +92,18 @@ class VideoStream:
         failures_before_reconnect: int = 15,
         initial_backoff_seconds: float = 0.5,
         max_backoff_seconds: float = 30.0,
+        em_loop: bool = False,
     ) -> None:
         self.source = source
         self.width = width
         self.height = height
+        # Arquivo que deve reiniciar ao terminar (a fonte de demonstração do
+        # modo fixture). Sem isto o fim do vídeo entra no caminho de FALHA:
+        # seriam 15 leituras ruins mais o backoff inicial de 0,5 s a cada
+        # volta — meio segundo de imagem congelada a cada 7 s de fixture, na
+        # frente de quem está assistindo.
+        self.em_loop = bool(em_loop)
+        self._rebobinando = False
         # A ~12 FPS, 15 frames ruins ≈ 1,2 s — tolera engasgo de rede sem
         # derrubar a conexão, mas não deixa a câmera morta indefinidamente.
         self.failures_before_reconnect = max(1, int(failures_before_reconnect))
@@ -199,6 +207,7 @@ class VideoStream:
             logger.info("video_stream_live", extra={"source": redigir_segredos(str(self.source))})
         self._latest_frame = frame.copy()
         self._state = LIVE
+        self._rebobinando = False
         self._consecutive_failures = 0
         self._reconnect_attempts = 0
         self._backoff = self.initial_backoff_seconds
@@ -206,6 +215,17 @@ class VideoStream:
         self._last_error = None
 
     def _on_failure(self) -> None:
+        # Fim de arquivo em loop NÃO é falha de fonte: rebobina e segue. Uma
+        # tentativa só, controlada por `_rebobinando`: se a leitura depois do
+        # rebobinamento também falhar, o arquivo está ilegível de verdade e o
+        # caminho normal de falha assume — senão um .mp4 corrompido giraria
+        # para sempre sem nunca aparecer como problema.
+        if self.em_loop and self._capture is not None and not self._rebobinando:
+            self._rebobinando = True
+            self._capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            return
+        self._rebobinando = False
+
         self._consecutive_failures += 1
         self._last_error = "Frame indisponível"
         if self._consecutive_failures < self.failures_before_reconnect:

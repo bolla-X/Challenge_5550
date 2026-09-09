@@ -115,7 +115,13 @@ class MonitorService:
 
     @staticmethod
     def _worker_config_changed(worker: CameraWorker, camera: Camera) -> bool:
-        current_source = str(worker.video_stream.source)
+        # `fonte_configurada`, e NAO `video_stream.source`: em modo fixture o
+        # worker troca a fonte de video em runtime (ver
+        # CameraWorker._assumir_fonte_reserva). Comparando com a fonte trocada,
+        # todo `load_cameras_from_db()` — que roda a cada CRUD de camera — veria
+        # "a fonte mudou", reconstruiria o worker e derrubaria o modo fixture no
+        # meio do demo, com a camera voltando a tentar a fonte morta do zero.
+        current_source = str(worker.fonte_configurada)
         new_source = str(Config.parse_video_source(camera.source))
         return (
             current_source != new_source

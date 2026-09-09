@@ -98,6 +98,20 @@ class CameraWorker:
             width=width,
             height=height,
         )
+        # ---- modo fixture: estado de PRIMEIRA CLASSE, não degradação muda --
+        # A fonte configurada da câmera, guardada separada de
+        # `video_stream.source` porque o modo fixture TROCA a fonte em runtime.
+        # `MonitorService._worker_config_changed` compara a fonte do worker com
+        # a do banco para decidir se a câmera foi editada — se comparasse com a
+        # fonte trocada, o próximo `load_cameras_from_db()` (que roda a cada
+        # CRUD de câmera) veria "mudou" e reconstruiria o worker, derrubando o
+        # modo fixture no meio do demo.
+        self.fonte_configurada = source
+        reserva = str(app.config.get("RTSP_FIXTURE_FALLBACK", "") or "")
+        self.fonte_reserva = str(Path(BASE_DIR) / reserva) if reserva and not Path(reserva).is_absolute() else reserva
+        self.tentativas_antes_da_reserva = max(1, int(app.config.get("RTSP_MAX_TENTATIVAS", 5)))
+        self._modo_fixture = False
+        self._reserva_indisponivel = False
         # Modelos compartilhados — injetados, não criados aqui (ver docstring).
         self.detector = detector
         self.person_detector = person_detector
@@ -228,7 +242,7 @@ class CameraWorker:
             # Estado da captura (live/reconnecting/unavailable + backoff): sem
             # isso o dashboard so via "Frame indisponivel" e nao distinguia
             # "caiu agora" de "morta ha 10 minutos".
-            "video": self.video_stream.status().to_dict(),
+            "video": self.video_state(),
             "features": self.feature_manager.as_dict(),
             "model": self._safe_model_diagnostics(),
             "active_alerts": self.alert_state_service.active_alerts(),
@@ -598,11 +612,99 @@ class CameraWorker:
         self._ultimo_diagnostico = assinatura
         self._emitir("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
 
+    def video_state(self) -> dict[str, Any]:
+        """Estado da captura + em QUAL fonte a câmera está.
+
+        `state` (idle/live/reconnecting/unavailable) responde "está entregando
+        frame?". `modo` responde "de qual fonte?", que é a pergunta que o
+        dashboard precisa para mostrar "modo fixture — fonte de demonstração"
+        em vez de "reconectando". São ortogonais de propósito: uma câmera em
+        modo fixture está `live` e em `fixture` ao mesmo tempo.
+
+        Com a câmera parada (`idle`) o modo é `ao_vivo` porque a fonte que vale
+        é a configurada — o `running: false` do `status()` é o que diz à UI para
+        não desenhar badge de conexão nenhuma.
+        """
+        estado = self.video_stream.status().to_dict()
+        if self._modo_fixture:
+            modo = "fixture"
+        elif estado["state"] in ("reconnecting", "unavailable"):
+            modo = "reconectando"
+        else:
+            modo = "ao_vivo"
+        return estado | {
+            "modo": modo,
+            # A fonte em uso, redigida: e o que distingue "fixture" de "ao
+            # vivo" na tela sem obrigar o operador a abrir o banco.
+            "fonte": redigir_segredos(str(self.video_stream.source)),
+        }
+
+    def _assumir_fonte_reserva(self) -> None:
+        """Troca para a fonte de demonstração, em loop, e anuncia.
+
+        Isto é o seguro do demo: sem rota para a rede da planta, uma câmera
+        RTSP fica indisponível para sempre e não há imagem nenhuma na tela. Com
+        a troca, o demo continua — e diz na tela que continua com fonte de
+        demonstração, que é a leitura honesta.
+        """
+        if not Path(self.fonte_reserva).exists():
+            # Fixture não é versionada (ver docs/FIXTURES.md). Sem ela, mentir
+            # "modo fixture" seria pior que ficar em reconectando: a tela diria
+            # que há imagem de demonstração e não haveria.
+            self._reserva_indisponivel = True
+            logger.error(
+                "fixture_de_reserva_ausente",
+                extra={
+                    "camera_id": self.camera_id,
+                    "caminho": self.fonte_reserva,
+                    "hint": "rode: python scripts/fetch_fixtures.py",
+                },
+            )
+            return
+
+        self.video_stream.release()
+        self.video_stream = VideoStream(
+            source=self.fonte_reserva,
+            width=self.video_stream.width,
+            height=self.video_stream.height,
+            em_loop=True,
+        )
+        self._modo_fixture = True
+        self._last_stream_state = None  # força reemitir o estado novo
+        logger.warning(
+            "modo_fixture_assumido",
+            extra={
+                "camera_id": self.camera_id,
+                "fonte_configurada": redigir_segredos(str(self.fonte_configurada)),
+                "tentativas": self.tentativas_antes_da_reserva,
+            },
+        )
+        self._emit_timeline_event(
+            "camera_modo_fixture",
+            f"Modo fixture — fonte de demonstração após {self.tentativas_antes_da_reserva} tentativas",
+            "warning",
+            metadata=self.video_state(),
+        )
+        self._emitir("monitor_status", self.status())
+
     def _handle_capture_failure(self) -> None:
         """Frame nao veio. Anota o estado, avisa a UI quando ele MUDA e dorme
         o tempo certo — nem loop apertado, nem parado alem do backoff."""
         estado = self.video_stream.status()
         self._last_error = estado.last_error or "Frame indisponível"
+
+        # Teto de tentativas na fonte configurada: assume a fixture e segue.
+        # Uma vez em modo fixture nao volta sozinho — voltar exigiria sondar a
+        # fonte morta em paralelo, e trocar a imagem no meio de uma
+        # apresentacao e pior que ficar na fonte que funciona.
+        if (
+            not self._modo_fixture
+            and not self._reserva_indisponivel
+            and self.fonte_reserva
+            and estado.reconnect_attempts >= self.tentativas_antes_da_reserva
+        ):
+            self._assumir_fonte_reserva()
+            return
 
         if estado.state != self._last_stream_state:
             self._last_stream_state = estado.state

@@ -30,6 +30,7 @@ construtor, e a fonte é um dublê que devolve falha.
 
 from __future__ import annotations
 
+import pathlib
 import threading
 
 import numpy as np
@@ -42,6 +43,7 @@ from app.services.feature_manager import FeatureManager
 from app.vision.schemas import PoseResult
 from app.vision.video_stream import RECONNECTING, UNAVAILABLE, StreamStatus
 
+RAIZ = pathlib.Path(__file__).resolve().parent.parent
 FRAME = np.zeros((540, 960, 3), dtype=np.uint8)
 
 
@@ -166,9 +168,8 @@ def montar_worker(app, *, socket: SocketDuble, camera_id: int = 1) -> CameraWork
     )
 
 
-@pytest.fixture()
-def worker(monkeypatch):
-    app = create_app(TestConfig)
+def _worker_de_teste(monkeypatch, config):
+    app = create_app(config)
     socket = SocketDuble()
     with app.app_context():
         db.create_all()
@@ -185,10 +186,50 @@ def worker(monkeypatch):
         db.drop_all()
 
 
+@pytest.fixture()
+def worker(monkeypatch):
+    """Sem fonte de reserva: ISOLA o caminho de reconexão.
+
+    Com a reserva ligada, o worker troca de fonte no teto de tentativas e os
+    testes de backoff deixariam de exercitar o que dizem exercitar.
+    """
+
+    class SemReserva(TestConfig):
+        RTSP_FIXTURE_FALLBACK = ""
+
+    yield from _worker_de_teste(monkeypatch, SemReserva)
+
+
+@pytest.fixture()
+def worker_com_reserva(monkeypatch):
+    """Com a fixture real como reserva, no teto de 5 tentativas."""
+
+    class ComReserva(TestConfig):
+        RTSP_FIXTURE_FALLBACK = "tests/fixtures/bench.mp4"
+        RTSP_MAX_TENTATIVAS = 5
+
+    yield from _worker_de_teste(monkeypatch, ComReserva)
+
+
 def rodar_loop(worker, iteracoes: int) -> None:
-    """Roda `_loop` até a fonte ter sido lida `iteracoes` vezes."""
-    alvo = worker.video_stream.leituras + iteracoes
-    worker._running = RodarAte(lambda: worker.video_stream.leituras < alvo)
+    """Roda `_loop` até a fonte ter sido lida `iteracoes` vezes.
+
+    Para na hora se o worker TROCAR de fonte: a fonte nova é um `VideoStream`
+    de verdade, sem o contador do dublê. Quem quer exercitar a fonte nova usa
+    `rodar_ate_frames`.
+    """
+    fonte = worker.video_stream
+    alvo = fonte.leituras + iteracoes
+    worker._running = RodarAte(
+        lambda: worker.video_stream is fonte and worker.video_stream.leituras < alvo
+    )
+    worker._loop()
+
+
+def rodar_ate_frames(worker, quantos: int) -> None:
+    """Roda `_loop` até PUBLICAR `quantos` frames novos."""
+    alvo = worker._frame_counter + quantos
+    worker._running = RodarAte(lambda: worker._frame_counter < alvo)
     worker._loop()
 
 
@@ -290,18 +331,70 @@ def test_status_expoe_modo_de_fonte(worker):
 
     video = worker.status()["video"]
     assert "modo" in video, f"status()['video'] não expõe 'modo'; tem apenas {sorted(video)}"
-    assert video["modo"] in ("ao_vivo", "reconectando", "fixture")
+    assert video["modo"] == "reconectando", "fonte morta, sem reserva: o modo é reconectando"
 
 
-def test_apos_o_teto_de_tentativas_assume_a_fixture(worker):
+def test_apos_o_teto_de_tentativas_assume_a_fixture(worker_com_reserva):
     """Depois de N tentativas o worker adota a fixture em loop.
 
     Sem isto, uma câmera morta fica morta para sempre e o demo não tem imagem.
     Com isto, o demo continua — e diz que continua com fonte de demonstração.
     """
-    rodar_loop(worker, 40)
+    worker = worker_com_reserva
+    rodar_loop(worker, 40)  # para sozinho na troca de fonte
 
     video = worker.status()["video"]
-    assert video.get("modo") == "fixture", (
-        f"depois de 40 iterações sem fonte, esperava modo fixture; está {video}"
+    assert video["modo"] == "fixture", f"esperava modo fixture; está {video}"
+    assert str(worker.video_stream.source).endswith("bench.mp4"), worker.video_stream.source
+    assert worker.video_stream.em_loop is True, "a fixture tem que reiniciar ao terminar"
+    assert worker.fonte_configurada == "rtsp://fonte-morta:554/x", (
+        "a fonte CONFIGURADA não pode ser sobrescrita: é ela que MonitorService "
+        "compara com o banco para decidir se a câmera foi editada"
     )
+
+
+def test_em_modo_fixture_a_camera_volta_a_entregar_imagem(worker_com_reserva):
+    """O ponto do fallback: o demo CONTINUA.
+
+    Não basta trocar o rótulo — a câmera tem que voltar a publicar frame de
+    verdade. Aqui a fixture real é decodificada pelo `_loop`.
+    """
+    worker = worker_com_reserva
+    rodar_loop(worker, 40)
+    assert worker.latest_jpeg() is None, "antes da troca não havia imagem"
+
+    rodar_ate_frames(worker, 3)
+
+    assert worker.latest_jpeg() is not None, "modo fixture sem imagem não serve de nada"
+    assert worker._frame_counter >= 3
+    assert worker.status()["video"]["state"] == "live"
+    assert worker.status()["video"]["modo"] == "fixture", (
+        "entregando frame, mas de fonte de demonstração: os dois ao mesmo tempo"
+    )
+
+
+def test_a_troca_para_fixture_e_anunciada_no_socket(worker_com_reserva):
+    """Requisito: sinaliza modo fixture no `status()` E no payload de socket."""
+    worker = worker_com_reserva
+    rodar_loop(worker, 40)
+
+    payloads = worker.socket_duble.eventos_de("monitor_status")
+    assert payloads, "a troca de fonte tem que ser anunciada"
+    assert any(p["video"]["modo"] == "fixture" for p in payloads), (
+        f"nenhum monitor_status anunciou modo fixture: {[p['video']['modo'] for p in payloads]}"
+    )
+
+
+def test_sem_a_fixture_no_disco_nao_mente_modo_fixture(worker_com_reserva):
+    """A fixture não é versionada (docs/FIXTURES.md): pode não estar no disco.
+
+    Dizer "modo fixture" sem ter fixture seria pior que ficar em reconectando:
+    a tela afirmaria que há imagem de demonstração e não haveria nenhuma.
+    """
+    worker = worker_com_reserva
+    worker.fonte_reserva = str(RAIZ / "tests" / "fixtures" / "nao-existe.mp4")
+
+    rodar_loop(worker, 40)
+
+    assert worker.status()["video"]["modo"] == "reconectando"
+    assert worker._reserva_indisponivel is True

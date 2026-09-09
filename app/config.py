@@ -164,6 +164,13 @@ class Config:
     RTSP_CAMINHO = os.getenv("RTSP_CAMINHO", CAMINHO_RTSP_PADRAO)
     # 1 = substream. Ver a justificativa medida em `montar_url_rtsp`.
     RTSP_SUBTYPE = env_int("RTSP_SUBTYPE", 1)
+    # Fonte de reserva do MODO FIXTURE. Depois de RTSP_MAX_TENTATIVAS falhas de
+    # reconexao, o worker assume este arquivo em loop e ANUNCIA que assumiu
+    # (status()["video"]["modo"] == "fixture"). E o seguro do demo: sem rota
+    # para a rede da planta, uma camera RTSP fica indisponivel para sempre e
+    # nao ha imagem nenhuma na tela. Vazio desliga o fallback.
+    RTSP_FIXTURE_FALLBACK = os.getenv("RTSP_FIXTURE_FALLBACK", "tests/fixtures/bench.mp4")
+    RTSP_MAX_TENTATIVAS = env_int("RTSP_MAX_TENTATIVAS", 5)
 
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
     # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
