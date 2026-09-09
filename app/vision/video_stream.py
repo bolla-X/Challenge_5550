@@ -23,11 +23,26 @@ def capture_api(source: Any) -> int:
     de abertura é o que fazia a descoberta de câmeras varrer 0..5 e parecer
     travada, e o que atrasava a subida da segunda câmera no multicam.
 
-    Só vale para índice numérico (USB/webcam): RTSP e arquivo têm o próprio
-    caminho no FFMPEG, onde o padrão (CAP_ANY) já é o certo.
+    Para fonte de REDE (rtsp/http), o backend é o FFMPEG explícito, e não
+    `CAP_ANY`. Medido contra um servidor RTSP local morto: com `CAP_ANY` a
+    abertura custa **34.319 ms** contra **30.054 ms** com `CAP_FFMPEG` — os
+    4,3 s de diferença são o OpenCV tentando os outros backends depois de o
+    FFMPEG falhar. E o pior não é o tempo: o backend `CAP_IMAGES` chega a ser
+    tentado e loga
+
+        VIDEOIO(CV_IMAGES): raised OpenCV exception: ... CAP_IMAGES: error,
+        expected '0?[1-9][du]' pattern, got: rtsp://...
+
+    que não tem relação nenhuma com a causa real e manda quem está
+    diagnosticando atrás de um problema de padrão de nome de arquivo.
+
+    Arquivo local segue em `CAP_ANY`: é o caminho do modo fixture e não há
+    nada a ganhar ali.
     """
     if sys.platform == "win32" and isinstance(source, int):
         return cv2.CAP_DSHOW
+    if isinstance(source, str) and source.startswith(("rtsp://", "rtsps://", "http://", "https://")):
+        return cv2.CAP_FFMPEG
     return cv2.CAP_ANY
 
 
@@ -93,6 +108,7 @@ class VideoStream:
         initial_backoff_seconds: float = 0.5,
         max_backoff_seconds: float = 30.0,
         em_loop: bool = False,
+        open_timeout_ms: int = 5000,
     ) -> None:
         self.source = source
         self.width = width
@@ -104,6 +120,12 @@ class VideoStream:
         # frente de quem está assistindo.
         self.em_loop = bool(em_loop)
         self._rebobinando = False
+        # Teto para a ABERTURA de fonte de rede. O default do OpenCV é o
+        # próprio callback de interrupção dele, em 30 s ("Stream timeout
+        # triggered after 30043.883000 ms" no log) — e com 5 tentativas antes
+        # do modo fixture isso são ~150 s de câmera parada antes de o demo ter
+        # imagem. Medido: 3.037 ms com o teto contra 34.319 ms sem.
+        self.open_timeout_ms = max(500, int(open_timeout_ms))
         # A ~12 FPS, 15 frames ruins ≈ 1,2 s — tolera engasgo de rede sem
         # derrubar a conexão, mas não deixa a câmera morta indefinidamente.
         self.failures_before_reconnect = max(1, int(failures_before_reconnect))
@@ -151,12 +173,44 @@ class VideoStream:
             if not self._open_locked():
                 raise VideoStreamError(f"Não foi possível abrir a fonte de vídeo: {redigir_segredos(str(self.source))}")
 
+    def _abrir_capture(self):
+        """Constrói o `VideoCapture`, com teto de abertura se a fonte é de rede.
+
+        O teto NÃO pode ir por `capture.set()`: a documentação do OpenCV marca a
+        propriedade como **open-only** — OpenCV 4.11.0,
+        `modules/videoio/include/opencv2/videoio.hpp`:
+
+            CAP_PROP_OPEN_TIMEOUT_MSEC=53, //!< (**open-only**) timeout in
+            milliseconds for opening a video capture (applicable for FFmpeg and
+            GStreamer back-ends only)
+
+        Medido: `set()` antes do `open()` deu 30.045 ms, igual a não fazer nada.
+        Vai então pela sobrecarga de construtor que aceita parâmetros de
+        abertura — `VideoCapture(const String& filename, int apiPreference,
+        const std::vector<int>& params)`, com params em pares
+        `(paramId_1, paramValue_1, ...)` — que deu 3.037 ms.
+
+        Arquivo local e webcam não recebem teto: não há rede para esperar, e a
+        fonte do modo fixture é justamente um arquivo local.
+        """
+        api = capture_api(self.source)
+        if api != cv2.CAP_FFMPEG or not isinstance(self.source, str):
+            return cv2.VideoCapture(self.source, api)
+        return cv2.VideoCapture(
+            self.source,
+            api,
+            [
+                int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), self.open_timeout_ms,
+                int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), self.open_timeout_ms,
+            ],
+        )
+
     def _open_locked(self) -> bool:
         if self._capture and self._capture.isOpened():
             return True
         self._release_locked(quiet=True)
         try:
-            capture = cv2.VideoCapture(self.source, capture_api(self.source))
+            capture = self._abrir_capture()
         except Exception as exc:  # noqa: BLE001  (cv2 levanta tipos variados)
             self._last_error = redigir_segredos(str(exc))
             return False

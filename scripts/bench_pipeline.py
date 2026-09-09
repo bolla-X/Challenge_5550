@@ -40,11 +40,13 @@ import cv2
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
+from app.llm import redigir_segredos  # noqa: E402
 from app.vision.annotator import FrameAnnotator  # noqa: E402
 from app.vision.person_compliance_matcher import PPE_KEYS, PersonComplianceMatcher  # noqa: E402
 from app.vision.person_tracker import PersonTracker  # noqa: E402
 from app.vision.pose_estimator import MediaPipePoseEstimator  # noqa: E402
 from app.vision.schemas import FrameAnalysis  # noqa: E402
+from app.vision.video_stream import capture_api  # noqa: E402
 from app.vision.yolo_ppe_detector import YoloPPEDetector  # noqa: E402
 from scripts.fetch_fixtures import caminho_da_fixture  # noqa: E402
 
@@ -147,9 +149,12 @@ def rodar_camera(
     anotador = FrameAnnotator(POLIGONO_RISCO)
     suportados = dict.fromkeys(PPE_KEYS, True)
 
-    captura = cv2.VideoCapture(str(caminho_video))
+    # Mesmo backend e mesmo teto de abertura que o VideoStream de producao usa
+    # (ver app/vision/video_stream.py): medir a fonte RTSP com backend
+    # diferente do que o worker usa mediria outra coisa.
+    captura = abrir_fonte(str(caminho_video))
     if not captura.isOpened():
-        raise SystemExit(f"Nao consegui abrir {caminho_video}")
+        raise SystemExit(f"Nao consegui abrir {redigir_segredos(str(caminho_video))}")
 
     contador_deteccao = 0
     analise_em_cache: FrameAnalysis | None = None
@@ -265,6 +270,26 @@ def rodar_camera(
     }
 
 
+def abrir_fonte(fonte: str):
+    """Abre a fonte como o `VideoStream` de producao abriria.
+
+    Reaproveita `capture_api` e o teto de abertura de fonte de rede em vez de
+    reimplementar: se o bench abrisse a fonte por outro caminho, mediria outra
+    coisa que nao o que o worker faz.
+    """
+    api = capture_api(fonte)
+    if api != cv2.CAP_FFMPEG:
+        return cv2.VideoCapture(fonte, api)
+    return cv2.VideoCapture(
+        fonte,
+        api,
+        [
+            int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), 5000,
+            int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), 5000,
+        ],
+    )
+
+
 def main() -> int:
     analisador = argparse.ArgumentParser(description="Bench por estagio do pipeline de visao.")
     analisador.add_argument("--imgsz", type=int, default=416)
@@ -278,6 +303,12 @@ def main() -> int:
     analisador.add_argument("--modelo-pessoa", default="models/yolov8n.pt")
     analisador.add_argument("--rotulo", default="", help="Nome do cenario no relatorio.")
     analisador.add_argument("--json", default="", help="Grava o resultado bruto neste arquivo.")
+    analisador.add_argument(
+        "--fonte",
+        default="",
+        help="Fonte de video. Vazio = a fixture local. Aceita URL RTSP para medir o "
+        "custo da fonte de rede com o MESMO harness (a credencial sai redigida).",
+    )
     argumentos = analisador.parse_args()
 
     try:
@@ -287,8 +318,8 @@ def main() -> int:
     except Exception:
         threads_torch = -1
 
-    caminho_video = caminho_da_fixture("bench")
-    sonda = cv2.VideoCapture(str(caminho_video))
+    caminho_video = argumentos.fonte or caminho_da_fixture("bench")
+    sonda = abrir_fonte(str(caminho_video))
     fps_entrada = sonda.get(cv2.CAP_PROP_FPS)
     largura = int(sonda.get(cv2.CAP_PROP_FRAME_WIDTH))
     altura = int(sonda.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -330,7 +361,10 @@ def main() -> int:
         f"pose={not argumentos.sem_pose} cameras={argumentos.cameras}"
     )
     print(f"\n=== {rotulo} ===")
-    print(f"fixture: {caminho_video.name} ({largura}x{altura}, {fps_entrada:.2f} fps de entrada)")
+    nome_da_fonte = redigir_segredos(
+        caminho_video.name if isinstance(caminho_video, Path) else str(caminho_video)
+    )
+    print(f"fonte: {nome_da_fonte} ({largura}x{altura}, {fps_entrada:.2f} fps de entrada)")
     print(f"modelo EPI: {argumentos.modelo} | detect_every_n={argumentos.detect_every_n}")
     print(f"torch.get_num_threads(): {threads_torch} | cv2.getNumThreads(): {cv2.getNumThreads()}")
     print(f"frame.copy() isolado (1 frame {largura}x{altura}): {ms_copia:.3f} ms (mediana de 30)")
