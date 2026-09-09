@@ -48,9 +48,11 @@ e isso o detector não tem como saber.
 ## Sprint 3 (YOLO + LLM) — PENDENTE DE CHAVE DE API
 
 **Esta coluna está vazia, e vazia é a resposta honesta.** Não há
-`GEMINI_API_KEY` nesta máquina — verificado no `.env` e no ambiente. Sem a
-chave não existe chamada real, e sem chamada real não existe golden. Inventar
-uma resposta plausível aqui produziria uma tabela bonita e falsa.
+`GEMINI_API_KEY` nesta máquina — verificado outra vez no fechamento desta fase,
+no `.env` e no ambiente, e os 18 goldens seguem `skipped`
+(`18 skipped in 0.04s`). Sem a chave não existe chamada real, e sem chamada
+real não existe golden. Inventar uma resposta plausível aqui produziria uma
+tabela bonita e falsa.
 
 | cena | v1 | v2 |
 |---|---|---|
@@ -222,3 +224,80 @@ que o detector sozinho erra de forma que um supervisor notaria.
 Qualquer número de precisão ou revocação exigiria um conjunto anotado, com
 dezenas a centenas de cenas e concordância entre anotadores. Não existe neste
 projeto, e o relatório não vai fingir que existe.
+
+
+---
+
+# Fechamento: a camada está LIGADA
+
+Até esta fase, `ServicoDeRiscoLLM` estava construído, testado e provado
+assíncrono — e **ninguém o instanciava no boot**. O fio agora existe.
+
+## Como está ligado
+
+- `MonitorService` cria **um serviço por câmera** e injeta no `CameraWorker`.
+  Um por câmera e não um compartilhado porque `ao_concluir` é atributo único do
+  serviço e não recebe `camera_id`: com uma instância só, o callback de uma
+  câmera sobrescreveria o da outra e a segunda opinião apareceria na câmera
+  errada. Custa quase nada — `ProvedorGemini` não cria cliente no `__init__`,
+  então é um punhado de atributos, sem rede e sem SDK carregado. O debounce e o
+  "uma em voo" já eram por câmera, logo a semântica não muda.
+- **O disparo é no alerta CRIADO**, não por frame nem em alerta que só continua
+  ativo. Um teste roda 12 frames com o **mesmo** alerta ativo e exige UMA
+  submissão.
+- **Reaproveita o JPEG que o loop já codificou.** Há exatamente um
+  `cv2.imencode` por frame (2,5 ms) e um teste conta as chamadas: 4 frames, 4
+  encodes. Codificar de novo somaria 2,5 ms ao caminho do frame justamente nos
+  frames com alerta.
+- As chaves `LLM_*` **nunca existiam em `Config`** — o `.env.example` as
+  documentava e nada as lia. Entraram com `LLM_ENABLED=false` por default, e
+  `TestConfig` força `False` para que um `.env` com a camada ligada não faça a
+  suíte tentar rede.
+
+## A invariante que o teste central protege
+
+O LLM **não cria, não resolve e não suprime alerta**. A resposta vai para
+`segunda_opiniao`, campo próprio ao lado dos alertas, e para o evento de socket
+`llm_segunda_opiniao`.
+
+O teste manda uma análise que **discorda de tudo** — `nivel_risco: baixo`,
+`epis_ausentes: []`, confiança 0,95, com justificativa dizendo que a caixa do
+detector ficou deslocada — e exige que o conjunto de alertas ativos fique
+idêntico: nada criado, nada resolvido, nada marcado como falso positivo. Um
+modelo de linguagem que apaga alerta de EPI é risco de segurança do trabalho,
+não feature.
+
+## Re-bench: ligar a camada não custa FPS
+
+Agora medido **atravessando o `CameraWorker._loop`**
+(`scripts/bench_llm_worker.py`), e não a partir de um pipeline paralelo:
+
+| execução | LLM off | LLM on | delta |
+|---|---|---|---|
+| 1 (com perfil ligado) | 17,32 | 17,71 | **+2,3%** |
+| 2 | 15,74 | 15,47 | −1,7% |
+| 3 | 17,03 | 16,65 | −2,2% |
+
+Dentro do ruído: o mesmo cenário varia 15,7 a 17,8 fps entre execuções, e o
+controle off/off deu +0,6%. `submeter()` custou 9 a 13 µs de p50, batendo com
+os 11 µs medidos antes. Contadores por execução: **2 aceitos, 4 descartados por
+debounce, 0 descartados por "em voo", 0 inválidos, 0 erros de callback**.
+
+A primeira execução deu **−37,2%** e não reproduziu nas três seguintes; causa
+**NÃO VERIFICADA**. Detalhe em [BENCH.md](BENCH.md).
+
+## O que continua faltando, e é só isso
+
+A chave. Com `GEMINI_API_KEY` no `.env`:
+
+```bash
+python scripts/fetch_fixtures.py    # baixa as 3 cenas
+python scripts/gravar_goldens.py    # 6 chamadas reais, uma vez
+pytest tests/test_llm_goldens.py    # 18 asserções sobre as respostas gravadas
+```
+
+A pergunta que os goldens vão responder está registrada **antes** de rodar,
+para poder ser refutada: na cena **segura**, o LLM corrige ou confirma os dois
+falsos positivos de `missing_helmet` do YOLO? Se corrigir, a segunda opinião
+pagou-se. Se confirmar, a camada não acrescenta nada nessa falha — e o
+relatório vai dizer isso.

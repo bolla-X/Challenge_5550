@@ -39,14 +39,82 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 
 ## Arquitetura
 
+```mermaid
+flowchart TB
+    subgraph thread["Thread de captura — uma por câmera"]
+        direction TB
+        FONTE["<b>VideoStream</b><br/>RTSP · USB · arquivo<br/>retry com backoff e teto"]
+        LOOP["<b>_loop</b> — um frame por vez"]
+        YOLO["YOLO EPI + YOLO pessoa<br/><i>inference_lock compartilhado</i>"]
+        POSE["MediaPipe Pose<br/>por pessoa rastreada"]
+        REGRAS["RuleEngine + PersonComplianceMatcher"]
+        ALERTA["AlertStateService<br/><i>histerese conta DETECÇÃO</i>"]
+        ENCODE["cv2.imencode<br/><i>uma vez por frame, 2,5 ms</i>"]
+        FONTE --> LOOP --> YOLO --> POSE --> REGRAS --> ALERTA --> ENCODE
+    end
+
+    FIXTURE["<b>Modo fixture</b><br/>bench.mp4 em loop<br/><i>após N tentativas</i>"]
+    FONTE -. "fonte morta" .-> FIXTURE
+    FIXTURE -. "assume a fonte" .-> LOOP
+
+    subgraph llm["Camada LLM — FORA da thread do frame"]
+        direction TB
+        SUBMETER["<b>submeter()</b><br/><i>9–13 µs · nunca bloqueia</i>"]
+        PORTAO{"debounce 15 s<br/>+ uma em voo<br/>por câmera?"}
+        DESCARTE["descarta<br/><i>78 de 79 eventos</i>"]
+        EXECUTOR["thread daemon<br/>ProvedorGemini"]
+        SCHEMA{"cabe no<br/>schema?"}
+        NADA["None + log<br/><i>nunca vira alerta</i>"]
+        OPINIAO["<b>segunda_opiniao</b><br/><i>campo separado</i>"]
+        SUBMETER --> PORTAO
+        PORTAO -- "não" --> DESCARTE
+        PORTAO -- "sim" --> EXECUTOR --> SCHEMA
+        SCHEMA -- "não" --> NADA
+        SCHEMA -- "sim" --> OPINIAO
+    end
+
+    ALERTA == "alerta CRIADO<br/>+ o JPEG já codificado" ==> SUBMETER
+
+    BANCO[("SQLite / PostgreSQL<br/>alertas · eventos · câmeras · usuários")]
+    FLASK["<b>Flask</b><br/>API REST + Socket.IO<br/><i>escopo por câmera em rooms</i>"]
+    SPA["<b>React SPA</b> (Vite)<br/>vídeo MJPEG + telemetria"]
+
+    ALERTA --> BANCO
+    ENCODE --> FLASK
+    OPINIAO --> FLASK
+    BANCO --> FLASK
+    FLASK <--> SPA
+
+    classDef sync fill:#1e3a5f,stroke:#3b82f6,color:#e0f2fe
+    classDef async fill:#3f2d1e,stroke:#f59e0b,color:#fef3c7
+    classDef store fill:#1f3a2e,stroke:#22c55e,color:#dcfce7
+    classDef fall fill:#3f2d1e,stroke:#f59e0b,color:#fef3c7,stroke-dasharray: 5 3
+    class FONTE,LOOP,YOLO,POSE,REGRAS,ALERTA,ENCODE sync
+    class SUBMETER,PORTAO,DESCARTE,EXECUTOR,SCHEMA,NADA,OPINIAO async
+    class BANCO,FLASK,SPA store
+    class FIXTURE fall
 ```
-Flask (API REST + WebSocket)  ←→  React SPA (Vite)
-        │
-        ├── YOLOv8 — detecção de pessoa (COCO)
-        ├── YOLOv8 — detecção de EPI (capacete/colete/luvas)
-        ├── MediaPipe Pose — postura/quedas
-        └── SQLite/PostgreSQL — alertas, eventos, histórico
-```
+
+**O que o diagrama diz, e por que importa:**
+
+- **Azul é o caminho do frame**, e ele é síncrono. Todo o orçamento de tempo
+  vive ali: 19,56 fps com uma câmera a `imgsz=416`
+  ([BENCH.md](docs/BENCH.md)). Um `inference_lock` compartilhado serializa a
+  inferência entre câmeras — é por isso que multi-câmera **não escala**, e a
+  espera foi medida em 134 a 237 ms com 2 câmeras.
+- **Âmbar é assíncrono e descartável.** A camada LLM é acionada só quando um
+  alerta é **criado**, reaproveita o JPEG que o loop já codificou (não há
+  segundo `imencode`) e devolve o controle em 9–13 µs. Quando já há uma chamada
+  em voo ou o debounce está fechado, o evento é **descartado, não enfileirado**:
+  enfileirar produziria respostas descrevendo uma cena que já passou.
+- **A seta do LLM não volta para os alertas.** Ela vai para `segunda_opiniao`,
+  campo separado. O modelo de linguagem **não** cria, resolve nem suprime
+  alerta — informa o operador, não decide. Resposta que não cabe no schema vira
+  `None` e log.
+- **Modo fixture é estado de primeira classe** (tracejado), não falha
+  silenciosa: depois de `RTSP_MAX_TENTATIVAS` tentativas o worker assume a
+  fixture em loop e a UI mostra "modo fixture — fonte de demonstração". Ver
+  [DEMO.md](docs/DEMO.md).
 
 Em desenvolvimento, o Vite roda como servidor separado (`:5173`) com proxy para o Flask (`:5000`). Em produção, o Flask serve o build estático do React diretamente.
 
@@ -251,9 +319,11 @@ tests/                  Testes backend (pytest)
 - [x] Tracking estável de pessoa entre frames — feito com um tracker IoU por câmera (`app/vision/person_tracker.py`) em vez de `model.track(persist=True)`: o estado do tracker do Ultralytics vive dentro do objeto do modelo, e os modelos aqui são compartilhados entre câmeras.
 - [x] Matching geométrico EPI–pessoa por posição real, com atribuição exclusiva
 - [x] Autenticação nos endpoints REST sensíveis — login com papéis, cobrindo REST e WebSocket
-- [ ] Retry/backoff no stream de vídeo (uma fonte RTSP que cai fica em "Frame indisponível" indefinidamente)
-- [ ] Pose por pessoa — hoje o MediaPipe roda uma pose global por frame, então alertas de queda/postura não são atribuíveis a um indivíduo quando há mais de um em cena
+- [x] Retry/backoff no stream de vídeo, com teto — e fallback para fonte de demonstração quando o teto não resolve. Exercitado contra um **servidor RTSP local com usuário e senha**, não só contra dublê: mata o servidor → backoff dispara e o estado aparece; religa → reconecta sozinho (`total_reconnects=1`); não religa → assume a fixture e segue publicando frame. 12 testes em `tests/test_camera_worker_falha_de_fonte.py` + 7 em `tests/test_video_stream.py`, e o log do ciclo completo em [DEMO.md](docs/DEMO.md).
+- [x] Segunda opinião multimodal ligada no boot — disparo no alerta criado, fora da thread do frame (`submeter()` em 9–13 µs), com re-bench dentro do ruído. O LLM não cria, resolve nem suprime alerta. 11 testes em `tests/test_camera_worker_llm.py`; `LLM_ENABLED=false` é o default e o sistema funciona sem chave.
+- [ ] **Pose por pessoa com instância própria** — os recortes por pessoa já existem (`POSE_PER_PERSON=true`, `tests/test_pose_por_pessoa.py`), mas todas as pessoas passam pela **mesma** instância do MediaPipe em `static_image_mode=True`. Trocar para o modo de stream mediu **2,25x** (34,10 → 15,14 ms de p50), e não foi aplicado: a doc oficial descreve `True` como o modo para "a batch of static, possibly unrelated, images", que é exatamente o que `estimate_for_people` alimenta. O caminho que dá os dois é uma instância por track rastreado. Número e citação em [BENCH.md](docs/BENCH.md).
 - [ ] Feature por câmera em runtime — `PUT /api/cameras/<id>` grava no banco, mas o worker em execução só relê a configuração quando é reconstruído (mudança de fonte/fps/resolução)
+- [ ] Multi-câmera que escala — a contenção está medida e é o `inference_lock` cobrindo YOLO + pose de todas as câmeras (134 a 237 ms de espera pura com 2 câmeras). Dobrar câmeras hoje não aumenta o throughput agregado em nada: cada uma recebe metade.
 
 ## Equipe
 

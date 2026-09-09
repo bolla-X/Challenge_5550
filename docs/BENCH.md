@@ -287,3 +287,130 @@ tracking passa a ser semanticamente válido. É contido a
 `tests/test_pose_estimator_crop.py` e mexe em código relevante para
 segurança — exige caracterização própria, não uma troca de flag em dois dias.
 Fica registrado como o próximo passo da Fase 2, com o número que o justifica.
+
+
+---
+
+# Fase 2 — fonte de rede: abertura, FPS e o fio do LLM
+
+Mesma máquina, mesma fixture, mesmo aquecimento de 12 quadros descartado.
+Tudo abaixo foi medido contra um **servidor RTSP local com usuário e senha**
+(mediamtx v1.21.0 + publicador ffmpeg), porque **não há rota desta máquina para
+a rede da planta** — ver [DEMO.md](DEMO.md) para o comando e a declaração de
+não-verificação.
+
+## Abrir uma fonte de rede morta custava 34 s por tentativa
+
+Achado pelo servidor local, não por leitura de código: com o mediamtx morto,
+cada tentativa de reabrir travava o worker por ~30 s, e o log do OpenCV
+despejava uma exceção do backend `CAP_IMAGES` sobre a URL RTSP — erro que não
+tem relação com a causa e manda quem diagnostica atrás de padrão de nome de
+arquivo.
+
+Abrindo `rtsp://...@localhost:554/...` sem nada escutando na porta:
+
+| como | abriu | tempo |
+|---|---|---|
+| `CAP_ANY`, sem params — **comportamento anterior** | False | **34.319 ms** |
+| `CAP_FFMPEG`, sem params | False | 30.054 ms |
+| `CAP_FFMPEG`, `cap.set()` antes do `open()` | False | 30.045 ms |
+| `CAP_FFMPEG`, `params=[OPEN_TIMEOUT_MSEC 3000]` | False | **3.037 ms** |
+| `OPENCV_FFMPEG_CAPTURE_OPTIONS=timeout;5000000` | False | 30.060 ms |
+
+**11,3x.** Duas coisas se aprendem aqui:
+
+1. Os 4,3 s entre `CAP_ANY` e `CAP_FFMPEG` são o OpenCV tentando outros
+   backends depois de o FFMPEG falhar. Fonte de rede agora abre com
+   `CAP_FFMPEG` explícito.
+2. **`cap.set()` não funciona, e a doc oficial diz por quê.** OpenCV 4.11.0,
+   `modules/videoio/include/opencv2/videoio.hpp`:
+
+   > `CAP_PROP_OPEN_TIMEOUT_MSEC=53, //!< (**open-only**) timeout in
+   > milliseconds for opening a video capture (applicable for FFmpeg and
+   > GStreamer back-ends only)`
+
+   "open-only" significa que precisa ir **na abertura**, pela sobrecarga
+   `VideoCapture(const String& filename, int apiPreference, const
+   std::vector<int>& params)` — documentada como pares
+   `(paramId_1, paramValue_1, ...)`. A variável de ambiente
+   `OPENCV_FFMPEG_CAPTURE_OPTIONS` também não resolveu: o teto de 30 s é o
+   callback de interrupção do próprio OpenCV, não o `timeout` do FFmpeg.
+
+Efeito medido no fim a fim: o passo "sem religar, cai em modo fixture" da prova
+de ciclo saiu de **estourar o limite de 90 s** para concluir em **22 s**. E o
+tempo até o modo fixture assumir contra um endereço real da planta
+(`10.14.22.97`, sem rota):
+
+| `RTSP_MAX_TENTATIVAS` | tempo até `modo=fixture` |
+|---|---|
+| 1 | 5,3 s |
+| 3 | 17,0 s |
+| 5 (default) | 33,2 s |
+
+## FPS: fonte RTSP local vs arquivo local, 1 e 2 câmeras
+
+`scripts/bench_pipeline.py` ganhou `--fonte` para medir as duas com o **mesmo
+harness** — dois harnesses diferentes não produzem números comparáveis.
+`imgsz=416`, `MULTI_PERSON=true`, `detect_every_n=3`, em série.
+
+| cenário | leitura p50 | leitura p95 | espera_lock p50 | FPS/câmera | agregado |
+|---|---|---|---|---|---|
+| 1 câm, arquivo, **CPU livre** | 0,79 | 1,32 | — | 17,99 | 17,99 |
+| 1 câm, arquivo, publicador ativo | 0,93 | 1,89 | 0,00 | 13,67 | 13,67 |
+| 1 câm, **RTSP local** | 2,19 | **109,32** | 0,01 | 12,44 | 12,44 |
+| 2 câm, arquivo, CPU livre | 1,09 | 2,16 | 160,07 | 8,02 + 8,01 | 16,02 |
+| 2 câm, arquivo, publicador ativo | 1,10 | 2,09 | 156,79 | 8,32 + 8,32 | 16,63 |
+| 2 câm, **RTSP local** | 2,37 | **207,00** | 133,96 | 7,83 + 6,96 | 13,93 |
+
+**O confundidor, declarado antes da conclusão.** O publicador ffmpeg encoda
+H.264 1280x720@30 na **mesma CPU**. Isolado: 17,99 → 13,67 fps, ou seja
+**−24,0% só pelo publicador**. Por isso as comparações válidas são entre linhas
+de mesma carga de fundo, e nenhum número desta tabela deve ser comparado com a
+tabela do baseline (que rodou com a CPU livre).
+
+- **Custo da fonte RTSP, mesma carga:** 1 câmera **−9,0%** (13,67 → 12,44);
+  2 câmeras **−16,2%** no agregado (16,63 → 13,93).
+- **O p50 engana; o p95 é o número.** `leitura` p50 sobe pouco (0,93 → 2,19 ms)
+  mas o p95 salta **58x** (1,89 → 109,32 ms), com máximo de 2.231 ms em 2
+  câmeras. É a fonte de rede esperando o próximo pacote — cauda que arquivo
+  local não tem, e que na planta será outra (desconhecida).
+- **`espera_lock` continua sendo o item que decide multi-câmera**, exatamente
+  como no baseline: 134 a 160 ms de espera pura com 2 câmeras, independente da
+  fonte. Trocar a fonte não mexe nisso.
+
+## O fio do LLM não custa FPS
+
+`scripts/bench_llm_worker.py` atravessa o `CameraWorker._loop` **de verdade** —
+diferente de `bench_llm.py`, que mede o desenho do serviço a partir de um
+pipeline próprio. Aqui entram `AlertStateService` (que grava no SQLite dentro
+do loop), `ComplianceService`, anotação e serialização: tudo que este harness
+de pipeline declara deixar de fora. Por isso o FPS é menor que o da matriz
+acima, e a comparação que vale é **LLM on contra LLM off nesta mesma tabela**.
+
+Provedor simulando 1500 ms de latência, de propósito: com a API real o número
+dependeria de rede, cota e humor do serviço.
+
+| execução | LLM off | LLM on | delta |
+|---|---|---|---|
+| 1 (com perfil por etapa ligado) | 17,32 | 17,71 | **+2,3%** |
+| 2 | 15,74 | 15,47 | −1,7% |
+| 3 | 17,03 | 16,65 | −2,2% |
+
+**Dentro do ruído.** O que sustenta essa leitura, e não só a média:
+
+- o **mesmo** cenário varia 15,7 a 17,8 fps entre execuções;
+- o controle **off/off** (mesmo cenário duas vezes, mesma ordem) deu **+0,6%**,
+  então posição no processo não explica delta;
+- `submeter()` custou **9 a 13 µs** de p50 (máximo 0,38 ms, a primeira chamada,
+  que inclui criar a thread) — batendo com os 11 µs de
+  [SPRINT3.md](SPRINT3.md);
+- o perfil por etapa não mostra **estágio nenhum** crescendo com o LLM ligado
+  (`yolo` 40,4 → 31,6 ms; `pose` 23,7 → 21,7 ms — a execução com LLM foi, se
+  algo, mais rápida).
+
+**Honestidade sobre um outlier:** a **primeira** execução deste bench deu
+**−37,2%** e não reproduziu em nenhuma das três seguintes. A causa é **NÃO
+VERIFICADA** — a suspeita é carga residual da máquina, porque o bench rodou
+logo depois do servidor RTSP e do publicador ffmpeg, mas não tenho prova. Fica
+registrado porque um relatório que só mostra a execução conveniente não é
+auditável.
