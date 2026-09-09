@@ -33,3 +33,9 @@ tests/fixtures/cenas/
 # Goldens SAO versionados: sao texto pequeno e sao a evidencia congelada.
 # A chave de API nunca entra neles (ver scripts/gravar_goldens.py).
 !tests/goldens/
+
+# Certificado auto-assinado que o mediamtx gera ao subir o servidor RTSP local
+# de teste (ver docs/DEMO.md). E CHAVE PRIVADA: nao pode entrar no repositorio
+# nem por acidente num `git add -A`. Regenerado sozinho a cada execucao.
+auto.crt
+auto.key
