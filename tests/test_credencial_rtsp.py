@@ -50,10 +50,13 @@ USUARIO = "admin"
 SENHA = "Nao" + "EhReal" + "123!"
 HOST = "10.14.22.97"
 CAMINHO = "/cam/realmonitor?channel=1&subtype=0"
-URL_COM_SENHA = f"rtsp://{USUARIO}:{SENHA}@{HOST}:554{CAMINHO}"
+# Concatenado, nao interpolado: uma f-string com usuario e senha entre chaves
+# deixaria no texto-fonte exatamente o formato que a varredura procura, e
+# este arquivo acusaria a si mesmo.
+URL_COM_SENHA = "rtsp://" + USUARIO + ":" + SENHA + "@" + HOST + ":554" + CAMINHO
 # Para os testes que exercitam o caminho de FALHA: a porta 1 em localhost
 # recusa na hora, enquanto 10.14.x fica ~60 s por tentativa no OpenCV.
-URL_QUE_FALHA_RAPIDO = f"rtsp://{USUARIO}:{SENHA}@127.0.0.1:1/falha"
+URL_QUE_FALHA_RAPIDO = "rtsp://" + USUARIO + ":" + SENHA + "@127.0.0.1:1/falha"
 
 
 def sem_senha(texto: str) -> bool:
@@ -61,6 +64,13 @@ def sem_senha(texto: str) -> bool:
 
 
 class DetectorDuble:
+    # `status()` chama `_safe_model_diagnostics`, que le model_path dos dois
+    # detectores. Sem o atributo o teste falharia por AttributeError e
+    # pareceria vazamento.
+    model_path = "duble.pt"
+    confidence = 0.35
+    max_detections = 100
+
     def detect(self, frame):  # noqa: ARG002
         return []
 
@@ -179,7 +189,7 @@ def test_mensagem_de_erro_de_conexao_nao_carrega_a_senha():
     fluxo = VideoStream(source=URL_QUE_FALHA_RAPIDO, width=640, height=480)
     fluxo.read()  # falha: o host nao responde nesta maquina
 
-    erro = fluxo.last_error or ""
+    erro = fluxo.status().last_error or ""
     assert erro, "esperava alguma mensagem de erro para inspecionar"
     assert sem_senha(erro), f"senha na mensagem de erro: {erro}"
 
@@ -223,6 +233,10 @@ def test_nenhum_arquivo_versionado_carrega_credencial_em_url():
     URL completa da camera num script, num doc de demo ou no .env.example.
     """
     padrao = re.compile(r"rtsp://[^/\s:@]+:[^/\s@]+@")
+    # Placeholder de documentacao nao e credencial. Sem esta lista, o
+    # proprio regex em app/llm e a docstring deste arquivo — que existem
+    # justamente para EXPLICAR o formato — fariam a varredura falhar.
+    exemplos = ("usuario:senha@", "user:pass@", "USUARIO:SENHA@", "***@")
     rastreados = subprocess.run(
         ["git", "ls-files"], cwd=RAIZ, capture_output=True, text=True, check=True
     ).stdout.split()
@@ -236,8 +250,11 @@ def test_nenhum_arquivo_versionado_carrega_credencial_em_url():
             texto = caminho.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if padrao.search(texto):
-            culpados.append(relativo)
+        for achado in padrao.findall(texto) or padrao.finditer(texto):
+            trecho = achado if isinstance(achado, str) else achado.group(0)
+            if not any(exemplo in trecho for exemplo in exemplos):
+                culpados.append(f"{relativo}: {trecho}")
+                break
 
     assert culpados == [], f"credencial embutida em URL, em arquivo versionado: {culpados}"
 

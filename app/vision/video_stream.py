@@ -9,6 +9,8 @@ from typing import Any
 
 import cv2
 
+from app.llm import redigir_segredos
+
 logger = logging.getLogger(__name__)
 
 
@@ -139,7 +141,7 @@ class VideoStream:
         """
         with self._lock:
             if not self._open_locked():
-                raise VideoStreamError(f"Não foi possível abrir a fonte de vídeo: {self.source}")
+                raise VideoStreamError(f"Não foi possível abrir a fonte de vídeo: {redigir_segredos(str(self.source))}")
 
     def _open_locked(self) -> bool:
         if self._capture and self._capture.isOpened():
@@ -148,11 +150,11 @@ class VideoStream:
         try:
             capture = cv2.VideoCapture(self.source, capture_api(self.source))
         except Exception as exc:  # noqa: BLE001  (cv2 levanta tipos variados)
-            self._last_error = str(exc)
+            self._last_error = redigir_segredos(str(exc))
             return False
         if not capture.isOpened():
             capture.release()
-            self._last_error = f"Não foi possível abrir a fonte de vídeo: {self.source}"
+            self._last_error = f"Não foi possível abrir a fonte de vídeo: {redigir_segredos(str(self.source))}"
             return False
 
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -167,7 +169,7 @@ class VideoStream:
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._capture = capture
         self._last_error = None
-        logger.info("video_stream_opened", extra={"source": str(self.source)})
+        logger.info("video_stream_opened", extra={"source": redigir_segredos(str(self.source))})
         return True
 
     # -------------------------------------------------------------- leitura -
@@ -194,7 +196,7 @@ class VideoStream:
 
     def _on_success(self, frame) -> None:
         if self._state != LIVE:
-            logger.info("video_stream_live", extra={"source": str(self.source)})
+            logger.info("video_stream_live", extra={"source": redigir_segredos(str(self.source))})
         self._latest_frame = frame.copy()
         self._state = LIVE
         self._consecutive_failures = 0
@@ -212,7 +214,7 @@ class VideoStream:
         # (caso clássico do RTSP). Derruba e agenda reconexão.
         logger.warning(
             "video_stream_reconnecting",
-            extra={"source": str(self.source), "consecutive_failures": self._consecutive_failures},
+            extra={"source": redigir_segredos(str(self.source)), "consecutive_failures": self._consecutive_failures},
         )
         self._release_locked(quiet=True)
         self._schedule_retry()
@@ -222,7 +224,7 @@ class VideoStream:
             self._total_reconnects += 1
             logger.info(
                 "video_stream_reconnected",
-                extra={"source": str(self.source), "total_reconnects": self._total_reconnects},
+                extra={"source": redigir_segredos(str(self.source)), "total_reconnects": self._total_reconnects},
             )
         self._consecutive_failures = 0
 
@@ -251,7 +253,7 @@ class VideoStream:
             self._capture.release()
             self._capture = None
             if not quiet:
-                logger.info("video_stream_released", extra={"source": str(self.source)})
+                logger.info("video_stream_released", extra={"source": redigir_segredos(str(self.source))})
 
     def warmup(self, attempts: int = 5) -> bool:
         self.open()

@@ -7,6 +7,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
+from app.llm import MARCA_DE_REDACAO
 from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
 from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
 from app.vision.video_stream import capture_api
@@ -58,7 +59,16 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
         source = str(payload.get("source", "")).strip()
         if not source:
             return "'source' é obrigatório (índice USB, URL RTSP ou caminho de arquivo).", 400
-        camera.source = source[:255]
+        # A API DEVOLVE a URL com a credencial redigida (Camera.to_dict), e o
+        # formulario do frontend e preenchido com esse valor. Salvar sem editar
+        # mandaria `rtsp://***@host` de volta; sobrescrever a credencial real
+        # por isso mataria a camera com a causa invisivel na tela. Valor
+        # redigido chegando num UPDATE significa "nao mexi na fonte".
+        if MARCA_DE_REDACAO in source:
+            if is_create:
+                return "'source' contém a marca de redação (***). Informe a URL real.", 400
+        else:
+            camera.source = source[:255]
 
     if "fps" in payload:
         try:

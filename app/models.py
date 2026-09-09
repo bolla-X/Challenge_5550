@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.mutable import MutableDict
 
 from app.extensions import db
+from app.llm import redigir_segredos
 
 
 def utc_now() -> datetime:
@@ -150,7 +151,7 @@ class Camera(db.Model):
             "name": self.name,
             "location": self.location,
             "source_type": self.source_type,
-            "source": self.source,
+            "source": redigir_segredos(self.source or ""),
             "fps": self.fps,
             "width": self.width,
             "height": self.height,

@@ -47,7 +47,18 @@ MODELO_PADRAO = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 _PADROES_DE_SEGREDO = (
     re.compile(r"AIza[0-9A-Za-z_\-]{10,}"),
     re.compile(r"\b[A-Za-z0-9_\-]{32,}\b"),
+    # Credencial embutida em URL: `rtsp://usuario:senha@host` vira
+    # `rtsp://***@host`. Substitui o userinfo INTEIRO em vez de mascarar
+    # parcialmente — senha de rede industrial não admite "só um pedaço".
+    # O host e o caminho sobram de propósito: sem eles o log não identifica
+    # qual câmera falhou e o diagnóstico fica impossível.
+    re.compile(r"(?i)\b([a-z][a-z0-9+.\-]*://)[^/\s@]+@"),
 )
+
+# O que a redação deixa no lugar da credencial. Quem devolve isto num PATCH
+# está mandando de volta o que a API mostrou, não uma senha nova — ver
+# `app/api/cameras.py`.
+MARCA_DE_REDACAO = "***"
 
 # O modelo costuma embrulhar o JSON em cerca markdown, com prosa em volta.
 _CERCA = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
@@ -95,7 +106,10 @@ class AnaliseRisco(BaseModel):
 def redigir_segredos(mensagem: str) -> str:
     """Remove o que parece chave de API antes de a mensagem virar log."""
     for padrao in _PADROES_DE_SEGREDO:
-        mensagem = padrao.sub("***", mensagem)
+        # `\g<1>` preserva o esquema quando o padrao tem grupo (URL);
+        # os padroes sem grupo ignoram a referencia e trocam tudo.
+        substituto = r"\g<1>***@" if padrao.groups else MARCA_DE_REDACAO
+        mensagem = padrao.sub(substituto, mensagem)
     return mensagem
 
 
@@ -274,6 +288,7 @@ class AnalisadorDeRisco:
 
 __all__ = [
     "EPIS_CONHECIDOS",
+    "MARCA_DE_REDACAO",
     "MODELO_PADRAO",
     "NIVEIS_DE_RISCO",
     "AnaliseRisco",

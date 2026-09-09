@@ -13,6 +13,7 @@ from sqlalchemy import text as sql_text
 
 from app.config import BASE_DIR, Config
 from app.extensions import db
+from app.llm import redigir_segredos
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
 from app.services.alert_state_service import AlertStateService
@@ -261,11 +262,16 @@ class CameraWorker:
             checks.append({"key": "database", "label": "Banco", "status": "error", "message": str(exc)})
 
         source = self.video_stream.source
-        video_message = f"Fonte configurada: {source}"
+        video_message = f"Fonte configurada: {redigir_segredos(str(source))}"
         video_status = "ok"
         if isinstance(source, str) and not source.isdigit() and not source.startswith(("rtsp://", "http://", "https://")):
             video_status = "ok" if Path(source).exists() else "warning"
-            video_message = "Arquivo de vídeo encontrado" if Path(source).exists() else f"Arquivo não encontrado: {source}"
+            fonte_visivel = redigir_segredos(str(source))
+            video_message = (
+                "Arquivo de vídeo encontrado"
+                if Path(source).exists()
+                else f"Arquivo não encontrado: {fonte_visivel}"
+            )
         checks.append({"key": "video", "label": "Vídeo", "status": video_status, "message": video_message})
 
         model = self._safe_model_diagnostics()
@@ -509,7 +515,7 @@ class CameraWorker:
                     self._perf_fim()
                     self._last_error = None
                 except Exception as exc:  # noqa: BLE001
-                    self._last_error = str(exc)
+                    self._last_error = redigir_segredos(str(exc))
                     logger.exception("monitor_loop_error", extra={"camera_id": self.camera_id, "error": str(exc)})
                     time.sleep(1.0)
 
@@ -745,7 +751,7 @@ class CameraWorker:
     def settings(self) -> dict[str, Any]:
         return {
             "camera_id": self.camera_id,
-            "video_source": str(self.video_stream.source),
+            "video_source": redigir_segredos(str(self.video_stream.source)),
             "target_fps": int(self.app.config.get("TARGET_FPS", 12)),
             "jpeg_quality": int(self.app.config.get("JPEG_QUALITY", 80)),
             "yolo_confidence": float(self.detector.confidence),
