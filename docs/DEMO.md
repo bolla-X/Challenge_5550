@@ -141,9 +141,20 @@ A credencial é montada de `RTSP_USUARIO`/`RTSP_SENHA` do `.env`. A saída mostr
 
 ### Passo 5 — se der tudo certo (1 min)
 
-Suba, faça login, inicie o monitoramento e confirme que o badge da câmera diz
-**recebendo** (verde) e não "modo fixture" (âmbar). Se disser modo fixture, a
-fonte caiu depois de cadastrada: o demo continua, com fonte de demonstração.
+**Suba o teto de tentativas antes de apresentar.** O default é `2`, calibrado
+para o caso "a rede não responde" — desistir rápido e mostrar imagem. Se a rede
+da planta está acessível, o compromisso se inverte: vale insistir na câmera
+real em vez de trocar para a fixture na primeira oscilação.
+
+```bash
+# no .env
+RTSP_MAX_TENTATIVAS=5
+```
+
+Depois suba, faça login, inicie o monitoramento e confirme que o badge da
+câmera diz **recebendo** (verde) e não "modo fixture" (âmbar). Se disser modo
+fixture, a fonte caiu depois de cadastrada: o demo continua, com fonte de
+demonstração.
 
 ---
 
@@ -178,26 +189,36 @@ num arquivo. Use se o objetivo é só ter imagem estável na tela.
 
 **(b) O fallback acontecendo de verdade**, com o badge âmbar "modo fixture".
 Use se o objetivo é mostrar a resiliência. Cadastre a câmera da planta (que não
-responde) e baixe o teto de tentativas no `.env`:
+responde) — com o default atual não precisa mexer em nada:
 
 ```bash
-# no .env:  RTSP_MAX_TENTATIVAS=1
 ./.venv/Scripts/flask.exe --app wsgi cameras add --name "Fresa 1" --host 10.14.22.97
 ```
 
 Tempo até o modo fixture assumir, **medido** contra `10.14.22.97` (que não tem
 rota desta máquina), com 39 frames publicados 3 s depois da troca em todos os
-casos:
+casos. Cada tentativa custa o teto de abertura de 5 s:
 
-| `RTSP_MAX_TENTATIVAS` | tempo até `modo=fixture` |
-|---|---|
-| 1 | **5,3 s** |
-| 3 | 17,0 s |
-| 5 (default) | 33,2 s |
+| `RTSP_MAX_TENTATIVAS` | tempo até `modo=fixture` | |
+|---|---|---|
+| 1 | 5,3 s | mais rápido; quase não tolera queda passageira |
+| **2** | **10,9 s** | **default** |
+| 3 | 17,0 s | |
+| 5 | 33,2 s | default anterior |
 
-Com o default são 33 s de tela mostrando "reconectando" antes de aparecer
-imagem. Para apresentar, use `1`. (Antes do teto de abertura de fonte de rede,
-isso levava mais de 150 s — ver [BENCH.md](BENCH.md).)
+**Por que 2, e o que se perde.** Com 5 são 33 segundos de tela mostrando
+"reconectando" antes de aparecer qualquer imagem — no projetor, na frente do
+avaliador, é o pior cenário possível. Com 2 são 11 s, que cabem numa frase de
+contexto enquanto acontece.
+
+O custo é real e vale dizer em voz alta: **quanto menor o teto, mais cedo o
+sistema desiste da câmera de verdade.** Numa rede instável, uma queda
+passageira de 15 s passa a virar troca para a fonte de demonstração em vez de
+uma reconexão. Para operação contínua na planta, `5` é a escolha melhor — e é
+o que o passo 5 do runbook manda fazer se a rede responder.
+
+(Antes do teto de abertura de fonte de rede, o mesmo fallback levava mais de
+150 s — ver [BENCH.md](BENCH.md).)
 
 ---
 
@@ -391,7 +412,7 @@ Leitura, e a única honesta:
 # fixture como fonte (mais confiavel)
 ./.venv/Scripts/flask.exe --app wsgi cameras add --name "Demo" --fonte tests/fixtures/bench.mp4
 
-# fallback visivel em ~5 s  (.env: RTSP_MAX_TENTATIVAS=1)
+# fallback visivel em ~11 s (default RTSP_MAX_TENTATIVAS=2; use 1 para ~5 s)
 ./.venv/Scripts/flask.exe --app wsgi cameras add --name "Fresa 1" --host 10.14.22.97
 
 # webcam USB

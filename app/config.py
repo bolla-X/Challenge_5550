@@ -170,7 +170,11 @@ class Config:
     # para a rede da planta, uma camera RTSP fica indisponivel para sempre e
     # nao ha imagem nenhuma na tela. Vazio desliga o fallback.
     RTSP_FIXTURE_FALLBACK = os.getenv("RTSP_FIXTURE_FALLBACK", "tests/fixtures/bench.mp4")
-    RTSP_MAX_TENTATIVAS = env_int("RTSP_MAX_TENTATIVAS", 5)
+    # 2, e nao 5: medido contra um endereco da planta sem rota, cada tentativa
+    # custa o teto de abertura de 5 s, entao 1->5,3 s, 2->10,9 s, 3->17,0 s,
+    # 5->33,2 s ate o modo fixture assumir. 33 s de tela parada num projetor e
+    # o pior cenario de apresentacao. Em rede instavel, suba de volta para 5.
+    RTSP_MAX_TENTATIVAS = env_int("RTSP_MAX_TENTATIVAS", 2)
 
     # --- camada LLM (segunda opiniao multimodal) --------------------------
     # SEM CHAVE O SISTEMA FUNCIONA NORMALMENTE, sem a camada. E degradacao
