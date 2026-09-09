@@ -73,7 +73,24 @@ class AlertStateService:
         self.intervalo_touch = max(0.0, float(intervalo_touch))
         self._states: dict[str, AlertRuntimeState] = {}
 
-    def process(self, current_violations: list[RuleAlert]) -> dict[str, Any]:
+    def process(self, current_violations: list[RuleAlert], *, deteccao_nova: bool = True) -> dict[str, Any]:
+        """Avança a histerese e grava/resolve o que passou do limiar.
+
+        `deteccao_nova=False` significa que este frame REAPROVEITOU a análise do
+        frame anterior (ver `CameraWorker._analyze_frame` e
+        `DETECTION_EVERY_N_FRAMES`). Nesse caso não há confirmação nova a
+        contar: as detecções são literalmente as mesmas, e contá-las de novo
+        transformava `create_after_frames=3` em "cria na primeira detecção".
+        Medido: a fixture de 7 s gerava 76 alertas para 6 pessoas rastreadas.
+
+        O default é `True` para que qualquer chamador que não saiba de
+        intercalação siga com o comportamento de antes.
+        """
+        if not deteccao_nova:
+            ativos = self.active_alerts()
+            self._emit_active(ativos)
+            return {"active": ativos, "changed": [], "created": [], "updated": [], "resolved": []}
+
         current_by_key = {item.key: item for item in current_violations}
         created: list[dict[str, Any]] = []
         updated: list[dict[str, Any]] = []

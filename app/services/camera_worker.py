@@ -114,6 +114,11 @@ class CameraWorker:
         self.detect_every_n = max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1)))
         self._detect_counter = 0
         self._cached_analysis: FrameAnalysis | None = None
+        # A histerese de alerta conta DETECÇÃO, não iteração do loop. Sem esta
+        # marca, uma inferência reaproveitada por 3 frames valia 3
+        # confirmações e `ALERT_CREATE_AFTER_FRAMES=3` criava alerta na
+        # primeira detecção. Ver AlertStateService.process(deteccao_nova=...).
+        self._analise_foi_nova = True
         # Telemetria (ver _deve_emitir_telemetria e Config.TELEMETRY_HZ).
         hz = float(app.config.get("TELEMETRY_HZ", 8.0))
         self._intervalo_telemetria = (1.0 / hz) if hz > 0 else 0.0
@@ -427,7 +432,11 @@ class CameraWorker:
                         poses=analysis.poses,
                     )
                     self._perf_marca("regras")
-                    alert_state = self.alert_state_service.process(evaluation.alerts)
+                    # `deteccao_nova` impede que uma inferência reaproveitada
+                    # conte como confirmação nova na histerese.
+                    alert_state = self.alert_state_service.process(
+                        evaluation.alerts, deteccao_nova=self._analise_foi_nova
+                    )
                     self._perf_marca("alertas")
                     model_diagnostics = self._safe_model_diagnostics()
                     compliance_state = self.compliance_service.build_state(
@@ -617,7 +626,9 @@ class CameraWorker:
         self._detect_counter += 1
         if self.detect_every_n > 1 and self._cached_analysis is not None:
             if self._detect_counter % self.detect_every_n != 0:
+                self._analise_foi_nova = False
                 return self._cached_analysis
+        self._analise_foi_nova = True
 
         detections = []
         pose = None
