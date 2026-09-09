@@ -1,0 +1,16 @@
+{
+  "cena": "segura",
+  "versao": "v2",
+  "modelo": "gemini-3.6-flash",
+  "gravado_em": "2026-09-09T18:49:05+00:00",
+  "latencia_ms": 23852.3,
+  "bytes_imagem": 484327,
+  "resposta_crua": "```json\n{\n  \"nivel_risco\": \"medio\",\n  \"epis_ausentes\": [],\n  \"justificativa\": \"Foram observados dois trabalhadores na área de demolição, ambos utilizando capacete e colete refletivo. EPIs como luvas, óculos e máscara não puderam ser confirmados devido à distância e ao ângulo dos trabalhadores.\",\n  \"confianca\": 0.8,\n  \"acao_recomendada\": \"Verificar em campo o uso de óculos de proteção e luvas, garantindo também o afastamento seguro da zona de queda de escombros da escavadeira.\"\n}\n```",
+  "analise_validada": {
+    "nivel_risco": "medio",
+    "epis_ausentes": [],
+    "justificativa": "Foram observados dois trabalhadores na área de demolição, ambos utilizando capacete e colete refletivo. EPIs como luvas, óculos e máscara não puderam ser confirmados devido à distância e ao ângulo dos trabalhadores.",
+    "confianca": 0.8,
+    "acao_recomendada": "Verificar em campo o uso de óculos de proteção e luvas, garantindo também o afastamento seguro da zona de queda de escombros da escavadeira."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "cena": "risco",
+  "versao": "v2",
+  "modelo": "gemini-3.6-flash",
+  "gravado_em": "2026-09-09T18:56:04+00:00",
+  "latencia_ms": 38545.8,
+  "bytes_imagem": 356154,
+  "resposta_crua": "```json\n{\n  \"nivel_risco\": \"alto\",\n  \"epis_ausentes\": [\n    \"helmet\",\n    \"vest\"\n  ],\n  \"justificativa\": \"Cerca de 10 pessoas trabalham e transitam em canteiro de obras viárias próximo a máquinas pesadas sem o uso de capacetes de segurança nem coletes refletivos. Devido à distância do plano da foto, não é possível confirmar com certeza a ausência de luvas, óculos ou calçados adequados.\",\n  \"confianca\": 0.85,\n  \"acao_recomendada\": \"Exigir o uso imediato de capacete de proteção e colete refletivo para todos os trabalhadores atuantes na área de tráfego de máquinas pesadas.\"\n}\n```",
+  "analise_validada": {
+    "nivel_risco": "alto",
+    "epis_ausentes": [
+      "helmet",
+      "vest"
+    ],
+    "justificativa": "Cerca de 10 pessoas trabalham e transitam em canteiro de obras viárias próximo a máquinas pesadas sem o uso de capacetes de segurança nem coletes refletivos. Devido à distância do plano da foto, não é possível confirmar com certeza a ausência de luvas, óculos ou calçados adequados.",
+    "confianca": 0.85,
+    "acao_recomendada": "Exigir o uso imediato de capacete de proteção e colete refletivo para todos os trabalhadores atuantes na área de tráfego de máquinas pesadas."
+  }
+}

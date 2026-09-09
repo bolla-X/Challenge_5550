@@ -1,0 +1,19 @@
+{
+  "cena": "ambigua",
+  "versao": "v1",
+  "modelo": "gemini-3.6-flash",
+  "gravado_em": "2026-09-09T18:52:52+00:00",
+  "latencia_ms": 16204.8,
+  "bytes_imagem": 437473,
+  "resposta_crua": "```json\n{\n  \"nivel_risco\": \"alto\",\n  \"epis_ausentes\": [\n    \"gloves\",\n    \"glasses\"\n  ],\n  \"justificativa\": \"Os trabalhadores estão manuseando concreto úmido e ferramentas com as mãos desprotegidas, o que gera risco de queimaduras químicas por cimento e dermatites, além da ausência de óculos de segurança contra respingos.\",\n  \"confianca\": 0.95,\n  \"acao_recomendada\": \"Interromper a concretagem para fornecer e exigir o uso imediato de luvas impermeáveis e óculos de segurança por todos os trabalhadores.\"\n}\n```",
+  "analise_validada": {
+    "nivel_risco": "alto",
+    "epis_ausentes": [
+      "gloves",
+      "glasses"
+    ],
+    "justificativa": "Os trabalhadores estão manuseando concreto úmido e ferramentas com as mãos desprotegidas, o que gera risco de queimaduras químicas por cimento e dermatites, além da ausência de óculos de segurança contra respingos.",
+    "confianca": 0.95,
+    "acao_recomendada": "Interromper a concretagem para fornecer e exigir o uso imediato de luvas impermeáveis e óculos de segurança por todos os trabalhadores."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "cena": "segura",
+  "versao": "v1",
+  "modelo": "gemini-3.6-flash",
+  "gravado_em": "2026-09-09T18:57:08+00:00",
+  "latencia_ms": 30302.2,
+  "bytes_imagem": 484327,
+  "resposta_crua": "```json\n{\n  \"nivel_risco\": \"alto\",\n  \"epis_ausentes\": [\n    \"gloves\",\n    \"glasses\",\n    \"mask\"\n  ],\n  \"justificativa\": \"Os trabalhadores estão próximos a uma operação de demolição ativa com projeção de poeira e detritos sem utilizar óculos de proteção, máscara respiratória e luvas de segurança.\",\n  \"confianca\": 0.9,\n  \"acao_recomendada\": \"Paralisar momentaneamente a atividade para fornecer e exigir o uso imediato de óculos de segurança, luvas de proteção e máscara respiratória aos operários no local.\"\n}\n```",
+  "analise_validada": {
+    "nivel_risco": "alto",
+    "epis_ausentes": [
+      "gloves",
+      "glasses",
+      "mask"
+    ],
+    "justificativa": "Os trabalhadores estão próximos a uma operação de demolição ativa com projeção de poeira e detritos sem utilizar óculos de proteção, máscara respiratória e luvas de segurança.",
+    "confianca": 0.9,
+    "acao_recomendada": "Paralisar momentaneamente a atividade para fornecer e exigir o uso imediato de óculos de segurança, luvas de proteção e máscara respiratória aos operários no local."
+  }
+}

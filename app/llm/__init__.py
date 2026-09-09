@@ -39,7 +39,10 @@ NivelDeRisco = Literal["baixo", "medio", "alto", "critico"]
 
 # Modelo multimodal do free tier. Em variável de ambiente para não exigir
 # deploy quando o Google renomear a família.
-MODELO_PADRAO = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+# gemini-2.0-flash foi aposentado (404 "no longer available"); a propria API
+# aponta o 3.6-flash como substituto. Versao fixa, nao alias flutuante: os
+# goldens precisam continuar significando a mesma coisa daqui a um mes.
+MODELO_PADRAO = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 # Qualquer coisa que pareça chave sai da mensagem antes de virar log. O prefixo
 # AIza é o formato de chave de API do Google; a segunda regra pega token longo
@@ -149,7 +152,7 @@ class ProvedorGemini:
     """
 
     def __init__(
-        self, api_key: str | None = None, modelo: str = MODELO_PADRAO, timeout_s: float = 8.0
+        self, api_key: str | None = None, modelo: str = MODELO_PADRAO, timeout_s: float = 30.0
     ) -> None:
         self._api_key = api_key or os.getenv("GEMINI_API_KEY") or ""
         self.modelo = modelo

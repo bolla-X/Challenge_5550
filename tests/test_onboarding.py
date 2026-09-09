@@ -135,7 +135,14 @@ def test_nenhum_arquivo_versionado_carrega_chave_do_google():
     import re
     import subprocess
 
-    padrao = re.compile(r"AIza[0-9A-Za-z_\-]{20,}")
+    # DOIS formatos. `AIza...` e o antigo; o Google passou a emitir chave com
+    # prefixo `AQ.`, e a chave que gravou os goldens desta fase e desse formato
+    # novo — uma varredura que so conhecesse `AIza` deixaria passar exatamente a
+    # chave que existe hoje nesta maquina.
+    padroes = [
+        re.compile(r"AIza[0-9A-Za-z_\-]{20,}"),
+        re.compile(r"\bAQ\.[A-Za-z0-9_\-]{20,}"),
+    ]
     rastreados = subprocess.run(
         ["git", "ls-files"], cwd=RAIZ, capture_output=True, text=True, check=True
     ).stdout.split()
@@ -149,7 +156,7 @@ def test_nenhum_arquivo_versionado_carrega_chave_do_google():
             texto = caminho.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if padrao.search(texto):
+        if any(p.search(texto) for p in padroes):
             culpados.append(relativo)
 
     assert culpados == [], f"chave estilo Google encontrada em arquivo versionado: {culpados}"

@@ -1,0 +1,19 @@
+{
+  "cena": "ambigua",
+  "versao": "v2",
+  "modelo": "gemini-3.6-flash",
+  "gravado_em": "2026-09-09T18:56:30+00:00",
+  "latencia_ms": 25548.6,
+  "bytes_imagem": 437473,
+  "resposta_crua": "```json\n{\n  \"nivel_risco\": \"medio\",\n  \"epis_ausentes\": [\n    \"gloves\",\n    \"glasses\"\n  ],\n  \"justificativa\": \"Três trabalhadores atuam na concretagem utilizando capacete de segurança, porém observam-se mãos desnudas sem luvas em contato direto/próximo ao concreto fresco e ausência de óculos de proteção.\",\n  \"confianca\": 0.85,\n  \"acao_recomendada\": \"Orientar a equipe para o uso imediato de luvas de proteção impermeáveis e óculos de segurança no manuseio de massa de concreto.\"\n}\n```",
+  "analise_validada": {
+    "nivel_risco": "medio",
+    "epis_ausentes": [
+      "gloves",
+      "glasses"
+    ],
+    "justificativa": "Três trabalhadores atuam na concretagem utilizando capacete de segurança, porém observam-se mãos desnudas sem luvas em contato direto/próximo ao concreto fresco e ausência de óculos de proteção.",
+    "confianca": 0.85,
+    "acao_recomendada": "Orientar a equipe para o uso imediato de luvas de proteção impermeáveis e óculos de segurança no manuseio de massa de concreto."
+  }
+}

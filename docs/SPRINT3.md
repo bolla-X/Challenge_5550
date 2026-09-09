@@ -45,40 +45,166 @@ Na cena **risco** o YOLO acerta: não há EPI e ele reporta ausência de tudo. N
 factualmente verdadeiro; se é *violação* depende de a atividade exigir colete,
 e isso o detector não tem como saber.
 
-## Sprint 3 (YOLO + LLM) — PENDENTE DE CHAVE DE API
+## Sprint 3 (YOLO + LLM) — MEDIDO
 
-**Esta coluna está vazia, e vazia é a resposta honesta.** Não há
-`GEMINI_API_KEY` nesta máquina — verificado outra vez no fechamento desta fase,
-no `.env` e no ambiente, e os 18 goldens seguem `skipped`
-(`18 skipped in 0.04s`). Sem a chave não existe chamada real, e sem chamada
-real não existe golden. Inventar uma resposta plausível aqui produziria uma
-tabela bonita e falsa.
+6 chamadas reais, uma por cena e versão, congeladas em `tests/goldens/`. Os 18
+testes que estavam `skipped` estão **verdes**, sem nenhum ajuste de teste.
 
-| cena | v1 | v2 |
+Modelo: **`gemini-3.6-flash`**. Não foi escolha de gosto — o
+`gemini-2.0-flash` que o projeto usava foi **aposentado**, e a API responde
+`404`: *"This model models/gemini-2.0-flash is no longer available. Please
+update your code to use models/gemini-3.6-flash"*. Versão fixa, e não um alias
+tipo `gemini-flash-latest`: um golden precisa continuar significando a mesma
+coisa daqui a um mês.
+
+| cena | v1 — EPIs ausentes | v1 conf | v1 latência | v2 — EPIs ausentes | v2 conf | v2 latência |
+|---|---|---|---|---|---|---|
+| **segura** | `gloves`, `glasses`, `mask` | 0,90 | 30.302 ms | **nenhum** | 0,80 | 23.852 ms |
+| **risco** | `helmet`, `vest`, `safety_shoe`, `gloves` | 0,95 | 29.307 ms | `helmet`, `vest` | 0,85 | 38.546 ms |
+| **ambígua** | `gloves`, `glasses` | 0,95 | 16.205 ms | `gloves`, `glasses` | 0,85 | 25.549 ms |
+
+Nível de risco: v1 disse `alto` nas três. v2 disse `medio` / `alto` / `medio`.
+
+### O resultado central: o LLM CORRIGE os dois falsos positivos de capacete
+
+Era esta a pergunta que justificava a arquitetura. Na cena **segura** o YOLO
+acusa `missing_helmet` de severidade `critical` para **duas pessoas de capacete
+branco**, visível a olho nu.
+
+**As duas versões corrigem, e a v2 corrige explicitamente.** Texto do modelo,
+verbatim, em `tests/goldens/segura_v2.json`:
+
+> "Foram observados dois trabalhadores na área de demolição, ambos utilizando
+> capacete e colete refletivo. EPIs como luvas, óculos e máscara não puderam
+> ser confirmados devido à distância e ao ângulo dos trabalhadores."
+
+Duas coisas acontecem nessa frase, e as duas são o que se queria:
+
+1. **"ambos utilizando capacete"** — contradiz diretamente o detector, e acerta.
+   `epis_ausentes` sai **vazio**, então o alerta `critical` do YOLO fica sem
+   respaldo da segunda opinião.
+2. **"não puderam ser confirmados"** — distingue *ausente* de *não visível*, que
+   é exatamente a instrução que a `v2` acrescentou sobre a `v1`.
+
+A **v1** também não lista `helmet`, ou seja corrige por omissão. Mas **erra
+diferente**: afirma `gloves`, `glasses` e `mask` ausentes com confiança **0,90**,
+numa cena em que a própria v2 diz que essas peças não são verificáveis à
+distância. Trocar dois falsos positivos de capacete por três de luva/óculos/
+máscara não é ganho — é o mesmo erro com outro nome. É a diferença entre as
+duas versões, e é o argumento mais forte a favor da v2.
+
+### A expectativa registrada estava metade errada
+
+Ficou escrito **antes** de rodar, para poder ser refutado: *"na cena ambígua,
+`v2` deve reportar menos EPIs ausentes e confiança mais baixa que `v1`"*.
+
+Medido:
+
+| | v1 → v2, EPIs ausentes | v1 → v2, confiança |
 |---|---|---|
-| segura | — | — |
-| risco | — | — |
-| ambígua | — | — |
+| segura | 3 → **0** | 0,90 → 0,80 |
+| risco | 4 → **2** | 0,95 → 0,85 |
+| **ambígua** | 2 → **2** (igual) | 0,95 → 0,85 |
 
-Para preencher, com a chave no `.env` (arquivo ignorado pelo git):
+A confiança caiu nas três, como previsto. Os EPIs ausentes caíram em duas —
+**mas não na que eu apontei.** Na ambígua, v1 e v2 reportam exatamente o mesmo
+par (`gloves`, `glasses`). A instrução "distinga ausente de não visível" pegou,
+e pegou forte: −100% na segura e −50% na risco. Só não pegou onde eu apostei.
+
+Publicar isso importa mais que acertar o palpite: se eu tivesse medido só a
+cena ambígua, a conclusão teria sido "a instrução não pegou" — o oposto do que
+os dados mostram.
+
+### Um segundo desacordo com o YOLO, e este é julgamento
+
+Na cena **ambígua** o YOLO reporta `vest: missing` para as três pessoas. **Nem
+v1 nem v2 listam `vest`.** As duas listam luvas e óculos, e a v2 explica o
+contexto: concretagem, mãos nuas em contato com concreto fresco.
+
+Isso é o caso que a [FIXTURES.md](FIXTURES.md) já havia previsto: colete é
+exigido nessa atividade, dentro de área cercada, sem tráfego de veículo? É
+julgamento de norma, não detecção. O detector reporta o fato (não há colete); a
+camada de linguagem decidiu que o fato não é violação ali. **Qual das duas está
+certa é questão para o técnico de segurança, não para este relatório** — o que
+o sistema faz é mostrar as duas leituras em campos separados, e é para isso que
+a segunda opinião serve.
+
+### E na cena risco, as duas acertam
+
+Nenhum EPI, e as duas versões reportam ausência. A v2 conta as pessoas antes
+(*"Cerca de 10 pessoas trabalham e transitam em canteiro de obras viárias"*), o
+que bate com as ~9 que o COCO detecta, e limita o que afirma: *"Devido à
+distância do plano da foto, não é possível confirmar com certeza a ausência de
+luvas, óculos ou calçados adequados."*
+
+### ⚠️ Três cenas não sustentam afirmação de acurácia nenhuma
+
+A `v2` respondeu de forma defensável nas três. **Isso não é acurácia, e não
+deve ser apresentado como acurácia.** Três imagens sustentam **existência**:
+que o pipeline atravessa, que o schema rejeita o que deve rejeitar, que a
+integração não derruba o FPS, e que existe **ao menos um caso real** — a cena
+segura, dois falsos positivos de capacete — em que o detector sozinho erra de
+forma que um supervisor notaria e a camada de linguagem acerta.
+
+Precisão, revocação ou "o LLM é melhor que o YOLO" exigiriam um conjunto
+anotado, com dezenas a centenas de cenas e concordância entre anotadores. Não
+existe neste projeto. Três acertos em três também são compatíveis com sorte:
+com uma moeda honesta, acertar 3 de 3 acontece em 12,5% das vezes.
+
+### Latência real: 3x o que o desenho assumia
+
+| | valor |
+|---|---|
+| menor | 16.205 ms (ambígua/v1) |
+| maior | 38.546 ms (risco/v2) |
+| mediana das 6 | ~27.400 ms |
+
+O projeto assumia `LLM_TIMEOUT_S=8.0` e documentava "timeout curto e
+OBRIGATÓRIO". Contra o modelo real isso é inviável por dois motivos medidos:
+
+1. a API **recusa** deadline abaixo de 10 s — `HTTP 400`, *"Manually set
+   deadline 8s is too short. Minimum allowed deadline is 10s."*;
+2. nenhuma das 6 chamadas terminou em menos de 16 s.
+
+Com 8 s, **toda** chamada seria abortada e a camada gastaria cota sem nunca
+produzir nada — pior que estar desligada. O default passou a **30 s**, e é
+teto, não alvo.
+
+**E é aqui que o desenho assíncrono se paga.** O `bench_llm.py` simulava 1500 ms
+de latência; a realidade é 16 a 38 **segundos**. Uma chamada dessas dentro do
+loop de captura congelaria o vídeo por meio minuto na frente de quem está
+assistindo. Como ela roda fora da thread do frame, com uma em voo por câmera e
+descarte em vez de fila, os 27 s medianos não custam um único frame — o
+`submeter()` continua custando 9 a 13 µs. A latência real ser 18x pior que a
+simulada **reforça** a decisão em vez de invalidá-la.
+
+### O que o free tier fez pelo caminho
+
+Registrado porque afeta quem for reproduzir: das 6 chamadas, **9 tentativas
+falharam** antes de as 6 fecharem — `503 UNAVAILABLE` com *"This model is
+currently experiencing high demand. Spikes in demand are usually temporary.
+Please try again later."*, e 3 estouros de leitura com o teto de 30 s. Nenhuma
+foi erro de cota. `scripts/gravar_goldens.py` pula golden que já existe, então
+o remédio foi rodar o comando de novo até fechar — foram 4 execuções. O script
+ganhou `--timeout` (default 120 s) para gravação, que é um problema diferente do
+teto de runtime.
+
+### Como reproduzir
 
 ```bash
 python scripts/fetch_fixtures.py    # baixa as 3 cenas
-python scripts/gravar_goldens.py    # 6 chamadas reais, uma vez
+python scripts/gravar_goldens.py    # 6 chamadas reais; repita se der 503
 pytest tests/test_llm_goldens.py    # 18 asserções sobre as respostas gravadas
 ```
 
-O que já está pronto e verificado, esperando só a chave:
-
-- **`scripts/gravar_goldens.py`** chama a API uma vez por cena e versão, e
-  congela `resposta_crua`, `modelo`, `latencia_ms` e `bytes_imagem` em
-  `tests/goldens/`. Recusa sobrescrever sem `--forcar` — golden trocado sem
-  intenção vira teste que sempre passa. A chave não entra no arquivo.
+- **`scripts/gravar_goldens.py`** congela `resposta_crua`, `modelo`,
+  `latencia_ms` e `bytes_imagem`. Recusa sobrescrever sem `--forcar` — golden
+  trocado sem intenção vira teste que sempre passa. **A chave não entra no
+  arquivo**: verificado nos 6, procurando a própria chave e os dois formatos de
+  chave do Google.
 - **`tests/test_llm_goldens.py`** roda 3 cenas × 2 versões **offline**: a
   resposta real atravessa o schema, revalidar dá o mesmo resultado, e o golden
-  registra procedência. Hoje: **18 skipped**, com mensagem apontando o comando.
-  Não passa em falso.
-- A latência real de cada chamada é gravada e vem para esta seção.
+  registra procedência. **18 passed**, zero rede.
 
 ### O que esperar de v1 e v2, e como saber se a expectativa estava errada
 

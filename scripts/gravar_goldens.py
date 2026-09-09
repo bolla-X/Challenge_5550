@@ -81,9 +81,15 @@ def gravar(cena_nome: str, versao: str, provedor: ProvedorGemini, *, forcar: boo
 def main() -> int:
     analisador_cli = argparse.ArgumentParser(description="Grava goldens reais do Gemini.")
     analisador_cli.add_argument("--forcar", action="store_true", help="Reescreve goldens existentes.")
+    # Teto de GRAVACAO, que nao e o teto de RUNTIME (Config.LLM_TIMEOUT_S = 30 s).
+    # Aqui a chamada acontece uma vez, a mao, e o que se quer e a resposta; em
+    # producao o que se quer e nao segurar nada. Medido: 22,9 s e 26,8 s por
+    # chamada no gemini-3.6-flash, com picos que estouraram 30 s.
+    analisador_cli.add_argument("--timeout", type=float, default=120.0,
+                                help="Segundos por chamada ao gravar (default: 120).")
     argumentos = analisador_cli.parse_args()
 
-    provedor = ProvedorGemini()
+    provedor = ProvedorGemini(timeout_s=argumentos.timeout)
     if not provedor.configurado:
         print(
             "GEMINI_API_KEY ausente.\n"

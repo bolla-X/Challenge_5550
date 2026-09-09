@@ -179,7 +179,15 @@ class Config:
     # timeout. A chave vive so no .env e nunca e lida para variavel local aqui
     # — quem decide e ProvedorGemini.configurado.
     LLM_ENABLED = env_bool("LLM_ENABLED", False)
-    LLM_TIMEOUT_S = env_float("LLM_TIMEOUT_S", 8.0)
+    # 30 s, e nao os 8 s originais, por DUAS razoes medidas:
+    # 1. a API recusa deadline abaixo de 10 s ("Manually set deadline 8s is
+    #    too short. Minimum allowed deadline is 10s.", HTTP 400).
+    # 2. o gemini-3.6-flash respondeu em 22,9 s e 26,8 s nas cenas reais.
+    #    Com 8 s, TODA chamada seria abortada e a camada nunca produziria
+    #    nada — pior que estar desligada, porque gastaria cota para nada.
+    # O timeout continua sendo teto, nao alvo: estourou, ignora o evento e
+    # segue. Nada disto entra no caminho do frame.
+    LLM_TIMEOUT_S = env_float("LLM_TIMEOUT_S", 30.0)
     # Janela minima entre duas analises da MESMA camera. A fixture de 7 s gera
     # 26 alertas mesmo apos o fix da Fase 1; sem debounce seria uma chamada por
     # alerta.

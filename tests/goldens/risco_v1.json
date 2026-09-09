@@ -1,0 +1,21 @@
+{
+  "cena": "risco",
+  "versao": "v1",
+  "modelo": "gemini-3.6-flash",
+  "gravado_em": "2026-09-09T18:52:10+00:00",
+  "latencia_ms": 29306.6,
+  "bytes_imagem": 356154,
+  "resposta_crua": "```json\n{\n  \"nivel_risco\": \"alto\",\n  \"epis_ausentes\": [\n    \"helmet\",\n    \"vest\",\n    \"safety_shoe\",\n    \"gloves\"\n  ],\n  \"justificativa\": \"Trabalhadores na pista de obras atuando próximos a máquinas pesadas e realizando trabalhos manuais sem o uso de capacete de proteção, colete de alta visibilidade, calçados de segurança e luvas.\",\n  \"confianca\": 0.95,\n  \"acao_recomendada\": \"Paralisar as atividades para fornecer e exigir o uso imediato de capacetes, coletes refletivos, calçados de segurança e luvas a toda a equipe no canteiro.\"\n}\n```",
+  "analise_validada": {
+    "nivel_risco": "alto",
+    "epis_ausentes": [
+      "helmet",
+      "vest",
+      "safety_shoe",
+      "gloves"
+    ],
+    "justificativa": "Trabalhadores na pista de obras atuando próximos a máquinas pesadas e realizando trabalhos manuais sem o uso de capacete de proteção, colete de alta visibilidade, calçados de segurança e luvas.",
+    "confianca": 0.95,
+    "acao_recomendada": "Paralisar as atividades para fornecer e exigir o uso imediato de capacetes, coletes refletivos, calçados de segurança e luvas a toda a equipe no canteiro."
+  }
+}
