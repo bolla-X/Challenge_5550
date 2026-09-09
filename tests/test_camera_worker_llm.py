@@ -268,9 +268,8 @@ def test_o_loop_nao_espera_a_analise(worker, servico):
 # --------------------------- 3. segunda opiniao em campo separado ----------
 def _analise() -> AnaliseRisco:
     return AnaliseRisco(
-        risco_geral="alto",
+        nivel_risco="alto",
         confianca=0.8,
-        pessoas_detectadas=1,
         epis_ausentes=["helmet"],
         justificativa="Trabalhador sem capacete em area de circulacao de veiculo.",
         acao_recomendada="Interromper e fornecer capacete.",
@@ -287,7 +286,7 @@ def test_a_resposta_entra_em_campo_separado(worker):
         f"a resposta do LLM precisa de campo proprio; latest_analysis tem {sorted(analise)}"
     )
     segunda = analise["segunda_opiniao"]
-    assert segunda["risco_geral"] == "alto"
+    assert segunda["nivel_risco"] == "alto"
     assert segunda["epis_ausentes"] == ["helmet"]
 
 
@@ -303,9 +302,8 @@ def test_o_llm_nao_cria_nem_resolve_nem_suprime_alerta(worker):
 
     # Uma analise que discorda de tudo: nenhum EPI ausente, risco baixo.
     discordante = AnaliseRisco(
-        risco_geral="baixo",
+        nivel_risco="baixo",
         confianca=0.95,
-        pessoas_detectadas=1,
         epis_ausentes=[],
         justificativa="Trabalhador esta de capacete; a caixa do detector ficou deslocada.",
         acao_recomendada="Nenhuma.",

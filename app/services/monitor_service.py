@@ -10,6 +10,7 @@ from app.config import Config
 from app.models import Camera
 from app.services.camera_worker import CameraWorker
 from app.services.feature_manager import FeatureManager
+from app.services.llm_risk_service import ServicoDeRiscoLLM
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
@@ -72,6 +73,18 @@ class MonitorService:
         )
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
+
+        # ---- camada LLM: um servico POR camera ---------------------------
+        # Um por camera, e nao um compartilhado, porque `ao_concluir` e um
+        # atributo unico do servico e nao recebe camera_id: com uma instancia
+        # so, o callback de uma camera sobrescreveria o da outra e a segunda
+        # opiniao apareceria na camera errada. Custa quase nada — o cliente do
+        # Gemini nasce sob demanda (ProvedorGemini nao cria cliente no
+        # __init__), entao uma instancia por camera e um punhado de atributos,
+        # sem rede e sem SDK carregado.
+        # O debounce e o "uma em voo" ja sao por camera no desenho do servico,
+        # entao a semantica nao muda.
+        self._llm_habilitado = bool(app.config.get("LLM_ENABLED", False))
 
         self._workers: dict[int, CameraWorker] = {}
         self._workers_lock = threading.RLock()
@@ -153,7 +166,20 @@ class MonitorService:
             person_detector=self.person_detector,
             pose_estimator=self.pose_estimator,
             inference_lock=self._inference_lock,
+            servico_llm=self._criar_servico_llm(),
         )
+
+    def _criar_servico_llm(self):
+        """Servico de segunda opiniao para UMA camera, ou None.
+
+        `None` quando LLM_ENABLED=false ou nao ha GEMINI_API_KEY — que e o
+        default. A fabrica do servico ja resolve isso: sem chave ela devolve um
+        servico com `habilitado=False`, e ai nao vale carregar nada.
+        """
+        if not self._llm_habilitado:
+            return None
+        servico = ServicoDeRiscoLLM.a_partir_da_config(self.app.config)
+        return servico if servico.habilitado else None
 
     def _stop_and_discard_worker(self, camera_id: int) -> None:
         worker = self._workers.pop(camera_id, None)

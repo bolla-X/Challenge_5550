@@ -172,6 +172,20 @@ class Config:
     RTSP_FIXTURE_FALLBACK = os.getenv("RTSP_FIXTURE_FALLBACK", "tests/fixtures/bench.mp4")
     RTSP_MAX_TENTATIVAS = env_int("RTSP_MAX_TENTATIVAS", 5)
 
+    # --- camada LLM (segunda opiniao multimodal) --------------------------
+    # SEM CHAVE O SISTEMA FUNCIONA NORMALMENTE, sem a camada. E degradacao
+    # explicita, nao erro. `false` por padrao de proposito: o demo nao pode
+    # depender disto para subir, e ligar por acidente sem rede so gera log de
+    # timeout. A chave vive so no .env e nunca e lida para variavel local aqui
+    # — quem decide e ProvedorGemini.configurado.
+    LLM_ENABLED = env_bool("LLM_ENABLED", False)
+    LLM_TIMEOUT_S = env_float("LLM_TIMEOUT_S", 8.0)
+    # Janela minima entre duas analises da MESMA camera. A fixture de 7 s gera
+    # 26 alertas mesmo apos o fix da Fase 1; sem debounce seria uma chamada por
+    # alerta.
+    LLM_DEBOUNCE_S = env_float("LLM_DEBOUNCE_S", 15.0)
+    LLM_PROMPT_VERSION = os.getenv("LLM_PROMPT_VERSION", "v2")
+
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
     # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
     # PPE_MODEL_PATH aponta pra um modelo de EPI sem classe "person" própria
@@ -287,6 +301,9 @@ class TestConfig(Config):
     # varredura que falha se aparecer rota nova desprotegida.
     AUTH_REQUIRED = False
     DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area"
+    # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
+    # roda a suite nao pode fazer os testes tentarem rede.
+    LLM_ENABLED = False
 
 
 class AuthTestConfig(TestConfig):

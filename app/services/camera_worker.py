@@ -69,6 +69,7 @@ class CameraWorker:
         person_detector: YoloPPEDetector,
         pose_estimator: MediaPipePoseEstimator,
         inference_lock: threading.Lock,
+        servico_llm: Any | None = None,
     ) -> None:
         self.app = app
         self.socketio = socketio
@@ -112,6 +113,16 @@ class CameraWorker:
         self.tentativas_antes_da_reserva = max(1, int(app.config.get("RTSP_MAX_TENTATIVAS", 5)))
         self._modo_fixture = False
         self._reserva_indisponivel = False
+
+        # ---- camada LLM: SEGUNDA OPINIÃO, nunca decisão ------------------
+        # Injetado pelo MonitorService; `None` quando LLM_ENABLED=false ou não
+        # há GEMINI_API_KEY — que é o default, e o demo não depende disto.
+        self.servico_llm = servico_llm
+        if self.servico_llm is not None:
+            self.servico_llm.ao_concluir = self._consumir_analise_llm
+        # A última análise, em campo PRÓPRIO. Não entra em `alerts` nem em
+        # `compliance`: o LLM informa o operador, não decide por ele.
+        self._segunda_opiniao: dict[str, Any] | None = None
         # Modelos compartilhados — injetados, não criados aqui (ver docstring).
         self.detector = detector
         self.person_detector = person_detector
@@ -251,7 +262,18 @@ class CameraWorker:
             "settings": self.settings(),
             "risk_area": self.risk_area_state(),
             "snapshot": self.snapshot_service.info(),
+            # Estado da camada de segunda opiniao. `habilitado: false` e o
+            # default e nao e erro — o dashboard mostra "desligada", nao falha.
+            "llm": self._estado_do_llm(),
         }
+
+    def _estado_do_llm(self) -> dict[str, Any]:
+        if self.servico_llm is None:
+            return {"habilitado": False, "motivo": "LLM_ENABLED=false ou GEMINI_API_KEY ausente"}
+        try:
+            return dict(self.servico_llm.estatisticas()) | {"ultima": self._segunda_opiniao}
+        except Exception as exc:  # noqa: BLE001  (status() nunca pode levantar: a UI cega)
+            return {"habilitado": False, "motivo": redigir_segredos(str(exc))}
 
     def preflight(self) -> dict[str, Any]:
         checks: list[dict[str, Any]] = []
@@ -482,17 +504,27 @@ class CameraWorker:
                     alert_state["active"] = self.alert_state_service.active_alerts()
                     encode_ok, buffer = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
                     self._perf_marca("encode")
+                    jpeg: bytes | None = None
                     if encode_ok:
+                        jpeg = buffer.tobytes()
                         with self._thread_lock:
-                            self._latest_jpeg = buffer.tobytes()
+                            self._latest_jpeg = jpeg
                             self._latest_analysis = analysis.to_dict() | {
                                 "alerts": alert_state["active"],
                                 "alert_changes": alert_state["changed"],
                                 "alert_resolved": alert_state["resolved"],
                                 "compliance": compliance_state,
                                 "model": model_diagnostics,
+                                # Campo PRÓPRIO, ao lado dos alertas e nunca
+                                # dentro deles: é opinião, não veredito.
+                                "segunda_opiniao": self._segunda_opiniao,
                             }
                             self._frame_counter += 1
+
+                    # Fora da thread do loop: `submeter()` só marca o slot e
+                    # entrega ao executor (11 microssegundos, docs/SPRINT3.md).
+                    # Reaproveita o JPEG acima — não há segundo encode.
+                    self._submeter_ao_llm(alert_state, jpeg)
 
                     # camera_id em TODO payload: o dashboard usa isso pra
                     # descartar o que não é da câmera em foco. Sem o carimbo,
@@ -611,6 +643,46 @@ class CameraWorker:
             return
         self._ultimo_diagnostico = assinatura
         self._emitir("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
+
+    def _submeter_ao_llm(self, alert_state: dict[str, Any], jpeg: bytes | None) -> None:
+        """Dispara a análise multimodal quando um alerta é CRIADO.
+
+        Três decisões, cada uma com um número atrás:
+
+        - **Só em alerta criado.** Um alerta ativo persiste por segundos; a
+          fixture de 7 s gera 26 alertas mesmo depois do fix da Fase 1
+          (docs/BENCH.md). Disparar por frame estouraria a cota do free tier.
+          O debounce do serviço é a segunda linha de defesa, não a primeira.
+        - **Reaproveita o JPEG que já foi codificado.** Há exatamente um
+          `cv2.imencode` por frame (2,5 ms, docs/BENCH.md) e o resultado serve
+          todos os consumidores. Codificar de novo aqui somaria 2,5 ms ao
+          caminho do frame justamente nos frames com alerta.
+        - **Nunca levanta.** Bug no serviço ou provedor fora do ar não pode
+          parar a câmera. `submeter()` já é não-bloqueante — medido em 11
+          microssegundos (docs/SPRINT3.md) — mas o `try` cobre o resto.
+        """
+        if self.servico_llm is None or not jpeg or not alert_state.get("created"):
+            return
+        try:
+            self.servico_llm.submeter(camera_id=self.camera_id, imagem_jpeg=jpeg)
+        except Exception as exc:  # noqa: BLE001  (camada opcional nao derruba a camera)
+            logger.warning("llm_submissao_falhou", extra={"camera_id": self.camera_id, "error": str(exc)})
+
+    def _consumir_analise_llm(self, analise) -> None:
+        """Recebe a análise pronta, no executor do serviço — não no loop.
+
+        Guarda em campo separado e emite. **Não** cria, resolve ou suprime
+        alerta, e nem toca no estado de conformidade: se um modelo de linguagem
+        pudesse apagar um alerta de EPI, o sistema passaria a esconder violação
+        de segurança do trabalho com base em texto gerado. Ele informa o
+        operador; quem decide é o operador.
+        """
+        payload = analise.model_dump() if hasattr(analise, "model_dump") else dict(analise)
+        with self._thread_lock:
+            self._segunda_opiniao = payload
+            if self._latest_analysis is not None:
+                self._latest_analysis = self._latest_analysis | {"segunda_opiniao": payload}
+        self._emitir("llm_segunda_opiniao", payload | {"camera_id": self.camera_id})
 
     def video_state(self) -> dict[str, Any]:
         """Estado da captura + em QUAL fonte a câmera está.
