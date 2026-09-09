@@ -201,6 +201,13 @@ function useVideoStatus() {
   // chega, vale mais que a heurística de idade do frame abaixo: "reconectando,
   // 3ª tentativa" diz o que "congelado" não dizia.
   if (video) {
+    // Modo fixture vem ANTES dos estados de falha, e de propósito: é fallback
+    // deliberado, não degradação. Mostrar "reconectando" aqui faria quem olha
+    // ler "quebrado" numa câmera que está entregando imagem. Fica em `warn` e
+    // não em `error` pelo mesmo motivo — chama atenção sem alarmar.
+    if (video.modo === "fixture") {
+      return { status: "warn" as const, label: "modo fixture — fonte de demonstração" };
+    }
     if (video.state === "unavailable") {
       return { status: "error" as const, label: `sem sinal — nova tentativa em ${Math.ceil(video.seconds_until_retry)}s` };
     }

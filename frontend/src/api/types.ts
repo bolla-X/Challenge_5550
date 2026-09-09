@@ -263,6 +263,16 @@ export interface VideoStreamStatus {
   total_reconnects: number;
   last_error: string | null;
   seconds_until_retry: number;
+  /**
+   * De QUAL fonte a câmera está lendo — ortogonal a `state`, que diz se está
+   * entregando frame. Em modo fixture a câmera está `live` e `fixture` ao
+   * mesmo tempo: é fallback deliberado, não falha.
+   *
+   * Opcional porque um backend anterior a esta versão não manda o campo.
+   */
+  modo?: "ao_vivo" | "reconectando" | "fixture";
+  /** Fonte em uso, com a credencial já redigida pelo backend. */
+  fonte?: string;
 }
 
 export interface MonitorStatus extends CameraScoped {

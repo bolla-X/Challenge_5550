@@ -17,17 +17,29 @@ const CAMERA_FEATURE_LABELS: Record<keyof CameraFeatureSet, string> = {
 // card consulta o status/feed da SUA PRÓPRIA câmera via /api/cameras/<id>,
 // não mais o /video_feed legado (que só serve a câmera padrão e fazia
 // todo card parecer "parado" mesmo com outra câmera rodando).
-function useCameraRunning(cameraId: number): boolean {
-  const [running, setRunning] = useState(false);
+type EstadoDaCamera = {
+  running: boolean;
+  /** De qual fonte esta lendo. `undefined` num backend que nao manda o campo. */
+  modo?: "ao_vivo" | "reconectando" | "fixture";
+  tentativas: number;
+};
+
+function useCameraEstado(cameraId: number): EstadoDaCamera {
+  const [estado, setEstado] = useState<EstadoDaCamera>({ running: false, tentativas: 0 });
   useEffect(() => {
     let cancelled = false;
     const refresh = () => {
       getCameraStatus(cameraId)
         .then((status) => {
-          if (!cancelled) setRunning(Boolean(status.running));
+          if (cancelled) return;
+          setEstado({
+            running: Boolean(status.running),
+            modo: status.video?.modo,
+            tentativas: status.video?.reconnect_attempts ?? 0,
+          });
         })
         .catch(() => {
-          if (!cancelled) setRunning(false);
+          if (!cancelled) setEstado({ running: false, tentativas: 0 });
         });
     };
     refresh();
@@ -37,7 +49,19 @@ function useCameraRunning(cameraId: number): boolean {
       clearInterval(interval);
     };
   }, [cameraId]);
-  return running;
+  return estado;
+}
+
+/** Rotulo e cor do badge de modo. Reaproveita `status-dot ok|warn`.
+ *
+ * `fixture` fica em `warn` e nao em `error`: e fallback DELIBERADO, e a
+ * leitura tem que ser "fonte de demonstracao", nao "camera quebrada". */
+function badgeDeModo(estado: EstadoDaCamera): { tom: "ok" | "warn"; texto: string } {
+  if (estado.modo === "fixture") return { tom: "warn", texto: "modo fixture" };
+  if (estado.modo === "reconectando") {
+    return { tom: "warn", texto: `reconectando (${estado.tentativas + 1})` };
+  }
+  return { tom: "ok", texto: "recebendo" };
 }
 
 function CameraCard({
@@ -49,14 +73,23 @@ function CameraCard({
   onConfigure: (id: number) => void;
   canConfigure: boolean;
 }) {
-  const running = useCameraRunning(camera.id);
+  const estado = useCameraEstado(camera.id);
+  const running = estado.running;
+  const modo = badgeDeModo(estado);
 
   return (
     <div className="cam-card">
       {running ? (
         <div className="cam-frame">
-          <span className="cam-live-tag">
-            <span className="status-dot ok" /> recebendo
+          <span
+            className="cam-live-tag"
+            title={
+              estado.modo === "fixture"
+                ? "Fonte de demonstração — a fonte configurada não respondeu"
+                : undefined
+            }
+          >
+            <span className={`status-dot ${modo.tom}`} /> {modo.texto}
           </span>
           <img src={`/api/cameras/${camera.id}/video_feed`} alt={camera.name} />
         </div>
@@ -82,8 +115,17 @@ function CameraCard({
           ))}
         </div>
         <div className="cam-footer">
-          <span className="cam-footer-stat" style={{ color: running ? "var(--ok, #22c55e)" : "var(--muted)" }}>
-            {running ? "rodando" : "parada"}
+          <span
+            className="cam-footer-stat"
+            style={{
+              color: !running
+                ? "var(--muted)"
+                : estado.modo === undefined || estado.modo === "ao_vivo"
+                  ? "var(--ok, #22c55e)"
+                  : "var(--warning, #f59e0b)",
+            }}
+          >
+            {!running ? "parada" : estado.modo === "fixture" ? "fonte de demonstração" : "rodando"}
           </span>
           <button type="button" className="cam-configure" onClick={() => onConfigure(camera.id)}>
             {canConfigure ? "Configurar" : "Ver"}
