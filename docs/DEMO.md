@@ -4,6 +4,32 @@ Máquina: AMD Ryzen 7 5700X, **CPU-only** (`torch 2.14.0+cpu`,
 `torch.cuda.is_available() == False`), Windows 10 Pro 10.0.19045, Python
 3.11.9. Todo número deste documento foi medido nesta máquina.
 
+## Se você só tem 30 segundos antes de apresentar, leia isto
+
+Três coisas foram descobertas medindo, tarde, e cada uma teria estragado a
+apresentação de um jeito diferente:
+
+1. **A tela demora, e não está travada.** Boot frio até o primeiro alerta são
+   **~35 s**: `run.py` leva **17 s** até o navegador responder (carrega os dois
+   pesos YOLO e o MediaPipe), e o botão **Iniciar bloqueia por 7,6 s** antes de
+   devolver. Os dois parecem congelamento e não são. **Não clique duas vezes** —
+   espere. O roteiro reserva 3 minutos para chegar ao primeiro alerta, então há
+   folga de sobra.
+2. **`LLM_TIMEOUT_S=8` abortaria 100% das chamadas.** A API do Gemini recusa
+   deadline abaixo de **10 s** (`HTTP 400`, *"Minimum allowed deadline is
+   10s"*), e as 6 chamadas reais levaram de **16 a 38 segundos**. O default
+   agora é **30 s**. Se alguém "otimizar" isso de volta para 8, a camada de
+   segunda opinião gasta cota e nunca produz nada — pior que desligada. E é o
+   que faz o desenho assíncrono valer: 27 s de latência mediana não custam **um
+   único frame**, porque a chamada roda fora da thread de captura.
+3. **`AUTO_CREATE_TABLES=false` subia com ZERO workers** — corrigido, mas saiba
+   o sintoma. A aplicação subia, o login funcionava, a lista de câmeras
+   aparecia, e **nada iniciava**: todo `start` devolvia `409 sem worker ativo`.
+   Se você vir isso, é porque está rodando código anterior ao commit `8f227df`.
+
+E a moldura de tudo: **o RTSP nunca foi exercitado contra as câmeras da
+planta** (próxima seção). O demo roda em modo fixture, de propósito.
+
 ---
 
 ## ⚠️ A declaração que precisa aparecer no slide

@@ -312,3 +312,53 @@ def test_boot_nao_quebra_em_banco_sem_tabela(tmp_path):
     app = create_app(SemNada)  # nao deve levantar
 
     assert app.extensions["monitor_service"]._workers == {}
+
+# --------------------------------------------------------------------------
+# A versao de prompt em uso e uma decisao MEDIDA, nao uma preferencia: as 6
+# chamadas reais da Fase 5 (docs/SPRINT3.md) mostraram a v2 melhor que a v1 nas
+# 3 cenas. Na cena SEGURA, onde o YOLO acusa missing_helmet critical para duas
+# pessoas de capacete, a v2 responde `epis_ausentes: []` e escreve "ambos
+# utilizando capacete"; a v1 tambem nao lista helmet, mas afirma luvas, oculos
+# e mascara ausentes a 0,90 de confianca — trocando dois falsos positivos por
+# tres. Voltar o default para v1 sem medicao nova seria regressao silenciosa.
+#
+# Os testes checam o default do CODIGO e do .env.example, sem depender do
+# `.env` da maquina que roda a suite (esse pode legitimamente estar em v1 para
+# alguem comparando as duas versoes).
+def test_versao_de_prompt_padrao_e_v2_no_env_example():
+    assert ler_env_example()["LLM_PROMPT_VERSION"] == "v2", (
+        "o .env.example e o que a pessoa copia; se ele disser v1, o sistema "
+        "roda com a versao pior por default"
+    )
+
+
+def test_versao_de_prompt_padrao_e_v2_no_codigo():
+    """O literal de fallback em `app/config.py`, nao o valor do ambiente.
+
+    Lido do texto-fonte de proposito: `Config.LLM_PROMPT_VERSION` reflete o
+    `.env` de quem roda a suite, e o que este teste protege e o default que
+    vale quando nao ha `.env` nenhum.
+
+    Nota sobre uma segunda copia do default: `ServicoDeRiscoLLM
+    .a_partir_da_config` tem `config.get("LLM_PROMPT_VERSION", "v1")`. Esse
+    `"v1"` esta MORTO enquanto `Config` definir a chave — verificado: com uma
+    config real a versao efetiva sai `v2`, e o fallback so aparece se a chave
+    for removida de `Config`. Fica registrado como armadilha latente, nao
+    corrigido: mexer nisso e mudanca de codigo de producao.
+    """
+    fonte = (RAIZ / "app" / "config.py").read_text(encoding="utf-8")
+    casa = re.search(
+        r'LLM_PROMPT_VERSION\s*=\s*os\.getenv\(\s*"LLM_PROMPT_VERSION"\s*,\s*"(v\d+)"',
+        fonte,
+    )
+    assert casa, "nao encontrei o default de LLM_PROMPT_VERSION em app/config.py"
+    assert casa.group(1) == "v2", f"default no codigo esta em {casa.group(1)}, deveria ser v2"
+
+
+def test_a_versao_padrao_aponta_para_um_prompt_que_existe():
+    """Default apontando para arquivo inexistente falharia so em runtime."""
+    from app.llm import versoes_de_prompt
+
+    assert "v2" in versoes_de_prompt(), (
+        f"app/llm/prompts/ tem {versoes_de_prompt()}; o default v2 nao existe la"
+    )
