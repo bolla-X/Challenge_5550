@@ -283,14 +283,20 @@ paths:
 ./ffmpeg.exe -re -stream_loop -1 -i tests/fixtures/bench.mp4 \
   -an -c:v libx264 -preset ultrafast -tune zerolatency -g 30 -pix_fmt yuv420p \
   -f rtsp -rtsp_transport tcp \
-  "rtsp://demo:<SENHA_URLENCODED>@localhost:554/cam/realmonitor"
+  "rtsp://usuario:senha@localhost:554/cam/realmonitor"
 ```
 
-> Os `<...>` acima são placeholders de propósito: este arquivo é versionado
-> num repositório **público**, e `tests/test_credencial_rtsp.py` varre todo
-> arquivo rastreado procurando `usuario:senha@` em URL. Ele reprovou a primeira
-> versão deste documento, que trazia a senha sintética literal — o teste
+> `usuario:senha` e `<SENHA_SINTETICA>` acima são placeholders de propósito, e
+> `usuario:senha@` é exatamente o placeholder que
+> `tests/test_credencial_rtsp.py` reconhece como documentação. Esse teste varre
+> todo arquivo **rastreado pelo git** procurando `usuario:senha@` em URL, e
+> reprovou duas versões deste documento: a primeira trazia a senha sintética
+> literal, a segunda um `<SENHA_URLENCODED>` que o regex também pega. O teste
 > funcionando. Substitua na hora de rodar, sem commitar.
+>
+> Detalhe que vale saber: como a varredura usa `git ls-files`, ela só vê o
+> arquivo **depois** de ele ser rastreado — um documento novo passa a ser
+> auditado no commit, não antes.
 >
 > A credencial vai **percent-encoded** na URL (`@` → `%40`, `#` → `%23`).
 > É o que `montar_url_rtsp` faz, e o teste contra o servidor local confirmou
