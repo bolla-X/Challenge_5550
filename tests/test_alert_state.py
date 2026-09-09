@@ -46,6 +46,62 @@ def test_alert_state_creates_and_resolves_after_confirmation_frames(app):
         assert any(event == "alert_resolved" for event, _ in socket.events)
 
 
+def test_frame_reaproveitado_nao_conta_como_confirmacao(app):
+    """Histerese tem que contar DETECCAO, nao iteracao do loop.
+
+    Com `DETECTION_EVERY_N_FRAMES=3`, dois de cada tres frames reaproveitam a
+    mesma `FrameAnalysis` (caracterizado em tests/test_camera_worker_cache.py).
+    Como o contador andava a cada chamada de `process`, uma unica inferencia
+    real satisfazia sozinha o `create_after_frames=3` — a histerese
+    documentada como "cria apos 3 frames ruins" exigia 1.
+
+    Medido na fixture de 7 s: tracks vistos em UMA deteccao criaram 5 alertas
+    cada, e a fixture toda gerou 76 alertas para 6 tracks.
+    """
+    with app.app_context():
+        socket = DummySocket()
+        service = AlertStateService(AlertRepository(), socket, create_after_frames=3, resolve_after_frames=2)
+
+        # Uma deteccao real, vista tres vezes pelo loop: UMA confirmacao.
+        assert service.process([missing_helmet()], deteccao_nova=True)["active"] == []
+        assert service.process([missing_helmet()], deteccao_nova=False)["active"] == []
+        assert service.process([missing_helmet()], deteccao_nova=False)["active"] == []
+        assert not any(evento == "alert_created" for evento, _ in socket.events), (
+            "uma deteccao vista tres vezes pelo loop nao pode criar alerta"
+        )
+
+        # Segunda deteccao real.
+        service.process([missing_helmet()], deteccao_nova=True)
+        assert not any(evento == "alert_created" for evento, _ in socket.events)
+
+        # Terceira: agora sim.
+        terceira = service.process([missing_helmet()], deteccao_nova=True)
+        assert len(terceira["active"]) == 1
+        assert any(evento == "alert_created" for evento, _ in socket.events)
+
+
+def test_frame_reaproveitado_nao_conta_para_resolver(app):
+    """O mesmo vale para o outro lado da histerese.
+
+    Sem isto, um alerta resolveria depois de menos deteccoes limpas do que
+    `resolve_after_frames` promete — e voltaria a ser criado no proximo frame
+    ruim, que e a outra metade do churn medido.
+    """
+    with app.app_context():
+        socket = DummySocket()
+        service = AlertStateService(AlertRepository(), socket, create_after_frames=1, resolve_after_frames=3)
+
+        assert len(service.process([missing_helmet()], deteccao_nova=True)["active"]) == 1
+
+        assert service.process([], deteccao_nova=True)["resolved"] == []
+        assert service.process([], deteccao_nova=False)["resolved"] == []
+        assert service.process([], deteccao_nova=False)["resolved"] == []
+        assert service.process([], deteccao_nova=True)["resolved"] == []
+
+        resolvido = service.process([], deteccao_nova=True)
+        assert len(resolvido["resolved"]) == 1, "tres deteccoes limpas deveriam resolver"
+
+
 def test_alerta_ativo_nao_grava_a_cada_frame(app):
     """Renovar um alerta que continua ativo não pode gravar por frame.
 
