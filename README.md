@@ -130,7 +130,17 @@ O modelo **tem** a classe `Person`, e por isso o projeto nasceu com `MULTI_PERSO
 - A causa está na **matriz de confusão publicada pelo próprio autor** ([confusion_matrix.png](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection/blob/main/confusion_matrix.png)): `Person` tem ~**277 instâncias** de validação contra ~**8.946** de `Hardhat`. É a menor classe real do dataset — ~32x menos suportada. Ela funciona na distribuição de treino dela e falha fora.
 - Para comparação, na mesma imagem `yolov8n.pt` (COCO) detecta as duas pessoas com confiança **0,87** e **0,73**.
 
-**Consequência:** com `MULTI_PERSON_DETECTION=false`, `person_compliance_matcher.py:83` recebe lista de pessoas vazia. O sistema desenha capacetes e coletes no vídeo e **nunca avalia a conformidade de ninguém** — nenhum alerta de EPI é criado. Ligue `MULTI_PERSON_DETECTION=true` (custo medido: **−20% de FPS**, ver [docs/BENCH.md](docs/BENCH.md)).
+**Consequência:** com `MULTI_PERSON_DETECTION=false`, `person_compliance_matcher.py:83` recebe lista de pessoas vazia. O sistema desenha capacetes e coletes no vídeo e **nunca avalia a conformidade de ninguém** — nenhum alerta de EPI é criado.
+
+Por isso **`MULTI_PERSON_DETECTION=true` é o padrão** do `.env.example`, travado por `tests/test_onboarding.py`. O custo é declarado, não escondido: **−20% de FPS** (24,32 → 19,42 a `imgsz=416`, ver [docs/BENCH.md](docs/BENCH.md)). É o preço de o sistema fazer o que promete.
+
+Isso exige o segundo peso, também não versionado. Baixe uma vez e mova para `models/`:
+
+```bash
+python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+```
+
+`PERSON_MODEL_PATH` aponta para `models/yolov8n.pt` de propósito: com o nome solto (`yolov8n.pt`), o ultralytics baixa o peso no diretório de trabalho de quem rodou — fora de `models/`, que é o único lugar ignorado pelo git.
 
 #### `YOLO_IMGSZ=416` está abaixo da resolução de treino
 
