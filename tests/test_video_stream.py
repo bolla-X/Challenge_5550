@@ -53,16 +53,21 @@ def capturas(monkeypatch):
     fila: list[FakeCapture] = []
     criadas: list[FakeCapture] = []
 
-    def fabrica(_source, _api=None):
+    chamadas: list[tuple] = []
+
+    def fabrica(_source, _api=None, _params=None):
         # `_api` existe porque VideoStream escolhe o backend explicitamente
         # (DirectShow para webcam no Windows, ver video_stream.capture_api).
-        # Fica opcional para o dublê servir aos dois formatos de chamada.
+        # `_params` e a sobrecarga (filename, apiPreference, params) do OpenCV,
+        # usada para o timeout de abertura. Os dois ficam opcionais para o
+        # dublê servir a todos os formatos de chamada.
+        chamadas.append((_source, _api, _params))
         cap = fila.pop(0) if fila else FakeCapture([], abre=False)
         criadas.append(cap)
         return cap
 
     monkeypatch.setattr(vs_module.cv2, "VideoCapture", fabrica)
-    return {"fila": fila, "criadas": criadas}
+    return {"fila": fila, "criadas": criadas, "chamadas": chamadas}
 
 
 def _stream(**kwargs) -> VideoStream:
@@ -203,3 +208,117 @@ def test_latest_frame_sobrevive_a_queda(relogio, capturas):
 
     assert stream.latest_frame() is not None
     assert stream.status().state in (RECONNECTING, UNAVAILABLE)
+
+
+# ------------------------------------------- abertura de fonte de rede -----
+# Os dois testes abaixo vieram de MEDICAO contra um servidor RTSP local
+# (mediamtx com usuario e senha), nao de leitura de codigo. Com o servidor
+# morto, abrir a fonte custava 34,3 s por tentativa e o log do OpenCV
+# despejava uma excecao do backend CAP_IMAGES sobre a URL RTSP.
+#
+# Medido nesta maquina, abrindo `rtsp://...@localhost:554/...` sem nada
+# escutando na porta:
+#
+#   CAP_ANY,    sem params                      -> 34.319 ms
+#   CAP_FFMPEG, sem params                      -> 30.054 ms
+#   CAP_FFMPEG, cap.set() antes do open         -> 30.045 ms  (nao funciona)
+#   CAP_FFMPEG, params=[OPEN_TIMEOUT_MSEC 3000] ->  3.037 ms
+#
+# 11,3x. `cap.set()` nao serve porque a propriedade e "open-only" — OpenCV
+# 4.11.0, modules/videoio/include/opencv2/videoio.hpp:
+#   CAP_PROP_OPEN_TIMEOUT_MSEC=53, //!< (**open-only**) timeout in
+#   milliseconds for opening a video capture (applicable for FFmpeg and
+#   GStreamer back-ends only)
+# Por isso vai pela sobrecarga de construtor que aceita params:
+#   explicit VideoCapture(const String& filename, int apiPreference,
+#                         const std::vector<int>& params);
+#   "The params parameter allows to specify extra parameters encoded as pairs
+#    (paramId_1, paramValue_1, paramId_2, paramValue_2, ...)."
+def test_fonte_de_rede_abre_com_o_backend_ffmpeg():
+    """CAP_ANY faz o OpenCV tentar outros backends depois do FFMPEG falhar.
+
+    Medido: 4,3 s a mais por tentativa, e uma excecao do backend CAP_IMAGES
+    sobre a URL RTSP no log — erro que nao tem nada a ver com a causa real e
+    manda quem esta diagnosticando para o lado errado.
+    """
+    assert vs_module.capture_api("rtsp://camera/1") == vs_module.cv2.CAP_FFMPEG
+    assert vs_module.capture_api("http://camera/stream") == vs_module.cv2.CAP_FFMPEG
+
+
+def test_arquivo_e_webcam_nao_mudam_de_backend():
+    """Contraprova: so fonte de REDE muda. Webcam no Windows segue DirectShow
+    (medido: 0,86 s contra 20 s do MSMF) e arquivo segue no CAP_ANY."""
+    import sys
+
+    if sys.platform == "win32":
+        assert vs_module.capture_api(0) == vs_module.cv2.CAP_DSHOW
+    assert vs_module.capture_api("tests/fixtures/bench.mp4") == vs_module.cv2.CAP_ANY
+
+
+def test_fonte_de_rede_recebe_timeout_de_abertura(relogio, capturas):
+    """Sem isto, uma camera morta trava o worker 30 s por tentativa.
+
+    O default do OpenCV e o proprio callback de interrupcao dele: o log traz
+    "Stream timeout triggered after 30043.883000 ms". Com 5 tentativas antes do
+    modo fixture, sao ~150 s de camera parada antes de o demo ter imagem.
+    """
+    capturas["fila"].append(FakeCapture([True]))
+    stream = VideoStream("rtsp://camera/1", 640, 480, open_timeout_ms=4000)
+
+    stream.read()
+
+    _source, _api, params = capturas["chamadas"][0]
+    assert params is not None, "fonte de rede tem que abrir com params de timeout"
+    pares = dict(zip(params[::2], params[1::2]))
+    assert pares[int(vs_module.cv2.CAP_PROP_OPEN_TIMEOUT_MSEC)] == 4000
+    assert pares[int(vs_module.cv2.CAP_PROP_READ_TIMEOUT_MSEC)] == 4000
+
+
+def test_arquivo_local_nao_recebe_timeout(relogio, capturas):
+    """Timeout de rede em arquivo local nao faz sentido, e a fixture do modo
+    fixture e um arquivo local: um timeout ali seria risco sem ganho."""
+    capturas["fila"].append(FakeCapture([True]))
+    stream = VideoStream("tests/fixtures/bench.mp4", 640, 480)
+
+    stream.read()
+
+    _source, _api, params = capturas["chamadas"][0]
+    assert params is None, f"arquivo local nao deveria receber params: {params}"
+
+
+# ----------------------------------------------- fixture em loop -----------
+def test_fim_de_arquivo_em_loop_rebobina_em_vez_de_falhar(relogio, capturas):
+    """`em_loop=True`: fim do video nao e falha de fonte.
+
+    Sem isto o fim do arquivo entra no caminho de falha — 15 leituras ruins
+    mais 0,5 s de backoff a cada volta, ou seja meio segundo de imagem
+    congelada a cada 7 s de fixture, na frente de quem esta assistindo.
+    """
+    capturas["fila"].append(FakeCapture([True, False, True]))
+    stream = VideoStream("bench.mp4", 640, 480, em_loop=True)
+
+    assert stream.read()[0] is True
+    ok, _ = stream.read()  # fim do arquivo: rebobina, nao conta falha
+
+    assert ok is False, "a leitura que bateu no fim ainda devolve falha"
+    assert stream.status().consecutive_failures == 0, "rebobinar nao e falha"
+    assert stream.status().state == LIVE, "nao pode ir para reconnecting no fim do arquivo"
+    assert stream.read()[0] is True, "depois de rebobinar, volta a entregar"
+
+
+def test_arquivo_ilegivel_em_loop_nao_gira_para_sempre(relogio, capturas):
+    """Contraprova: rebobinar uma vez so.
+
+    Se o .mp4 estiver corrompido, rebobinar sem limite esconderia o problema
+    para sempre. A segunda falha seguida cai no caminho normal.
+    """
+    capturas["fila"].append(FakeCapture([True] + [False] * 30))
+    stream = VideoStream("bench.mp4", 640, 480, em_loop=True, failures_before_reconnect=3)
+
+    stream.read()
+    for _ in range(6):
+        stream.read()
+
+    assert stream.status().consecutive_failures > 0, (
+        "arquivo ilegivel tem que aparecer como falha, nao virar loop infinito de rebobinamento"
+    )
