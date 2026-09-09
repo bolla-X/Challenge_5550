@@ -146,7 +146,10 @@ def test_erro_nunca_carrega_a_chave_de_api():
     Quem le log de producao nao deveria conseguir extrair a chave de uma falha
     de autenticacao.
     """
-    segredo = "AIzaSyFAKE-CHAVE-DE-TESTE-NAO-REAL-123456789"
+    # Montado em runtime de proposito: escrito literal, este valor casaria com
+    # o padrao de chave do Google e faria scanner de segredo (e o nosso proprio
+    # test_nenhum_arquivo_versionado_carrega_chave_do_google) acusar o repo.
+    segredo = "AIza" + "Sy" + "FALSA" * 6
 
     class ProvedorQueVazaria:
         def analisar(self, imagem_jpeg, prompt):  # noqa: ARG002

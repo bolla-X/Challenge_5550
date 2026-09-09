@@ -110,6 +110,51 @@ def test_env_example_aponta_o_peso_de_pessoa_para_arquivo_local():
     )
 
 
+def test_env_example_nao_entrega_chave_de_llm():
+    """Chave de API so vive no .env, que e ignorado pelo git.
+
+    O `.env.example` e versionado num repositorio PUBLICO. Uma chave real ali
+    fica exposta para sempre no historico, mesmo se removida depois. O
+    placeholder tem que ser vazio, e a ausencia dele desliga a camada LLM sem
+    derrubar nada (ver AnalisadorDeRisco: provedor indisponivel devolve None).
+    """
+    valores = ler_env_example()
+    assert "GEMINI_API_KEY" in valores, "o exemplo precisa DOCUMENTAR a variavel, mesmo vazia"
+    assert valores["GEMINI_API_KEY"] == "", (
+        "GEMINI_API_KEY no .env.example tem que ser placeholder VAZIO. "
+        "Qualquer valor aqui vaza num repositorio publico."
+    )
+
+
+def test_nenhum_arquivo_versionado_carrega_chave_do_google():
+    """Varredura: nada rastreado pelo git pode conter chave estilo Google.
+
+    Trava o erro mais facil de cometer — colar a chave num script de teste, num
+    doc de demo ou num notebook e commitar sem perceber.
+    """
+    import re
+    import subprocess
+
+    padrao = re.compile(r"AIza[0-9A-Za-z_\-]{20,}")
+    rastreados = subprocess.run(
+        ["git", "ls-files"], cwd=RAIZ, capture_output=True, text=True, check=True
+    ).stdout.split()
+
+    culpados = []
+    for relativo in rastreados:
+        caminho = RAIZ / relativo
+        if not caminho.is_file() or caminho.stat().st_size > 2_000_000:
+            continue
+        try:
+            texto = caminho.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if padrao.search(texto):
+            culpados.append(relativo)
+
+    assert culpados == [], f"chave estilo Google encontrada em arquivo versionado: {culpados}"
+
+
 def test_create_all_cria_tabelas_sem_registrar_versao_no_alembic(tmp_path):
     """Caracterizacao: documenta POR QUE o default acima precisa ser `false`.
 

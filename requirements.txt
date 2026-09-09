@@ -18,3 +18,12 @@ gunicorn==22.0.0
 pytest==8.3.3
 pytest-cov==5.0.0
 ruff==0.6.9
+
+# --- Camada LLM multimodal (Sprint 3) -----------------------------------
+# google-genai usa transporte HTTP/JSON e NAO puxa protobuf: verificado com
+# `pip install --dry-run` ANTES de instalar, e `pip check` limpo depois. Isso
+# importa porque mediapipe 0.10.14 exige protobuf<5,>=4.25.3 — um SDK que
+# puxasse protobuf 5 quebraria a visao inteira.
+# numpy 1.26.4, protobuf 4.25.9, mediapipe e ultralytics ficam intactos.
+google-genai==2.22.0
+pydantic==2.13.5
