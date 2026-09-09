@@ -128,10 +128,20 @@ devolve sai a `0,30` de confiança e é falso positivo.
 | SHA-256 da origem | `2a670226bf2664aad3d2034dd1c063ab43380fd41a4665aab7f2fd53f9162c8e` |
 | Origem | 2100x1500 |
 
-Três trabalhadores, **todos de capacete** — e o YOLO perde justamente o do
-primeiro plano, que é o maior e mais óbvio da imagem, porque está cortado na
-borda superior. Ninguém usa colete. É a cena onde YOLO e LLM têm mais chance
-de discordar, e por isso a mais informativa do relatório.
+Três trabalhadores, **todos de capacete**, ninguém de colete, concretagem
+dentro de área cercada.
+
+Correção de uma medição anterior: eu havia registrado que o YOLO perdia o
+capacete do primeiro plano. Isso foi medido na imagem original **esticada**
+para 1280x720 com `imgsz=640`. Na resolução real desta cena (1280x914,
+proporção preservada) e na config do pipeline (`imgsz=416`, `conf=0.35`), o
+Vyra encontra **os três** capacetes — 0,59, 0,58 e 0,54. O redimensionamento
+que preserva proporção ajudou.
+
+A ambiguidade real da cena é outra, e é melhor: o YOLO acerta os capacetes e
+marca `vest: missing` para as três pessoas. Colete é exigido nessa atividade,
+dentro de área cercada, sem tráfego de veículo? É julgamento, não detecção — e
+é exatamente onde uma camada de linguagem pode acrescentar ou estragar.
 
 ### Atribuição
 

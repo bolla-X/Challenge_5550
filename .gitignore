@@ -29,3 +29,7 @@ tests/fixtures/_source/
 .coverage
 
 tests/fixtures/cenas/
+
+# Goldens SAO versionados: sao texto pequeno e sao a evidencia congelada.
+# A chave de API nunca entra neles (ver scripts/gravar_goldens.py).
+!tests/goldens/
