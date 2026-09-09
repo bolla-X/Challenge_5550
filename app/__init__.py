@@ -167,11 +167,32 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     register_cli(app)
 
-    if app.config.get("AUTO_CREATE_TABLES", True):
-        with app.app_context():
+    with app.app_context():
+        if app.config.get("AUTO_CREATE_TABLES", True):
             db.create_all()
-            # Sem seed automático de propósito — o usuário cadastra as
-            # câmeras dele pela tela/API, nada fictício nasce sozinho.
+        # FORA do guard de AUTO_CREATE_TABLES, e de propósito: criar tabela e
+        # carregar os workers das câmeras que já estão no banco são coisas sem
+        # relação. Enquanto estavam juntos, quem seguia a recomendação da
+        # docs/AMBIENTE.md — Alembic dono do esquema, AUTO_CREATE_TABLES=false
+        # — subia com o dashboard morto: as câmeras apareciam na lista, mas
+        # `/api/cameras/<id>/start` devolvia 409 e `/start` devolvia 404,
+        # porque não havia worker nem câmera padrão.
+        #
+        # Sem seed automático de propósito — o usuário cadastra as câmeras
+        # dele pela tela/API, nada fictício nasce sozinho.
+        try:
             monitor_service.load_cameras_from_db()
+        except Exception as exc:  # noqa: BLE001
+            # Banco ainda sem a tabela `cameras`. É o caso NORMAL de
+            # `flask --app wsgi db upgrade`, que constrói a aplicação ANTES de
+            # rodar a migração. Falhar aqui mataria justamente o comando de
+            # onboarding — o espelho do desvio #1 da AMBIENTE.md.
+            #
+            # Só o NOME da exceção vai para o log: a mensagem pode carregar a
+            # URL da fonte de uma câmera, e com ela a credencial.
+            logging.getLogger(__name__).info(
+                "workers_nao_carregados_no_boot",
+                extra={"motivo": type(exc).__name__, "hint": "esquema ainda não migrado?"},
+            )
 
     return app
