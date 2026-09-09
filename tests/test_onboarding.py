@@ -242,3 +242,73 @@ def test_migracoes_aplicam_do_zero_quando_alembic_e_o_dono_do_esquema(tmp_path):
 
     assert {"alerts", "cameras", "event_logs", "users", "alembic_version"} <= tabelas
     assert versoes, "alembic_version ficou vazia: o esquema nao esta carimbado"
+
+# --------------------------------------------------------------------------
+# Achado da Fase 5, exercitando o cenario do demo com DUAS cameras: com
+# `AUTO_CREATE_TABLES=false` a aplicacao subia com ZERO workers.
+#
+# `load_cameras_from_db()` estava DENTRO do guard de AUTO_CREATE_TABLES, junto
+# do `db.create_all()`. Sao duas coisas sem relacao: criar tabela e carregar os
+# workers das cameras que ja estao no banco. Quem segue a recomendacao da
+# AMBIENTE.md — Alembic dono do esquema, `AUTO_CREATE_TABLES=false` — subia com
+# o dashboard morto: as cameras aparecem na lista (leitura direta do banco),
+# mas `/api/cameras/<id>/start` devolve 409 "camera sem worker ativo" e a rota
+# legada `/start` devolve 404, porque nao existe camera padrao.
+#
+# Medido no mesmo banco, com 2 cameras cadastradas:
+#   AUTO_CREATE_TABLES=true  -> workers no boot: 2, camera padrao: 1
+#   AUTO_CREATE_TABLES=false -> workers no boot: 0, camera padrao: None
+def test_workers_carregam_no_boot_mesmo_com_alembic_dono_do_esquema(tmp_path):
+    """Camera no banco tem que ganhar worker no boot, com create_all ou sem.
+
+    Este e o caso de quem usa migracao de verdade em vez de `create_all()`.
+    """
+    from app.models import Camera
+
+    banco = tmp_path / "com_camera.db"
+
+    class ComCreateAll(TestConfig):
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{banco.as_posix()}"
+        AUTO_CREATE_TABLES = True
+
+    # Primeiro boot cria o esquema e semeia uma camera.
+    app = create_app(ComCreateAll)
+    with app.app_context():
+        db.create_all()
+        db.session.add(Camera(name="Fresa 1", source_type="Arquivo", source="tests/fixtures/bench.mp4"))
+        db.session.commit()
+
+    class SemCreateAll(TestConfig):
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{banco.as_posix()}"
+        AUTO_CREATE_TABLES = False
+
+    # Segundo boot, agora sem create_all: e aqui que os workers desapareciam.
+    app = create_app(SemCreateAll)
+    monitor = app.extensions["monitor_service"]
+
+    assert len(monitor._workers) == 1, (
+        "camera cadastrada no banco tem que ganhar worker no boot mesmo com "
+        f"AUTO_CREATE_TABLES=false; workers={len(monitor._workers)}"
+    )
+    assert monitor._default_camera_id is not None, (
+        "sem camera padrao, as rotas legadas (/start, /status) devolvem 404"
+    )
+
+
+def test_boot_nao_quebra_em_banco_sem_tabela(tmp_path):
+    """Contraprova, e a razao pela qual a correcao precisa de guarda.
+
+    `flask --app wsgi db upgrade` constroi a aplicacao ANTES de rodar a
+    migracao. Num banco novo a tabela `cameras` ainda nao existe, entao
+    carregar workers no boot sem proteger a consulta faria justamente o comando
+    de onboarding morrer — o espelho do desvio #1 deste arquivo.
+    """
+    banco = tmp_path / "vazio.db"
+
+    class SemNada(TestConfig):
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{banco.as_posix()}"
+        AUTO_CREATE_TABLES = False
+
+    app = create_app(SemNada)  # nao deve levantar
+
+    assert app.extensions["monitor_service"]._workers == {}
