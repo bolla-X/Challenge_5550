@@ -27,3 +27,5 @@ tests/fixtures/_source/
 
 # Artefato do pytest-cov.
 .coverage
+
+tests/fixtures/cenas/

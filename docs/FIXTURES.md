@@ -78,6 +78,72 @@ entrada** — esse é validado. O recorte é determinístico porque a janela est
 fixada em número de **frame**, não em segundo: segundo depende de
 arredondamento de FPS, frame não.
 
+## Cenas da Sprint 3 — `tests/fixtures/cenas/`
+
+Três **imagens estáticas** de canteiro, usadas pelos golden tests da camada
+LLM. São imagens e não vídeo de propósito: as cenas precisam ser
+determinísticas e inspecionáveis a olho, e um frame de vídeo escolhido por
+índice muda de conteúdo se a fixture for regerada com outro codec.
+
+Mesmo padrão da fixture de bench: **fora do git**, baixadas por
+`scripts/fetch_fixtures.py`, SHA-256 validado na origem. Redimensionadas com o
+lado maior em 1280 px **preservando a proporção** — esticar para um formato
+fixo deformaria as pessoas, e pessoa deformada muda o que o modelo multimodal
+vê.
+
+### `segura.jpg` — 1280x866
+
+| | |
+|---|---|
+| Origem | [Grand Canyon NP- Demolition of Maswik South Lodging Complex 1165](https://commons.wikimedia.org/wiki/File:Grand_Canyon_NP-_Demolition_of_Maswik_South_Lodging_Complex_1165_-_47990656061.jpg) |
+| **Autor** | **Grand Canyon NPS** |
+| **Licença** | **CC BY 2.0** |
+| SHA-256 da origem | `35a4a05ccb5675867d33fcd28dab1a58d40ac8f3968b4bc974a604d38247ac76` |
+| Origem | 4824x3264 |
+
+Dois trabalhadores com capacete **e** colete de alta visibilidade, canteiro de
+demolição com escavadeira. O YOLO detecta `Hardhat` 1 + `Safety Vest` 1.
+
+### `risco.jpg` — 1280x854
+
+| | |
+|---|---|
+| Origem | [Working on the approaches to the Pashad bridge across the Kunar River, Afghanistan](https://commons.wikimedia.org/wiki/File:Working_on_the_approaches_to_the_Pashad_bridge_across_the_Kunar_River,_Afghanistan.JPG) |
+| **Autor** | **Brian Boisvert** |
+| **Licença** | **Domínio público** |
+| SHA-256 da origem | `cce11ecb351f7c98efe7454327c0461cda31cc2f11d8155d2ec05721bd525777` |
+| Origem | 1600x1067 |
+
+Obra de ponte com escavadeira e rolo compactador em operação. O COCO detecta
+**9 pessoas**; nenhuma de capacete ou colete. O único `Hardhat` que o Vyra
+devolve sai a `0,30` de confiança e é falso positivo.
+
+### `ambigua.jpg` — 1280x914
+
+| | |
+|---|---|
+| Origem | [US Navy 091022-N-2571C-042 Seabees use a long board to screed wet concrete](https://commons.wikimedia.org/wiki/File:US_Navy_091022-N-2571C-042_Seabees_use_a_long_board_to_screed_wet_concrete.jpg) |
+| **Autor** | **U.S. Navy photo by Religious Program Specialist 2nd Class Kirk Cogswell** |
+| **Licença** | **Domínio público** |
+| SHA-256 da origem | `2a670226bf2664aad3d2034dd1c063ab43380fd41a4665aab7f2fd53f9162c8e` |
+| Origem | 2100x1500 |
+
+Três trabalhadores, **todos de capacete** — e o YOLO perde justamente o do
+primeiro plano, que é o maior e mais óbvio da imagem, porque está cortado na
+borda superior. Ninguém usa colete. É a cena onde YOLO e LLM têm mais chance
+de discordar, e por isso a mais informativa do relatório.
+
+### Atribuição
+
+`segura.jpg` deriva de obra de **Grand Canyon NPS** sob **CC BY 2.0** — exige
+atribuição, mantida aqui e em `docs/SPRINT3.md`. As outras duas são domínio
+público (obras do governo federal dos EUA); a atribuição ao autor é cortesia,
+não obrigação.
+
+Nenhuma das três é redistribuída por este repositório
+(`.gitignore: tests/fixtures/cenas/`): cada pessoa baixa da origem ao rodar o
+script.
+
 ## Adicionando uma fixture nova
 
 Acrescente uma entrada em `FIXTURES` no `scripts/fetch_fixtures.py` e uma

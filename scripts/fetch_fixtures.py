@@ -33,6 +33,7 @@ import cv2
 RAIZ = Path(__file__).resolve().parent.parent
 DIR_FIXTURES = RAIZ / "tests" / "fixtures"
 DIR_ORIGEM = DIR_FIXTURES / "_source"
+DIR_CENAS = DIR_FIXTURES / "cenas"
 
 # O Wikimedia recusa o User-Agent padrao do urllib com HTTP 403. A politica
 # deles exige identificacao: https://meta.wikimedia.org/wiki/User-Agent_policy
@@ -87,6 +88,75 @@ FIXTURES: tuple[Fixture, ...] = (
 )
 
 
+@dataclass(frozen=True)
+class Cena:
+    """Imagem estatica de canteiro, usada pelos golden tests da camada LLM.
+
+    Sao IMAGENS, nao video: as tres cenas da Sprint 3 precisam ser
+    deterministicas e inspecionaveis a olho, e um frame de video escolhido por
+    indice muda de conteudo se a fixture for regerada com outro codec.
+    """
+
+    nome: str
+    destino: str
+    url: str
+    sha256_origem: str
+    lado_maior: int
+    licenca: str
+    autor: str
+    pagina: str
+    por_que: str
+
+    @property
+    def arquivo_origem(self) -> Path:
+        return DIR_ORIGEM / self.url.rsplit("/", 1)[-1].replace("%2C", ",")
+
+    @property
+    def arquivo_destino(self) -> Path:
+        return DIR_CENAS / self.destino
+
+
+CENAS: tuple[Cena, ...] = (
+    Cena(
+        nome="segura",
+        destino="segura.jpg",
+        url="https://upload.wikimedia.org/wikipedia/commons/0/01/Grand_Canyon_NP-_Demolition_of_Maswik_South_Lodging_Complex_1165_-_47990656061.jpg",
+        sha256_origem="35a4a05ccb5675867d33fcd28dab1a58d40ac8f3968b4bc974a604d38247ac76",
+        lado_maior=1280,
+        licenca="CC BY 2.0",
+        autor="Grand Canyon NPS",
+        pagina="https://commons.wikimedia.org/wiki/File:Grand_Canyon_NP-_Demolition_of_Maswik_South_Lodging_Complex_1165_-_47990656061.jpg",
+        por_que="Dois trabalhadores com capacete E colete de alta visibilidade, canteiro de demolicao.",
+    ),
+    Cena(
+        nome="risco",
+        destino="risco.jpg",
+        url="https://upload.wikimedia.org/wikipedia/commons/0/01/Working_on_the_approaches_to_the_Pashad_bridge_across_the_Kunar_River%2C_Afghanistan.JPG",
+        sha256_origem="cce11ecb351f7c98efe7454327c0461cda31cc2f11d8155d2ec05721bd525777",
+        lado_maior=1280,
+        licenca="Public domain",
+        autor="Brian Boisvert",
+        pagina="https://commons.wikimedia.org/wiki/File:Working_on_the_approaches_to_the_Pashad_bridge_across_the_Kunar_River,_Afghanistan.JPG",
+        por_que="Obra de ponte com escavadeira e rolo compactador; ~9 pessoas, nenhuma de capacete ou colete.",
+    ),
+    Cena(
+        nome="ambigua",
+        destino="ambigua.jpg",
+        url="https://upload.wikimedia.org/wikipedia/commons/2/22/US_Navy_091022-N-2571C-042_Seabees_use_a_long_board_to_screed_wet_concrete.jpg",
+        sha256_origem="2a670226bf2664aad3d2034dd1c063ab43380fd41a4665aab7f2fd53f9162c8e",
+        lado_maior=1280,
+        licenca="Public domain",
+        autor="U.S. Navy photo by Religious Program Specialist 2nd Class Kirk Cogswell",
+        pagina="https://commons.wikimedia.org/wiki/File:US_Navy_091022-N-2571C-042_Seabees_use_a_long_board_to_screed_wet_concrete.jpg",
+        por_que=(
+            "Tres trabalhadores, TODOS de capacete — mas o YOLO perde justamente o do primeiro "
+            "plano, cortado na borda, e ninguem usa colete. E a cena onde YOLO e LLM tem mais "
+            "chance de discordar."
+        ),
+    ),
+)
+
+
 def sha256(caminho: Path) -> str:
     digest = hashlib.sha256()
     with caminho.open("rb") as arquivo:
@@ -95,7 +165,7 @@ def sha256(caminho: Path) -> str:
     return digest.hexdigest()
 
 
-def baixar(fixture: Fixture) -> None:
+def baixar(fixture: Fixture | Cena) -> None:
     origem = fixture.arquivo_origem
     if origem.exists():
         atual = sha256(origem)
@@ -168,6 +238,44 @@ def recortar(fixture: Fixture) -> None:
     )
 
 
+def preparar_cena(cena: Cena) -> None:
+    """Reduz o lado maior para `lado_maior`, PRESERVANDO a proporcao.
+
+    Esticar para um formato fixo deformaria a cena — e pessoa deformada muda o
+    que o modelo multimodal ve. O objetivo aqui e limitar custo de token e
+    aproximar a resolucao de uma camera, nao bater um formato exato.
+    """
+    imagem = cv2.imread(str(cena.arquivo_origem))
+    if imagem is None:
+        raise SystemExit(f"OpenCV nao conseguiu abrir {cena.arquivo_origem}")
+    altura, largura = imagem.shape[:2]
+    escala = cena.lado_maior / max(altura, largura)
+    if escala < 1:
+        nova = (int(round(largura * escala)), int(round(altura * escala)))
+        imagem = cv2.resize(imagem, nova, interpolation=cv2.INTER_AREA)
+    cena.arquivo_destino.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(cena.arquivo_destino), imagem, [int(cv2.IMWRITE_JPEG_QUALITY), 92]):
+        raise SystemExit(f"Nao consegui gravar {cena.arquivo_destino}")
+    print(
+        f"  {cena.arquivo_destino.relative_to(RAIZ)}: {imagem.shape[1]}x{imagem.shape[0]}, "
+        f"{cena.arquivo_destino.stat().st_size / 1e3:.0f} kB"
+    )
+
+
+def caminho_da_cena(nome: str) -> Path:
+    """Caminho da cena, ou erro dizendo como obte-la."""
+    cena = next((item for item in CENAS if item.nome == nome), None)
+    if cena is None:
+        raise KeyError(f"Cena desconhecida: {nome}. Conhecidas: {[c.nome for c in CENAS]}")
+    if not cena.arquivo_destino.exists():
+        raise FileNotFoundError(
+            f"Cena '{nome}' ausente em {cena.arquivo_destino.relative_to(RAIZ)}. "
+            "Ela nao e versionada (repositorio publico). Gere com: "
+            "python scripts/fetch_fixtures.py — origem, licenca e checksum em docs/FIXTURES.md."
+        )
+    return cena.arquivo_destino
+
+
 def caminho_da_fixture(nome: str) -> Path:
     """Devolve o caminho da fixture, ou levanta erro dizendo como obte-la.
 
@@ -197,16 +305,21 @@ def main() -> int:
 
     if argumentos.check:
         faltando = [f.nome for f in FIXTURES if not f.arquivo_destino.exists()]
+        faltando += [f"cena:{c.nome}" for c in CENAS if not c.arquivo_destino.exists()]
         if faltando:
             print(f"FALTANDO: {', '.join(faltando)} — rode: python scripts/fetch_fixtures.py")
             return 1
-        print(f"OK: {len(FIXTURES)} fixture(s) presente(s).")
+        print(f"OK: {len(FIXTURES)} fixture(s) e {len(CENAS)} cena(s) presente(s).")
         return 0
 
     for fixture in FIXTURES:
         print(f"\n[{fixture.nome}] {fixture.licenca}, {fixture.autor}")
         baixar(fixture)
         recortar(fixture)
+    for cena in CENAS:
+        print(f"\n[cena:{cena.nome}] {cena.licenca}, {cena.autor}")
+        baixar(cena)
+        preparar_cena(cena)
     print("\nPronto. Detalhes de licenca e atribuicao em docs/FIXTURES.md.")
     return 0
 
