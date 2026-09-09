@@ -188,3 +188,102 @@ Por p95 medido, decrescente. **Nenhum destes foi aplicado.**
 
 Nada acima entra sem: teste de caracterização verde **antes**, mudança mínima,
 `pytest` verde e re-bench com delta registrado neste arquivo.
+
+
+---
+
+# Pós-Fase-1 (commit `f379910`)
+
+Mesma máquina, mesma fixture, mesmo aquecimento de 12 quadros descartado.
+AMD Ryzen 7 5700X, CPU-only, `torch 2.14.0+cpu`, Windows 10.
+
+> **Estes são números de PIPELINE, não do worker do Flask.** `socketio.emit`,
+> `AlertStateService` (que grava no SQLite dentro do loop) e
+> `ComplianceService` ficam **fora** do harness. O custo real em produção é
+> maior que o medido aqui. Esta ressalva vale para a tabela do baseline
+> também, e precisa aparecer no slide.
+
+## Por estágio, baseline vs pós-Fase-1 (p50 em ms)
+
+| cenário | leitura | espera_lock | yolo_epi | yolo_pessoa | pose | matching | anotação | encode | serial. | fim-a-fim p95 | **FPS** |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A baseline `73edc00` — 416, MP=false | 0,70 | — | 81,89 | — | 25,62 | 0,01 | 0,42 | 2,52 | 0,30 | 129,11 | 24,32 |
+| **A' pós-F1 `f379910`** — 416, MP=false | 0,72 | 0,00 | 84,07 | — | 25,80 | 0,01 | 0,42 | 2,34 | 0,30 | 129,65 | **24,04** |
+| C baseline `73edc00` — 416, MP=true | 0,73 | 0,00 | 82,93 | 23,23 | 27,09 | 0,02 | 0,45 | 2,55 | 0,31 | 157,39 | 19,42 |
+| **C' pós-F1 `f379910`** — 416, MP=true | 0,73 | 0,00 | 83,25 | 22,75 | 26,76 | 0,02 | 0,45 | 2,47 | 0,31 | 156,89 | **19,56** |
+| H baseline `73edc00` — 2 câmeras, 416, MP=true | 1,02 | 133,72 | 93,28 | 27,15 | 28,68 | 0,03 | 0,63 | 3,52 | 0,57 | 331,79 | 19,13 |
+| **H' pós-F1 `f379910`** — 2 câmeras, 416, MP=true | 1,01 | 127,80 | 89,73 | 26,31 | 28,02 | 0,03 | 0,64 | 3,50 | 0,57 | 317,34 | **19,87** |
+
+Delta agregado: **A −1,1% · C +0,7% · H +3,9%**.
+
+## Por que o delta é ~zero, e por que isso está certo
+
+Nenhuma mudança da Fase 1 tocou o pipeline de visão, e o número confirma isso:
+o re-bench serve como **prova de não-regressão**, não como vitrine de ganho.
+
+O ganho da Fase 1 vive num estágio que **este harness não mede por
+construção** — `AlertStateService`, que grava no SQLite dentro do loop de
+captura. Medido à parte, com o caminho de alerta incluído, A/B no mesmo
+processo sobre a mesma fixture:
+
+| | alertas criados | parede | FPS | emits `created`/`resolved` |
+|---|---|---|---|---|
+| Antes (histerese conta iteração) | 76 | 10,6 s | 19,77 | 152 / 152 |
+| **Depois (histerese conta detecção)** | **26** | 9,7 s | **21,58** | 52 / 52 |
+
+**−66% de alertas e +9,2% de FPS**, porque são 100 escritas a menos no SQLite
+e 200 emissões a menos por 7 segundos de vídeo.
+
+`MULTI_PERSON_DETECTION=true` (P0) também não aparece no delta: o harness
+recebe o modo por flag (`--multi-person`), não pelo `.env`. O custo dele já
+estava medido no baseline — é a diferença A→C, **−20% de FPS**.
+
+## P2 — custo do Pose: medido, e NÃO aplicado
+
+A alavanca é real: pela subtração do baseline, o Pose consome **+34,7%** do
+throughput no cenário A. A mudança proposta era trocar `static_image_mode` de
+`True` para o modo de stream no caminho por pessoa.
+
+**Documentação oficial**, https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/pose.md#static_image_mode :
+
+> "If set to `false`, the solution treats the input images as a video stream.
+> It will try to detect the most prominent person in the very first images, and
+> upon a successful detection further localizes the pose landmarks. In
+> subsequent images, it then simply tracks those landmarks without invoking
+> another detection until it loses track, on reducing computation and latency.
+> If set to `true`, person detection runs every input image, **ideal for
+> processing a batch of static, possibly unrelated, images**. Default to
+> `false`."
+
+Medição em 21 recortes de pessoa reais extraídos da fixture, uma instância
+MediaPipe por modo, `model_complexity=0`:
+
+| modo | p50 | média | poses encontradas | veredito "caído" |
+|---|---|---|---|---|
+| `static_image_mode=True` (atual) | 34,10 ms | 35,48 ms | 11/21 | 0 |
+| `static_image_mode=False` | **15,14 ms** | 22,52 ms | 15/21 | 0 |
+
+**2,25x mais rápido no p50.** E ainda assim a mudança não foi aplicada:
+
+1. A doc oficial descreve `True` como o modo **para lotes de imagens
+   possivelmente não relacionadas** — que é exatamente o que
+   `estimate_for_people` alimenta: recortes de pessoas **diferentes**,
+   alternadamente, na mesma instância. O comentário em
+   `app/vision/pose_estimator.py:29-35` já previa isso ("alimenta-lo com
+   recortes de pessoas diferentes, alternadamente, corrompe a associacao").
+2. As 4 poses extras encontradas em modo stream **não são prova de acurácia**.
+   O aumento é igualmente compatível com "detectou melhor" e com "arrastou
+   landmarks do recorte anterior" — a falha que a doc descreve. Não tenho como
+   distinguir as duas com esta medição.
+3. O veredito de queda ficou em 0 nos dois modos, mas **a fixture não contém
+   queda**, então esse empate não exercita o caso discriminante. Trocar o modo
+   com base nele seria esconder risco atrás de FPS.
+
+**O caminho que dá os dois** (correção semântica e o 2,25x): uma instância
+MediaPipe **por pessoa rastreada**, cada uma em modo de stream, com despejo
+por track que desaparece. Aí cada instância só vê a própria pessoa, e o
+tracking passa a ser semanticamente válido. É contido a
+`app/vision/pose_estimator.py`, mas move o ponto de injeção dos 8 testes de
+`tests/test_pose_estimator_crop.py` e mexe em código relevante para
+segurança — exige caracterização própria, não uma troca de flag em dois dias.
+Fica registrado como o próximo passo da Fase 2, com o número que o justifica.
