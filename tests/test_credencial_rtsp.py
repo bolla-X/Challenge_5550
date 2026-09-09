@@ -236,7 +236,10 @@ def test_nenhum_arquivo_versionado_carrega_credencial_em_url():
     # Placeholder de documentacao nao e credencial. Sem esta lista, o
     # proprio regex em app/llm e a docstring deste arquivo — que existem
     # justamente para EXPLICAR o formato — fariam a varredura falhar.
-    exemplos = ("usuario:senha@", "user:pass@", "USUARIO:SENHA@", "***@")
+    # `username:password@` e o placeholder LITERAL da doc oficial da Dahua
+    # (Network Camera Web 3.0 Operation Manual V2.1.5, p. 79), citada em
+    # `montar_url_rtsp` para justificar o formato e a semantica do subtype.
+    exemplos = ("usuario:senha@", "user:pass@", "USUARIO:SENHA@", "***@", "username:password@")
     rastreados = subprocess.run(
         ["git", "ls-files"], cwd=RAIZ, capture_output=True, text=True, check=True
     ).stdout.split()

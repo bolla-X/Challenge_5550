@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 
@@ -36,6 +37,77 @@ def env_int(name: str, default: int) -> int:
 class RiskAreaConfig:
     enabled: bool
     polygon: list[tuple[float, float]]
+
+
+# Caminho RTSP das Dahua, com `{canal}` e `{subtype}` como parâmetros — e NÃO
+# com `subtype=0` fixo, que era o formato das URLs recebidas da planta. Fixar o
+# subtype na string obriga a editar config pra alternar entre stream principal
+# e substream, que é justamente a decisão de operação mais relevante aqui.
+CAMINHO_RTSP_PADRAO = "/cam/realmonitor?channel={canal}&subtype={subtype}"
+
+# Caracteres que podem ficar CRUS na credencial da URL.
+#
+# RFC 3986 §3.2.1: `userinfo = *( unreserved / pct-encoded / sub-delims / ":" )`
+# — https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1
+#
+# Então só precisam de escape os que quebram o parse: `@` (separa userinfo do
+# host), `/?#` (encerram a autoridade), `%` (introduz pct-encoded) e `:` (separa
+# usuário de senha na convenção `user:pass`). Sub-delims são legais ali e ficam
+# intactos DE PROPÓSITO: codificá-los sem necessidade só funcionaria se o
+# cliente RTSP percent-DECODIFICASSE de volta, e essa é uma dependência que não
+# vale a pena assumir sem ter medido. `quote` já preserva alfanumérico e `-._~`.
+SEGUROS_NO_USERINFO = "!$&'()*+,;="
+
+
+def montar_url_rtsp(
+    *,
+    host: str,
+    usuario: str,
+    senha: str,
+    porta: int = 554,
+    canal: int = 1,
+    subtype: int = 1,
+    caminho: str = CAMINHO_RTSP_PADRAO,
+) -> str:
+    """URL RTSP no formato Dahua, com a credencial percent-encoded.
+
+    Formato e semântica conforme a documentação oficial da Dahua (Network
+    Camera Web 3.0 Operation Manual V2.1.5, p. 79):
+
+        rtsp://username:password@ip:port/cam/realmonitor?channel=1&subtype=0
+
+    e, literalmente: "Subtype: The bit stream type; 0 means main stream
+    (Subtype=0) and 1 means sub stream (Subtype=1)". As URLs recebidas da
+    planta usam `subtype=0`, ou seja, o stream PRINCIPAL.
+
+    O default aqui é `subtype=1` (substream) por medição, não por gosto: nesta
+    máquina CPU-only a resolução de inferência é a maior alavanca do pipeline
+    (416→640 derruba o FPS em 42%, docs/BENCH.md). Substream entrega imagem
+    menor já da câmera, então economiza banda e o custo do downscale. Quem
+    precisar do detalhe do stream principal pede `subtype=0` explicitamente.
+
+    O escape da credencial é obrigatório: a mesma doc mostra o `usuario:senha`
+    entre `//` e `@`, e uma senha com `@` — plenamente legal — deslocaria o host
+    se entrasse crua. O sintoma seria "a câmera não conecta", sem nada no log
+    apontando a causa. Escapa-se o mínimo (ver `SEGUROS_NO_USERINFO`).
+    """
+    # Um `.env` mais antigo trazia `subtype=0` FIXO no caminho. `str.format`
+    # sobre string sem placeholder devolve a string intacta, então `--subtype 1`
+    # seria aceito e não faria nada — falha silenciosa, o pior tipo. Falha alto.
+    faltando = [chave for chave in ("{canal}", "{subtype}") if chave not in caminho]
+    if faltando:
+        raise ValueError(
+            f"RTSP_CAMINHO precisa dos parâmetros {' e '.join(faltando)}. "
+            f"Está como {caminho!r}, que ignoraria --canal/--subtype em silêncio. "
+            f"Use: {CAMINHO_RTSP_PADRAO}"
+        )
+
+    credencial = ""
+    if usuario or senha:
+        usuario_seguro = quote(usuario, safe=SEGUROS_NO_USERINFO)
+        senha_segura = quote(senha, safe=SEGUROS_NO_USERINFO)
+        credencial = f"{usuario_seguro}:{senha_segura}@"
+    return f"rtsp://{credencial}{host}:{int(porta)}{caminho.format(canal=int(canal), subtype=int(subtype))}"
 
 
 class Config:
@@ -81,6 +153,17 @@ class Config:
     FRAME_HEIGHT = env_int("FRAME_HEIGHT", 540)
     TARGET_FPS = env_int("TARGET_FPS", 12)
     JPEG_QUALITY = env_int("JPEG_QUALITY", 80)
+
+    # --- cameras RTSP da planta ------------------------------------------
+    # A CREDENCIAL VIVE SO NO .env. Ela nao aparece em `.env.example`, nao vai
+    # pra argumento de linha de comando (`ps aux` e historico do shell) e sai
+    # redigida de qualquer log/payload (ver app.llm.redigir_segredos).
+    RTSP_USUARIO = os.getenv("RTSP_USUARIO", "")
+    RTSP_SENHA = os.getenv("RTSP_SENHA", "")
+    RTSP_PORTA = env_int("RTSP_PORTA", 554)
+    RTSP_CAMINHO = os.getenv("RTSP_CAMINHO", CAMINHO_RTSP_PADRAO)
+    # 1 = substream. Ver a justificativa medida em `montar_url_rtsp`.
+    RTSP_SUBTYPE = env_int("RTSP_SUBTYPE", 1)
 
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
     # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando

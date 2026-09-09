@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 from app import create_app
@@ -85,13 +85,19 @@ def test_senha_com_caractere_especial_nao_estraga_a_url():
     URL montada por concatenação ingênua faz o OpenCV ler o host errado — e o
     sintoma é "câmera não conecta", sem nada no log apontando a causa.
     """
-    ruim = "p@ss:w/rd#1"
+    ruim = "p@ss:w/rd#1!"
     url = montar_url_rtsp(host=HOST, usuario="ad@min", senha=ruim)
 
     partes = urlsplit(url)
     assert partes.hostname == HOST, f"host virou {partes.hostname!r} — credencial não foi codificada"
     assert partes.port == 554
-    assert ruim not in url, "senha entrou crua na URL; precisa de percent-encoding"
+    assert unquote(partes.password or "") == ruim, "a senha tem que decodificar de volta identica"
+    # Sub-delim é legal em `userinfo` (RFC 3986 §3.2.1) e fica CRU: escapar sem
+    # necessidade só funcionaria se o cliente RTSP decodificasse de volta, e
+    # isso não foi medido. `@ : / #` sim, esses quebram o parse.
+    assert "!" in url and "%21" not in url, f"sub-delim escapado sem necessidade: {url}"
+    for quebra in ("p@ss", "w/rd", "rd#1"):
+        assert quebra not in url, f"'{quebra}' entrou cru e desloca o parse da URL: {url}"
 
 
 def test_subtype_padrao_e_substream():
@@ -116,6 +122,20 @@ def test_subtype_e_canal_sao_parametrizaveis():
     assert urlsplit(url).port == 5554
 
 
+def test_caminho_sem_parametro_falha_alto():
+    """`.env` antigo tinha `subtype=0` fixo no caminho.
+
+    `str.format` sobre string sem placeholder devolve a string intacta, então
+    `--subtype 1` seria aceito e nao faria nada. Falha silenciosa e o pior tipo
+    de falha: o operador acha que trocou de stream e nao trocou.
+    """
+    with pytest.raises(ValueError, match="RTSP_CAMINHO"):
+        montar_url_rtsp(
+            host=HOST, usuario=USUARIO, senha=SENHA,
+            caminho="/cam/realmonitor?channel=1&subtype=0",
+        )
+
+
 def test_url_sem_credencial_quando_a_config_esta_vazia():
     """Sem `RTSP_USUARIO`/`RTSP_SENHA` a URL sai sem `userinfo`.
 
@@ -138,7 +158,10 @@ def test_add_cadastra_a_camera_montando_a_url_da_config(app_cli):
     assert camera.source_type == "RTSP"
     assert urlsplit(camera.source).hostname == HOST
     assert urlsplit(camera.source).username == USUARIO
-    assert SENHA in camera.source, "a credencial real tem que ir pro banco, senão a câmera não conecta"
+    # Round-trip, e nao `SENHA in source`: a senha vai pra URL com escape, e o
+    # que importa e que ela volte identica. A camera nao conecta se o que
+    # chegou ao banco nao decodificar de volta pra credencial real.
+    assert unquote(urlsplit(camera.source).password or "") == SENHA
 
 
 def test_add_nao_imprime_a_senha(app_cli):
