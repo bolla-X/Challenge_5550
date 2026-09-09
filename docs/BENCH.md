@@ -414,3 +414,63 @@ VERIFICADA** — a suspeita é carga residual da máquina, porque o bench rodou
 logo depois do servidor RTSP e do publicador ffmpeg, mas não tenho prova. Fica
 registrado porque um relatório que só mostra a execução conveniente não é
 auditável.
+
+
+---
+
+# Fase 5 — duas câmeras em modo fixture
+
+O cenário do demo, que nunca havia rodado: todo o teste de fallback anterior foi
+com **uma** câmera. Duas câmeras em endereços da faixa da planta (sem rota desta
+máquina), ambas caindo em fixture, ambas decodificando o **mesmo** arquivo em
+loop, com o `inference_lock` compartilhado.
+
+Worker REAL (`MonitorService` + `CameraWorker`), `imgsz=416`,
+`MULTI_PERSON=true`, `detect_every_n=3` — cenário C, mas com
+`AlertStateService`, `ComplianceService`, anotação e serialização incluídos, que
+o harness de pipeline deixa de fora.
+
+| | 60 s | 180 s |
+|---|---|---|
+| câmera 1 | 7,69 fps | 6,45 fps |
+| câmera 2 | 7,69 fps | 6,45 fps |
+| **agregado** | **15,38 fps** | **12,89 fps** |
+| voltas na fixture, por câmera | 2,2 | 5,5 |
+
+**Contra 1 câmera:** o número comparável não é o 19,56 fps do cenário C (harness
+de pipeline), e sim o ~17 fps que o mesmo worker real entrega com uma câmera
+(`scripts/bench_llm_worker.py`, Fase 4). Duas câmeras entregam 15,4 agregado
+contra ~17 de uma — ou seja **dobrar as câmeras não dobra nada**, cada uma
+recebe metade. Confirma a conclusão do baseline, agora no worker real e na
+fonte que o demo usa.
+
+**Paralelismo real, e divisão justa.** Em 48 janelas de 5 s somadas nas duas
+execuções, **nenhuma** teve uma câmera parada (< 0,5 fps), e a razão
+`cam1/cam2` ficou entre 0,85 e 1,17 — quase sempre 1,00 exato. Uma não trava a
+outra; o lock alterna.
+
+**Sem vazamento em 180 s** (medição a partir de t=5 s, para excluir o degrau de
+inicialização):
+
+| | inclinação | 1º terço → último terço |
+|---|---|---|
+| handles | **−1,69 / min** | 858,2 → 854,8 |
+| threads | **−0,78 / min** | 111,1 → 109,5 |
+| RSS | +2,48 MB/min | 1120,2 → 1124,0 MB |
+
+Handles e threads **caem**. O RSS deriva +2,48 MB/min, mas a amplitude de ruído
+entre amostras é **31,1 MB** — a deriva não é distinguível de plano nesta
+janela. Um teste mais longo seria necessário para descartar tendência lenta, e
+está fora do escopo desta fase.
+
+A premissa de que "o loop reabre o arquivo a cada volta" **não se aplica**: com
+`em_loop=True` o `VideoStream` rebobina via `CAP_PROP_POS_FRAMES` e retorna sem
+tocar em `release()`/`open()`. É o que mantém os handles planos apesar das 5,5
+voltas por câmera.
+
+**Tempo até as duas assumirem a fixture: 12,6 s** com `RTSP_MAX_TENTATIVAS=1`,
+contra 5,3 s de uma só — cada câmera paga o teto de abertura de 5 s e os dois
+`open()` não se sobrepõem.
+
+**Variação entre execuções é grande:** 15,38 e 12,89 fps agregados para o mesmo
+cenário. Faixa, não ponto.

@@ -173,6 +173,33 @@ AUTO_CREATE_TABLES=false ./.venv/Scripts/flask.exe --app wsgi db upgrade
 ./.venv/Scripts/flask.exe --app wsgi users create --email supervisor@visionepi.local --name "Supervisor Demo" --role supervisor
 ```
 
+Tempos **medidos** neste preparo, num banco novo: `--check` 0,3 s, build 4,2 s,
+`db upgrade` 1,6 s (4 migrações). O `users create` é humano — ver abaixo.
+
+> ⚠️ **`users create` PRECISA de terminal interativo.** Ele não recebe a senha
+> por argumento (de propósito: argumento fica no histórico do shell e em
+> `ps aux`), então **prompta** — duas vezes, senha e confirmação. Medido: com a
+> entrada fechada ele fica **esperando para sempre**, e mandar a senha por pipe
+> (`printf 'senha\nsenha\n' | flask ... users create`) **também não funciona**:
+> o prompt oculto do Click lê o console direto no Windows, não o stdin.
+>
+> Se você precisa da conta dentro de um script (CI, provisionamento), use a
+> rota programática:
+>
+> ```bash
+> ./.venv/Scripts/python.exe -c "
+> from app import create_app
+> from app.services.auth_service import AuthService
+> app = create_app()
+> with app.app_context():
+>     AuthService().create_user(email='supervisor@visionepi.local',
+>                               name='Supervisor Demo',
+>                               password='TROQUE_ESTA_SENHA', role='supervisor')"
+> ```
+>
+> Para trocar a senha depois: `flask --app wsgi users set-password --email ...`
+> (que prompta do mesmo jeito, e pelo mesmo motivo).
+
 > `AUTO_CREATE_TABLES=false` no `db upgrade` **não é opcional** num banco novo:
 > com `true` o `create_app()` roda `db.create_all()` antes do subcomando e o
 > Alembic colide com as tabelas que ele mesmo deveria criar
@@ -188,12 +215,29 @@ num arquivo. Use se o objetivo é só ter imagem estável na tela.
 ```
 
 **(b) O fallback acontecendo de verdade**, com o badge âmbar "modo fixture".
-Use se o objetivo é mostrar a resiliência. Cadastre a câmera da planta (que não
-responde) — com o default atual não precisa mexer em nada:
+Use se o objetivo é mostrar a resiliência: cadastre uma câmera num endereço da
+planta, que não responde desta máquina.
 
 ```bash
-./.venv/Scripts/flask.exe --app wsgi cameras add --name "Fresa 1" --host 10.14.22.97
+# --fonte com a URL inteira: NAO exige credencial no .env
+./.venv/Scripts/flask.exe --app wsgi cameras add --name "Fresa 1" --local "Setor A" \
+  --fonte "rtsp://10.14.22.97:554/cam/realmonitor?channel=1&subtype=1"
 ```
+
+> ⚠️ **Por que `--fonte` e não `--host` aqui.** `--host` monta a URL a partir de
+> `RTSP_USUARIO`/`RTSP_SENHA` e **falha alto** se essas variáveis não estiverem
+> no `.env`:
+>
+> ```
+> Error: RTSP_USUARIO e RTSP_SENHA não estão no .env. Sem credencial a câmera
+> seria cadastrada e nunca conectaria.
+> ```
+>
+> Isso está certo para a câmera de verdade (passo 4 do runbook), e é ruído para
+> este cenário: a câmera não responde de todo jeito, então a credencial não
+> muda nada. `--fonte` evita ter que inventar credencial só para demonstrar o
+> fallback. Um `.env` novo, copiado do `.env.example`, tem as duas variáveis
+> **vazias** — então `--host` falha até você preenchê-las.
 
 Tempo até o modo fixture assumir, **medido** contra `10.14.22.97` (que não tem
 rota desta máquina), com 39 frames publicados 3 s depois da troca em todos os
@@ -224,12 +268,28 @@ o que o passo 5 do runbook manda fazer se a rede responder.
 
 ## Roteiro cronometrado — 12 minutos
 
+Tempos de máquina **medidos** num ensaio do zero, com banco novo (o resto do
+roteiro é narração, no seu ritmo):
+
+| etapa | medido |
+|---|---|
+| `run.py` até o navegador responder | **17 s** |
+| login (`POST /api/auth/login`) | 156 ms |
+| `GET /api/cameras` | 5 ms |
+| **`POST /api/cameras/<id>/start`** | **7,6 s — bloqueia** |
+| até `modo=fixture` depois do start | 6,6 s |
+| até o **primeiro alerta** depois do start | 9,6 s (`missing_gloves`, `medium`) |
+| **boot frio → primeiro alerta na tela** | **≈ 35 s** |
+
+O roteiro abaixo dá 3 minutos para chegar ao primeiro alerta, contra os ~35 s
+medidos. A folga é de propósito.
+
 | t | O que dizer / fazer | Comando |
 |---|---|---|
-| **0:00** | Sobe a aplicação. Deixe o terminal visível: a única WARNING é o cookie não-Secure, esperado em `http://localhost`. | `./.venv/Scripts/python.exe run.py` |
+| **0:00** | Sobe a aplicação. **Leva ~17 s até o navegador responder** — carrega os dois pesos YOLO e o MediaPipe; não é travamento. Deixe o terminal visível: a única WARNING é o cookie não-Secure, esperado em `http://localhost`. | `./.venv/Scripts/python.exe run.py` |
 | **0:30** | Login como supervisor. O cabeçalho mostra nome e papel; `backend` e `conexão` ficam verdes. Não existe "criar conta": num sistema de segurança do trabalho, quem cria acesso é quem já tem. | navegador em `http://127.0.0.1:5000` |
 | **1:30** | **A declaração.** Diga, antes de qualquer demonstração: sem rota para a rede da planta, o RTSP real nunca foi exercitado; o que está validado é o caminho RTSP contra servidor local, e o demo roda em modo fixture. Dizer isso no começo compra credibilidade para todo o resto. | — |
-| **2:00** | Inicia o monitoramento. Vídeo com caixas de EPI e pose. Aponte o badge da câmera. | botão Iniciar |
+| **2:00** | Inicia o monitoramento. **O botão fica ~7,6 s sem responder** — a chamada de start limpa artefatos, resolve alertas velhos e tenta a fonte antes de voltar. É esperado; não clique duas vezes. Depois vem vídeo com caixas de EPI e pose. Aponte o badge da câmera. | botão Iniciar |
 | **3:00** | Alerta aparecendo. Mostre a severidade, o snapshot de evidência e a linha do tempo. Diga o número: a histerese exige 3 detecções, não 3 iterações de loop — o fix derrubou 76 alertas para 26 em 7 s de vídeo e ainda ganhou 9,2% de FPS. | — |
 | **4:30** | Marque um alerta como falso positivo. Mostre que o histórico sobrevive. | — |
 | **5:30** | **Resiliência.** Se estiver no cenário (b), a câmera já entrou em modo fixture na frente de todos. Senão, mostre o ciclo com o servidor local (seção abaixo) ou o log da prova. Frase: "uma câmera morta não derruba as outras nem o processo — e a tela diz de qual fonte está lendo". | — |
@@ -391,6 +451,45 @@ Leitura, e a única honesta:
 
 ---
 
+## Duas câmeras em modo fixture, ao mesmo tempo
+
+O cenário real da sexta, medido — antes desta fase todo o teste de fallback
+havia sido com **uma** câmera. Duas câmeras em endereços da planta (sem rota),
+ambas caindo em fixture, ambas decodificando o mesmo arquivo em loop:
+
+| | 60 s | 180 s |
+|---|---|---|
+| câmera 1 | 7,69 fps | 6,45 fps |
+| câmera 2 | 7,69 fps | 6,45 fps |
+| **agregado** | **15,38 fps** | **12,89 fps** |
+| voltas na fixture, por câmera | 2,2 | 5,5 |
+
+- **As duas rodam de verdade em paralelo, e dividem em partes iguais.** Em 48
+  janelas de 5 s, **nenhuma** ficou com uma câmera parada, e a razão
+  `cam1/cam2` ficou entre 0,85 e 1,17 — quase sempre exatamente 1,00. É o
+  `inference_lock` alternando, como a [BENCH.md](BENCH.md) já media.
+- **O tempo até as duas caírem em fixture foi 12,6 s** (com
+  `RTSP_MAX_TENTATIVAS=1`), e não 5,3 s: cada câmera paga o teto de abertura de
+  5 s, e os dois `open()` não se sobrepõem. Com o default `2`, conte ~20 s para
+  as duas.
+- **Não vaza.** Em 180 s: handles **−1,69/min** e threads **−0,78/min** (ambos
+  caindo), RSS com deriva de +2,48 MB/min contra 31 MB de amplitude de ruído
+  entre amostras — indistinguível de plano. O degrau único de ~75 MB no início
+  é inicialização, não crescimento.
+- Uma nota sobre a premissa: o loop **não reabre** o arquivo a cada volta. Ele
+  rebobina com `CAP_PROP_POS_FRAMES` (`VideoStream.em_loop`), justamente para
+  não pagar release+open a cada 7 s de vídeo. É por isso que os handles ficam
+  planos.
+- Variação entre execuções é grande (15,38 vs 12,89 agregado para o **mesmo**
+  cenário), então trate esses números como faixa, não como ponto.
+
+E os **dois badges corretos ao mesmo tempo** no navegador: topbar em "modo
+fixture — fonte de demonstração", os dois cards com o badge âmbar "modo
+fixture" e o rodapé "fonte de demonstração", cada um com sua própria imagem da
+fixture.
+
+---
+
 ## Se algo der errado no demo
 
 | Sintoma | Causa provável | O que fazer |
@@ -402,6 +501,8 @@ Leitura, e a única honesta:
 | Badge âmbar "modo fixture" quando se esperava ao vivo | a fonte configurada não respondeu N vezes | é o comportamento correto. Diga isso: o sistema continua e informa de qual fonte está lendo |
 | Vídeo travando | inferência é o gargalo, não a captura | baixe `YOLO_IMGSZ` (416 já é o default) ou `DETECTION_EVERY_N_FRAMES=2`. Nunca mexa nisso durante a apresentação |
 | Câmera "parada" sem erro | worker sem câmera habilitada | `cameras list` e confira `ativa` |
+| Todas as câmeras dão 409 "sem worker ativo" | corrigido nesta fase: `load_cameras_from_db()` só rodava com `AUTO_CREATE_TABLES=true`. Se ainda acontecer, é câmera com `enabled=false` | `cameras list` e confira `ativa`; em último caso reinicie o servidor |
+| `flask users create` parece travado | está esperando a senha no prompt, que não ecoa | digite a senha e Enter; duas vezes. Não funciona por pipe |
 | Sem alerta nenhum | `MULTI_PERSON_DETECTION=false` | tem que ser `true`: a classe `Person` do Vyra não generaliza (36 células testadas, zero detecções) |
 
 ---
