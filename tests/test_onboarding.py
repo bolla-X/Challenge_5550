@@ -69,6 +69,47 @@ def test_env_example_aponta_para_peso_que_o_requirements_instala():
     )
 
 
+def test_env_example_liga_o_detector_de_pessoa():
+    """Sem o segundo YOLO, o sistema documentado nao avalia ninguem.
+
+    O projeto nasceu com `MULTI_PERSON_DETECTION=false` porque o modelo Vyra
+    TEM a classe `Person` (indice 11). Medindo, a premissa nao se sustenta:
+    36 celulas (3 fotos independentes de canteiro com pessoas de corpo inteiro
+    x imgsz em {416, 640, 960, 1280} x conf em {0,35; 0,10; 0,02}, instancia
+    nova do modelo a cada celula) devolveram ZERO deteccoes de `Person`, com
+    confianca maxima 0,000 — inclusive na resolucao de treino.
+
+    A causa esta na matriz de confusao publicada pelo proprio autor: `Person`
+    tem ~277 instancias de validacao contra ~8.946 de `Hardhat`. E a menor
+    classe real do dataset; funciona na distribuicao de treino dela e falha
+    fora. Na mesma imagem, `yolov8n.pt` (COCO) acha as duas pessoas com 0,87 e
+    0,73.
+
+    Consequencia de deixar `false`: `person_compliance_matcher.py:83` recebe
+    lista de pessoas vazia, o sistema desenha capacete e colete no video e
+    nunca avalia a conformidade de ninguem — nenhum alerta de EPI e criado.
+
+    Custo de deixar `true`, medido (docs/BENCH.md): -20% de FPS
+    (24,32 -> 19,42 a imgsz=416). E o preco de o sistema funcionar.
+    """
+    assert ler_env_example()["MULTI_PERSON_DETECTION"] == "true"
+
+
+def test_env_example_aponta_o_peso_de_pessoa_para_arquivo_local():
+    """`PERSON_MODEL_PATH` precisa ser caminho, nao nome solto.
+
+    Com `MULTI_PERSON_DETECTION=true` este peso passa a ser carregado de
+    verdade. Um valor como `yolov8n.pt` (sem diretorio) faz o ultralytics
+    baixar da internet no primeiro frame e gravar no diretorio de trabalho de
+    quem rodou — fora de `models/`, que e o lugar ignorado pelo git.
+    """
+    caminho = ler_env_example()["PERSON_MODEL_PATH"]
+    assert caminho.startswith("models/"), (
+        f"PERSON_MODEL_PATH={caminho} nao aponta para models/. O peso cairia fora do "
+        "diretorio ignorado pelo git e poderia ser commitado por acidente."
+    )
+
+
 def test_create_all_cria_tabelas_sem_registrar_versao_no_alembic(tmp_path):
     """Caracterizacao: documenta POR QUE o default acima precisa ser `false`.
 
