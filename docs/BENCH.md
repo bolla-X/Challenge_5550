@@ -696,3 +696,101 @@ python scripts/bench_pipeline.py --imgsz 416 --multi-person --cameras 2 \
 python scripts/bench_latencia.py --ffmpeg ./ffmpeg.exe \
   --url "rtsp://usuario:senha@localhost:8554/cam/realmonitor"
 ```
+
+
+---
+
+# Fase 7 — o descarte de frame atrasado: antes e depois
+
+Mesma máquina, mesmo servidor RTSP local no perfil Dahua (704x576, 15 fps,
+512 kbps), **mesma metodologia** da Fase 6: carimbo de sequência no frame,
+`-rc-lookahead 0` no publicador, duas fases separadas.
+
+O que mudou no código: `VideoStream._ler_do_capture` passa a descartar frame
+atrasado **em fonte de rede** — `grab()` em laço (avança sem decodificar),
+`retrieve()` só no último. Arquivo e webcam ficam de fora (ver a docstring do
+método e os testes de contraprova em `tests/test_video_stream.py`).
+
+## Latência: 13,5 s → 2,55 s, e a deriva zerou
+
+| | ANTES (Fase 6) | DEPOIS, 40 s | DEPOIS, 120 s |
+|---|---|---|---|
+| FONTE p50 | 2.336 ms | 2.336 ms | 2.336 ms |
+| FONTE deriva | −1 ms/s | −0 ms/s | −0 ms/s |
+| **DASHBOARD p50** | **13.534 ms** | **2.553 ms** | **2.550 ms** |
+| DASHBOARD p95 | 17.306 ms | 2.681 ms | **2.623 ms** |
+| DASHBOARD max | 17.873 ms | 18.169 ms | **2.953 ms** |
+| **DASHBOARD deriva** | **+135 ms/s** | −48 ms/s | **−0 ms/s** |
+| pipeline + HTTP (p50 − p50) | 11.198 ms | 217 ms | **214 ms** |
+| amostras descartadas (checksum) | 80 | 0 | 0 |
+
+**O número que decide é a deriva, e ela zerou.** Antes o atraso crescia
++135 ms/s — 8,1 s a cada minuto, sem teto: depois de cinco minutos de
+apresentação a tela mostrava vídeo de minutos atrás. Agora fica plano.
+
+**A deriva de −48 ms/s da janela de 40 s não é ruído: é a fila ENCOLHENDO.**
+Enquanto o worker sobe (carga dos dois pesos YOLO + MediaPipe), a fonte
+continua publicando e o backlog se forma; com o descarte, o worker drena esse
+backlog e o atraso cai até o piso. É por isso que aquela execução tem `max` de
+18,2 s — é a primeira amostra, antes de drenar. Na janela de 120 s a parte
+drenada pesa menos e a deriva aparece como **−0 ms/s**, com `max` de 2.953 ms:
+o piso, não uma rampa. O aviso do script passou a distinguir os dois sinais —
+fila crescendo é ATENÇÃO, fila drenando é NOTA.
+
+**O trecho `pipeline + HTTP` caiu 52x** (11.198 → 214 ms). Era ali que a fila
+vivia: o worker lia frames cada vez mais velhos do buffer do decoder. Os
+214 ms restantes são o pipeline de visão mais o `time.sleep(1/TARGET_FPS)` do
+gerador de MJPEG, e são o que se espera.
+
+**O FONTE não mudou, e isso está certo.** Aqueles 2.336 ms constantes (exatos
+35 frames) vivem **acima** do leitor — na cadeia publicador → mediamtx →
+demuxer da bancada. Nenhum descarte no leitor alcança isso, e a Fase 6 já
+atribuiu esse número a artefato de bancada, não à planta. O que o descarte
+conserta é a fila do lado de cá, que é a que crescia.
+
+## FPS: sem regressão distinguível do ruído
+
+`scripts/bench_pipeline.py` **não passa por `VideoStream`** (abre a fonte
+direto), então ele mede o pipeline de visão sem tocar no código que mudou —
+serve como controle de não-regressão do resto:
+
+| cenário | Fase 6 | Fase 7 |
+|---|---|---|
+| 1 câm, RTSP perfil Dahua | 14,71 fps | **16,57 fps** |
+| 2 câm, RTSP perfil Dahua | 11,60 agregado | **15,01 agregado** |
+
+Para medir o efeito real do descarte é preciso o **worker de verdade**, que é
+quem usa o `VideoStream`. A/B **intercalado** no mesmo processo e na mesma
+máquina (liga/desliga `_descartar_atrasados`, duas repetições de cada, 45 s
+por execução):
+
+| | execução 1 | execução 2 | média |
+|---|---|---|---|
+| SEM descarte (comportamento antigo) | 6,30 fps | 8,60 fps | 7,45 |
+| COM descarte (o fix) | 7,10 fps | 7,00 fps | 7,05 |
+
+**−5,4% de média, e isso está dentro do ruído:** o cenário SEM descarte
+sozinho variou de **6,30 a 8,60 fps** (36% de amplitude) entre duas execuções
+idênticas. Um delta de 5% medido contra ruído de 36% não sustenta "custou FPS"
+nem "não custou nada" — o que se pode afirmar é que **não há regressão
+distinguível**, e que o custo teórico (alguns `grab()` a mais por leitura, sem
+decode) é pequeno perto de um frame de inferência.
+
+O que NÃO se pode dizer, e quase foi dito: que caiu de 9,8 para 8,0 fps. Esses
+dois números vieram de execuções em sessões diferentes, com carga de fundo
+diferente. Só o A/B intercalado responde a essa pergunta.
+
+## Modo fixture: continua lendo todos os frames
+
+Contraprova executada com a fixture real (210 quadros) pelo `VideoStream` de
+produção, pedindo 240 leituras para atravessar a virada do loop:
+
+```
+descarte ligado nesta fonte? False   (arquivo nao entra no caminho de rede)
+frames do arquivo: 210
+lidos com sucesso: 240  | leituras que falharam (a virada): 1
+```
+
+Uma única falha, que é a leitura que bate no fim antes de rebobinar —
+comportamento documentado e coberto por
+`test_fim_de_arquivo_em_loop_rebobina_em_vez_de_falhar`. Nenhum frame pulado.

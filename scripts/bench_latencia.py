@@ -426,11 +426,24 @@ def main() -> int:
     # que a cada 10 s de operacao o video na tela envelhece 1 s a mais.
     for nome, d in (("FONTE", fonte), ("DASHBOARD", painel)):
         deriva = d.get("deriva_ms_por_s")
-        if deriva is not None and abs(deriva) > 20:
-            print(f"\nATENCAO: {nome} nao tem atraso estavel, tem FILA "
+        if deriva is None or abs(deriva) <= 20:
+            continue
+        # O SINAL importa, e confundi-lo inverte o diagnostico. Positivo: a
+        # fila cresce, o consumidor nao acompanha a fonte. Negativo: a fila
+        # esta ESVAZIANDO — tipico logo depois do start, quando o backlog
+        # acumulado enquanto o worker subia esta sendo drenado. Alarme de
+        # "consumidor lento" numa deriva negativa mandaria degradar justamente
+        # o pipeline que esta se recuperando sozinho.
+        if deriva > 0:
+            print(f"\nATENCAO: {nome} nao tem atraso estavel, tem FILA CRESCENDO "
                   f"({deriva:+.0f} ms/s = {deriva * 60 / 1000:+.1f} s a cada minuto).")
             print("         O consumidor e mais lento que a fonte. Baixe o FPS da camera")
             print("         ou o custo por frame ate a deriva zerar; so entao o p50 vale.")
+        else:
+            print(f"\nNOTA: {nome} esta DRENANDO fila ({deriva:+.0f} ms/s). O consumidor e")
+            print("      mais rapido que a fonte e o atraso esta CAINDO — comportamento")
+            print("      esperado depois do start. O p50 tende ao piso; confirme com uma")
+            print("      janela mais longa, em que a parte drenada pesa menos.")
     print("\nFora da conta: o navegador decodificar e pintar o MJPEG.")
 
     if argumentos.json:
