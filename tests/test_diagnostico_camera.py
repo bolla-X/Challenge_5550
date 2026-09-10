@@ -203,3 +203,148 @@ def test_start_zera_o_diagnostico_da_sessao_anterior(worker):
 
     assert diagnostico["deteccoes_30s"] == {}
     assert diagnostico["resolucao"] is None
+
+
+# ===========================================================================
+# Fonte CEGA: frame chega, imagem nao
+# ===========================================================================
+# O caso que motivou isto, medido nesta maquina: o Windows entrega um stream
+# **preto** para o segundo aplicativo que abre uma webcam ja tomada por outro
+# (aqui era o Discord). Os frames chegam normalmente — 14,39 fps, resolucao
+# certa, `modo=ao_vivo` — e cada pixel vale ~0: media 0,01 e maximo 3, com o
+# ganho da camera no teto (255). Uma sala escura de verdade daria RUIDO, com
+# media bem acima de 1; zero absoluto com ganho no maximo nao.
+#
+# O sistema aceitava isso em silencio: video preto, inferencia em nada, FPS
+# saudavel, nenhum aviso. Quem for testar noutra maquina concluiria que o
+# projeto esta quebrado.
+#
+# Regras que estes testes fixam:
+#   - e SO diagnostico. Nao para o worker, nao cria alerta. Cena
+#     legitimamente escura (turno da noite, galpao sem luz) nao e falha.
+#   - amostragem ESPARSA. Medir brilho a cada frame sairia do orcamento do
+#     loop, que e justamente o que este projeto passa o tempo defendendo.
+FRAME_PRETO = np.zeros((480, 640, 3), dtype=np.uint8)
+FRAME_CLARO = np.full((480, 640, 3), 120, dtype=np.uint8)
+ANALISE_VAZIA = FrameAnalysis(detections=[], pose=None, risk_events=[], poses=[])
+
+
+@pytest.fixture()
+def relogio(monkeypatch):
+    """Relogio controlado: a janela de escuridao e testada sem dormir."""
+    agora = {"t": 1000.0}
+    monkeypatch.setattr("app.services.camera_worker.time.monotonic", lambda: agora["t"])
+    return agora
+
+
+def _alimentar(worker, frame, relogio, segundos: float, passo: float = 1.0) -> None:
+    """Roda o registro de diagnostico por `segundos` de relogio."""
+    fim = relogio["t"] + segundos
+    while relogio["t"] <= fim:
+        worker._registrar_diagnostico(frame, ANALISE_VAZIA, foi_nova=True)
+        relogio["t"] += passo
+
+
+def test_fonte_preta_por_mais_que_a_janela_e_reportada(worker, relogio):
+    """O caso do Discord: frame chega, imagem nao."""
+    _alimentar(worker, FRAME_PRETO, relogio, segundos=8.0)
+
+    diagnostico = worker.diagnostico()
+
+    assert diagnostico["fonte_sem_imagem"] is True, (
+        "8 s de frame zerado tem que aparecer na tela; era exatamente isso que "
+        "o sistema aceitava em silencio"
+    )
+    assert diagnostico["brilho"] is not None
+    assert diagnostico["brilho"] < 1.0, f"brilho medido {diagnostico['brilho']}"
+
+
+def test_fonte_com_imagem_nao_e_reportada(worker, relogio):
+    """Contraprova: imagem normal nao pode acender o aviso."""
+    _alimentar(worker, FRAME_CLARO, relogio, segundos=8.0)
+
+    diagnostico = worker.diagnostico()
+
+    assert diagnostico["fonte_sem_imagem"] is False
+    assert diagnostico["brilho"] > 100
+
+
+def test_escuridao_curta_nao_acende_o_aviso(worker, relogio):
+    """Uma pessoa passando na frente da lente, um corte de luz de 1 s, o
+    obturador de outra camera: nao e fonte cega."""
+    _alimentar(worker, FRAME_PRETO, relogio, segundos=2.0)
+
+    assert worker.diagnostico()["fonte_sem_imagem"] is False, (
+        "abaixo da janela configurada nao pode acusar"
+    )
+
+
+def test_fonte_que_volta_a_ter_imagem_apaga_o_aviso(worker, relogio):
+    """Fechar o app que segurava a camera tem que limpar o estado."""
+    _alimentar(worker, FRAME_PRETO, relogio, segundos=8.0)
+    assert worker.diagnostico()["fonte_sem_imagem"] is True
+
+    _alimentar(worker, FRAME_CLARO, relogio, segundos=2.0)
+
+    assert worker.diagnostico()["fonte_sem_imagem"] is False, (
+        "o aviso tem que apagar sozinho quando a imagem volta"
+    )
+
+
+def test_brilho_e_amostrado_ESPARSAMENTE(worker, relogio, monkeypatch):
+    """200 frames no MESMO instante = uma medicao, nao 200.
+
+    Este e o teste que protege o orcamento do loop. Se alguem medir brilho a
+    cada frame, o custo entra no caminho que o projeto inteiro passa o tempo
+    defendendo.
+    """
+    from app.services import camera_worker as cw
+
+    chamadas = {"n": 0}
+    original = cw.brilho_do_frame
+
+    def contando(frame):
+        chamadas["n"] += 1
+        return original(frame)
+
+    monkeypatch.setattr(cw, "brilho_do_frame", contando)
+
+    for _ in range(200):
+        worker._registrar_diagnostico(FRAME_PRETO, ANALISE_VAZIA, foi_nova=True)
+
+    assert chamadas["n"] <= 2, (
+        f"brilho medido {chamadas['n']} vezes em 200 frames sem avancar o "
+        "relogio; a amostragem devia ser esparsa"
+    )
+
+
+def test_fonte_cega_NAO_para_o_worker_e_NAO_cria_alerta(worker, relogio):
+    """So informa. Cena escura legitima nao e falha, e derrubar a captura ou
+    inventar alerta seria pior que o silencio que isto conserta."""
+    worker.start()
+    try:
+        _alimentar(worker, FRAME_PRETO, relogio, segundos=10.0)
+        status = worker.status()
+    finally:
+        worker.stop()
+
+    assert status["diagnostico"]["fonte_sem_imagem"] is True
+    assert status["running"] is True, "fonte cega nao pode parar o worker"
+    assert status["active_alerts"] == [], "fonte cega nao pode virar alerta"
+
+
+def test_brilho_do_frame_e_barato_e_nao_le_o_frame_inteiro():
+    """Subamostragem: medir a media de 921.600 valores por frame nao cabe.
+
+    O contrato aqui e "aproximado e barato", nao "exato".
+    """
+    from app.services.camera_worker import brilho_do_frame
+
+    assert brilho_do_frame(FRAME_PRETO) < 1.0
+    assert brilho_do_frame(FRAME_CLARO) == pytest.approx(120.0, abs=1.0)
+    # Um frame com uma unica linha clara no meio de preto: a subamostragem
+    # pode ou nao pegar a linha, mas o resultado tem que ser um numero valido
+    # e baixo — nunca levantar.
+    quase_preto = np.zeros((480, 640, 3), dtype=np.uint8)
+    quase_preto[240, :] = 255
+    assert 0.0 <= brilho_do_frame(quase_preto) < 20.0
