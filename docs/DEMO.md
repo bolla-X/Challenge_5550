@@ -126,6 +126,7 @@ Dois roteiros, sem sobreposição. Escolha pela pergunta que você quer responde
 | ensaiar o fluxo e a narração **sem a rede da planta** | **teste local com webcam** | logo abaixo |
 | conectar nas câmeras Dahua **dentro da fábrica** | **runbook de campo** | [seção (a)–(e)](#runbook-de-campo--dentro-da-planta-na-ordem-com-o-comando-exato) |
 | ter imagem garantida quando tudo mais falhar | **modo fixture** | [seção do modo fixture](#demo-em-modo-fixture) |
+| validar o projeto **numa máquina que nunca rodou** (o colega) | **teste em outra máquina** | [seção do zero](#teste-em-outra-máquina--do-zero-para-quem-nunca-rodou-o-projeto) |
 
 Os três usam a **mesma base de código** e o mesmo cadastro: o que muda é a
 fonte (`--fonte 0` para webcam, `--host` para Dahua, `--fonte
@@ -234,6 +235,152 @@ chega** — ou que o stream está sendo zerado por outro dono.
 Nenhum ajuste de `YOLO_CONFIDENCE` conserta isso — e o painel diz sozinho:
 `Detecções (30s)` em **NENHUMA** com `Fonte agora` mostrando resolução e FPS
 saudáveis.
+
+---
+
+## Teste em outra máquina — do zero, para quem nunca rodou o projeto
+
+Objetivo: subir o projeto numa máquina limpa, apontar para a **webcam** dela e
+responder **uma pergunta que ainda não temos resposta** (última seção). Uma
+hora, contando o download dos pesos.
+
+Se algo não bater com o que está escrito aqui, é bug de documentação — anote e
+mande, não improvise.
+
+### 1. Pré-requisitos
+
+- **Python 3.11 ou 3.12.** Não 3.13+: `mediapipe==0.10.14` e `numpy==1.26.4`
+  não publicam wheel para versões acima da 3.12 e o `pip install` falha antes
+  de instalar qualquer coisa.
+- Node.js + npm (para o build do frontend).
+- Uma webcam. **Feche Discord, Teams, Zoom, OBS e Meet antes** — o Windows
+  entrega stream preto para o segundo aplicativo que abre uma câmera já tomada
+  (foi o que aconteceu na nossa bancada, ver
+  [passo 5 do teste com webcam](#5-se-a-imagem-vier-preta)).
+
+### 2. Clonar e ambiente
+
+```bash
+git clone <url-do-repo> && cd Challenge_5550
+py -3.11 -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+```
+
+Gere a `SECRET_KEY` e cole no `.env` — **a aplicação se recusa a subir** com o
+valor do repositório ou com menos de 32 caracteres:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 3. Pesos e fixture (não são versionados)
+
+```bash
+python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"   # baixa o de PESSOA
+python scripts/fetch_fixtures.py                                # fixture + 3 cenas
+python scripts/fetch_fixtures.py --check                        # "OK: 1 fixture(s) e 3 cena(s)"
+```
+
+Mova o `yolov8n.pt` baixado para `models/`. O peso de **EPI** vem do Hugging
+Face — [Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection)
+(licença CC-BY-4.0, exige atribuição) — e vai em `models/vyra_ppe.pt`.
+
+### 4. Banco, conta e build
+
+```bash
+flask --app wsgi db upgrade
+flask --app wsgi users create --role technical
+npm --prefix frontend install
+npm --prefix frontend run build
+```
+
+> **Crie a conta como `technical`, não `supervisor`.** O painel de diagnóstico
+> que interessa aqui não é renderizado para Supervisor — ver
+> [o banner do runbook de campo](#runbook-de-campo--dentro-da-planta-na-ordem-com-o-comando-exato).
+> O comando prompta a senha duas vezes e **não** funciona por pipe.
+
+### 5. Cadastrar a webcam e subir
+
+```bash
+python scripts/sondar_cameras.py --usb 0 --usb 1 --pessoas
+flask --app wsgi cameras add --name "Webcam" --fonte 0 --largura 640 --altura 480
+python run.py
+```
+
+Abra `http://127.0.0.1:5000`, entre com a conta criada e clique **Iniciar**. O
+boot frio leva ~17 s e o botão Iniciar bloqueia ~7,6 s — **é esperado, não
+clique duas vezes.**
+
+### 6. O que observar
+
+| onde | o que tem que aparecer |
+|---|---|
+| card da câmera | badge verde **recebendo**, e no rodapé `<fps> · <resolução>` |
+| card da câmera | **NÃO** deve aparecer `⚠ sem imagem`. Se aparecer, algum app está com a câmera (passo 5 acima) |
+| vídeo | caixa em volta da pessoa e landmarks de pose |
+| aba **Modelo** (perfil Técnico) | `Detecções (30s)` com contagem **> 0** por classe |
+| aba **Alertas** | alerta de EPI criado, e que sobrevive a recarregar a página |
+
+Números desta máquina para comparar: **~8,9 fps** a 640x480 com uma webcam
+sozinha ([BENCH.md](BENCH.md), Fase 8). Metade disso já é utilizável; um dígito
+só (1–2 fps) é sinal de máquina mais lenta que a nossa, não de bug.
+
+---
+
+### 7. A PERGUNTA que este teste existe para responder
+
+**O capacete dispara em ambiente interno?**
+
+Já medimos em **4 cenas externas** (canteiro a céu aberto, capacete branco
+visível a olho nu) e o resultado foi ruim: `helmet` ficou em **0,15 a 0,23**
+contra o limiar de **0,35**, enquanto `vest` chegava a 0,57. A resolução não
+muda isso — nativa contra D1 diferiu no máximo 0,04 ([BENCH.md](BENCH.md),
+Fase 9).
+
+O que não sabemos: como isso se comporta **sob luz de galpão/escritório**, com
+capacete de outra cor ou de aba total.
+
+Ponha algo na cabeça (capacete de verdade, se houver; se não, qualquer coisa
+que o pareça), fique na frente da câmera e rode:
+
+```bash
+python - <<'FIM'
+import cv2
+from app.vision.yolo_ppe_detector import YoloPPEDetector
+# conf=0.05 SO PARA OBSERVAR. Nao mude YOLO_CONFIDENCE no .env.
+det = YoloPPEDetector(model_path="models/vyra_ppe.pt", confidence=0.05,
+                      classes=[0,1,2,3,5,11,12,13], imgsz=416, require_person=False)
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+for _ in range(30):
+    cap.read()                      # deixa a auto-exposicao assentar
+melhor = {}
+for _ in range(60):                 # ~4 s de amostras
+    ok, frame = cap.read()
+    if not ok:
+        break
+    for d in det.detect(frame):
+        melhor[d.label] = max(melhor.get(d.label, 0.0), d.confidence)
+cap.release()
+print("brilho medio do ultimo frame:", round(float(frame.mean()), 2))
+for k, v in sorted(melhor.items(), key=lambda kv: -kv[1]):
+    print(f"  {k:<10} maxima {v:.2f}   {'>= 0.35 PASSA' if v >= 0.35 else '< 0.35 nao dispara'}")
+FIM
+```
+
+Mande de volta:
+
+1. a tabela de **confiança máxima por classe** que o comando imprimir;
+2. o **brilho médio** que ele reporta — se vier abaixo de ~2, a câmera está
+   tomada por outro app e o resto não vale;
+3. o **screenshot** do dashboard com você em quadro;
+4. o **FPS** do rodapé do card.
+
+**Não altere `YOLO_CONFIDENCE`.** O `conf=0.05` acima é só para *observar* o
+que o modelo veria; mudar o limiar de operação troca alerta perdido por alerta
+errado — o modelo já produz dois falsos positivos de "sem capacete" na cena
+SEGURA ([SPRINT3.md](SPRINT3.md)).
 
 ---
 
@@ -917,6 +1064,7 @@ fixture.
 | Badge âmbar "modo fixture" quando se esperava ao vivo | a fonte configurada não respondeu N vezes | é o comportamento correto. Diga isso: o sistema continua e informa de qual fonte está lendo |
 | Vídeo travando | inferência é o gargalo, não a captura | confira o FPS no rodapé do card e siga a [ordem de degradação](#d-se-o-fps-estiver-ruim-a-ordem-de-degradação). Nunca mexa nisso durante a apresentação |
 | **Vídeo fluido mas ATRASADO** (a pessoa se move e a tela responde segundos depois) | era a fila de frame do RTSP, **corrigida** (Fase 7). Se voltar, o descarte não está alcançando a fila | reinicie o monitoramento (zera a fila) e confira o `fps real` do passo (a) contra o FPS do card. Persistindo, baixe o FPS **na câmera** e reporte: o limiar do descarte pode não servir para essa rede |
+| **`⚠ sem imagem` no rodapé do card** | o frame chega e a imagem não: brilho médio abaixo de `FONTE_BRILHO_MINIMO` por `FONTE_BRILHO_JANELA_S` segundos. Causa mais provável: **outro aplicativo com a câmera** (o Windows entrega stream preto ao segundo dono). Depois disso, lente tampada | rode o comando de "quem está com a câmera" do [passo 5 do teste com webcam](#5-se-a-imagem-vier-preta). Cena legitimamente escura? Baixe `FONTE_BRILHO_MINIMO` — é só aviso, nada foi interrompido |
 | **`Detecções (30s)` diz NENHUMA** | modelo, fonte ou enquadramento — nesta ordem de probabilidade | siga o [passo (e)](#e-se-a-detecção-não-pegar-epi-o-que-verificar-antes-de-mexer-em-confiança). **Não** baixe `YOLO_CONFIDENCE` antes das 5 checagens |
 | Card mostra resolução diferente da cadastrada | normal em RTSP: o backend FFMPEG ignora a resolução pedida | o número do card é o real. Se for pequeno demais para EPI, veja `subtype=0` no passo (b) |
 | Câmera "parada" sem erro | worker sem câmera habilitada | `cameras list` e confira `ativa` |

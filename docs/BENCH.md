@@ -985,3 +985,79 @@ O que isso significa para a sexta, e o que **não** significa:
 aberto. Se o capacete se comporta pior (ou melhor) sob luz de galpão, com
 capacete de outra cor ou de aba total, isto não mede — e é justamente o que o
 teste com a webcam responderia.
+
+
+---
+
+# Fase 10 — fonte cega na tela, e o que a checagem custa
+
+O sistema aceitava frame zerado em silêncio: vídeo preto, inferência em nada,
+FPS saudável, nenhum aviso. Quem fosse testar noutra máquina concluiria que o
+projeto está quebrado. Agora o diagnóstico reporta `fonte_sem_imagem`.
+
+## O custo: 0,0156 ms por segundo de operação
+
+`brilho_do_frame` subamostra em vez de ler o frame inteiro — o passo se adapta
+à resolução para dar ~1.000 pixels lidos em qualquer fonte:
+
+| fonte | subamostrado | frame inteiro | mais barato |
+|---|---|---|---|
+| 640x480 (webcam) | **0,0127 ms** (4.032 valores) | 0,4675 ms (921.600) | **37,0x** |
+| 704x576 (D1) | **0,0122 ms** (3.744 valores) | 0,6197 ms (1.216.512) | **50,6x** |
+| 1920x1080 | **0,0389 ms** (5.568 valores) | 3,7136 ms (6.220.800) | **95,5x** |
+
+E a medição é **esparsa**: uma vez por segundo
+(`INTERVALO_AMOSTRA_BRILHO_S = 1.0`), não por frame. A 15 fps, medir a cada
+frame custaria 15 medições/s; assim custa **uma**:
+
+```
+0,0156 ms por medicao x 1 por segundo = 0,0156 ms/s
+um frame de inferencia a imgsz=416   ~= 120 ms   (Fase 6)
+                                        7.692x o custo de uma medicao
+```
+
+Amostragem por **tempo**, e não por contagem de frames, de propósito: contar
+frames faria a mesma escuridão acusar em tempos diferentes numa câmera de
+25 fps e numa de 6. O que o operador percebe é tempo.
+
+## A/B no worker real: abaixo do piso de ruído
+
+Ligando e desligando a amostragem no mesmo processo, intercalado, fonte
+fixture, 40 s por execução:
+
+| | execução 1 | execução 2 | média |
+|---|---|---|---|
+| ANTES (sem amostragem) | 7,10 fps | 8,10 fps | 7,60 |
+| DEPOIS (1 medição/s) | 8,70 fps | 8,40 fps | 8,55 |
+
+O "depois" saiu **+12,5% mais rápido**, o que obviamente não é efeito de
+adicionar trabalho — é ruído: o cenário ANTES sozinho variou de 7,10 a
+8,10 fps (14%) entre execuções idênticas. Com um custo aritmético de
+0,0156 ms/s contra um orçamento de ~960 ms/s de trabalho por segundo, **nenhum
+A/B nesta máquina consegue resolver o efeito**; o micro-benchmark acima é a
+prova, e o A/B só confirma que não há regressão visível.
+
+## Ao vivo: acusa a cega, ignora a boa
+
+Duas câmeras no mesmo processo — a webcam com o stream zerado pelo Windows
+(porque o Discord já a tinha aberto) e a fixture com cena real:
+
+```
+cam 1 webcam (stream zerado)   fps=8.20   640x480  brilho=0.02    sem_imagem=True
+cam 2 fixture (cena real)      fps=8.50  1280x720  brilho=119.27  sem_imagem=False
+```
+
+`running=True` e `alertas=0` nas duas: é **diagnóstico**, não veredito. Não
+para a captura e não cria alerta, porque cena legitimamente escura cairia no
+mesmo teste, e derrubá-la por causa disso seria pior que o silêncio que isto
+conserta.
+
+O limiar de **2,0** fica ~60x acima do medido na fonte cega (0,01 a 0,034) e
+~60x abaixo da fixture (119). A margem é grande nos dois lados, e esse é o
+ponto: o alvo é imagem **zerada**, não imagem escura.
+
+**NÃO VERIFICADO: quanto marca uma cena legitimamente escura** (galpão à noite,
+turno sem iluminação). Sensor com ganho alto produz ruído, que *deveria* ficar
+acima de 2,0 — mas isso é inferência, não medição, e é exatamente por isso que
+`FONTE_BRILHO_MINIMO` e `FONTE_BRILHO_JANELA_S` são configuráveis em vez de
+constantes.

@@ -40,6 +40,30 @@ logger = logging.getLogger(__name__)
 # demais e a contagem pisca entre 0 e 3 e ninguem consegue ler.
 JANELA_FPS_S = 5.0
 JANELA_DETECCOES_S = 30.0
+# Intervalo entre medicoes de brilho. NAO e por frame: a 15 fps seriam 15
+# medicoes por segundo dentro do loop de captura, e o orcamento desse loop e o
+# que este projeto passa o tempo defendendo. Uma vez por segundo e de sobra
+# para uma janela de 5 s, e o custo vira irrelevante.
+INTERVALO_AMOSTRA_BRILHO_S = 1.0
+# Amostras por lado usadas por `brilho_do_frame`: 32 => ~1.000 pixels lidos,
+# independente da resolucao da fonte.
+AMOSTRAS_DE_BRILHO_POR_LADO = 32
+
+
+def brilho_do_frame(frame) -> float:
+    """Brilho medio APROXIMADO, por subamostragem.
+
+    Ler os 921.600 valores de um frame 640x480x3 a cada medicao seria caro sem
+    necessidade: a pergunta e "esta imagem esta zerada?", e para isso uma grade
+    esparsa responde igual. O passo se adapta a resolucao, entao o custo nao
+    cresce com fonte maior.
+
+    `float(...)` explicito porque `numpy.mean` devolve `np.float64`, e este
+    numero vai para o payload JSON do dashboard.
+    """
+    lado_menor = min(frame.shape[0], frame.shape[1])
+    passo = max(1, lado_menor // AMOSTRAS_DE_BRILHO_POR_LADO)
+    return float(frame[::passo, ::passo].mean())
 
 
 class CameraWorker:
@@ -174,6 +198,14 @@ class CameraWorker:
         self._instantes_de_frame: deque[float] = deque(maxlen=200)
         self._deteccoes_recentes: deque[tuple[float, str]] = deque(maxlen=4000)
         self._resolucao_da_fonte: tuple[int, int] | None = None
+        # Fonte cega (ver `brilho_do_frame` e `diagnostico`). Limiar e janela
+        # vem do .env porque o que separa "imagem zerada" de "cena escura de
+        # verdade" depende do local — e so a planta sabe.
+        self.brilho_minimo = float(app.config.get("FONTE_BRILHO_MINIMO", 2.0))
+        self.brilho_janela_s = float(app.config.get("FONTE_BRILHO_JANELA_S", 5.0))
+        self._brilho: float | None = None
+        self._ultima_amostra_de_brilho = 0.0
+        self._escuro_desde: float | None = None
         self.rule_engine = RuleEngine(
             feature_manager=feature_manager,
             cooldown_seconds=app.config.get("ALERT_COOLDOWN_SECONDS", 0),
@@ -244,6 +276,9 @@ class CameraWorker:
             self._instantes_de_frame.clear()
             self._deteccoes_recentes.clear()
             self._resolucao_da_fonte = None
+            self._brilho = None
+            self._ultima_amostra_de_brilho = 0.0
+            self._escuro_desde = None
             self.person_tracker.reset()
             self._running.set()
             self._task = self.socketio.start_background_task(self._loop)
@@ -750,8 +785,18 @@ class CameraWorker:
                 por_classe[rotulo] = por_classe.get(rotulo, 0) + 1
 
         largura, altura = self._resolucao_da_fonte or (0, 0)
+        # `fonte_sem_imagem` e DIAGNOSTICO, nao veredito: nao para o worker e
+        # nao cria alerta. Cena legitimamente escura nao e falha, e derrubar a
+        # captura por causa dela seria pior que o silencio que isto conserta.
+        sem_imagem = (
+            self._escuro_desde is not None
+            and (agora - self._escuro_desde) >= self.brilho_janela_s
+        )
         return {
             "fps": round(fps, 1),
+            "brilho": None if self._brilho is None else round(self._brilho, 2),
+            "fonte_sem_imagem": bool(sem_imagem),
+            "brilho_minimo": self.brilho_minimo,
             "resolucao": f"{largura}x{altura}" if largura else None,
             "largura": largura,
             "altura": altura,
@@ -765,10 +810,31 @@ class CameraWorker:
         self._instantes_de_frame.append(agora)
         altura, largura = frame.shape[:2]
         self._resolucao_da_fonte = (largura, altura)
+        self._amostrar_brilho(frame, agora)
         if not foi_nova:
             return
         for deteccao in analise.detections:
             self._deteccoes_recentes.append((agora, deteccao.label))
+
+    def _amostrar_brilho(self, frame, agora: float) -> None:
+        """Mede brilho no maximo uma vez por `INTERVALO_AMOSTRA_BRILHO_S`.
+
+        Guarda desde QUANDO o brilho esta abaixo do limiar, em vez de contar
+        frames escuros: contagem de frames dependeria do FPS, e a mesma
+        escuridao acusaria em tempos diferentes numa camera de 25 fps e numa
+        de 6. O que o operador percebe e tempo.
+        """
+        if agora - self._ultima_amostra_de_brilho < INTERVALO_AMOSTRA_BRILHO_S:
+            return
+        self._ultima_amostra_de_brilho = agora
+        self._brilho = brilho_do_frame(frame)
+        if self._brilho < self.brilho_minimo:
+            # Primeira amostra escura marca o inicio; as seguintes nao mexem,
+            # senao a janela nunca fecharia.
+            if self._escuro_desde is None:
+                self._escuro_desde = agora
+        else:
+            self._escuro_desde = None
 
     def video_state(self) -> dict[str, Any]:
         """Estado da captura + em QUAL fonte a câmera está.

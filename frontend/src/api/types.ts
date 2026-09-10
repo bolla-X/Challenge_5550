@@ -290,6 +290,17 @@ export interface CameraDiagnostico {
   /** Contagem por classe, só de frames com inferência NOVA (não reaproveitada). */
   deteccoes_30s: Record<string, number>;
   janela_deteccoes_s: number;
+  /** Brilho médio aproximado do último frame amostrado. `null` antes da 1ª amostra. */
+  brilho?: number | null;
+  /**
+   * Frame chega, imagem não. É o caso do Windows entregando stream PRETO para o
+   * segundo app que abre uma webcam já tomada por outro: FPS saudável,
+   * resolução certa, e cada pixel em ~0. É só diagnóstico — não para a captura
+   * nem gera alerta, porque cena legitimamente escura não é falha.
+   */
+  fonte_sem_imagem?: boolean;
+  /** O limiar em uso, para quem lê o aviso saber contra que número foi comparado. */
+  brilho_minimo?: number;
 }
 
 export interface MonitorStatus extends CameraScoped {

@@ -184,6 +184,24 @@ class Config:
     # Ver docs/DEMO.md para o sintoma de errar para cada lado.
     RTSP_LIMIAR_GRAB_MS = env_float("RTSP_LIMIAR_GRAB_MS", 5.0)
 
+    # --- fonte CEGA: o frame chega, a imagem nao --------------------------
+    # Brilho medio abaixo do qual o frame conta como "sem imagem". MEDIDO: uma
+    # webcam cujo stream o Windows zera (porque outro app ja a tinha aberto)
+    # entrega media de pixel 0,01 a 0,034 e maximo 3, com o ganho da camera no
+    # teto (255). 2.0 fica ~60x acima disso de proposito: o alvo e imagem
+    # ZERADA, nao imagem escura.
+    #
+    # NAO VERIFICADO: quanto marca uma cena legitimamente escura (galpao a
+    # noite). Sensor com ganho alto produz ruido, que deveria ficar acima de
+    # 2,0 — mas isso e inferencia, nao medicao, e e a razao de o limiar ser
+    # configuravel em vez de constante. Se um turno noturno acusar fonte cega,
+    # baixe. E so diagnostico: nao para captura nem gera alerta.
+    FONTE_BRILHO_MINIMO = env_float("FONTE_BRILHO_MINIMO", 2.0)
+    # Por quantos segundos consecutivos o brilho precisa ficar abaixo do limiar
+    # antes de a tela acusar. Curto demais e uma pessoa passando na frente da
+    # lente acende o aviso; longo demais e quem esta testando desiste antes.
+    FONTE_BRILHO_JANELA_S = env_float("FONTE_BRILHO_JANELA_S", 5.0)
+
     # --- camada LLM (segunda opiniao multimodal) --------------------------
     # SEM CHAVE O SISTEMA FUNCIONA NORMALMENTE, sem a camada. E degradacao
     # explicita, nao erro. `false` por padrao de proposito: o demo nao pode

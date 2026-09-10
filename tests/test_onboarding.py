@@ -445,3 +445,84 @@ def test_limiar_do_grab_chega_no_video_stream():
         "RTSP_LIMIAR_GRAB_MS nao chegou ao VideoStream: ajustar o .env em campo "
         "nao teria efeito nenhum"
     )
+
+
+# ---------------------------------------------------------------------------
+# Fonte cega: limiar e janela de brilho
+# ---------------------------------------------------------------------------
+# MEDIDO: webcam cujo stream o Windows zera (outro app ja a tinha aberto)
+# entrega media de pixel 0,01 a 0,034, maximo 3, com ganho da camera em 255.
+# O limiar de 2.0 fica ~60x acima disso — o alvo e imagem ZERADA, nao escura.
+#
+# Os defaults ficam travados porque errar aqui falha em silencio nos dois
+# sentidos: alto demais acusa fonte cega num turno noturno legitimo, baixo
+# demais volta a aceitar stream preto sem avisar ninguem.
+def test_limiar_de_brilho_tem_default_de_2_no_codigo():
+    fonte = (RAIZ / "app" / "config.py").read_text(encoding="utf-8")
+
+    casamento = re.search(r'FONTE_BRILHO_MINIMO\s*=\s*env_float\(\s*"FONTE_BRILHO_MINIMO"\s*,\s*([0-9.]+)\s*\)', fonte)
+    assert casamento, "FONTE_BRILHO_MINIMO sumiu de app/config.py"
+    assert float(casamento.group(1)) == 2.0, (
+        f"default do limiar de brilho mudou para {casamento.group(1)} sem medicao nova. "
+        "A webcam zerada media 0,01-0,034; subir muito acusa cena escura legitima, "
+        "e descer para ~0 volta a aceitar stream preto em silencio."
+    )
+
+
+def test_janela_de_brilho_tem_default_de_5s_no_codigo():
+    fonte = (RAIZ / "app" / "config.py").read_text(encoding="utf-8")
+
+    casamento = re.search(r'FONTE_BRILHO_JANELA_S\s*=\s*env_float\(\s*"FONTE_BRILHO_JANELA_S"\s*,\s*([0-9.]+)\s*\)', fonte)
+    assert casamento, "FONTE_BRILHO_JANELA_S sumiu de app/config.py"
+    assert float(casamento.group(1)) == 5.0
+
+
+def test_brilho_no_env_example_bate_com_o_codigo():
+    """O `.env.example` e o que a pessoa copia: discordancia silenciosa troca
+    o default efetivo sem ninguem perceber."""
+    valores = ler_env_example()
+
+    assert float(valores["FONTE_BRILHO_MINIMO"]) == 2.0
+    assert float(valores["FONTE_BRILHO_JANELA_S"]) == 5.0
+
+
+def test_limiar_e_janela_de_brilho_chegam_no_worker():
+    """Pega o esquecimento mais provavel: adicionar a chave e nao ligar o fio."""
+    import threading
+
+    from app.config import TestConfig
+    from app.services.camera_worker import CameraWorker
+    from app.services.feature_manager import FeatureManager
+
+    class DetectorMinimo:
+        confidence = 0.35
+        max_detections = 100
+
+        def supported_ppe_classes(self):
+            return set()
+
+    class Cfg(TestConfig):
+        FONTE_BRILHO_MINIMO = 7.5
+        FONTE_BRILHO_JANELA_S = 11.0
+
+    app = create_app(Cfg)
+    with app.app_context():
+        worker = CameraWorker(
+            app,
+            socketio=None,
+            feature_manager=FeatureManager.from_config(app.config),
+            camera_id=1,
+            source="fonte-inexistente",
+            fps=12,
+            detector=DetectorMinimo(),
+            person_detector=DetectorMinimo(),
+            pose_estimator=None,
+            inference_lock=threading.Lock(),
+        )
+
+    assert worker.brilho_minimo == 7.5, "FONTE_BRILHO_MINIMO nao chegou ao worker"
+    assert worker.brilho_janela_s == 11.0, "FONTE_BRILHO_JANELA_S nao chegou ao worker"
+    assert worker.diagnostico()["brilho_minimo"] == 7.5, (
+        "o limiar em uso tem que aparecer no diagnostico: sem ele, quem le "
+        '"fonte sem imagem" nao sabe contra que numero foi comparado'
+    )

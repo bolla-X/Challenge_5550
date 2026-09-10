@@ -137,7 +137,23 @@ function CameraCard({
               sem abrir terminal. Só com a câmera rodando: parada, o número
               seria da sessão anterior. */}
           {running && estado.diagnostico ? (
-            <span className="cam-footer-stat" style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--muted)" }}>
+            <span
+              className="cam-footer-stat"
+              style={{
+                fontFamily: "var(--font-mono, monospace)",
+                // Âmbar, não vermelho: fonte cega é um AVISO, não uma falha —
+                // cena legitimamente escura cai aqui também.
+                color: estado.diagnostico.fonte_sem_imagem ? "var(--warning, #f59e0b)" : "var(--muted)",
+              }}
+              title={
+                estado.diagnostico.fonte_sem_imagem
+                  ? `Brilho médio ${estado.diagnostico.brilho} — abaixo de ${estado.diagnostico.brilho_minimo}. ` +
+                    "Frame chega e imagem não: outro aplicativo pode estar com a câmera, " +
+                    "ou a lente está tampada."
+                  : undefined
+              }
+            >
+              {estado.diagnostico.fonte_sem_imagem ? "⚠ sem imagem · " : ""}
               {estado.diagnostico.fps.toFixed(1)} fps
               {estado.diagnostico.resolucao ? ` · ${estado.diagnostico.resolucao}` : ""}
             </span>

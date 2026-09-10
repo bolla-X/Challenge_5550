@@ -164,8 +164,21 @@ function DeteccoesRecentes({ camId }: { camId: number }) {
         <span className="status-row-label">Fonte agora</span>
         <span className="status-row-value">
           {diagnostico.resolucao || "sem frame"} · {diagnostico.fps.toFixed(1)} fps
+          {typeof diagnostico.brilho === "number" ? ` · brilho ${diagnostico.brilho}` : ""}
         </span>
       </div>
+      {/* Só aparece quando acende: uma linha "imagem ok" permanente seria
+          ruído. O aviso é o que muda a decisão de quem está diagnosticando. */}
+      {diagnostico.fonte_sem_imagem ? (
+        <div className="status-row">
+          <span className="status-row-label" style={{ color: "var(--warning, #f59e0b)" }}>
+            ⚠ Fonte sem imagem
+          </span>
+          <span className="status-row-value">
+            brilho {diagnostico.brilho} &lt; {diagnostico.brilho_minimo} — outro app com a câmera?
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
