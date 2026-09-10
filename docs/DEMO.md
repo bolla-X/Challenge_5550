@@ -529,14 +529,23 @@ olhar:
    Abaixo de ~25% da altura do quadro, o capacete tem poucos pixels e **nenhum
    ajuste de confiança resolve**. A correção é trocar de câmera (passo b) ou
    subir para `subtype=0` — o custo em FPS é ~zero, ver acima.
-4. **O EPI da fábrica é o que o modelo conhece?** O Vyra foi treinado em
+4. **O capacete é fraco NESTE modelo, e isso já está medido.** Antes de
+   culpar a câmera: em 3 de 4 cenas reais com capacete branco visível, a
+   confiança máxima de `helmet` ficou em **0,14 a 0,26** — abaixo do corte de
+   0,35 — enquanto `vest` chegava a 0,57. E **a resolução não muda isso**:
+   nativa contra D1 diferiu no máximo 0,04 ([BENCH.md](BENCH.md), Fase 9).
+   Portanto `helmet` baixo com `vest` alto na contagem de 30 s é o
+   **comportamento esperado**, não sinal de fonte ruim — e não se conserta
+   baixando confiança, porque a 0,05 vêm junto os falsos positivos.
+
+5. **O EPI da fábrica é o que o modelo conhece?** O Vyra foi treinado em
    `Hardhat`, `Safety Vest`, `Gloves`, `Goggles`, `Mask`. Capacete de aba total,
    colete refletivo de outro padrão, luva de raspa escura, óculos de sobrepor:
    são objetos que o dataset dele pode simplesmente não ter. Compare a lista
    `Classes carregadas` do painel com o que as pessoas estão vestindo. Se o EPI
    da planta não estiver representado, **isso não é bug e não se resolve na
    sexta** — é retreino, e a resposta honesta é dizer isso.
-5. **Iluminação e ângulo.** Contraluz (janela ou portão atrás da pessoa),
+6. **Iluminação e ângulo.** Contraluz (janela ou portão atrás da pessoa),
    câmera muito alta olhando para o topo da cabeça, ou EPI da mesma cor do
    fundo. Compare o quadro salvo em `runtime/sondagem/` com as fotos onde o
    modelo comprovadamente funciona (`tests/fixtures/cenas/`).

@@ -935,3 +935,53 @@ diriam NENHUMA.
 > de quem logou (`setMode(user.role)`), e não há seletor: um Supervisor não vê
 > `#panel-model`, verificado no DOM. Quem for diagnosticar em campo precisa
 > entrar como **Técnico**.
+
+
+---
+
+# Fase 9 — o capacete é fraco, e não é a resolução
+
+Pergunta que veio do campo: no perfil D1 a contagem de 30 s deu `helmet: 2`
+contra `vest: 127`. Isso é a fonte pequena ou o modelo?
+
+Medido rodando o Vyra com `conf=0.05` **só para observar** (nenhuma mudança de
+configuração: `YOLO_CONFIDENCE` continua 0,35), sobre as 3 cenas reais de
+`tests/fixtures/cenas/` e a fixture — todas com pessoas de **capacete branco
+visível a olho nu** — cada uma na resolução nativa e reescalada para D1:
+
+| cena | resolução | `vest` | `helmet` |
+|---|---|---|---|
+| segura | 1280x866 | 0,57 | **0,17** |
+| segura | 704x576 (D1) | 0,51 | **0,18** |
+| risco | 1280x854 | — | **0,15** |
+| risco | 704x576 (D1) | — | **0,14** |
+| ambigua | 1280x914 | 0,13 | **0,59** |
+| ambigua | 704x576 (D1) | 0,11 | **0,55** |
+| fixture | 1280x720 | 0,31 | **0,23** |
+| fixture | 704x576 (D1) | 0,47 | **0,26** |
+
+**Em 3 das 4 cenas o capacete não alcança o limiar de 0,35** — fica em 0,14 a
+0,26, com o capacete claramente na imagem. Só a `ambigua` passa (0,55).
+
+**E a resolução quase não muda nada:** nativa contra D1 difere no máximo
+**0,04** em todas as linhas, e em duas delas o D1 sai *melhor*. Ou seja, o
+`helmet: 2` contra `vest: 127` **não é culpa do substream nem do
+enquadramento** — é a confiança do modelo nessa classe, que vive logo abaixo
+do corte.
+
+O que isso significa para a sexta, e o que **não** significa:
+
+- **Não** é caso de baixar `YOLO_CONFIDENCE`. A 0,05 apareceram detecções de
+  capacete, mas junto vem tudo o que estiver acima de 0,05 — e o modelo já
+  produz dois falsos positivos de "sem capacete" na cena SEGURA
+  ([SPRINT3.md](SPRINT3.md)). Trocar-se-ia alerta perdido por alerta errado.
+- É coerente com o que a matriz de confusão do autor já dizia sobre este peso:
+  as classes têm suporte muito desigual no dataset de treino.
+- A regra do passo (e) do runbook continua valendo, e agora com número:
+  **capacete fraco não se conserta com limiar**, e a diferença entre `vest` e
+  `helmet` na contagem de 30 s é esperada, não é sintoma de fonte ruim.
+
+**NÃO VERIFICADO: cena INTERNA.** As quatro cenas acima são canteiro a céu
+aberto. Se o capacete se comporta pior (ou melhor) sob luz de galpão, com
+capacete de outra cor ou de aba total, isto não mede — e é justamente o que o
+teste com a webcam responderia.
