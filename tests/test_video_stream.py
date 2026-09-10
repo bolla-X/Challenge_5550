@@ -13,6 +13,10 @@ from app.vision import video_stream as vs_module
 from app.vision.video_stream import LIVE, RECONNECTING, UNAVAILABLE, VideoStream, VideoStreamError
 
 FRAME = np.zeros((4, 4, 3), dtype=np.uint8)
+# Custo de um `grab()` que espera o proximo frame chegar (fonte no ritmo
+# do consumidor). ~1/fps de uma camera lenta, bem acima do limiar de 5 ms
+# que separa 'veio do buffer' de 'esperou a rede'.
+MS_FONTE_VIVA = 200.0
 
 
 def frame_com_id(n: int):
@@ -43,6 +47,11 @@ class FakeCapture:
     `ms_por_grab` simula o custo de cada `grab()`: frame que já está no buffer
     volta instantâneo, frame que ainda não chegou custa a espera da rede. É o
     que permite testar o descarte sem servidor RTSP nenhum.
+
+    O DEFAULT é fonte VIVA (`MS_FONTE_VIVA` por grab), e não instantâneo: uma
+    fonte no ritmo do consumidor é o caso comum, e um dublê instantâneo por
+    omissão faria toda leitura parecer "há fila para descartar". Quem quer
+    testar a fila passa `ms_por_grab` explícito.
     """
 
     def __init__(
@@ -66,8 +75,9 @@ class FakeCapture:
         return self._abre and not self.liberado
 
     def grab(self):
-        if self._relogio is not None and self._ms_por_grab:
-            self._relogio["t"] += self._ms_por_grab.pop(0) / 1000.0
+        if self._relogio is not None:
+            custo = self._ms_por_grab.pop(0) if self._ms_por_grab else MS_FONTE_VIVA
+            self._relogio["t"] += custo / 1000.0
         if not self.leituras:
             self._ultimo_id = None
             return False
@@ -107,8 +117,13 @@ def relogio(monkeypatch):
 
 
 @pytest.fixture()
-def capturas(monkeypatch):
-    """Fila de FakeCapture: cada abertura consome a próxima da lista."""
+def capturas(monkeypatch, relogio):
+    """Fila de FakeCapture: cada abertura consome a próxima da lista.
+
+    Depende de `relogio` para injetá-lo em todo dublê que não trouxe o seu:
+    sem relógio, `grab()` não custa nada e TODA leitura pareceria ter fila
+    para descartar. Com ele, o default vira fonte viva.
+    """
     fila: list[FakeCapture] = []
     criadas: list[FakeCapture] = []
 
@@ -122,6 +137,8 @@ def capturas(monkeypatch):
         # dublê servir a todos os formatos de chamada.
         chamadas.append((_source, _api, _params))
         cap = fila.pop(0) if fila else FakeCapture([], abre=False)
+        if cap._relogio is None:
+            cap._relogio = relogio
         criadas.append(cap)
         return cap
 
@@ -474,7 +491,7 @@ def test_rede_para_de_descartar_ao_alcancar_o_vivo(relogio, capturas):
     assert capturas["criadas"][0].grabs == 3
 
 
-def test_rede_tem_teto_de_descarte_por_leitura(relogio, capturas):
+def test_rede_tem_teto_de_grabs_por_leitura(relogio, capturas):
     """Fonte que entrega instantaneo para sempre nao pode prender o loop.
 
     Sem teto, uma fonte mais rapida que o consumidor faria `read()` girar sem
@@ -484,7 +501,7 @@ def test_rede_tem_teto_de_descarte_por_leitura(relogio, capturas):
         relogio, capturas,
         leituras=[True] * 500,
         ms_por_grab=[0] * 500,
-        max_descarte_por_leitura=8,
+        max_grabs_por_leitura=8,
     )
 
     ok, _ = stream.read()

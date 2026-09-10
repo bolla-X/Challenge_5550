@@ -149,10 +149,27 @@ class VideoStream:
         max_backoff_seconds: float = 30.0,
         em_loop: bool = False,
         open_timeout_ms: int = 5000,
+        max_grabs_por_leitura: int = 8,
+        limiar_grab_ms: float = 5.0,
     ) -> None:
         self.source = source
         self.width = width
         self.height = height
+        # Descarte de frame atrasado: SÓ em fonte de rede. Ver `_ler_do_capture`
+        # para o porquê de arquivo e webcam ficarem de fora. A classificação sai
+        # de `capture_api`, que é quem já decide o backend a partir da fonte —
+        # assim as duas decisões não podem divergir.
+        self._descartar_atrasados = capture_api(source) == cv2.CAP_FFMPEG
+        # Teto de `grab()` por leitura. Sem ele, uma fonte que entrega mais
+        # rápido que o consumidor faria a leitura girar sem nunca devolver
+        # frame: trocaria atraso por travamento. 8 a 15 fps = descarta até
+        # ~0,5 s de fila por leitura, e a leitura seguinte continua drenando.
+        self.max_grabs_por_leitura = max(1, int(max_grabs_por_leitura))
+        # Acima disto, o `grab()` esperou a rede em vez de ler do buffer.
+        # 5 ms separa bem: buffer responde em microssegundos e o frame vivo
+        # custa ~1/fps (67 ms a 15 fps, 17 ms a 60 fps). Errar para o lado
+        # conservador só descarta menos, nunca bloqueia.
+        self.limiar_grab_ms = float(limiar_grab_ms)
         # Arquivo que deve reiniciar ao terminar (a fonte de demonstração do
         # modo fixture). Sem isto o fim do vídeo entra no caminho de FALHA:
         # seriam 15 leituras ruins mais o backoff inicial de 0,5 s a cada
@@ -232,13 +249,24 @@ class VideoStream:
 
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        # Buffer de 1 frame: a câmera entrega ~30 FPS, mas o pipeline consome
-        # bem menos (a inferência é o gargalo). Com o buffer padrão, os frames
-        # não consumidos ENFILEIRAM e `read()` devolve imagem velha — o vídeo
-        # aparece atrasado em segundos e piora quanto mais tempo roda. Com 1,
-        # `read()` sempre pega o frame mais recente e o atraso não acumula.
-        # Nem todo backend respeita; quando ignora, o comportamento é o de
-        # antes, então não há risco em pedir.
+        # Buffer de 1 frame. ATENÇÃO: em fonte de REDE isto NÃO FUNCIONA, e o
+        # comentário que estava aqui afirmava o contrário ("com 1, `read()`
+        # sempre pega o frame mais recente e o atraso não acumula").
+        #
+        # Medido contra o servidor RTSP local (mediamtx, perfil Dahua):
+        #
+        #   cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  ->  False
+        #   cap.get(cv2.CAP_PROP_BUFFERSIZE)     ->  0.0
+        #
+        # e, abrindo o stream e parando de ler por 10 s, ao voltar saem **104
+        # frames instantâneos** antes de a leitura voltar a bloquear — o MESMO
+        # número com e sem o pedido. O backend FFMPEG não implementa a
+        # propriedade; a doc oficial a lista sem garantir suporte por backend
+        # (https://docs.opencv.org/4.x/d4/d15/group__videoio__flags__base.html).
+        #
+        # Continua sendo pedido porque em webcam (DirectShow/V4L2) ele é
+        # respeitado e ajuda. Quem resolve o caso da rede é o descarte
+        # explícito em `_ler_do_capture`.
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._capture = capture
         self._last_error = None
@@ -259,13 +287,78 @@ class VideoStream:
                     return False, None
                 self._on_reconnected()
 
-            ok, frame = self._capture.read()
+            ok, frame = self._ler_do_capture()
             if ok and frame is not None:
                 self._on_success(frame)
                 return True, frame
 
             self._on_failure()
             return False, None
+
+    def _ler_do_capture(self) -> tuple[bool, Any]:
+        """Lê um frame. Em fonte de REDE, o mais NOVO disponível.
+
+        Por que só em rede: `CAP_PROP_BUFFERSIZE=1` é recusado pelo backend
+        FFMPEG (ver `_open_locked`), então os frames que o pipeline não
+        consumiu ficam enfileirados e `read()` entrega imagem velha. Medido no
+        dashboard: o atraso **cresce +135 ms/s** a 15 fps — 8,1 s a cada
+        minuto, sem teto.
+
+        Arquivo e webcam ficam de fora, e não por precaução:
+
+        - **arquivo**: o modo fixture roda a fonte de demonstração em loop, e
+          pular frame ali é vídeo picotado na frente de quem assiste. Não há
+          fila a descartar — o arquivo entrega no ritmo de quem lê.
+        - **webcam**: DirectShow/V4L2 já respeitam o buffer de 1 e entregam o
+          frame corrente. Descartar só jogaria fora quadro bom e derrubaria o
+          FPS, sem ganho de latência.
+
+        A distinção usa `capture_api`, que é quem JÁ classifica a fonte para
+        escolher o backend — e não uma segunda heurística de string, que
+        poderia discordar dela.
+
+        Como o descarte sabe onde parar, sem `select()` nem contagem de
+        buffer: pelo **tempo do `grab()`**. Frame que já está no buffer volta
+        em microssegundos; o frame vivo custa a espera da rede (~1/fps). Então
+        o primeiro `grab()` lento é o frame corrente, e aí para. Se o primeiro
+        `grab()` da leitura já for lento, não havia fila e nada é descartado —
+        o custo no caso normal é zero.
+
+        `grab()` avança sem decodificar e `retrieve()` decodifica só o último
+        (doc oficial: "The method/function combines VideoCapture::grab() and
+        VideoCapture::retrieve() in one call" —
+        https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html), então
+        descartar N frames custa N demux e UM decode, não N decodes.
+        """
+        if not self._descartar_atrasados:
+            return self._capture.read()
+
+        inicio = monotonic()
+        if not self._capture.grab():
+            return False, None
+        grabs = 1
+        # `>=` e não `>`: com relógio de baixa resolução um grab que esperou
+        # pode medir exatamente o limiar, e tratá-lo como "veio do buffer"
+        # faria o laço seguir e bloquear no próximo.
+        esperou_pela_rede = (monotonic() - inicio) * 1000.0 >= self.limiar_grab_ms
+        while not esperou_pela_rede and grabs < self.max_grabs_por_leitura:
+            inicio = monotonic()
+            if not self._capture.grab():
+                # A fonte morreu no meio do descarte. Reporta falha em vez de
+                # devolver o último frame capturado, por duas razões:
+                #
+                # 1. `retrieve()` depois de um `grab()` que falhou não tem
+                #    contrato — a doc só define `retrieve` como "decodes and
+                #    returns the just grabbed frame". Grab falhou, não há
+                #    "just grabbed frame".
+                # 2. No caminho de rede, `grab()` no fim da fila BLOQUEIA
+                #    esperando o próximo pacote; ele não falha. Um `grab()`
+                #    que falha aqui significa fonte caída, e é justamente o
+                #    que o contador de falhas consecutivas existe para ver.
+                return False, None
+            grabs += 1
+            esperou_pela_rede = (monotonic() - inicio) * 1000.0 >= self.limiar_grab_ms
+        return self._capture.retrieve()
 
     def _on_success(self, frame) -> None:
         if self._state != LIVE:
