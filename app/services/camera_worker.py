@@ -106,6 +106,8 @@ class CameraWorker:
             source=source,
             width=width,
             height=height,
+            # So tem efeito em fonte de rede (ver VideoStream._ler_do_capture).
+            limiar_grab_ms=float(app.config.get("RTSP_LIMIAR_GRAB_MS", 5.0)),
         )
         # ---- modo fixture: estado de PRIMEIRA CLASSE, não degradação muda --
         # A fonte configurada da câmera, guardada separada de

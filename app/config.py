@@ -175,6 +175,14 @@ class Config:
     # 5->33,2 s ate o modo fixture assumir. 33 s de tela parada num projetor e
     # o pior cenario de apresentacao. Em rede instavel, suba de volta para 5.
     RTSP_MAX_TENTATIVAS = env_int("RTSP_MAX_TENTATIVAS", 2)
+    # Acima de quantos ms um `grab()` conta como "esperou a rede" em vez de
+    # "veio do buffer". E o botao do descarte de frame atrasado
+    # (VideoStream._ler_do_capture) e o PRIMEIRO numero a ajustar em campo: o
+    # limiar foi calibrado contra localhost, onde um grab bufferizado custa
+    # microssegundos e o frame vivo custa ~1/fps (67 ms a 15 fps). Rede
+    # industrial tem jitter, e ali a separacao entre os dois pode ser outra.
+    # Ver docs/DEMO.md para o sintoma de errar para cada lado.
+    RTSP_LIMIAR_GRAB_MS = env_float("RTSP_LIMIAR_GRAB_MS", 5.0)
 
     # --- camada LLM (segunda opiniao multimodal) --------------------------
     # SEM CHAVE O SISTEMA FUNCIONA NORMALMENTE, sem a camada. E degradacao

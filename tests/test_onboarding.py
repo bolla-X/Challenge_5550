@@ -362,3 +362,86 @@ def test_a_versao_padrao_aponta_para_um_prompt_que_existe():
     assert "v2" in versoes_de_prompt(), (
         f"app/llm/prompts/ tem {versoes_de_prompt()}; o default v2 nao existe la"
     )
+
+
+# ---------------------------------------------------------------------------
+# Descarte de frame atrasado: o limiar do grab
+# ---------------------------------------------------------------------------
+# Existe porque `CAP_PROP_BUFFERSIZE=1` e RECUSADO pelo backend FFMPEG (medido:
+# `set()` -> False, `get()` -> 0.0, e 104 frames enfileirados depois de 10 s sem
+# ler). Sem descarte o atraso do dashboard crescia +135 ms/s; com ele ficou
+# estavel em 2,55 s, deriva -0 ms/s (docs/BENCH.md, Fase 7).
+#
+# O limiar separa "esse grab veio do buffer" de "esse grab esperou a rede". 5 ms
+# foi calibrado contra localhost, e e o primeiro numero a mexer em campo — por
+# isso vira variavel de ambiente, e por isso o default fica travado aqui: um
+# valor errado nao quebra nada visivelmente, so degrada latencia ou FPS em
+# silencio.
+def test_limiar_do_grab_tem_default_de_5ms_no_codigo():
+    """O literal de fallback em `app/config.py`, nao o valor do ambiente.
+
+    Lido do texto-fonte de proposito: `Config.RTSP_LIMIAR_GRAB_MS` reflete o
+    `.env` da maquina que roda a suite, e o que este teste protege e o default
+    que vale quando nao ha `.env` nenhum.
+    """
+    fonte = (RAIZ / "app" / "config.py").read_text(encoding="utf-8")
+
+    casamento = re.search(r'RTSP_LIMIAR_GRAB_MS\s*=\s*env_float\(\s*"RTSP_LIMIAR_GRAB_MS"\s*,\s*([0-9.]+)\s*\)', fonte)
+    assert casamento, "RTSP_LIMIAR_GRAB_MS sumiu de app/config.py"
+    assert float(casamento.group(1)) == 5.0, (
+        f"default do limiar mudou para {casamento.group(1)} sem medicao nova. "
+        "Alto demais, o descarte para cedo e a fila volta a crescer; baixo "
+        "demais, ele confunde jitter com fila e descarta frame vivo."
+    )
+
+
+def test_limiar_do_grab_no_env_example_bate_com_o_codigo():
+    """O `.env.example` e o que a pessoa copia: se ele discordar do codigo, o
+    default efetivo passa a ser outro sem ninguem perceber."""
+    assert float(ler_env_example()["RTSP_LIMIAR_GRAB_MS"]) == 5.0
+
+
+def test_limiar_do_grab_chega_no_video_stream():
+    """De nada adianta a variavel existir se o worker nao a repassar.
+
+    Este e o teste que pega o esquecimento mais provavel: alguem adiciona a
+    chave em `Config` e nao liga o fio ate o `VideoStream`.
+    """
+    import threading
+
+    from app.config import TestConfig
+    from app.services.camera_worker import CameraWorker
+    from app.services.feature_manager import FeatureManager
+
+    class DetectorMinimo:
+        """So o que o construtor do worker toca: o `RuleEngine` recebe
+        `supported_ppe_classes` como getter."""
+
+        confidence = 0.35
+        max_detections = 100
+
+        def supported_ppe_classes(self):
+            return set()
+
+    class Cfg(TestConfig):
+        RTSP_LIMIAR_GRAB_MS = 42.0
+
+    app = create_app(Cfg)
+    with app.app_context():
+        worker = CameraWorker(
+            app,
+            socketio=None,
+            feature_manager=FeatureManager.from_config(app.config),
+            camera_id=1,
+            source="rtsp://camera/1",
+            fps=12,
+            detector=DetectorMinimo(),
+            person_detector=DetectorMinimo(),
+            pose_estimator=None,
+            inference_lock=threading.Lock(),
+        )
+
+    assert worker.video_stream.limiar_grab_ms == 42.0, (
+        "RTSP_LIMIAR_GRAB_MS nao chegou ao VideoStream: ajustar o .env em campo "
+        "nao teria efeito nenhum"
+    )

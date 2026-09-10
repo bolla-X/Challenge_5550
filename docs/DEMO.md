@@ -204,11 +204,36 @@ primeiro, é rápido:
 powershell -Command "(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam').Value"
 ```
 
-`Allow` aqui e no `HKLM` equivalente significa que **não é permissão**. Aí
-sobra o físico: tampa/obturador da lente, ou modo privacidade no utilitário do
-fabricante (LogiTune, nas Logitech). Nenhum ajuste de `YOLO_CONFIDENCE`
-conserta lente tampada — e o painel diz isso sozinho: `Detecções (30s)` em
-**NENHUMA** com `Fonte agora` mostrando resolução e FPS saudáveis.
+`Allow` aqui e no `HKLM` equivalente significa que **não é permissão**.
+
+**Depois cheque quem já está com a câmera** — foi esta a causa real nesta
+bancada, e não a tampa. O Windows entrega um stream **preto** para o segundo
+aplicativo que abre uma webcam já tomada: os frames chegam normalmente, só que
+zerados.
+
+```powershell
+$b = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam\NonPackaged'
+Get-ChildItem $b | ForEach-Object {
+  if ((Get-ItemProperty $_.PSPath).LastUsedTimeStop -eq 0) { 'EM USO: ' + $_.PSChildName }
+}
+```
+
+`LastUsedTimeStop = 0` quer dizer **em uso agora**. Aqui apareceu o **Discord**
+— fechá-lo (ou desligar a câmera nele) libera. Suspeitos comuns: Discord,
+Teams, Zoom, OBS, Meet aberto no navegador.
+
+Só depois disso sobra o físico: tampa/obturador da lente, ou modo privacidade
+no utilitário do fabricante (LogiTune, nas Logitech).
+
+Como reconhecer sem abrir nada: **ganho no máximo com imagem zerada**. Medido
+aqui — `GAIN=255`, média de pixel **0,01**, máximo **3**, estável por 15 s nos
+dois backends. Sala escura de verdade dá ruído (média bem acima de 1), porque o
+sensor amplifica; zero absoluto com o ganho no teto significa que **nenhuma luz
+chega** — ou que o stream está sendo zerado por outro dono.
+
+Nenhum ajuste de `YOLO_CONFIDENCE` conserta isso — e o painel diz sozinho:
+`Detecções (30s)` em **NENHUMA** com `Fonte agora` mostrando resolução e FPS
+saudáveis.
 
 ---
 
@@ -220,6 +245,31 @@ dois últimos são condicionais, e cada um só entra se o sintoma dele aparecer.
 **Se qualquer passo até o (b) falhar, o demo segue em modo fixture** — não
 tente consertar rede na frente do avaliador. O caminho está
 [abaixo](#demo-em-modo-fixture) e é o que está validado ponta a ponta.
+
+> ## 🔧 ENTRE COMO TÉCNICO, NÃO COMO SUPERVISOR
+>
+> **O painel de diagnóstico não existe no perfil Supervisor.** O modo da
+> interface é o **papel** de quem logou (`setMode(user.role)`) e não há
+> seletor — logado como Supervisor, o painel **Modelo YOLO**, com
+> `Detecções (30s)` e `Fonte agora`, simplesmente não é renderizado
+> (verificado no DOM: `#panel-model` ausente).
+>
+> Esse painel é a ferramenta de 5 segundos do [passo (e)](#e-se-a-detecção-não-pegar-epi-o-que-verificar-antes-de-mexer-em-confiança):
+> é ele que separa "é o modelo" de "é a fonte". Sem ele você diagnostica no
+> escuro na frente do cliente.
+>
+> Crie a conta **antes** de ir para a fábrica (o comando prompta a senha duas
+> vezes e **não** funciona por pipe):
+>
+> ```bash
+> ./.venv/Scripts/flask.exe --app wsgi users create --role technical
+> ```
+>
+> Precisa criar dentro de um script? A rota programática está no
+> [preparo do modo fixture](#preparo-uma-vez-na-noite-anterior).
+>
+> Um Supervisor ainda é útil para a narrativa (tem "Visão geral"); só não
+> deixe ser a única conta na máquina que vai para o chão de fábrica.
 
 Antes de tudo, os 20 segundos de sempre: `./.venv/Scripts/python.exe --version`
 tem que dizer **3.11.9**, e `git status --short app/static/dist` tem que sair
@@ -416,6 +466,39 @@ Depois de cada degrau, os dois números da tela (FPS do card e `Detecções (30s
 do painel) dizem se valeu: FPS subiu **e** a contagem por classe continua
 parecida? Bom. FPS subiu e a contagem despencou? Você comprou fluidez com
 detecção — volte um degrau.
+
+#### O botão do descarte de frame: `RTSP_LIMIAR_GRAB_MS`
+
+Só entra em cena se o **atraso** voltar (não o FPS). O descarte de frame
+atrasado decide "este `grab()` veio do buffer ou esperou a rede?" pelo tempo
+que ele levou, e o limiar é esse corte. **5 ms** foi calibrado contra
+`localhost`; rede industrial tem jitter e é o primeiro número a ajustar.
+
+A regra que o valor precisa respeitar:
+
+```
+custo de um grab BUFFERIZADO   <   RTSP_LIMIAR_GRAB_MS   <   1/fps da câmera
+     (microssegundos em bancada)                              (67 ms a 15 fps)
+```
+
+| sintoma | o que está acontecendo | ação |
+|---|---|---|
+| **atraso voltou a crescer** (a tela responde cada vez mais tarde) apesar do descarte | os `grab()` bufferizados estão custando **mais** que o limiar, então são confundidos com "frame vivo" e o descarte para na primeira leitura — a fila não é drenada | **AUMENTE** (5 → 15 ms). Teto seguro: ~1/3 de `1/fps` |
+| **FPS caiu** e o vídeo engasga, sem atraso acumulado | o limiar está **acima** do `1/fps` da câmera: o laço trata o frame vivo como bufferizado, continua pedindo e **bloqueia** dentro da leitura esperando a rede | **DIMINUA** (5 → 2 ms). Típico de câmera de FPS alto: a 60 fps o frame vivo custa só 17 ms |
+
+```bash
+# no .env
+RTSP_LIMIAR_GRAB_MS=15
+```
+
+Como confirmar em vez de adivinhar: a **deriva** do
+`scripts/bench_latencia.py` é o número que responde. Deriva positiva = fila
+crescendo (aumente o limiar); deriva ~0 = certo. O script imprime o aviso
+sozinho e distingue fila crescendo de fila drenando.
+
+Não afeta webcam nem arquivo: nessas fontes não há fila para descartar
+([BENCH.md](BENCH.md), Fase 8 — a webcam devolve 1 frame após 10 s parado,
+contra 104 do RTSP).
 
 ---
 
