@@ -15,22 +15,81 @@ from app.vision.video_stream import LIVE, RECONNECTING, UNAVAILABLE, VideoStream
 FRAME = np.zeros((4, 4, 3), dtype=np.uint8)
 
 
-class FakeCapture:
-    """Dublê de cv2.VideoCapture com roteiro de leituras controlado."""
+def frame_com_id(n: int):
+    """Frame identificável: todo pixel vale `n`.
 
-    def __init__(self, leituras: list[bool], abre: bool = True):
+    Sem identidade não dá para distinguir "devolveu o frame mais novo" de
+    "devolveu o mais velho" — que é exatamente a pergunta do descarte de
+    frame atrasado.
+    """
+    return np.full((4, 4, 3), n % 256, dtype=np.uint8)
+
+
+def id_do_frame(frame) -> int:
+    return int(frame[0, 0, 0])
+
+
+class FakeCapture:
+    """Dublê de cv2.VideoCapture com roteiro de leituras controlado.
+
+    `grab()`/`retrieve()` existem porque é assim que o OpenCV separa "avançar
+    para o próximo frame" de "decodificar o frame atual", e é sobre essa
+    separação que o descarte de frame atrasado se apoia. `read()` fica
+    definido em termos dos dois, como no próprio OpenCV — doc oficial de
+    `VideoCapture::read`: "The method/function combines VideoCapture::grab()
+    and VideoCapture::retrieve() in one call."
+    https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html
+
+    `ms_por_grab` simula o custo de cada `grab()`: frame que já está no buffer
+    volta instantâneo, frame que ainda não chegou custa a espera da rede. É o
+    que permite testar o descarte sem servidor RTSP nenhum.
+    """
+
+    def __init__(
+        self,
+        leituras: list[bool],
+        abre: bool = True,
+        relogio: dict | None = None,
+        ms_por_grab: list[float] | None = None,
+    ):
         self.leituras = list(leituras)
         self._abre = abre
         self.liberado = False
+        self.grabs = 0
+        self.retrieves = 0
+        self._seq = 0
+        self._ultimo_id: int | None = None
+        self._relogio = relogio
+        self._ms_por_grab = list(ms_por_grab) if ms_por_grab is not None else None
 
     def isOpened(self):  # noqa: N802  (assinatura do cv2)
         return self._abre and not self.liberado
 
-    def read(self):
+    def grab(self):
+        if self._relogio is not None and self._ms_por_grab:
+            self._relogio["t"] += self._ms_por_grab.pop(0) / 1000.0
         if not self.leituras:
-            return False, None
+            self._ultimo_id = None
+            return False
+        self.grabs += 1
         ok = self.leituras.pop(0)
-        return (True, FRAME.copy()) if ok else (False, None)
+        if not ok:
+            self._ultimo_id = None
+            return False
+        self._seq += 1
+        self._ultimo_id = self._seq
+        return True
+
+    def retrieve(self):
+        self.retrieves += 1
+        if self._ultimo_id is None:
+            return False, None
+        return True, frame_com_id(self._ultimo_id)
+
+    def read(self):
+        if not self.grab():
+            return False, None
+        return self.retrieve()
 
     def set(self, *_args):
         return True
@@ -322,3 +381,198 @@ def test_arquivo_ilegivel_em_loop_nao_gira_para_sempre(relogio, capturas):
     assert stream.status().consecutive_failures > 0, (
         "arquivo ilegivel tem que aparecer como falha, nao virar loop infinito de rebobinamento"
     )
+
+
+# ============================================================================
+# Descarte de frame atrasado — so em fonte de REDE
+# ============================================================================
+# MEDIDO na sessao anterior, contra o servidor RTSP local no perfil Dahua:
+#
+#   - `cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)` devolve **False** no backend
+#     FFMPEG, e `cap.get(...)` devolve 0.0. O pedido nao tem efeito.
+#   - abrindo o stream e parando de ler por 10 s, ao voltar saem **104 frames
+#     instantaneos** antes de a leitura voltar a bloquear — identico com e sem
+#     o pedido de BUFFERSIZE.
+#   - efeito no dashboard: o atraso NAO e constante, **cresce +135 ms/s** a
+#     15 fps (8,1 s a cada minuto), porque nada no caminho descarta frame
+#     velho e o worker consome mais devagar que a fonte produz.
+#
+# A doc oficial do OpenCV lista CAP_PROP_BUFFERSIZE sem garantia de suporte por
+# backend (https://docs.opencv.org/4.x/d4/d15/group__videoio__flags__base.html);
+# quem decide e o backend, e o FFMPEG nao implementa.
+#
+# O conserto e descartar no leitor: `grab()` em laco (avanca sem decodificar) e
+# `retrieve()` so no ultimo (decodifica uma vez).
+
+
+def _stream_de_rede(relogio, capturas, leituras, ms_por_grab, **kwargs):
+    capturas["fila"].append(
+        FakeCapture(leituras, relogio=relogio, ms_por_grab=ms_por_grab)
+    )
+    return VideoStream("rtsp://camera/1", 640, 480, **kwargs)
+
+
+def test_rede_devolve_o_frame_MAIS_NOVO_da_fila(relogio, capturas):
+    """O teste que estava vermelho antes do fix.
+
+    Cinco frames disponiveis: quatro ja estao no buffer (grab instantaneo) e o
+    quinto e o vivo (grab espera 200 ms pela rede). Uma leitura tem que
+    devolver o **quinto**, nao o primeiro.
+    """
+    stream = _stream_de_rede(
+        relogio, capturas,
+        leituras=[True] * 5,
+        ms_por_grab=[0, 0, 0, 0, 200],
+    )
+
+    ok, frame = stream.read()
+
+    assert ok is True
+    assert id_do_frame(frame) == 5, (
+        f"devolveu o frame {id_do_frame(frame)} de 5 — a fila nao foi descartada, "
+        "e o atraso vai crescer sem parar"
+    )
+
+
+def test_rede_decodifica_uma_vez_so(relogio, capturas):
+    """Descartar com `read()` custaria um decode por frame jogado fora.
+
+    `grab()` avanca sem decodificar; so o ultimo vira imagem. Sem isto o
+    'conserto' de latencia viraria custo de CPU no loop de captura.
+    """
+    stream = _stream_de_rede(
+        relogio, capturas,
+        leituras=[True] * 5,
+        ms_por_grab=[0, 0, 0, 0, 200],
+    )
+
+    stream.read()
+
+    captura = capturas["criadas"][0]
+    assert captura.grabs == 5, f"esperava 5 grabs, houve {captura.grabs}"
+    assert captura.retrieves == 1, (
+        f"esperava 1 decode, houve {captura.retrieves} — descartar nao pode custar decode"
+    )
+
+
+def test_rede_para_de_descartar_ao_alcancar_o_vivo(relogio, capturas):
+    """O primeiro `grab()` que ESPERA pela rede ja e o frame vivo.
+
+    Continuar depois dele nao adiantaria nada (nao ha mais nada bufferizado) e
+    bloquearia o loop de captura esperando o proximo frame chegar.
+    """
+    stream = _stream_de_rede(
+        relogio, capturas,
+        leituras=[True] * 10,
+        ms_por_grab=[0, 0, 200, 0, 0, 0, 0, 0, 0, 0],
+    )
+
+    ok, frame = stream.read()
+
+    assert ok is True
+    assert id_do_frame(frame) == 3, f"parou no frame errado: {id_do_frame(frame)}"
+    assert capturas["criadas"][0].grabs == 3
+
+
+def test_rede_tem_teto_de_descarte_por_leitura(relogio, capturas):
+    """Fonte que entrega instantaneo para sempre nao pode prender o loop.
+
+    Sem teto, uma fonte mais rapida que o consumidor faria `read()` girar sem
+    devolver frame nenhum — trocar atraso por travamento nao e conserto.
+    """
+    stream = _stream_de_rede(
+        relogio, capturas,
+        leituras=[True] * 500,
+        ms_por_grab=[0] * 500,
+        max_descarte_por_leitura=8,
+    )
+
+    ok, _ = stream.read()
+
+    assert ok is True
+    assert capturas["criadas"][0].grabs == 8, (
+        f"descartou {capturas['criadas'][0].grabs} frames; o teto pedido era 8"
+    )
+
+
+def test_rede_sem_fila_nao_descarta_nada(relogio, capturas):
+    """Caso normal: a fonte esta no ritmo do consumidor.
+
+    O primeiro grab ja espera pela rede, entao nao ha o que descartar e o
+    custo do descarte e zero.
+    """
+    stream = _stream_de_rede(
+        relogio, capturas,
+        leituras=[True, True],
+        ms_por_grab=[200, 200],
+    )
+
+    ok, frame = stream.read()
+
+    assert ok is True
+    assert id_do_frame(frame) == 1
+    assert capturas["criadas"][0].grabs == 1, "nao havia fila: nao podia haver descarte"
+
+
+# ---- contraprova: as outras duas fontes NAO podem descartar ---------------
+def test_arquivo_le_todos_os_frames_em_ordem(relogio, capturas):
+    """CARACTERIZACAO. O modo fixture depende disto.
+
+    A fonte de demonstracao e um arquivo em loop; pular frame ali seria video
+    acelerado e picotado na frente do avaliador — e o modo fixture e o plano B
+    do demo.
+    """
+    capturas["fila"].append(FakeCapture([True] * 5))
+    stream = VideoStream("tests/fixtures/bench.mp4", 640, 480, em_loop=True)
+
+    lidos = [id_do_frame(stream.read()[1]) for _ in range(3)]
+
+    assert lidos == [1, 2, 3], f"arquivo pulou frame: {lidos}"
+    assert capturas["criadas"][0].grabs == 3
+
+
+def test_webcam_usb_le_todos_os_frames_em_ordem(relogio, capturas):
+    """CARACTERIZACAO. A webcam ja entrega o frame mais recente.
+
+    Descartar aqui so jogaria fora quadro bom e derrubaria o FPS, sem ganho de
+    latencia nenhum.
+    """
+    capturas["fila"].append(FakeCapture([True] * 5))
+    stream = VideoStream(0, 640, 480)
+
+    lidos = [id_do_frame(stream.read()[1]) for _ in range(3)]
+
+    assert lidos == [1, 2, 3], f"webcam pulou frame: {lidos}"
+    assert capturas["criadas"][0].grabs == 3
+
+
+# ---- caracterizacao: o descarte nao pode mexer em reconexao ---------------
+def test_rede_falha_de_leitura_continua_contando_para_reconectar(relogio, capturas):
+    """CARACTERIZACAO. O contrato de reconexao e anterior a este fix e segue
+    igual: N falhas seguidas derrubam e reagendam."""
+    capturas["fila"].append(
+        FakeCapture([False] * 10, relogio=relogio, ms_por_grab=[0] * 10)
+    )
+    stream = VideoStream("rtsp://camera/1", 640, 480, failures_before_reconnect=3)
+
+    for _ in range(3):
+        assert stream.read() == (False, None)
+
+    assert capturas["criadas"][0].liberado is True
+    assert stream.status().state == RECONNECTING
+
+
+def test_rede_frame_bom_depois_de_falha_zera_o_contador(relogio, capturas):
+    """CARACTERIZACAO: engasgo isolado nao pode custar reconexao, nem com o
+    descarte ligado."""
+    capturas["fila"].append(
+        FakeCapture([True, False, True], relogio=relogio, ms_por_grab=[200, 0, 200])
+    )
+    stream = VideoStream("rtsp://camera/1", 640, 480, failures_before_reconnect=15)
+
+    stream.read()
+    stream.read()
+    assert stream.status().consecutive_failures == 1
+
+    assert stream.read()[0] is True
+    assert stream.status().consecutive_failures == 0
