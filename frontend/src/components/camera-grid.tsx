@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
 import { CAMERA_FEATURE_ORDER, PPE_LABELS } from "../api/ppe";
-import type { CameraDiscoveryEntry, CameraFeatureSet, CameraRecord } from "../api/types";
+import type { CameraDiagnostico, CameraDiscoveryEntry, CameraFeatureSet, CameraRecord } from "../api/types";
 
 const CAMERA_FEATURE_LABELS: Record<keyof CameraFeatureSet, string> = {
   ...PPE_LABELS,
@@ -22,9 +22,13 @@ type EstadoDaCamera = {
   /** De qual fonte esta lendo. `undefined` num backend que nao manda o campo. */
   modo?: "ao_vivo" | "reconectando" | "fixture";
   tentativas: number;
+  /** FPS do loop de captura e resolucao do frame que CHEGOU (ver types.ts). */
+  diagnostico?: CameraDiagnostico;
 };
 
-function useCameraEstado(cameraId: number): EstadoDaCamera {
+/** Exportado para o painel de diagnóstico reaproveitar o MESMO polling de 3 s,
+ *  em vez de abrir um segundo contra a mesma rota. */
+export function useCameraEstado(cameraId: number): EstadoDaCamera {
   const [estado, setEstado] = useState<EstadoDaCamera>({ running: false, tentativas: 0 });
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +40,7 @@ function useCameraEstado(cameraId: number): EstadoDaCamera {
             running: Boolean(status.running),
             modo: status.video?.modo,
             tentativas: status.video?.reconnect_attempts ?? 0,
+            diagnostico: status.diagnostico,
           });
         })
         .catch(() => {
@@ -127,6 +132,16 @@ function CameraCard({
           >
             {!running ? "parada" : estado.modo === "fixture" ? "fonte de demonstração" : "rodando"}
           </span>
+          {/* FPS do LOOP e resolução do frame recebido. É o par que separa, de
+              relance, "a fonte está ruim" de "o modelo não está achando nada" —
+              sem abrir terminal. Só com a câmera rodando: parada, o número
+              seria da sessão anterior. */}
+          {running && estado.diagnostico ? (
+            <span className="cam-footer-stat" style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--muted)" }}>
+              {estado.diagnostico.fps.toFixed(1)} fps
+              {estado.diagnostico.resolucao ? ` · ${estado.diagnostico.resolucao}` : ""}
+            </span>
+          ) : null}
           <button type="button" className="cam-configure" onClick={() => onConfigure(camera.id)}>
             {canConfigure ? "Configurar" : "Ver"}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">

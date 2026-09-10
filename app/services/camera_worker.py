@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,13 @@ from app.vision.video_stream import VideoStream
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 logger = logging.getLogger(__name__)
+
+# Janelas do diagnostico de tela. Sao diferentes de proposito: 5 s responde
+# "esta travando AGORA" (janela longa demais esconde uma queda recente atras
+# da media), e 30 s e o que o campo pediu para a contagem por classe — curto
+# demais e a contagem pisca entre 0 e 3 e ninguem consegue ler.
+JANELA_FPS_S = 5.0
+JANELA_DETECCOES_S = 30.0
 
 
 class CameraWorker:
@@ -157,6 +165,13 @@ class CameraWorker:
         self._perf_atual: dict[str, float] = {}
         self._perf_soma: dict[str, float] = {}
         self._perf_n = 0
+        # Diagnostico de tela (ver `diagnostico()`). Duas janelas deslizantes,
+        # porque as perguntas tem horizontes diferentes: "esta travando AGORA?"
+        # olha poucos segundos, "o modelo esta vendo alguma coisa?" precisa de
+        # janela longa o bastante para nao piscar entre um frame e outro.
+        self._instantes_de_frame: deque[float] = deque(maxlen=200)
+        self._deteccoes_recentes: deque[tuple[float, str]] = deque(maxlen=4000)
+        self._resolucao_da_fonte: tuple[int, int] | None = None
         self.rule_engine = RuleEngine(
             feature_manager=feature_manager,
             cooldown_seconds=app.config.get("ALERT_COOLDOWN_SECONDS", 0),
@@ -221,6 +236,12 @@ class CameraWorker:
             self._detect_counter = 0
             self._cached_analysis = None
             self._last_stream_state = None
+            # Idem para o diagnóstico: FPS e contagem da sessão anterior num
+            # start novo fariam a tela dizer que a câmera está entregando
+            # frames antes de ela ter entregado o primeiro.
+            self._instantes_de_frame.clear()
+            self._deteccoes_recentes.clear()
+            self._resolucao_da_fonte = None
             self.person_tracker.reset()
             self._running.set()
             self._task = self.socketio.start_background_task(self._loop)
@@ -254,6 +275,10 @@ class CameraWorker:
             # isso o dashboard so via "Frame indisponivel" e nao distinguia
             # "caiu agora" de "morta ha 10 minutos".
             "video": self.video_state(),
+            # FPS real do loop, resolução do frame que chegou e detecções por
+            # classe nos últimos 30 s. Vai no `status()` porque é o payload que
+            # o card de câmera já consulta a cada 3 s — nenhuma rota nova.
+            "diagnostico": self.diagnostico(),
             "features": self.feature_manager.as_dict(),
             "model": self._safe_model_diagnostics(),
             "active_alerts": self.alert_state_service.active_alerts(),
@@ -462,6 +487,7 @@ class CameraWorker:
                         continue
 
                     analysis = self._analyze_frame(frame)
+                    self._registrar_diagnostico(frame, analysis, self._analise_foi_nova)
                     self._perf_marca("analise")
                     # UMA passada de regras por frame. O resultado (alertas +
                     # estado por pessoa) alimenta tanto o AlertStateService
@@ -683,6 +709,64 @@ class CameraWorker:
             if self._latest_analysis is not None:
                 self._latest_analysis = self._latest_analysis | {"segunda_opiniao": payload}
         self._emitir("llm_segunda_opiniao", payload | {"camera_id": self.camera_id})
+
+    def diagnostico(self) -> dict[str, Any]:
+        """As três perguntas de campo, respondidas sem abrir terminal.
+
+        Existe porque o FPS que o dashboard mostrava **não era o do pipeline**:
+        `dashboardStore.ts` derivava-o do intervalo entre eventos `analysis`, e
+        esses eventos são emitidos no máximo `TELEMETRY_HZ` vezes por segundo
+        (8, por padrão). O número tinha teto em 8 e não distinguia "o pipeline
+        caiu para 6 fps" de "o pipeline está a 19 e a telemetria está limitada".
+        Aqui o FPS é contado no próprio loop de captura, por câmera.
+
+        `resolucao` é a do frame que **chegou**, não a pedida no cadastro: para
+        fonte RTSP o `CAP_PROP_FRAME_WIDTH` é um pedido que o backend FFMPEG
+        ignora, então o que está no banco pode não ser o que a câmera entrega.
+        É o campo que separa "o substream é pequeno demais" de "o modelo não
+        está achando nada".
+
+        `deteccoes_30s` conta por classe, e só quando houve **inferência
+        nova**: com `DETECTION_EVERY_N_FRAMES=3` os frames intermediários
+        reaproveitam as caixas anteriores, e contá-los infla a contagem em 3x
+        sem o modelo ter rodado. Zero aqui com `resolucao` boa e FPS saudável
+        aponta para o modelo; zero com FPS no chão aponta para a fonte.
+        """
+        agora = time.monotonic()
+        instantes = [t for t in self._instantes_de_frame if agora - t <= JANELA_FPS_S]
+        fps = 0.0
+        if len(instantes) >= 2:
+            decorrido = instantes[-1] - instantes[0]
+            # n-1 intervalos entre n amostras. Usar n dividido pela janela
+            # inteira contaria um intervalo a mais e inflaria o FPS quando a
+            # janela está parcialmente preenchida (logo após o start).
+            fps = (len(instantes) - 1) / decorrido if decorrido > 0 else 0.0
+
+        por_classe: dict[str, int] = {}
+        for instante, rotulo in self._deteccoes_recentes:
+            if agora - instante <= JANELA_DETECCOES_S:
+                por_classe[rotulo] = por_classe.get(rotulo, 0) + 1
+
+        largura, altura = self._resolucao_da_fonte or (0, 0)
+        return {
+            "fps": round(fps, 1),
+            "resolucao": f"{largura}x{altura}" if largura else None,
+            "largura": largura,
+            "altura": altura,
+            "deteccoes_30s": dict(sorted(por_classe.items(), key=lambda kv: (-kv[1], kv[0]))),
+            "janela_deteccoes_s": JANELA_DETECCOES_S,
+        }
+
+    def _registrar_diagnostico(self, frame, analise: FrameAnalysis, foi_nova: bool) -> None:
+        """Alimenta as janelas de `diagnostico()`. Chamado uma vez por frame."""
+        agora = time.monotonic()
+        self._instantes_de_frame.append(agora)
+        altura, largura = frame.shape[:2]
+        self._resolucao_da_fonte = (largura, altura)
+        if not foi_nova:
+            return
+        for deteccao in analise.detections:
+            self._deteccoes_recentes.append((agora, deteccao.label))
 
     def video_state(self) -> dict[str, Any]:
         """Estado da captura + em QUAL fonte a câmera está.

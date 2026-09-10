@@ -6,7 +6,7 @@ Máquina: AMD Ryzen 7 5700X, **CPU-only** (`torch 2.14.0+cpu`,
 
 ## Se você só tem 30 segundos antes de apresentar, leia isto
 
-Três coisas foram descobertas medindo, tarde, e cada uma teria estragado a
+Quatro coisas foram descobertas medindo, tarde, e cada uma teria estragado a
 apresentação de um jeito diferente:
 
 1. **A tela demora, e não está travada.** Boot frio até o primeiro alerta são
@@ -27,8 +27,19 @@ apresentação de um jeito diferente:
    aparecia, e **nada iniciava**: todo `start` devolvia `409 sem worker ativo`.
    Se você vir isso, é porque está rodando código anterior ao commit `8f227df`.
 
-E a moldura de tudo: **o RTSP nunca foi exercitado contra as câmeras da
-planta** (próxima seção). O demo roda em modo fixture, de propósito.
+4. **O vídeo pode ficar fluido e ATRASADO ao mesmo tempo, e o atraso cresce.**
+   Isto é novo e só aparece com câmera de verdade: se a câmera entregar mais
+   fps do que o pipeline consome, os frames enfileiram e **nada os descarta** —
+   `CAP_PROP_BUFFERSIZE=1` é recusado pelo backend FFMPEG (medido: `set()`
+   devolve `False`). Na bancada o atraso cresceu **+8,1 s a cada minuto**.
+   Sintoma: a pessoa acena e a tela responde segundos depois, cada vez pior. A
+   cura é a câmera entregar menos fps do que o pipeline aguenta — o passo (a)
+   do runbook mede os dois lados justamente para você comparar.
+
+E a moldura de tudo: **até esta sexta, o RTSP nunca tinha sido exercitado
+contra as câmeras da planta** (próxima seção). Agora vai ser, e o runbook de
+campo é o que transforma isso em passos com critério de parada — com o modo
+fixture como plano B pronto.
 
 ---
 
@@ -55,12 +66,22 @@ para a planta e não está coberto por nenhuma medição daqui:
 |---|---|
 | Latência e perda de pacote de uma rede industrial de terceiro | O servidor local é `localhost`: 0 ms, 0% de perda. `leitura` p95 já saltou de 1,89 ms (arquivo) para 109 ms (RTSP local) — numa rede real esse número é desconhecido. |
 | Autenticação real da Dahua | mediamtx e Dahua não são o mesmo servidor. O formato da URL é o mesmo (doc oficial, p. 79) e o mecanismo de credencial funciona; a implementação de auth do fabricante não foi exercitada. |
-| Perfil/codec do H.264 da câmera | O publicador local usa `libx264 -preset ultrafast`. A Dahua usa o encoder dela, com outro perfil e outro intervalo de keyframe. |
+| Perfil/codec do H.264 da câmera | O publicador local **imita** um perfil Dahua (D1 704x576, 15 fps, 512 kbps, GOP 30 — ver [BENCH.md](BENCH.md), Fase 6), mas os parâmetros são **típicos**, não lidos das câmeras. A Dahua usa encoder de hardware, com outro rate control e sem o lookahead do x264 — que sozinho somava 2,0 s de atraso na bancada. O passo (a) do runbook confere a resolução e o FPS reais. |
+| **Atraso acumulado** | Nada no caminho descarta frame velho: `CAP_PROP_BUFFERSIZE=1` é **recusado** pelo backend FFMPEG (medido: `set()` devolve `False`). Se a câmera entregar mais fps do que o pipeline consome, o vídeo na tela envelhece sem parar — +8,1 s por minuto na bancada. Ver o aviso no passo (a). |
 | Firewall, VLAN, NAT, ONVIF, limite de sessões simultâneas | Nada disso existe em `localhost`. |
 | `subtype=1` (substream) existir e estar habilitado na câmera | O default do cadastro é substream por medição de custo; se a câmera tiver o substream desligado, a URL não abre. Aí é `--subtype 0`. |
 
-**Portanto o demo roda em modo fixture.** RTSP é upgrade oportunístico, nunca
-requisito.
+**O plano da sexta é ao vivo, dentro da rede da planta, com as câmeras reais** —
+e é a primeira vez que qualquer uma das linhas acima será exercitada de
+verdade. Por isso o [runbook de campo](#runbook-de-campo--dentro-da-planta-na-ordem-com-o-comando-exato)
+existe, e por isso ele sonda antes de cadastrar: cada passo tem um critério de
+parada.
+
+**O modo fixture continua sendo o plano B, e continua pronto.** Se a sondagem
+falhar, o demo segue com a fonte de demonstração — que é o único caminho
+validado ponta a ponta nesta máquina. Trocar para ele não é improviso, é o
+comportamento projetado. Diga a declaração acima de qualquer jeito, os dois
+cenários: ela é sobre o que estava *provado antes de entrar na fábrica*.
 
 ---
 
@@ -94,99 +115,252 @@ Saída limpa significa que o build é reprodutível e igual ao versionado.
 
 ---
 
-## Runbook de sondagem — 5 minutos, sexta de manhã
+## Runbook de campo — dentro da planta, na ordem, com o comando exato
 
-Rode **antes** do demo. Cada passo tem o que fazer se falhar. Se qualquer passo
-falhar, **o demo segue em modo fixture** — não tente consertar rede na frente
-do avaliador.
+Cinco passos. Os três primeiros levam ~8 minutos e são sempre executados; os
+dois últimos são condicionais, e cada um só entra se o sintoma dele aparecer.
 
-### Passo 1 — a rede responde? (30 s)
+**Se qualquer passo até o (b) falhar, o demo segue em modo fixture** — não
+tente consertar rede na frente do avaliador. O caminho está
+[abaixo](#demo-em-modo-fixture) e é o que está validado ponta a ponta.
 
-```bash
-ping -n 2 10.14.22.97
-```
+Antes de tudo, os 20 segundos de sempre: `./.venv/Scripts/python.exe --version`
+tem que dizer **3.11.9**, e `git status --short app/static/dist` tem que sair
+**vazio** (ver [as duas armadilhas](#antes-de-qualquer-coisa-as-duas-armadilhas-do-ambiente)).
+E preencha `RTSP_USUARIO`/`RTSP_SENHA` no `.env` — nunca na linha de comando,
+que fica no histórico do shell e em `ps aux`.
 
-- **Responde** → passo 2.
-- **Timeout / "Host de destino inacessível"** → **pare aqui.** Não há rota.
-  Vá para [Demo em modo fixture](#demo-em-modo-fixture). É o resultado
-  esperado: foi exatamente isso que aconteceu em toda esta bancada.
+---
 
-### Passo 2 — a porta 554 aceita conexão? (30 s)
+### (a) Sondar os 5 endereços, nos dois subtypes — 3 min
 
-```bash
-powershell -Command "Test-NetConnection 10.14.22.97 -Port 554 -InformationLevel Quiet"
-```
-
-- **`True`** → passo 3.
-- **`False`** → o host responde mas o RTSP não. Firewall, porta diferente, ou
-  serviço RTSP desabilitado na câmera. Tente `-Port 80` para confirmar que a
-  câmera está viva; se estiver, é bloqueio de porta e **não** se resolve na
-  hora. Vá para modo fixture.
-
-### Passo 3 — abre e lê um frame? (2 min)
-
-O teste que importa. Preencha `RTSP_USUARIO`/`RTSP_SENHA` no `.env` primeiro
-(nunca em linha de comando: fica no histórico do shell e em `ps aux`).
+Um comando só. Troque os endereços pelos 5 da planta:
 
 ```bash
-./.venv/Scripts/python.exe -c "
-import cv2
-from app.config import Config, montar_url_rtsp
-from app.llm import redigir_segredos
-url = montar_url_rtsp(host='10.14.22.97', usuario=Config.RTSP_USUARIO,
-                      senha=Config.RTSP_SENHA, porta=Config.RTSP_PORTA,
-                      canal=1, subtype=Config.RTSP_SUBTYPE)
-print('tentando:', redigir_segredos(url))
-cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG,
-                       [int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), 5000,
-                        int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), 5000])
-print('abriu:', cap.isOpened())
-ok, frame = cap.read()
-print('leu frame:', ok, frame.shape if ok else None)
-cap.release()"
+./.venv/Scripts/python.exe scripts/sondar_cameras.py --pessoas \
+  10.14.22.97 10.14.22.98 10.14.22.99 10.14.22.100 10.14.22.101
 ```
 
-- **`abriu: True` e `leu frame: True`** → passo 4. Anote o `shape`: é a
-  resolução do substream.
-- **`abriu: True`, `leu frame: False`** → autenticou e não entrega vídeo.
-  Tente `subtype=0` (stream principal): o substream pode estar desabilitado na
-  câmera. Se `0` funcionar, cadastre com `--subtype 0` e conte com FPS pior
-  (resolução maior custa: 416→640 derrubou o FPS em 42% nesta máquina).
-- **`abriu: False`** → credencial errada, ou caminho diferente. **Não fique
-  tentando variações.** Modo fixture.
+Ele faz, para cada endereço **e para `subtype=0` e `subtype=1`**: testa TCP 554,
+abre com o mesmo backend e o mesmo teto de 5 s que o worker usa, lê um frame,
+mede o **FPS real** (não o declarado) e grava o primeiro quadro em
+`runtime/sondagem/`. Com `--pessoas` roda também o YOLO de pessoa e reporta
+quantas achou e a altura da maior caixa em % do quadro.
 
-### Passo 4 — cadastra (1 min)
+```
+alvo                       sub  554  abriu   resolucao  fps decl  fps real  abrir ms  pessoas  alt %
+10.14.22.97                  0   ok    sim   1920x1080     25.00     24.91       310        3   62.4
+10.14.22.97                  1   ok    sim     704x576     15.00     14.97       288        3   61.8
+10.14.22.98                  0   ok    sim   1920x1080     25.00     24.88       295        1   14.2
+...
+```
+
+Três colunas decidem, e cada uma manda para um lugar diferente:
+
+| o que aparece | o que significa | o que fazer |
+|---|---|---|
+| `554 = NAO` | não há rota, ou firewall | pare nesse endereço. Se **todos** derem isso, modo fixture |
+| `abriu = NAO` com `554 = ok` | credencial errada, ou caminho diferente | confira `RTSP_USUARIO`/`RTSP_SENHA`. **Não fique tentando variações** |
+| `abriu = NAO` só no `sub 1` | o substream está desabilitado nessa câmera | cadastre essa com `--subtype 0` |
+| `fps real` << `fps decl` | a rede não entrega o que a câmera anuncia | é o número que vale; use-o no passo (c) |
+| `alt %` baixo (< 25%) | a pessoa é pequena no quadro | evite essa câmera: EPI é objeto pequeno **dentro** da pessoa |
+
+> **O `fps real` é a coluna mais importante da tabela, e não pelo motivo
+> óbvio.** Se ele for **maior que o FPS que o pipeline sustenta** (passo c), o
+> atraso do vídeo **cresce sem parar** — medido: +135 ms de atraso por segundo,
+> ou +8,1 s a cada minuto, porque nada no caminho descarta frame velho
+> (`CAP_PROP_BUFFERSIZE=1` é recusado pelo backend FFMPEG; ver
+> [BENCH.md](BENCH.md), Fase 6). Depois de cinco minutos a tela mostra vídeo de
+> minutos atrás. Se a câmera permitir, **baixe o FPS dela** para folgadamente
+> abaixo do que o pipeline entrega — 6 a 8 fps zerou a deriva na bancada.
+
+---
+
+### (b) Escolher as 2 melhores e cadastrar — 2 min
+
+Olhe as imagens de `runtime/sondagem/` lado a lado. **O critério é
+enquadramento de pessoa, não resolução.** Capacete e óculos são objetos
+pequenos dentro da pessoa: uma câmera 1080p com a pessoa ocupando 15% da altura
+detecta pior que uma D1 com a pessoa ocupando 60%. A coluna `alt %` já ordena
+isso; as imagens confirmam ângulo e oclusão, que nenhuma métrica pega.
 
 ```bash
 ./.venv/Scripts/flask.exe --app wsgi cameras add --name "Fresa 1" --host 10.14.22.97 --local "Setor A"
+./.venv/Scripts/flask.exe --app wsgi cameras add --name "Prensa 2" --host 10.14.22.99 --local "Setor B"
 ./.venv/Scripts/flask.exe --app wsgi cameras list
 ```
 
-A credencial é montada de `RTSP_USUARIO`/`RTSP_SENHA` do `.env`. A saída mostra
-`rtsp://***@10.14.22.97:554/...` — a senha não aparece, e não deve.
+O `subtype` sai de `RTSP_SUBTYPE` no `.env`, cujo default é **1 (substream)**.
+A saída mostra `rtsp://***@10.14.22.97:554/...` — a senha não aparece, e não
+deve.
 
-### Passo 5 — se der tudo certo (1 min)
-
-**Suba o teto de tentativas antes de apresentar.** O default é `2`, calibrado
-para o caso "a rede não responde" — desistir rápido e mostrar imagem. Se a rede
-da planta está acessível, o compromisso se inverte: vale insistir na câmera
-real em vez de trocar para a fixture na primeira oscilação.
+**Suba o teto de tentativas antes de apresentar.** O default `2` foi calibrado
+para "a rede não responde"; se a rede da planta está acessível, vale insistir
+na câmera real em vez de trocar para a fixture na primeira oscilação:
 
 ```bash
 # no .env
 RTSP_MAX_TENTATIVAS=5
 ```
 
-Depois suba, faça login, inicie o monitoramento e confirme que o badge da
-câmera diz **recebendo** (verde) e não "modo fixture" (âmbar). Se disser modo
-fixture, a fonte caiu depois de cadastrada: o demo continua, com fonte de
-demonstração.
+#### Quando subir para `subtype=0`, e quanto custa
+
+O padrão é substream. Suba para o stream principal **só** se a imagem do
+substream estiver ruim demais para o EPI aparecer — pessoa pequena, capacete
+borrado, `alt %` baixo. O sintoma que justifica é o do passo (e): o modelo
+detecta `person` e `vest` mas quase nunca `Hardhat`/`Goggles`.
+
+```bash
+./.venv/Scripts/flask.exe --app wsgi cameras add --name "Fresa 1" --host 10.14.22.97 --subtype 0
+```
+
+**O custo em FPS é aproximadamente ZERO**, e isso é medição, não estimativa
+([BENCH.md](BENCH.md), Fase 6): medianas de 3 execuções, **substream 14,76 fps
+contra 15,17 do stream principal** — empate dentro do ruído da máquina.
+
+O motivo é contraintuitivo e vale saber, porque contradiz o que este documento
+dizia antes: **a resolução da fonte não chega ao modelo.** `YOLO_IMGSZ=416` fixa
+o lado maior da entrada da rede, então 1080p e D1 viram tensores do mesmo lado
+maior. O que muda é o **aspecto**: D1 é 4:3 e vira `416x352`; 1080p é 16:9 e
+vira `416x256` — 38% menos pixels. Medido isolado, **o 4:3 custa +27% de
+inferência**. O stream principal paga mais em decode, anotação e encode
+(+79%, +58%, +78%) e economiza na inferência; os dois efeitos quase se anulam.
+
+> A versão anterior deste runbook dizia "conte com FPS pior (416→640 derrubou o
+> FPS em 42%)". **Isso estava errado**: aqueles 42% são de `YOLO_IMGSZ`, que é
+> outro botão — trocar o subtype não mexe nele.
+
+Uma ressalva que só a planta resolve: isso vale porque o substream medido é
+4:3. Se a coluna `resolucao` do passo (a) mostrar um substream **16:9**
+(640x360, 704x396), o substream volta a ser estritamente mais barato e não há
+razão nenhuma para subir para 0.
+
+---
+
+### (c) Rodar 60 s e medir o FPS real — 2 min
+
+```bash
+./.venv/Scripts/python.exe run.py
+```
+
+Login, **Iniciar** em cada câmera (o botão bloqueia ~7,6 s; não clique duas
+vezes), e deixe rodando 60 segundos antes de olhar o número — a janela de FPS
+é de 5 s e a de detecções é de 30 s.
+
+**Leia na própria tela, sem terminal.** Cada card de câmera mostra no rodapé
+`<fps> · <largura>x<altura>`: o FPS vem do **loop de captura**, não da taxa de
+telemetria, e a resolução é a do frame que **chegou** — que pode não ser a do
+cadastro, porque em RTSP o backend ignora a resolução pedida. No painel
+**Modelo YOLO** (modo Técnico) há a linha `Detecções (30s)` com a contagem por
+classe.
+
+O que esperar, medido nesta máquina com o perfil de substream Dahua
+([BENCH.md](BENCH.md), Fase 6):
+
+| | FPS por câmera | agregado |
+|---|---|---|
+| 1 câmera | ~14,7 | ~14,7 |
+| **2 câmeras** | **5,8 a 7,9 cada** | **11,6 a 15,6** |
+
+**Faixa, não ponto** — e a faixa é larga de verdade: o mesmo cenário de 1
+câmera variou de 13 a 16 fps entre execuções, e o ensaio de 2 câmeras deu 11,6
+no harness de pipeline e 15,6 no worker real (7,9 + 7,7), ambos medidos.
+Se você vir 12 ou 15, os dois são normais; **abaixo de ~5 por câmera** é que
+vale ir para o passo (d).
+**Duas câmeras não dobram nada** — a inferência é serializada pelo
+`inference_lock` e cada uma recebe metade (`espera_lock` medido em 221 ms).
+
+Compare com o `fps real` do passo (a): se o pipeline estiver **abaixo** do que
+a câmera entrega, o atraso cresce (ver o aviso no passo a) e você precisa do
+passo (d) mesmo que a imagem pareça fluida.
+
+---
+
+### (d) SE o FPS estiver ruim: a ordem de degradação
+
+Um degrau por vez, **medindo depois de cada um** — e nunca durante a
+apresentação. Ganhos medidos nesta máquina, 1 câmera, fonte no perfil de
+substream Dahua, mediana de 2 execuções em ordens invertidas (ida e volta) para
+a deriva térmica não virar diferença entre os degraus:
+
+| # | mudança | FPS | ganho | o que se perde |
+|---|---|---|---|---|
+| — | base: `YOLO_IMGSZ=416`, `DETECTION_EVERY_N_FRAMES=3`, pose on | 16,5 | — | — |
+| **1** | `DETECTION_EVERY_N_FRAMES=5` | **26,7** | **+61%** | alerta demora ~0,4 s a mais para confirmar |
+| **2** | `POSE_PER_PERSON=false` + tirar `pose` de `DEFAULT_FEATURES` | 20,8 | **+26%** | **queda e postura deixam de existir**. EPI não é afetado |
+| **3** | `YOLO_IMGSZ=320` | 21,0 | **+27%** | detecção de objeto pequeno: capacete e óculos, que são o demo |
+| **4** | parar uma das câmeras | ~16,5 na que sobra | **+156%** por câmera | metade do parque |
+
+**Faça na ordem.** Ela não é por tamanho de ganho, é por **custo do que se
+perde**:
+
+- O degrau 1 é quase de graça: com a histerese contando detecção (não iteração
+  de loop), 3 confirmações a `every_n=5` levam ~0,94 s contra ~0,56 s a
+  `every_n=3`. É o maior ganho e o menor prejuízo — comece por ele, e talvez
+  pare aí.
+- O degrau 2 remove uma **feature de segurança inteira** (queda), mas não toca
+  na detecção de EPI, que é o que está sendo demonstrado.
+- O degrau 3 ataca justamente o que o demo mostra. A 416 o modelo já perde
+  capacete que acharia a 640; a 320 perde mais. **Último recurso.**
+- O degrau 4 é o único que ataca a contenção de verdade, porque o gargalo é o
+  `inference_lock` — mas custa uma câmera.
+
+Depois de cada degrau, os dois números da tela (FPS do card e `Detecções (30s)`
+do painel) dizem se valeu: FPS subiu **e** a contagem por classe continua
+parecida? Bom. FPS subiu e a contagem despencou? Você comprou fluidez com
+detecção — volte um degrau.
+
+---
+
+### (e) SE a detecção não pegar EPI: o que verificar ANTES de mexer em confiança
+
+Baixar `YOLO_CONFIDENCE` é a primeira ideia de todo mundo e quase sempre a
+errada: ela não faz o modelo enxergar o que não está na imagem, só transforma
+ruído em caixa. Antes disso, cinco checagens, na ordem, cada uma com onde
+olhar:
+
+1. **O modelo está vendo ALGUMA coisa?** Painel **Modelo YOLO** → `Detecções
+   (30s)`. Se disser **NENHUMA** e o FPS do card estiver saudável, o problema
+   não é confiança — é fonte, enquadramento, ou o modelo estar errado para esta
+   cena.
+
+   Se disser algo, **leia a proporção entre as classes, não o total**. No
+   ensaio contra o servidor local a leitura foi
+   `helmet: 2 · person: 37 · vest: 127`: o modelo está claramente vivo, vê
+   pessoa e colete o tempo todo, e **quase nunca capacete** — com todo mundo
+   de capacete branco na imagem. Isso não é falta de confiança, é objeto
+   pequeno demais no quadro (a pessoa ocupava 21% a 28% da altura). Vá para o
+   item 3, não para o `YOLO_CONFIDENCE`.
+2. **A fonte está entregando o que você acha?** Mesmo painel, linha `Fonte
+   agora`. Resolução minúscula ou FPS no chão explicam detecção ruim sozinhos.
+   Isso separa "é o modelo" de "é a fonte" em 5 segundos, que é para isso que
+   os dois números estão lado a lado.
+3. **A pessoa está grande o bastante?** Volte à coluna `alt %` do passo (a).
+   Abaixo de ~25% da altura do quadro, o capacete tem poucos pixels e **nenhum
+   ajuste de confiança resolve**. A correção é trocar de câmera (passo b) ou
+   subir para `subtype=0` — o custo em FPS é ~zero, ver acima.
+4. **O EPI da fábrica é o que o modelo conhece?** O Vyra foi treinado em
+   `Hardhat`, `Safety Vest`, `Gloves`, `Goggles`, `Mask`. Capacete de aba total,
+   colete refletivo de outro padrão, luva de raspa escura, óculos de sobrepor:
+   são objetos que o dataset dele pode simplesmente não ter. Compare a lista
+   `Classes carregadas` do painel com o que as pessoas estão vestindo. Se o EPI
+   da planta não estiver representado, **isso não é bug e não se resolve na
+   sexta** — é retreino, e a resposta honesta é dizer isso.
+5. **Iluminação e ângulo.** Contraluz (janela ou portão atrás da pessoa),
+   câmera muito alta olhando para o topo da cabeça, ou EPI da mesma cor do
+   fundo. Compare o quadro salvo em `runtime/sondagem/` com as fotos onde o
+   modelo comprovadamente funciona (`tests/fixtures/cenas/`).
+
+Só depois disso, e sabendo o que está comprando, `YOLO_CONFIDENCE` mais baixo
+(0,35 → 0,25). E diga em voz alta que baixou: com o modelo já produzindo **dois
+falsos positivos de "sem capacete"** na cena SEGURA ([SPRINT3.md](SPRINT3.md)),
+menos confiança significa mais falso positivo, não mais acerto.
 
 ---
 
 ## Demo em modo fixture
 
-**É este o caminho padrão.** Não é plano B envergonhado: é o que está validado
+**É o plano B, e ele não é envergonhado:** é o único caminho validado
 ponta a ponta nesta máquina.
 
 ### Preparo (uma vez, na noite anterior)
@@ -384,13 +558,30 @@ paths:
 # 1. servidor
 ./mediamtx.exe mediamtx-demo.yml
 
-# 2. publicador: bench.mp4 em loop, re-encodado para H.264
-#    (a fixture e FMP4/MPEG-4 parte 2; `-stream_loop -1` repete sem fim,
-#     `-re` entrega na taxa nativa em vez de o mais rapido possivel)
+# 2a. publicador SIMPLES: bench.mp4 em loop, como ela e (1280x720)
+#     (a fixture e FMP4/MPEG-4 parte 2; `-stream_loop -1` repete sem fim,
+#      `-re` entrega na taxa nativa em vez de o mais rapido possivel)
 ./ffmpeg.exe -re -stream_loop -1 -i tests/fixtures/bench.mp4 \
   -an -c:v libx264 -preset ultrafast -tune zerolatency -g 30 -pix_fmt yuv420p \
   -f rtsp -rtsp_transport tcp \
   "rtsp://usuario:senha@localhost:554/cam/realmonitor"
+
+# 2b. publicador PERFIL DAHUA (substream D1): e o que produziu os numeros da
+#     Fase 6 da BENCH.md. Use este para ensaiar o que a planta vai entregar.
+#     `-pkt_size 1200` NAO e opcional: sem ele o mediamtx reempacota os RTP
+#     ("packets are too big, 1460 > 1440") e o decoder do leitor recebe
+#     bytestream truncado, com "error while decoding MB" em rajada.
+./ffmpeg.exe -re -stream_loop -1 -i tests/fixtures/bench.mp4 -an \
+  -vf "scale=704:576,fps=15" \
+  -c:v libx264 -profile:v main -preset veryfast -bf 0 \
+  -g 30 -keyint_min 30 -sc_threshold 0 \
+  -b:v 512k -maxrate 512k -bufsize 1024k -pix_fmt yuv420p \
+  -f rtsp -rtsp_transport tcp -pkt_size 1200 \
+  "rtsp://usuario:senha@localhost:554/cam/realmonitor"
+
+# 3. conferir o que o servidor esta entregando, com a MESMA sonda do campo
+./.venv/Scripts/python.exe scripts/sondar_cameras.py \
+  --url "rtsp://usuario:senha@localhost:554/cam/realmonitor?channel=1&subtype=1"
 ```
 
 > `usuario:senha` e `<SENHA_SINTETICA>` acima são placeholders de propósito, e
@@ -525,7 +716,10 @@ fixture.
 | `table alerts already exists` no `db upgrade` | `AUTO_CREATE_TABLES=true` | `AUTO_CREATE_TABLES=false ./.venv/Scripts/flask.exe --app wsgi db upgrade` |
 | 4 erros `404` no console do navegador | rotas legadas (`/status`, `/settings`, `/overlay`, `/risk-area`) operam sobre "a câmera padrão" e não há câmera cadastrada | cadastre uma câmera; não são erros de JavaScript |
 | Badge âmbar "modo fixture" quando se esperava ao vivo | a fonte configurada não respondeu N vezes | é o comportamento correto. Diga isso: o sistema continua e informa de qual fonte está lendo |
-| Vídeo travando | inferência é o gargalo, não a captura | baixe `YOLO_IMGSZ` (416 já é o default) ou `DETECTION_EVERY_N_FRAMES=2`. Nunca mexa nisso durante a apresentação |
+| Vídeo travando | inferência é o gargalo, não a captura | confira o FPS no rodapé do card e siga a [ordem de degradação](#d-se-o-fps-estiver-ruim-a-ordem-de-degradação). Nunca mexa nisso durante a apresentação |
+| **Vídeo fluido mas ATRASADO** (a pessoa se move e a tela responde segundos depois) | a câmera entrega mais fps do que o pipeline consome, e a fila cresce — nada descarta frame velho | compare o FPS do card com o `fps real` do passo (a). Baixe o FPS **na câmera**, ou aplique o degrau 1. Reiniciar o monitoramento zera a fila, mas ela volta |
+| **`Detecções (30s)` diz NENHUMA** | modelo, fonte ou enquadramento — nesta ordem de probabilidade | siga o [passo (e)](#e-se-a-detecção-não-pegar-epi-o-que-verificar-antes-de-mexer-em-confiança). **Não** baixe `YOLO_CONFIDENCE` antes das 5 checagens |
+| Card mostra resolução diferente da cadastrada | normal em RTSP: o backend FFMPEG ignora a resolução pedida | o número do card é o real. Se for pequeno demais para EPI, veja `subtype=0` no passo (b) |
 | Câmera "parada" sem erro | worker sem câmera habilitada | `cameras list` e confira `ativa` |
 | Todas as câmeras dão 409 "sem worker ativo" | corrigido nesta fase: `load_cameras_from_db()` só rodava com `AUTO_CREATE_TABLES=true`. Se ainda acontecer, é câmera com `enabled=false` | `cameras list` e confira `ativa`; em último caso reinicie o servidor |
 | `flask users create` parece travado | está esperando a senha no prompt, que não ecoa | digite a senha e Enter; duas vezes. Não funciona por pipe |

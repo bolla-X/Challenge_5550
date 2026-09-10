@@ -275,11 +275,30 @@ export interface VideoStreamStatus {
   fonte?: string;
 }
 
+// ---- app/services/camera_worker.py: diagnostico() ------------------------
+// As três perguntas de campo, respondidas sem abrir terminal. `fps` vem do
+// LOOP DE CAPTURA, e não do intervalo entre eventos `analysis` como o
+// `dashboardStore` calcula: aquele tem teto em TELEMETRY_HZ (8) e não
+// distingue "o pipeline caiu para 6" de "o pipeline está a 19 e a telemetria
+// está limitada". `resolucao` é a do frame que CHEGOU — em RTSP o backend
+// FFMPEG ignora a resolução pedida no cadastro.
+export interface CameraDiagnostico {
+  fps: number;
+  resolucao: string | null;
+  largura: number;
+  altura: number;
+  /** Contagem por classe, só de frames com inferência NOVA (não reaproveitada). */
+  deteccoes_30s: Record<string, number>;
+  janela_deteccoes_s: number;
+}
+
 export interface MonitorStatus extends CameraScoped {
   running: boolean;
   frame_counter: number;
   last_error: string | null;
   video?: VideoStreamStatus;
+  /** Opcional: um backend anterior a esta fase não manda o campo. */
+  diagnostico?: CameraDiagnostico;
   features: Record<string, FeatureFlag>;
   model: ModelDiagnostics;
   active_alerts: Alert[];

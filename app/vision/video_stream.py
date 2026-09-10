@@ -46,6 +46,46 @@ def capture_api(source: Any) -> int:
     return cv2.CAP_ANY
 
 
+def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
+    """Constrói o `VideoCapture` como a produção constrói.
+
+    O teto NÃO pode ir por `capture.set()`: a documentação do OpenCV marca a
+    propriedade como **open-only** — OpenCV 4.11.0,
+    `modules/videoio/include/opencv2/videoio.hpp`:
+
+        CAP_PROP_OPEN_TIMEOUT_MSEC=53, //!< (**open-only**) timeout in
+        milliseconds for opening a video capture (applicable for FFmpeg and
+        GStreamer back-ends only)
+
+    Medido: `set()` antes do `open()` deu 30.045 ms, igual a não fazer nada.
+    Vai então pela sobrecarga de construtor que aceita parâmetros de abertura —
+    `VideoCapture(const String& filename, int apiPreference, const
+    std::vector<int>& params)`, com params em pares
+    `(paramId_1, paramValue_1, ...)` — que deu 3.037 ms.
+
+    Arquivo local e webcam não recebem teto: não há rede para esperar, e a
+    fonte do modo fixture é justamente um arquivo local.
+
+    É função de módulo, e não método, porque a sondagem de campo
+    (`scripts/sondar_cameras.py`) e o bench (`scripts/bench_pipeline.py`)
+    precisam abrir a fonte EXATAMENTE como o worker abre. Cada um com a sua
+    cópia mediria outra coisa — e o backend/teto errado foi justamente o que
+    custou 34 s por tentativa antes (docs/BENCH.md, Fase 2).
+    """
+    api = capture_api(source)
+    if api != cv2.CAP_FFMPEG or not isinstance(source, str):
+        return cv2.VideoCapture(source, api)
+    teto = max(500, int(open_timeout_ms))
+    return cv2.VideoCapture(
+        source,
+        api,
+        [
+            int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), teto,
+            int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), teto,
+        ],
+    )
+
+
 class VideoStreamError(RuntimeError):
     pass
 
@@ -174,36 +214,7 @@ class VideoStream:
                 raise VideoStreamError(f"Não foi possível abrir a fonte de vídeo: {redigir_segredos(str(self.source))}")
 
     def _abrir_capture(self):
-        """Constrói o `VideoCapture`, com teto de abertura se a fonte é de rede.
-
-        O teto NÃO pode ir por `capture.set()`: a documentação do OpenCV marca a
-        propriedade como **open-only** — OpenCV 4.11.0,
-        `modules/videoio/include/opencv2/videoio.hpp`:
-
-            CAP_PROP_OPEN_TIMEOUT_MSEC=53, //!< (**open-only**) timeout in
-            milliseconds for opening a video capture (applicable for FFmpeg and
-            GStreamer back-ends only)
-
-        Medido: `set()` antes do `open()` deu 30.045 ms, igual a não fazer nada.
-        Vai então pela sobrecarga de construtor que aceita parâmetros de
-        abertura — `VideoCapture(const String& filename, int apiPreference,
-        const std::vector<int>& params)`, com params em pares
-        `(paramId_1, paramValue_1, ...)` — que deu 3.037 ms.
-
-        Arquivo local e webcam não recebem teto: não há rede para esperar, e a
-        fonte do modo fixture é justamente um arquivo local.
-        """
-        api = capture_api(self.source)
-        if api != cv2.CAP_FFMPEG or not isinstance(self.source, str):
-            return cv2.VideoCapture(self.source, api)
-        return cv2.VideoCapture(
-            self.source,
-            api,
-            [
-                int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), self.open_timeout_ms,
-                int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), self.open_timeout_ms,
-            ],
-        )
+        return abrir_captura(self.source, open_timeout_ms=self.open_timeout_ms)
 
     def _open_locked(self) -> bool:
         if self._capture and self._capture.isOpened():

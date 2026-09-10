@@ -46,7 +46,7 @@ from app.vision.person_compliance_matcher import PPE_KEYS, PersonComplianceMatch
 from app.vision.person_tracker import PersonTracker  # noqa: E402
 from app.vision.pose_estimator import MediaPipePoseEstimator  # noqa: E402
 from app.vision.schemas import FrameAnalysis  # noqa: E402
-from app.vision.video_stream import capture_api  # noqa: E402
+from app.vision.video_stream import abrir_captura  # noqa: E402
 from app.vision.yolo_ppe_detector import YoloPPEDetector  # noqa: E402
 from scripts.fetch_fixtures import caminho_da_fixture  # noqa: E402
 
@@ -152,7 +152,7 @@ def rodar_camera(
     # Mesmo backend e mesmo teto de abertura que o VideoStream de producao usa
     # (ver app/vision/video_stream.py): medir a fonte RTSP com backend
     # diferente do que o worker usa mediria outra coisa.
-    captura = abrir_fonte(str(caminho_video))
+    captura = abrir_captura(str(caminho_video))
     if not captura.isOpened():
         raise SystemExit(f"Nao consegui abrir {redigir_segredos(str(caminho_video))}")
 
@@ -270,26 +270,6 @@ def rodar_camera(
     }
 
 
-def abrir_fonte(fonte: str):
-    """Abre a fonte como o `VideoStream` de producao abriria.
-
-    Reaproveita `capture_api` e o teto de abertura de fonte de rede em vez de
-    reimplementar: se o bench abrisse a fonte por outro caminho, mediria outra
-    coisa que nao o que o worker faz.
-    """
-    api = capture_api(fonte)
-    if api != cv2.CAP_FFMPEG:
-        return cv2.VideoCapture(fonte, api)
-    return cv2.VideoCapture(
-        fonte,
-        api,
-        [
-            int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), 5000,
-            int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), 5000,
-        ],
-    )
-
-
 def main() -> int:
     analisador = argparse.ArgumentParser(description="Bench por estagio do pipeline de visao.")
     analisador.add_argument("--imgsz", type=int, default=416)
@@ -319,7 +299,7 @@ def main() -> int:
         threads_torch = -1
 
     caminho_video = argumentos.fonte or caminho_da_fixture("bench")
-    sonda = abrir_fonte(str(caminho_video))
+    sonda = abrir_captura(str(caminho_video))
     fps_entrada = sonda.get(cv2.CAP_PROP_FPS)
     largura = int(sonda.get(cv2.CAP_PROP_FRAME_WIDTH))
     altura = int(sonda.get(cv2.CAP_PROP_FRAME_HEIGHT))

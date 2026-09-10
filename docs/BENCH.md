@@ -474,3 +474,225 @@ contra 5,3 s de uma só — cada câmera paga o teto de abertura de 5 s e os doi
 
 **Variação entre execuções é grande:** 15,38 e 12,89 fps agregados para o mesmo
 cenário. Faixa, não ponto.
+
+
+---
+
+# Fase 6 — perfil Dahua na bancada, e a latência que ninguém tinha medido
+
+Mesma máquina, mesma fixture, mesmo aquecimento de 12 quadros descartado.
+AMD Ryzen 7 5700X, CPU-only, `torch 2.14.0+cpu`, Windows 10, Python 3.11.9.
+
+O que muda nesta fase: até aqui o servidor RTSP local publicava a fixture
+**como ela é** — 1280x720, H.264 `ultrafast`. Isso mede o custo de uma fonte de
+rede, mas não o custo da fonte que a planta vai entregar. Aqui o publicador
+passa a **imitar o perfil de uma Dahua**, e aparece uma segunda pergunta que o
+harness de throughput não sabe fazer: **quão velho é o frame que está na tela?**
+
+## O perfil imitado, e o que nele é escolha e não medição
+
+Os parâmetros abaixo são **típicos** de Dahua, não lidos das câmeras da planta
+— não há rota até elas. São premissa declarada, e o passo (a) do runbook de
+campo existe justamente para conferi-los na sexta:
+
+| | substream (`subtype=1`) | stream principal (`subtype=0`) |
+|---|---|---|
+| resolução | **704x576** (D1, 4:3) | **1920x1080** (16:9) |
+| taxa | 15 fps | 25 fps |
+| bitrate | 512 kbps CBR | 4096 kbps CBR |
+| GOP (I-frame) | 30 (2x fps) | 50 (2x fps) |
+| perfil H.264 | Main, sem B-frame | Main, sem B-frame |
+
+```bash
+# substream: o que o cadastro usa por padrao
+./ffmpeg.exe -re -stream_loop -1 -i tests/fixtures/bench.mp4 -an \
+  -vf "scale=704:576,fps=15" \
+  -c:v libx264 -profile:v main -preset veryfast -bf 0 \
+  -g 30 -keyint_min 30 -sc_threshold 0 \
+  -b:v 512k -maxrate 512k -bufsize 1024k -pix_fmt yuv420p \
+  -f rtsp -rtsp_transport tcp -pkt_size 1200 \
+  "rtsp://usuario:senha@localhost:8554/cam/realmonitor"
+```
+
+Dois detalhes que custaram tempo e ficam registrados:
+
+- **`-pkt_size 1200`.** Sem ele o mediamtx loga `RTP packets are too big
+  (1460 > 1440), remuxing them into smaller ones` e o decoder do leitor despeja
+  `error while decoding MB ... bytestream -9` em rajada. Não é ruído cosmético:
+  é frame corrompido chegando no pipeline.
+- **`-preset veryfast`, não `ultrafast`.** A pergunta do substream é "a imagem
+  fica boa o bastante para detectar EPI?", e `ultrafast` a 512 kbps degrada
+  muito além do que o encoder de uma câmera degradaria. O custo é que o
+  publicador consome mais CPU **desta mesma máquina** — confundidor declarado
+  abaixo.
+
+Conferido com a própria sonda de campo (`scripts/sondar_cameras.py`), que é o
+que vai rodar na planta: `704x576`, **15,00 fps declarados e 14,97 medidos**.
+
+## FPS: 1 e 2 câmeras no perfil substream
+
+`imgsz=416`, `MULTI_PERSON=true`, `detect_every_n=3`, em série.
+
+| cenário | leitura p50 | espera_lock p50 | yolo_epi p50 | FPS/câmera | agregado |
+|---|---|---|---|---|---|
+| 1 câm, **RTSP substream** | 0,42 | 0,00 | 120,26 | 14,71 | **14,71** |
+| 2 câm, **RTSP substream** | 0,60 | **221,16** | 161,24 | 5,80 + 5,80 | **11,60** |
+| 1 câm, arquivo substream, CPU livre | 0,39 | 0,00 | 123,52 | 12,81 | 12,81 |
+| 2 câm, arquivo substream, CPU livre | 0,58 | **206,33** | 142,76 | 6,45 + 6,45 | 12,90 |
+
+**A previsão para a planta, e o quanto ela vale.** Uma câmera entregou
+**14,71 fps** e duas **11,60 agregado**. Isso bate com o que a Fase 5 já media
+em modo fixture (15,38 e 12,89 com 2 câmeras): trocar a fonte de arquivo para
+RTSP no perfil Dahua **não mudou a ordem de grandeza**. O gargalo continua
+sendo a inferência serializada pelo `inference_lock` — `espera_lock` p50 de
+**221 ms** com 2 câmeras, exatamente o mesmo fenômeno do baseline.
+
+**Variação entre execuções é grande e precisa ser dita:** o cenário "1 câm
+arquivo substream" deu 12,81 / 15,76 / 14,76 em três execuções do **mesmo**
+comando. Trate tudo aqui como faixa de 13 a 16 fps para uma câmera, não como
+ponto.
+
+## O substream NÃO sai mais barato — e a razão é o aspecto, não a resolução
+
+Este é o achado que contradiz o motivo pelo qual o default virou `subtype=1`.
+
+Mesmo cenário, mesmo `imgsz=416`, mudando só a fonte (p50 em ms, uma câmera,
+CPU livre):
+
+| estágio | SUB 704x576 | MAIN 1920x1080 | delta |
+|---|---|---|---|
+| leitura | 0,39 | 1,86 | −79% |
+| **yolo_epi** | **123,52** | **92,42** | **+34%** |
+| **yolo_pessoa** | **33,37** | **26,72** | **+25%** |
+| pose | 24,49 | 32,26 | −24% |
+| anotação | 0,37 | 0,87 | −58% |
+| encode | 1,28 | 5,71 | −78% |
+| serialização | 0,04 | 0,51 | −92% |
+| **ms/frame ponderado** | **62,56** | **59,44** | **+5%** |
+| FPS medido | 12,81 | 15,17 | |
+
+O stream principal tem **6,7x mais pixels** e mesmo assim custa **menos** por
+frame. Não é erro de medição: `YOLO_IMGSZ` fixa o lado maior da entrada da
+rede, então **a resolução da fonte não chega ao modelo — o aspecto chega.** O
+letterbox do ultralytics leva o lado maior a 416 e arredonda o menor para
+múltiplo de 32 (o stride):
+
+- 704x576 (4:3, D1) → tensor **416x352** = 146k px
+- 1920x1080 (16:9)  → tensor **416x256** = 106k px, **38% menor**
+
+Isolado, com a **mesma cena** e o mesmo lado maior, em medições **intercaladas**
+A/B/A/B (n=40 cada, para cancelar deriva térmica e carga de fundo):
+
+| entrada | tensor | yolo_epi p50 | p95 |
+|---|---|---|---|
+| 704x576 — 4:3 | 416x352 (146k px) | **106,94 ms** | 131,11 |
+| 704x396 — 16:9 | 416x256 (106k px) | **83,94 ms** | 108,30 |
+
+**O 4:3 custa +27,4% de inferência.** A primeira tentativa mediu em bloco
+(todas as amostras de A, depois todas as de B) e o ruído da máquina foi de
+±18% — maior que o efeito. Intercalar foi o que tornou o número legível; fica
+registrado como método, não como detalhe.
+
+**Consequência prática:** o que o substream economiza (decode, anotação,
+encode: ~6 ms/frame) é menor que o que ele acrescenta em inferência (+31 ms em
+1 de cada 3 frames = ~10 ms/frame amortizados). Por isso o FPS entre os dois
+perfis é **empate dentro do ruído** — medianas de 3 execuções: substream 14,76,
+principal 15,17.
+
+**A ressalva que impede generalizar:** isto vale porque o substream imitado é
+**4:3**. Se o substream da câmera da planta for 16:9 (640x360, 704x396), o
+efeito desaparece e o substream volta a ser estritamente mais barato. O passo
+(a) do runbook **reporta a resolução real de cada câmera nos dois subtypes**, e
+é esse dado que decide.
+
+## Latência: o frame na tela é de 13 segundos atrás
+
+`scripts/bench_latencia.py`. Cada frame sai do publicador com um número de
+sequência gravado em blocos preto/branco na primeira faixa de pixels; quem lê
+decodifica e consulta a tabela de publicação. Publicador e leitor são o mesmo
+processo, então não há relógio a sincronizar. Amostra cujo checksum não fecha é
+**descartada** (a anotação desenha caixas por cima), e a taxa de descarte sai no
+relatório — descarte alto invalidaria a medição e precisa aparecer.
+
+Dois trechos, medidos em fases separadas: **FONTE** (publicação → o
+`VideoStream` de produção devolver o frame) e **DASHBOARD** (publicação → o
+mesmo frame sair pelo MJPEG do Flask, por HTTP de verdade, na rota por câmera
+que o `camera-grid.tsx` pede).
+
+| fonte | FONTE p50 | deriva | DASHBOARD p50 | deriva |
+|---|---|---|---|---|
+| 15 fps | 2.336 ms | −1 ms/s | 13.534 ms | **+135 ms/s** |
+| 8 fps | 4.378 ms | −5 ms/s | 12.645 ms | **+35 ms/s** |
+| 6 fps, `TARGET_FPS=30` | 5.836 ms | −3 ms/s | 12.476 ms | **−1 ms/s** |
+
+**A deriva é o número que importa, não o p50.** Atraso constante é buffer e tem
+teto; atraso que cresce é **fila**, e aí não existe número para relatar —
+existe uma rampa. A 15 fps o dashboard ganha **+135 ms de atraso por segundo**,
+isto é **+8,1 s a cada minuto**: depois de cinco minutos de apresentação, o
+vídeo na tela é de minutos atrás. O script imprime esse aviso sozinho.
+
+**A causa é aritmética, e é a única parte que transfere direto para a planta:**
+o worker consome ~10 a 14 fps (medido ao vivo contra esta fonte: **9,8 fps**,
+pelo próprio diagnóstico de tela) e a fonte produz 15. A diferença enfileira. A
+cura é folga — fonte mais lenta que o pipeline —, e a última linha da tabela
+mostra a deriva zerando quando ela existe.
+
+### `CAP_PROP_BUFFERSIZE=1` não funciona em RTSP, e o comentário do código diz que sim
+
+`video_stream.py` pede buffer de 1 frame, e o comentário afirma: *"Com 1,
+`read()` sempre pega o frame mais recente e o atraso não acumula."* Medido
+contra o servidor local, abrindo o stream e **parando de ler por 10 s**:
+
+| | `set()` retornou | `get()` | frames instantâneos ao voltar a ler |
+|---|---|---|---|
+| pedindo `BUFFERSIZE=1` | **False** | 0.0 | **104** |
+| sem pedir nada | — | — | **104** |
+
+O backend FFMPEG **recusa** a propriedade, e o comportamento é idêntico com e
+sem o pedido: 104 frames saem de enfiada antes de a leitura voltar a bloquear.
+Não há descarte de frame velho em lugar nenhum do caminho. **O pedido é um
+no-op em fonte de rede** — vale para webcam, não para RTSP.
+
+Não foi corrigido nesta fase, e de propósito: mexer no `read()` do
+`VideoStream` na semana do demo, com `camera_worker.py` a 34% de cobertura e o
+loop de frame sem teste, é exatamente o tipo de mudança que a Fase 1 já
+recusou. O caminho, quando houver caracterização: `grab()` em laço curto
+descartando sem decodificar, e `retrieve()` só no último.
+
+### Quanto do número absoluto é artefato da bancada
+
+O p50 do FONTE **não é previsão para a planta**, e a decomposição mostra por
+quê:
+
+- **É contagem de frames, não tempo.** 2.336 ms a 15 fps, 4.378 a 8 fps e 5.836
+  a 6 fps dão **exatamente 35 frames nos três casos**. Atraso de rede seria
+  constante em segundos; este é constante em quadros, o que aponta para fila na
+  cadeia local (publicador → mediamtx → demuxer), não para latência de rede.
+- **2,0 s eram do meu encoder.** O `-preset veryfast` do x264 usa
+  `rc-lookahead=40` por padrão e o publicador segurava os frames antes de
+  emitir: com `-rc-lookahead 0` o FONTE caiu de **4.337 para 2.337 ms**. Uma
+  Dahua tem encoder de hardware, que emite quadro a quadro. O script passa
+  `-rc-lookahead 0` por padrão desde então.
+- **Não é o bitrate.** 512 kbps e 4096 kbps deram **3.003 ms** os dois.
+
+Portanto: **MEDIDO** que existe fila e que ela cresce quando a fonte é mais
+rápida que o pipeline; **NÃO MEDIDO** quanto de atraso absoluto a Dahua real vai
+somar. O que a planta acrescenta — buffer do encoder da câmera, MTU e perda da
+rede industrial, switch — não existe em `localhost`.
+
+## Como reproduzir
+
+```bash
+python scripts/fetch_fixtures.py
+# 1. mediamtx no ar (docs/DEMO.md) e o publicador de perfil acima
+
+# 2. throughput, 1 e 2 cameras
+python scripts/bench_pipeline.py --imgsz 416 --multi-person \
+  --fonte "rtsp://usuario:senha@localhost:8554/cam/realmonitor?channel=1&subtype=1"
+python scripts/bench_pipeline.py --imgsz 416 --multi-person --cameras 2 \
+  --fonte "rtsp://usuario:senha@localhost:8554/cam/realmonitor?channel=1&subtype=1"
+
+# 3. latencia (o script sobe o proprio publicador e o proprio Flask)
+python scripts/bench_latencia.py --ffmpeg ./ffmpeg.exe \
+  --url "rtsp://usuario:senha@localhost:8554/cam/realmonitor"
+```

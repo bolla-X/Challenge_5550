@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Badge, Panel, EmptyState } from "./common";
+import { useCameraEstado } from "./camera-grid";
 import { getPreflight } from "../api/endpoints";
 import type { PreflightCheck, RuntimeSettings } from "../api/types";
 
@@ -122,8 +123,56 @@ export function SettingsPanel() {
   );
 }
 
+/** O que o modelo REALMENTE detectou nos últimos 30 s, por classe.
+ *
+ * Fica dentro do painel do modelo de propósito: logo abaixo está a lista de
+ * classes que o modelo SUPORTA, e a pergunta de campo é a diferença entre as
+ * duas listas. Suporta `Hardhat` e detectou zero em 30 s, com FPS e resolução
+ * saudáveis? É o modelo (ou a cena). FPS no chão ou resolução minúscula? É a
+ * fonte, e mexer em confiança não resolve.
+ */
+function DeteccoesRecentes({ camId }: { camId: number }) {
+  const estado = useCameraEstado(camId);
+  const diagnostico = estado.diagnostico;
+  if (!diagnostico) return null;
+
+  const classes = Object.entries(diagnostico.deteccoes_30s);
+  const janela = Math.round(diagnostico.janela_deteccoes_s);
+  const total = classes.reduce((soma, [, n]) => soma + n, 0);
+  return (
+    <div className="status-list" style={{ marginTop: 12 }}>
+      <div className="status-row">
+        <span className="status-row-label">Detecções ({janela}s)</span>
+        <span className="status-row-value">
+          {!estado.running
+            ? "câmera parada"
+            : classes.length
+              ? `${total} em ${classes.length} classe(s)`
+              : "NENHUMA"}
+        </span>
+      </div>
+      {classes.length ? (
+        <div className="class-list">
+          {classes.map(([nome, quantas]) => (
+            <span className="class-chip" key={nome}>
+              {nome} · {quantas}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="status-row">
+        <span className="status-row-label">Fonte agora</span>
+        <span className="status-row-value">
+          {diagnostico.resolucao || "sem frame"} · {diagnostico.fps.toFixed(1)} fps
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function ModelStatusPanel() {
   const model = useDashboardStore((s) => s.model);
+  const camId = useDashboardStore((s) => s.camId);
   if (!model) {
     return (
       <Panel id="panel-model" title="Modelo YOLO" className="technical-only">
@@ -139,6 +188,7 @@ export function ModelStatusPanel() {
 
   return (
     <Panel id="panel-model" title="Modelo YOLO" className="technical-only" action={<Badge tone={statusTone}>{statusText}</Badge>}>
+      {camId !== null ? <DeteccoesRecentes camId={camId} /> : null}
       <div className="status-list">
         <div className="status-row"><span className="status-row-label">Arquivo</span><span className="status-row-value">{model.model_path || "indefinido"}</span></div>
         <div className="status-row"><span className="status-row-label">Pessoa</span><span className="status-row-value">{yesNo(model.person_supported)}</span></div>
