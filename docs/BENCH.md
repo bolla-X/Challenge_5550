@@ -794,3 +794,144 @@ lidos com sucesso: 240  | leituras que falharam (a virada): 1
 Uma única falha, que é a leitura que bate no fim antes de rebobinar —
 comportamento documentado e coberto por
 `test_fim_de_arquivo_em_loop_rebobina_em_vez_de_falhar`. Nenhum frame pulado.
+
+
+---
+
+# Fase 8 — cenário "USB local": webcam física, e as duas fontes convivendo
+
+Hardware: **Logi Webcam C920e**, índice 0, `640x480`. Mesma máquina de sempre.
+Números **separados** dos de fixture e dos de RTSP de propósito: é outra fonte,
+com outro custo e outro comportamento de buffer.
+
+> ⚠️ **A cena estava VAZIA e isso enviesa o FPS para cima.** A lente da C920e
+> estava obstruída durante toda esta medição: a câmera abre, entrega frame a
+> 14,39 fps, e a imagem é **preta** (média de pixel 0,02, máximo 3–8, constante
+> por 6 s, idêntico no CAP_DSHOW e no CAP_MSMF; dispositivo sem erro no
+> gerenciador e consentimento do Windows em `Allow` nas duas chaves). Sem
+> objeto na cena o YOLO não produz detecção, o NMS fica barato e o
+> `estimate_for_people` não roda por pessoa. **Trate o FPS de USB abaixo como
+> teto, não como o que uma cena real entrega.**
+
+## Descoberta
+
+`GET /api/cameras/discover?max_index=3` encontrou **um** dispositivo:
+
+| índice | disponível | resolução |
+|---|---|---|
+| 0 | sim | 640x480 |
+| 1, 2, 3 | não | — |
+
+Backend importa, e o projeto já escolhe o certo (`capture_api` → `CAP_DSHOW`
+para `int` no Windows). Medido abrindo o índice 0:
+
+| backend | abriu | resolução | fps declarado | tempo de abertura |
+|---|---|---|---|---|
+| **CAP_DSHOW** (o usado) | sim | 640x480 | **0,00** | **2,52 s** |
+| CAP_MSMF | sim | 640x480 | 30,00 | 10,22 s |
+| CAP_ANY | sim | 640x480 | 30,00 | 9,46 s |
+
+**O DirectShow abre 4x mais rápido** — confirma a escolha que já estava no
+código. Em compensação ele **não reporta FPS** (`0,00`), o que torna o
+declarado inútil em USB e o medido obrigatório. Medido pela sonda de campo
+(`scripts/sondar_cameras.py --usb 0`): **14,39 fps reais**, abertura em 670 ms.
+
+## FPS
+
+`imgsz=416`, `MULTI_PERSON=true`, `detect_every_n=3`, worker real (Flask +
+`AlertStateService` + `ComplianceService` + anotação), lido no próprio
+diagnóstico de tela.
+
+| cenário | por câmera | agregado |
+|---|---|---|
+| **1 webcam USB, CPU livre** | **8,90 / 9,00 fps** | **~8,95** |
+| **webcam USB + 1 RTSP (perfil Dahua), simultâneas** | 4,9 a 7,7 cada | **9,9 a 14,7** |
+
+A faixa larga do caso de duas câmeras é o publicador ffmpeg da bancada
+disputando CPU (o mesmo confundidor de −24% já declarado na Fase 2). Na planta
+esse publicador não existe.
+
+**O teto da fonte é 14,39 fps e o pipeline entrega ~9** — ou seja, o consumidor
+é mais lento que a webcam. Em RTSP isso produziria fila crescente; em USB não,
+pelo motivo medido logo abaixo.
+
+## Latência USB: não há fila, e por isso não há deriva
+
+O mesmo experimento que diagnosticou o RTSP — abrir, **parar de ler por 10 s**,
+voltar a ler e contar quantos frames saem instantâneos:
+
+| fonte | `set(BUFFERSIZE,1)` | `get()` | frames instantâneos após 10 s parado |
+|---|---|---|---|
+| **USB (DirectShow)** | **False** | **−1.0** | **1** — a leitura seguinte bloqueou 62 ms |
+| RTSP (FFMPEG) | False | 0.0 | **104** |
+
+**A webcam devolve UM frame e depois bloqueia** ~1/14,4 fps esperando o
+próximo. O driver entrega só o quadro corrente: não há fila para acumular,
+então **a deriva de latência do RTSP não existe em USB** — e é por isso que o
+descarte de frame atrasado fica desligado nessa fonte (`_ler_do_capture`).
+
+Note que `CAP_PROP_BUFFERSIZE` é recusado **também** no DirectShow. A diferença
+não é a propriedade funcionar; é o driver já se comportar como se ela
+funcionasse.
+
+**NÃO VERIFICADO: a latência absoluta publicação → dashboard em USB.** O
+`bench_latencia.py` mede o atraso carimbando um número de sequência **no frame
+antes de publicar**, e numa câmera física não há como carimbar o fóton: o
+instante em que a cena aconteceu não é observável sem uma referência externa
+(filmar um cronômetro na tela, por exemplo). O que estava em jogo — **se o
+atraso cresce** — está medido acima: não cresce, porque não há fila.
+
+## As duas fontes convivendo (USB + RTSP)
+
+**Cada fonte com seu caminho de captura**, verificado nos objetos reais criados
+a partir do banco:
+
+```
+cam 1 [  USB] descarta_frame_atrasado=False
+cam 2 [ RTSP] descarta_frame_atrasado=True
+```
+
+**Rodando ao mesmo tempo**, lido do diagnóstico de cada card:
+
+```
+cam 1:  4.90 fps   640x480  modo=ao_vivo  det30s={}
+cam 2:  5.00 fps   704x576  modo=ao_vivo  det30s={'person': 13, 'vest': 103}
+```
+
+Duas resoluções diferentes, dois caminhos de captura diferentes, no mesmo
+processo. A câmera de lente tampada não detecta nada e a RTSP detecta — mesmo
+modelo, mesmo instante, e é exatamente essa comparação que o painel serve para
+fazer.
+
+**Uma morrendo não derruba a outra.** Matando o servidor RTSP e o publicador
+com as duas ativas:
+
+| | cam 1 (USB) | cam 2 (RTSP) |
+|---|---|---|
+| antes | 5,30 fps · `ao_vivo` | 5,20 fps · `ao_vivo` |
+| 30 s depois | 6,30 fps · **`ao_vivo`** | 6,20 fps · **`fixture`** |
+| 60 s depois | 8,30 fps · **`ao_vivo`** | 8,10 fps · **`fixture`** |
+
+A USB seguiu intacta; a RTSP caiu para a fonte de demonstração e **continuou
+publicando frame**, como projetado. As duas ganharam FPS depois da morte
+porque o publicador ffmpeg parou de disputar CPU.
+
+## O diagnóstico de tela, no navegador de verdade
+
+Painel **Modelo YOLO** (perfil Técnico), com as duas câmeras ativas no mesmo
+instante — copiado da tela:
+
+| | cam 1 (webcam, lente tampada) | cam 2 (RTSP, cena real) |
+|---|---|---|
+| Detecções (30s) | **NENHUMA** | **100 em 2 classe(s)** — `person · 10`, `vest · 90` |
+| Fonte agora | **640x480 · 6.9 fps** | **704x576 · 4.7 fps** |
+| Modelo | Modelo PPE completo | Modelo PPE completo |
+
+É a leitura de 5 segundos que o painel existe para dar: **modelo saudável nas
+duas, fonte cega numa só.** Se o problema fosse o modelo, as duas colunas
+diriam NENHUMA.
+
+> O painel **só aparece no perfil Técnico**. O modo da interface é o **papel**
+> de quem logou (`setMode(user.role)`), e não há seletor: um Supervisor não vê
+> `#panel-model`, verificado no DOM. Quem for diagnosticar em campo precisa
+> entrar como **Técnico**.

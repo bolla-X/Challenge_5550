@@ -264,9 +264,17 @@ class VideoStream:
         # propriedade; a doc oficial a lista sem garantir suporte por backend
         # (https://docs.opencv.org/4.x/d4/d15/group__videoio__flags__base.html).
         #
-        # Continua sendo pedido porque em webcam (DirectShow/V4L2) ele é
-        # respeitado e ajuda. Quem resolve o caso da rede é o descarte
-        # explícito em `_ler_do_capture`.
+        # E no DirectShow (webcam) TAMBÉM é recusado — medido com a Logi C920e
+        # nesta máquina: `set()` -> False, `get()` -> -1.0. A diferença é que
+        # ali não faz falta: no MESMO teste de 10 s parado, a webcam devolveu
+        # **1** frame instantâneo e a leitura seguinte bloqueou 62 ms (~1/14,4
+        # fps), contra 104 frames do RTSP. O driver USB já entrega só o quadro
+        # corrente, então não há fila para acumular e nenhuma deriva é
+        # possível.
+        #
+        # O pedido fica porque é barato e outros backends (V4L2 no Linux) o
+        # implementam. Quem resolve o caso da rede é o descarte explícito em
+        # `_ler_do_capture`.
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._capture = capture
         self._last_error = None

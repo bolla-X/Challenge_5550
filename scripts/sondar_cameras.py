@@ -94,10 +94,18 @@ def porta_aceita(host: str, porta: int, timeout: float) -> bool:
         return False
 
 
-def medir_fluxo(url: str, segundos: float, teto_ms: int) -> Resultado:
-    resultado = Resultado(url, None)
+def medir_fluxo(fonte: str | int, segundos: float, teto_ms: int) -> Resultado:
+    """`fonte` e URL RTSP, caminho de arquivo ou INDICE de webcam (int).
+
+    O indice entra como int, nao como "0": `abrir_captura` decide o backend
+    a partir do tipo, e no Windows webcam so e rapida no DirectShow —
+    medido nesta maquina, abrir o indice 0 custou 2,52 s no CAP_DSHOW
+    contra 10,22 s no CAP_MSMF. Passar "0" como string abriria um ARQUIVO
+    chamado 0.
+    """
+    resultado = Resultado(str(fonte), None)
     inicio_abertura = time.perf_counter()
-    captura = abrir_captura(url, open_timeout_ms=teto_ms)
+    captura = abrir_captura(fonte, open_timeout_ms=teto_ms)
     resultado.ms_abertura = (time.perf_counter() - inicio_abertura) * 1000.0
     if not captura.isOpened():
         resultado.erro = "nao abriu (credencial, caminho ou servico RTSP)"
@@ -214,6 +222,9 @@ def main() -> int:
     )
     analisador.add_argument("hosts", nargs="*", help="IPs/hosts das cameras.")
     analisador.add_argument("--url", action="append", default=[], help="URL RTSP pronta (repetivel).")
+    analisador.add_argument("--usb", action="append", type=int, default=[],
+                            help="Indice de webcam USB (repetivel). Use a descoberta do "
+                                 "dashboard ou GET /api/cameras/discover para achar os indices.")
     analisador.add_argument("--subtypes", default="0,1", help="Subtypes a sondar. Default: 0,1.")
     analisador.add_argument("--canal", type=int, default=1)
     analisador.add_argument("--porta", type=int, default=Config.RTSP_PORTA)
@@ -222,8 +233,8 @@ def main() -> int:
     analisador.add_argument("--pessoas", action="store_true", help="Roda o YOLO de pessoa no primeiro frame.")
     argumentos = analisador.parse_args()
 
-    if not argumentos.hosts and not argumentos.url:
-        analisador.error("informe ao menos um host ou --url")
+    if not argumentos.hosts and not argumentos.url and not argumentos.usb:
+        analisador.error("informe ao menos um host, --url ou --usb")
 
     subtypes = [int(s) for s in argumentos.subtypes.split(",") if s.strip()]
     usuario = str(Config.RTSP_USUARIO or "")
@@ -246,7 +257,7 @@ def main() -> int:
             require_person=False,
         )
 
-    alvos: list[tuple[str, int | None, str]] = []
+    alvos: list[tuple[str, int | None, str | int]] = []
     for host in argumentos.hosts:
         for subtype in subtypes:
             alvos.append((
@@ -260,6 +271,9 @@ def main() -> int:
             ))
     for url in argumentos.url:
         alvos.append((redigir_segredos(url), None, url))
+    for indice in argumentos.usb:
+        # Sem subtype e sem porta: webcam nao tem nem um nem outro.
+        alvos.append((f"usb-{indice}", None, indice))
 
     resultados: list[Resultado] = []
     for rotulo, subtype, url in alvos:
