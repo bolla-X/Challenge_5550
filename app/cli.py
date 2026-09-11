@@ -74,6 +74,13 @@ cameras_cli = AppGroup("cameras", help="Cadastra e lista as câmeras monitoradas
 @click.option("--fps", type=int, default=12, show_default=True)
 @click.option("--largura", type=int, default=960, show_default=True)
 @click.option("--altura", type=int, default=540, show_default=True)
+@click.option(
+    "--rotacao",
+    type=click.Choice(["0", "90", "180", "270"]),
+    default="0",
+    show_default=True,
+    help="Graus pra corrigir câmera montada física de lado/invertida.",
+)
 def add_camera(
     name: str,
     host: str | None,
@@ -85,6 +92,7 @@ def add_camera(
     fps: int,
     largura: int,
     altura: int,
+    rotacao: str,
 ) -> None:
     """Cadastra uma câmera.
 
@@ -132,6 +140,7 @@ def add_camera(
         fps=max(1, min(60, fps)),
         width=largura,
         height=altura,
+        rotation=int(rotacao),
         features_json=dict(DEFAULT_CAMERA_FEATURES),
     )
     db.session.add(camera)

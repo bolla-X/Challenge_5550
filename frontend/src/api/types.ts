@@ -439,6 +439,7 @@ export interface CameraRecord {
   fps: number;
   width: number;
   height: number;
+  rotation: 0 | 90 | 180 | 270;
   enabled: boolean;
   features: CameraFeatureSet;
   created_at: string | null;

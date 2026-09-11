@@ -140,6 +140,14 @@ class Camera(db.Model):
     # qualidade, ou tenta um upscale impossível na de baixa qualidade.
     width = db.Column(db.Integer, nullable=False, default=960)
     height = db.Column(db.Integer, nullable=False, default=540)
+    # Graus de rotação aplicados a cada frame ANTES de qualquer detecção —
+    # existe porque câmera de planta às vezes é montada física de lado
+    # (confirmado na Fresa 2: pessoas deitadas na imagem crua). Sem corrigir
+    # aqui, YOLO e principalmente o MediaPipe Pose (que assume corpo
+    # vertical) degradam muito, e a heurística de queda por orientação do
+    # tronco passa a disparar em todo mundo. Só 0/90/180/270 — CSS não entra
+    # (frame é array numpy, não elemento de tela).
+    rotation = db.Column(db.Integer, nullable=False, default=0)
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     features_json = db.Column(db.JSON, nullable=False, default=lambda: dict(DEFAULT_CAMERA_FEATURES))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
@@ -155,6 +163,7 @@ class Camera(db.Model):
             "fps": self.fps,
             "width": self.width,
             "height": self.height,
+            "rotation": self.rotation,
             "enabled": self.enabled,
             # Merge com os defaults, não substituição: uma câmera cadastrada
             # ANTES de uma feature nova existir tem o JSON sem aquela chave, e

@@ -225,6 +225,45 @@ class Config:
     LLM_PROMPT_VERSION = os.getenv("LLM_PROMPT_VERSION", "v2")
 
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
+    # Modelos de EPI ADICIONAIS, rodados no mesmo frame que o PPE_MODEL_PATH e
+    # com o resultado fundido (ver EnsemblePPEDetector). Serve pra cobrir
+    # classes que o modelo principal detecta mal: o Vyra acerta capacete/colete
+    # e erra oculos/mascara/luva; um YOLOv8n dedicado a esses tres tapa o buraco.
+    # Lista separada por virgula. Vazio = so o PPE_MODEL_PATH, comportamento
+    # antigo. Cada modelo extra roda SEM o filtro YOLO_CLASSES (os indices sao
+    # do Vyra) — usa todas as classes do proprio peso.
+    PPE_EXTRA_MODELS = os.getenv("PPE_EXTRA_MODELS", "")
+    # Resolucao de entrada dos modelos EXTRAS (o principal segue em YOLO_IMGSZ).
+    # Objeto pequeno/fino — oculos, luva a distancia — depende muito disto:
+    # subir de 416 pra 960 e o que mais melhora a recall dessas classes. Os
+    # extras costumam ser nano (baratos), entao 960 aqui e viavel. 0 = usa
+    # YOLO_IMGSZ.
+    PPE_EXTRA_MODELS_IMGSZ = env_int("PPE_EXTRA_MODELS_IMGSZ", 960)
+    # TTA (augment) nos extras: infere em varias escalas/flips e funde. +2-5%
+    # de recall em objeto pequeno/baixo contraste, a ~2x o custo do extra.
+    PPE_EXTRA_MODELS_AUGMENT = env_bool("PPE_EXTRA_MODELS_AUGMENT", True)
+    # Classes que NENHUM modelo extra pode contribuir pro ensemble — a saida
+    # delas fica so a cargo do PPE_MODEL_PATH principal. Existe porque um
+    # modelo extra pode ser confiavelmente ERRADO numa classe especifica: o
+    # epi_pretrained.pt (nano) deu "Gloves" 0.78 numa mao NUA (o Vyra, no
+    # mesmo frame, se absteve certo). Piso de confianca nao resolve isso — a
+    # deteccao errada veio com confianca alta. Lista separada por virgula,
+    # nomes normalizados (helmet/vest/gloves/glasses/mask/safety_shoe).
+    PPE_EXTRA_MODELS_EXCLUDE_LABELS = os.getenv("PPE_EXTRA_MODELS_EXCLUDE_LABELS", "gloves")
+    # Piso de confianca POR classe de EPI, "classe:valor" separado por virgula.
+    # YOLO_CONFIDENCE e o piso global (cego); este afina por classe: capacete e
+    # colete exigentes (senao qualquer objeto amarelo vira capacete), oculos e
+    # luva permissivos (sao as classes fracas). Classe fora da lista usa so o
+    # piso global. Vazio = comportamento antigo.
+    PPE_CONF_MIN_BY_CLASS = os.getenv(
+        "PPE_CONF_MIN_BY_CLASS",
+        "helmet:0.40,vest:0.40,gloves:0.30,mask:0.30,glasses:0.15",
+    )
+    # Exige que a caixa do EPI caia dentro de alguma pessoa (containment >=
+    # PPE_PERSON_OVERLAP_MIN) pra valer. Mata EPI detectado em objeto solto no
+    # fundo. So aplica quando ha pessoa no frame.
+    PPE_REQUIRE_PERSON_OVERLAP = env_bool("PPE_REQUIRE_PERSON_OVERLAP", True)
+    PPE_PERSON_OVERLAP_MIN = env_float("PPE_PERSON_OVERLAP_MIN", 0.35)
     # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
     # PPE_MODEL_PATH aponta pra um modelo de EPI sem classe "person" própria
     # (ex: epi_pretrained.pt). O Vyra já traz "Person" (classe 11), então roda
@@ -232,6 +271,10 @@ class Config:
     PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "yolov8n.pt")
     YOLO_CONFIDENCE = env_float("YOLO_CONFIDENCE", 0.35)
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
+    # FP16 na GPU: quase metade do tempo de inferencia na mesma RTX, sem perda
+    # de precisao que se note em deteccao (nao e treino). So tem efeito com
+    # YOLO_DEVICE apontando pra GPU — em CPU o proprio detector ignora.
+    YOLO_HALF = env_bool("YOLO_HALF", True)
     YOLO_CLASSES = os.getenv("YOLO_CLASSES", "")
     YOLO_MAX_DETECTIONS = env_int("YOLO_MAX_DETECTIONS", 100)
     # Lado maior da imagem que entra na rede. O ultralytics usa 640 quando não
@@ -342,6 +385,12 @@ class TestConfig(Config):
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
+    # Mesmo motivo: um .env com credencial RTSP de planta real configurada
+    # (necessaria pra rodar contra camera de verdade) nao pode fazer
+    # test_add_recusa_host_sem_credencial_configurada deixar de testar o
+    # caminho de recusa — ela conta com os dois vazios.
+    RTSP_USUARIO = ""
+    RTSP_SENHA = ""
 
 
 class AuthTestConfig(TestConfig):

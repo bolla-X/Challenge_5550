@@ -180,6 +180,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
   const [fps, setFps] = useState(camera.fps);
   const [width, setWidth] = useState(camera.width);
   const [height, setHeight] = useState(camera.height);
+  const [rotation, setRotation] = useState(camera.rotation);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -195,13 +196,14 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
     setFps(camera.fps);
     setWidth(camera.width);
     setHeight(camera.height);
+    setRotation(camera.rotation);
     setMessage(null);
   }, [camera.id]);
 
   const handleSave = () => {
     setSaving(true);
     setMessage(null);
-    updateCamera(camera.id, { name, location: location || null, source_type: sourceType, source, fps, width, height })
+    updateCamera(camera.id, { name, location: location || null, source_type: sourceType, source, fps, width, height, rotation })
       .then(() => {
         setMessage("Câmera salva — se estava rodando, já reiniciou sozinha com a config nova.");
         return loadCameras();
@@ -276,7 +278,20 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
             Altura (px)
             <input type="number" value={height} min={120} max={2160} onChange={(e) => setHeight(Number(e.target.value) || 540)} />
           </label>
+          <label>
+            Orientação da câmera
+            <select value={rotation} onChange={(e) => setRotation(Number(e.target.value) as 0 | 90 | 180 | 270)}>
+              <option value={0}>Normal (0°)</option>
+              <option value={90}>90° horário</option>
+              <option value={180}>180° (de cabeça para baixo)</option>
+              <option value={270}>270° horário (90° anti-horário)</option>
+            </select>
+          </label>
         </div>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+          Corrige câmera montada física de lado ou invertida — a imagem gira antes de qualquer detecção
+          (pessoa, EPI e pose), não é só um efeito visual.
+        </p>
         {message && <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{message}</p>}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
           <button type="button" className="secondary small" disabled={testing} onClick={handleTest}>

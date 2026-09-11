@@ -89,6 +89,15 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
         except (TypeError, ValueError):
             return "'height' deve ser um número inteiro.", 400
 
+    if "rotation" in payload:
+        try:
+            rotation = int(payload["rotation"])
+        except (TypeError, ValueError):
+            return "'rotation' deve ser um número inteiro.", 400
+        if rotation not in (0, 90, 180, 270):
+            return "'rotation' deve ser um de [0, 90, 180, 270].", 400
+        camera.rotation = rotation
+
     if "enabled" in payload:
         camera.enabled = bool(payload["enabled"])
 

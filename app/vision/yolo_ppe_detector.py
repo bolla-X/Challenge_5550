@@ -76,10 +76,21 @@ class YoloPPEDetector:
         max_detections: int = 100,
         require_person: bool = True,
         imgsz: int = 640,
+        augment: bool = False,
+        half: bool = False,
     ) -> None:
         self.model_path = model_path
         self.confidence = confidence
         self.device = device
+        # FP16 so faz sentido em GPU — na CPU o ultralytics ou ignora ou fica
+        # mais lento (a maioria dos kernels de CPU nao tem caminho half
+        # otimizado). "cpu"/None/vazio nunca liga, mesmo se pedido.
+        device_str = str(device or "").strip().lower()
+        self.half = bool(half) and device_str not in ("", "cpu")
+        # TTA no predict: infere em escalas/flips e funde. Ajuda objeto
+        # pequeno/baixo contraste (oculos fino, luva escura), a ~2x o custo.
+        # Ligado so onde compensa (modelos extras nano) via config.
+        self.augment = bool(augment)
         # Lado maior da entrada da rede (ver Config.YOLO_IMGSZ). O ultralytics
         # exige múltiplo de 32 e arredonda sozinho avisando; arredondar aqui
         # evita o aviso a cada frame quando alguém põe 500 no .env.
@@ -185,6 +196,8 @@ class YoloPPEDetector:
                 verbose=False,
                 max_det=self.max_detections,
                 imgsz=self.imgsz,
+                augment=self.augment,
+                half=self.half,
             )
         except Exception as exc:  # noqa: BLE001
             # Modelo ausente/corrompido não pode derrubar o frame inteiro —

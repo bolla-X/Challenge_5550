@@ -97,6 +97,7 @@ class CameraWorker:
         fps: int,
         width: int = 960,
         height: int = 540,
+        rotation: int = 0,
         detector: YoloPPEDetector,
         person_detector: YoloPPEDetector,
         pose_estimator: MediaPipePoseEstimator,
@@ -108,6 +109,9 @@ class CameraWorker:
         self.feature_manager = feature_manager
         self.camera_id = camera_id
         self.target_fps = max(1, int(fps))
+        # So um destes 4 valores tem sentido pra `cv2.rotate` — qualquer outro
+        # vira 0 (sem rotacao) em vez de derrubar o worker.
+        self.rotation = int(rotation) if int(rotation) in (0, 90, 180, 270) else 0
         self._running = threading.Event()
         self._thread_lock = threading.RLock()
         self._task = None
@@ -507,6 +511,76 @@ class CameraWorker:
             polygon.append((float(x), float(y)))
         return polygon
 
+    def _conf_floors(self) -> dict[str, float]:
+        """Piso de confianca POR classe de EPI (PPE_CONF_MIN_BY_CLASS).
+
+        YOLO_CONFIDENCE e um piso unico e cego: baixo o bastante pra pegar
+        oculos/luva (classes fracas) deixa entrar capacete fantasma em
+        qualquer objeto amarelo. Aqui cada classe tem o seu — capacete/colete
+        exigentes, oculos permissivo. Formato: "helmet:0.4,gloves:0.3".
+        """
+        raw = str(self.app.config.get("PPE_CONF_MIN_BY_CLASS", "") or "")
+        floors: dict[str, float] = {}
+        for par in raw.split(","):
+            par = par.strip()
+            if not par or ":" not in par:
+                continue
+            chave, valor = par.split(":", 1)
+            try:
+                floors[chave.strip()] = float(valor)
+            except ValueError:
+                continue
+        return floors
+
+    def _gate_ppe_to_people(self, ppe_detections: list, people: list) -> list:
+        """Descarta EPI fora de qualquer pessoa e abaixo do piso da classe.
+
+        Dois filtros baratos que atacam o falso positivo sem mexer no modelo:
+        - piso de confianca por classe (ver _conf_floors);
+        - a caixa do EPI precisa cair DENTRO de alguma pessoa (containment >=
+          PPE_PERSON_OVERLAP_MIN). Mata capacete/luva detectados numa mochila
+          no canto do quarto. So aplica quando ha pessoa detectada — sem
+          referencia, preserva tudo pra nao apagar o frame inteiro.
+        """
+        floors = self._conf_floors()
+        tem_people = bool(people)
+        person_boxes = [d.box for d in people]
+        person_boxes += [d.box for d in ppe_detections if d.label == "person" or d.category == "person"]
+        exigir_overlap = bool(self.app.config.get("PPE_REQUIRE_PERSON_OVERLAP", True)) and bool(person_boxes)
+        overlap_min = float(self.app.config.get("PPE_PERSON_OVERLAP_MIN", 0.35))
+
+        saida = []
+        for det in ppe_detections:
+            if det.label == "person" or det.category == "person":
+                if not tem_people:
+                    saida.append(det)  # sem lista `people`, mantem como antes
+                continue
+            piso = floors.get(det.label)
+            if piso is not None and det.confidence < piso:
+                continue
+            if exigir_overlap and not any(
+                det.box.containment_in(pbox) >= overlap_min for pbox in person_boxes
+            ):
+                continue
+            saida.append(det)
+        return saida
+
+    def _aplicar_rotacao(self, frame):
+        """Corrige montagem física da câmera ANTES de qualquer detecção.
+
+        Precisa ser o primeiro passo do frame — YOLO, pose (assume corpo
+        vertical), overlay e o vídeo que o navegador recebe têm que ver a
+        mesma imagem já corrigida. Fazer depois (ex.: só no overlay) deixaria
+        o modelo analisando a imagem torta enquanto a tela mostra corrigida.
+        """
+        if self.rotation == 90:
+            return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        if self.rotation == 180:
+            return cv2.rotate(frame, cv2.ROTATE_180)
+        if self.rotation == 270:
+            return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return frame
+
     def _loop(self) -> None:
         target_fps = self.target_fps
         frame_interval = 1.0 / target_fps
@@ -522,6 +596,8 @@ class CameraWorker:
                     if not ok or frame is None:
                         self._handle_capture_failure()
                         continue
+                    if self.rotation:
+                        frame = self._aplicar_rotacao(frame)
 
                     analysis = self._analyze_frame(frame)
                     self._registrar_diagnostico(frame, analysis, self._analise_foi_nova)
@@ -973,14 +1049,16 @@ class CameraWorker:
         with self.inference_lock:
             self._perf_marca("espera_do_lock")
             if self._needs_yolo_detection():
-                detections = self.detector.detect(frame)
+                ppe_detections = self.detector.detect(frame)
                 self._perf_marca("yolo")
+                people = []
                 if self.app.config.get("MULTI_PERSON_DETECTION", True):
                     # Só as pessoas passam pelo tracker — EPIs são associados
                     # geometricamente a elas (PersonComplianceMatcher), não
                     # rastreados por conta própria.
                     people = self.person_tracker.update(self.person_detector.detect(frame))
-                    detections = detections + people
+                ppe_detections = self._gate_ppe_to_people(ppe_detections, people)
+                detections = ppe_detections + people
             if self.feature_manager.is_enabled("pose"):
                 poses = self._estimate_poses(frame, detections)
                 self._perf_marca("pose")

@@ -12,6 +12,7 @@ from app.services.camera_worker import CameraWorker
 from app.services.feature_manager import FeatureManager
 from app.services.llm_risk_service import ServicoDeRiscoLLM
 from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 
@@ -45,7 +46,7 @@ class MonitorService:
         self.feature_manager = feature_manager  # segue controlando a câmera padrão via /features, como sempre
 
         # ---- modelos compartilhados: criados 1x, injetados em cada worker ----
-        self.detector = YoloPPEDetector(
+        detector_principal = YoloPPEDetector(
             model_path=app.config.get("PPE_MODEL_PATH", "yolov8n.pt"),
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
             device=app.config.get("YOLO_DEVICE"),
@@ -53,7 +54,53 @@ class MonitorService:
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
             require_person=False,
             imgsz=app.config.get("YOLO_IMGSZ", 640),
+            half=app.config.get("YOLO_HALF", True),
         )
+        # PPE_EXTRA_MODELS vazio => self.detector e o detector unico de sempre.
+        # Com um ou mais caminhos, envelopa tudo num ensemble que roda todos no
+        # mesmo frame e funde o resultado (ver EnsemblePPEDetector). Cada extra
+        # roda SEM YOLO_CLASSES: aquele filtro sao indices do Vyra.
+        extras_raw = str(app.config.get("PPE_EXTRA_MODELS", "") or "")
+        extra_paths = [p.strip() for p in extras_raw.split(",") if p.strip()]
+        if extra_paths:
+            extra_imgsz = app.config.get("PPE_EXTRA_MODELS_IMGSZ", 0) or app.config.get("YOLO_IMGSZ", 640)
+            # Classes que NENHUM modelo extra deve contribuir — confirmado por
+            # diagnostico manual: o epi_pretrained.pt (nano, dataset pequeno)
+            # deu "Gloves" 0.78 numa mao NUA levantada (o Vyra, no mesmo frame,
+            # se absteve certo). Falso positivo de luva e o pior tipo de erro
+            # aqui: o sistema marca a pessoa como protegida quando nao esta.
+            # Em vez de confiar no piso de confianca (a deteccao errada saiu
+            # com 0.78, acima de qualquer piso razoavel), a classe some da
+            # saida do(s) extra(s) e fica so a cargo do Vyra.
+            excluir_raw = str(app.config.get("PPE_EXTRA_MODELS_EXCLUDE_LABELS", "") or "")
+            excluir_labels = {item.strip() for item in excluir_raw.split(",") if item.strip()}
+            extras = []
+            for path in extra_paths:
+                extra = YoloPPEDetector(
+                    model_path=path,
+                    confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
+                    device=app.config.get("YOLO_DEVICE"),
+                    classes=None,
+                    max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
+                    require_person=False,
+                    imgsz=extra_imgsz,
+                    augment=app.config.get("PPE_EXTRA_MODELS_AUGMENT", True),
+                    half=app.config.get("YOLO_HALF", True),
+                )
+                if excluir_labels:
+                    # Forca o load aqui (1x, no boot) pra traduzir label -> id
+                    # DESTE peso especifico antes do primeiro detect().
+                    nomes = extra.model.names
+                    mantidos = [
+                        class_id
+                        for class_id, raw_nome in nomes.items()
+                        if YoloPPEDetector.normalize_label(str(raw_nome)) not in excluir_labels
+                    ]
+                    extra.classes = mantidos or None
+                extras.append(extra)
+            self.detector = EnsemblePPEDetector([detector_principal, *extras])
+        else:
+            self.detector = detector_principal
         # Segundo YOLO (COCO, classe 0) usado APENAS quando
         # MULTI_PERSON_DETECTION=true — isto e, quando PPE_MODEL_PATH aponta pra
         # um modelo de EPI sem classe "person" propria (ex: epi_pretrained.pt).
@@ -66,6 +113,7 @@ class MonitorService:
             classes=[0],
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
             imgsz=app.config.get("YOLO_IMGSZ", 640),
+            half=app.config.get("YOLO_HALF", True),
         )
         self.pose_estimator = MediaPipePoseEstimator(
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
@@ -141,6 +189,7 @@ class MonitorService:
             or worker.target_fps != camera.fps
             or worker.video_stream.width != camera.width
             or worker.video_stream.height != camera.height
+            or worker.rotation != int(camera.rotation or 0)
         )
 
     def _build_worker(self, camera: Camera, *, is_default: bool) -> CameraWorker:
@@ -162,6 +211,7 @@ class MonitorService:
             fps=camera.fps,
             width=camera.width,
             height=camera.height,
+            rotation=int(camera.rotation or 0),
             detector=self.detector,
             person_detector=self.person_detector,
             pose_estimator=self.pose_estimator,
