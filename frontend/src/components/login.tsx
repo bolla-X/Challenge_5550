@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
+import { Mark } from "./brand";
 
 /**
  * Tela de entrada. Só aparece quando `GET /api/auth/me` responde `user: null`.
@@ -27,6 +28,7 @@ export function LoginScreen() {
   return (
     <div className="login-shell">
       <form className="login-card" onSubmit={enviar}>
+        <Mark size={32} />
         <h1>VisionEPI</h1>
         <p className="login-sub">Monitoramento de segurança industrial</p>
 
@@ -56,18 +58,16 @@ export function LoginScreen() {
         {/* role="alert" para leitor de tela anunciar a falha sem precisar
             navegar até o texto. */}
         {erro && (
-          <p className="login-erro" role="alert">
+          <p className="login-error" role="alert">
             {erro}
           </p>
         )}
 
-        <button type="submit" disabled={enviando || !email || !senha}>
+        <button type="submit" className="primary block" disabled={enviando || !email || !senha}>
           {enviando ? "Entrando…" : "Entrar"}
         </button>
 
-        <p className="login-ajuda">
-          Sem acesso? Peça ao responsável pela segurança do trabalho — não há cadastro público.
-        </p>
+        <p className="login-help">Sem acesso? Peça ao responsável pela segurança do trabalho. Não há cadastro público.</p>
       </form>
     </div>
   );

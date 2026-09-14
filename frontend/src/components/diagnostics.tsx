@@ -6,6 +6,7 @@ import { getPreflight } from "../api/endpoints";
 import type { PreflightCheck, RuntimeSettings } from "../api/types";
 
 const STATUS_LABEL: Record<string, string> = { ok: "OK", warning: "Aviso", error: "Erro" };
+const STATUS_TONE: Record<string, "ok" | "neutral" | "error"> = { ok: "ok", warning: "neutral", error: "error" };
 
 export function ChecklistPanel() {
   const [checks, setChecks] = useState<PreflightCheck[]>([]);
@@ -29,9 +30,8 @@ export function ChecklistPanel() {
       id="panel-checklist"
       title="Checklist pré-start"
       description="Validação rápida antes de iniciar um ciclo de teste."
-      className="technical-only"
       action={
-        <button className="secondary small" type="button" onClick={() => refresh()}>
+        <button className="ghost small" type="button" onClick={() => refresh()}>
           Atualizar
         </button>
       }
@@ -39,8 +39,8 @@ export function ChecklistPanel() {
       <div className="checklist">
         {checks.length ? (
           checks.map((item) => (
-            <div className={`check-item ${item.status}`} key={item.key}>
-              <span className="check-status">{STATUS_LABEL[item.status] || item.status}</span>
+            <div className="check-item" key={item.key}>
+              <Badge tone={STATUS_TONE[item.status] ?? "neutral"}>{STATUS_LABEL[item.status] || item.status}</Badge>
               <div>
                 <strong>{item.label}</strong>
                 <small>{item.message}</small>
@@ -86,9 +86,8 @@ export function SettingsPanel() {
       id="panel-settings"
       title="Configurações rápidas"
       description="Aplicadas em runtime quando possível. Persistência definitiva continua no .env."
-      className="technical-only"
       action={
-        <button className="secondary small" type="button" onClick={save}>
+        <button className="small" type="button" onClick={save}>
           Salvar
         </button>
       }
@@ -127,10 +126,7 @@ export function SettingsPanel() {
  *
  * Fica dentro do painel do modelo de propósito: logo abaixo está a lista de
  * classes que o modelo SUPORTA, e a pergunta de campo é a diferença entre as
- * duas listas. Suporta `Hardhat` e detectou zero em 30 s, com FPS e resolução
- * saudáveis? É o modelo (ou a cena). FPS no chão ou resolução minúscula? É a
- * fonte, e mexer em confiança não resolve.
- */
+ * duas listas. FPS no chão ou resolução minúscula? É a fonte. */
 function DeteccoesRecentes({ camId }: { camId: number }) {
   const estado = useCameraEstado(camId);
   const diagnostico = estado.diagnostico;
@@ -140,21 +136,17 @@ function DeteccoesRecentes({ camId }: { camId: number }) {
   const janela = Math.round(diagnostico.janela_deteccoes_s);
   const total = classes.reduce((soma, [, n]) => soma + n, 0);
   return (
-    <div className="status-list" style={{ marginTop: 12 }}>
+    <div className="status-list">
       <div className="status-row">
         <span className="status-row-label">Detecções ({janela}s)</span>
         <span className="status-row-value">
-          {!estado.running
-            ? "câmera parada"
-            : classes.length
-              ? `${total} em ${classes.length} classe(s)`
-              : "NENHUMA"}
+          {!estado.running ? "câmera parada" : classes.length ? `${total} em ${classes.length} classe(s)` : "nenhuma"}
         </span>
       </div>
       {classes.length ? (
         <div className="class-list">
           {classes.map(([nome, quantas]) => (
-            <span className="class-chip" key={nome}>
+            <span className="chip data" key={nome}>
               {nome} · {quantas}
             </span>
           ))}
@@ -164,18 +156,16 @@ function DeteccoesRecentes({ camId }: { camId: number }) {
         <span className="status-row-label">Fonte agora</span>
         <span className="status-row-value">
           {diagnostico.resolucao || "sem frame"} · {diagnostico.fps.toFixed(1)} fps
-          {typeof diagnostico.brilho === "number" ? ` · brilho ${diagnostico.brilho}` : ""}
+          {typeof diagnostico.brilho === "number" ? `, brilho ${diagnostico.brilho}` : ""}
         </span>
       </div>
       {/* Só aparece quando acende: uma linha "imagem ok" permanente seria
           ruído. O aviso é o que muda a decisão de quem está diagnosticando. */}
       {diagnostico.fonte_sem_imagem ? (
-        <div className="status-row">
-          <span className="status-row-label" style={{ color: "var(--warning, #f59e0b)" }}>
-            ⚠ Fonte sem imagem
-          </span>
+        <div className="status-row warn">
+          <span className="status-row-label">Fonte sem imagem</span>
           <span className="status-row-value">
-            brilho {diagnostico.brilho} &lt; {diagnostico.brilho_minimo} — outro app com a câmera?
+            brilho {diagnostico.brilho} abaixo de {diagnostico.brilho_minimo}, outro aplicativo com a câmera?
           </span>
         </div>
       ) : null}
@@ -188,19 +178,19 @@ export function ModelStatusPanel() {
   const camId = useDashboardStore((s) => s.camId);
   if (!model) {
     return (
-      <Panel id="panel-model" title="Modelo YOLO" className="technical-only">
-        <div className="model-status">Aguardando diagnóstico.</div>
+      <Panel id="panel-model" title="Modelo YOLO">
+        <EmptyState>Aguardando diagnóstico.</EmptyState>
       </Panel>
     );
   }
-  const statusTone = model.error ? "error" : model.ppe_ready ? "ok" : "warn";
+  const statusTone = model.error ? "error" : model.ppe_ready ? "ok" : "neutral";
   const statusText = model.ppe_ready ? "Modelo PPE completo" : model.error ? "Modelo indisponível" : "Modelo PPE incompleto";
   const supported = model.supported_ppe;
   const classes = model.classes || [];
   const yesNo = (v: boolean | undefined) => (v ? "suportado" : "não suportado");
 
   return (
-    <Panel id="panel-model" title="Modelo YOLO" className="technical-only" action={<Badge tone={statusTone}>{statusText}</Badge>}>
+    <Panel id="panel-model" title="Modelo YOLO" action={<Badge tone={statusTone}>{statusText}</Badge>}>
       {camId !== null ? <DeteccoesRecentes camId={camId} /> : null}
       <div className="status-list">
         <div className="status-row"><span className="status-row-label">Arquivo</span><span className="status-row-value">{model.model_path || "indefinido"}</span></div>
@@ -216,12 +206,12 @@ export function ModelStatusPanel() {
         <div className="class-list">
           {classes.length ? (
             classes.slice(0, 140).map((item) => (
-              <span className="class-chip" key={`${item.id}`}>
+              <span className="chip data" key={`${item.id}`}>
                 {item.id} · {item.normalized || item.name}
               </span>
             ))
           ) : (
-            <span className="class-chip">Nenhuma classe disponível</span>
+            <span className="chip">Nenhuma classe disponível</span>
           )}
         </div>
       </details>

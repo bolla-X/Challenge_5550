@@ -178,7 +178,8 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 
 /* ---------------- Grade de câmeras -------------------------------------- */
 .camera-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s4); }
-.cam-card { display: flex; flex-direction: column; overflow: hidden; cursor: pointer; text-align: left; padding: 0; height: auto; border: 0; }
+.cam-card { display: flex; flex-direction: column; align-items: stretch; overflow: hidden; cursor: pointer; text-align: left; padding: 0; height: auto; border: 0; white-space: normal; line-height: 1.4; }
+.cam-card svg { width: 16px; height: 16px; color: var(--text-3); }
 .cam-card:hover { background: var(--surface); }
 .cam-card.critical { box-shadow: var(--shadow-1), inset 0 0 0 2px var(--danger); }
 .cam-frame { position: relative; aspect-ratio: 16 / 9; background: var(--sunken); overflow: hidden; }
@@ -262,6 +263,13 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 .row-item strong { display: block; font-size: 14px; font-weight: 500; letter-spacing: -.006em; }
 .row-item span, .row-item small { display: block; color: var(--text-3); font-size: 13px; letter-spacing: 0; line-height: 1.45; }
 .row-item .row-detail { min-width: 0; flex: 1; }
+.row-item.selectable { cursor: pointer; }
+.row-item.disabled { opacity: .5; cursor: not-allowed; }
+.row-item input[type="radio"] { margin-top: 5px; }
+.card-head-inline { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin: var(--s3) 0 var(--s2); font-size: 14px; font-weight: 500; }
+.card-body .video-frame { border-radius: var(--r-control); margin-bottom: var(--s3); }
+.status-list + .status-list { margin-top: var(--s3); }
+.actions-top { margin-top: var(--s4); }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s2); }
 
 /* ---------------- Linha do tempo --------------------------------------- */
