@@ -1,61 +1,107 @@
-/* "Autoridade Discreta" — quiet, expensive-looking, serious safety product.
-   Same graphite + cyan palette as before, but the accent is now used
-   rarely (primary action, active nav row, live indicator, focus ring)
-   instead of sprinkled across badges. Geist Sans/Mono self-hosted below —
-   zero external font request. */
-
-@font-face {
-  font-family: "Geist";
-  src: url("/fonts/Geist-Variable.woff2") format("woff2-variations");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
+@font-face{
+  font-family:"Geist Variable";
+  src:url("/fonts/geist-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight:100 900; font-style:normal; font-display:swap;
 }
-@font-face {
-  font-family: "Geist Mono";
-  src: url("/fonts/GeistMono-Variable.woff2") format("woff2-variations");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
+@font-face{
+  font-family:"Geist Mono Variable";
+  src:url("/fonts/geist-mono-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight:100 900; font-style:normal; font-display:swap;
 }
 
-:root {
-  --bg: #0a0d12;
-  --surface: #12161d;
-  --surface-2: #171c25;
-  --surface-3: #1c222c;
-  /* Semi-transparent, not solid hex — solid borders over near-black fill
-     flattened everything. --border-strong already doubles as the hover/
-     emphasis value everywhere (button:hover, .nav-row focus, etc.), so
-     bumping both tokens is enough to apply "rest .06 / hover .10" globally
-     without touching every rule that references them. */
-  --border: rgba(255, 255, 255, .06);
-  --border-strong: rgba(255, 255, 255, .10);
-  --text: #e8ecf3;
-  --muted: #8b95a8;
-  --muted-2: #626d80;
+/* VisionEPI. Claro é o tema padrão, escuro é suportado.
+   Nenhuma cor pode existir fora deste arquivo. */
 
-  --accent: #2fd4e6;
-  --accent-ink: #04181c;
-  --accent-dim: rgba(47, 212, 230, .12);
-  --accent-soft-border: rgba(47, 212, 230, .35);
+:root{
+  /* superfícies */
+  --canvas:#F5F5F7;
+  --surface:#FFFFFF;
+  --sunken:#EBEBEF;
 
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --ok: #22c55e;
-  --info: #38bdf8;
+  /* limites */
+  --hairline:#E5E5EA;       /* separador decorativo */
+  --control-line:#8A8A90;   /* borda de campo e de botão contornado, 3,15:1 sobre o fundo */
 
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-pill: 999px;
+  /* texto */
+  --text:#1A1A1C;           /* 15,96:1 */
+  --text-2:#5E5E64;         /*  5,91:1 */
+  --text-3:#68686F;         /*  5,08:1 */
 
-  --font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* uma cor de interação */
+  --accent:#0A66C2;         /*  5,22:1 */
+  --on-accent:#FFFFFF;      /*  5,69:1 sobre o accent */
 
-  /* Soft, diffuse elevation — never a hard drop shadow, never glass. */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, .28), 0 1px 2px rgba(0, 0, 0, .3);
-  --shadow-lg: 0 20px 48px rgba(0, 0, 0, .38), 0 2px 6px rgba(0, 0, 0, .3);
+  /* três cores de estado, cada uma com um lugar só */
+  --danger:#AF4A06;         /* perigo: EPI ausente, área de risco, alerta ativo. 5,07:1 */
+  --stop:#C9241B;           /* parada: só o botão Parar. 5,14:1 */
+  --ok:#16794A;             /* conforme: ponto e rótulo, nunca área. 4,99:1 */
+  --tint-danger:rgba(175,74,6,.10);
 
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* material sobre vídeo e fundo de diálogo: papéis novos, documentados em
+     REBRAND-NOTAS.md. O overlay é sempre escuro porque flutua sobre imagem,
+     não sobre o tema; é a mesma cor do fundo de rótulo do annotator.py. */
+  --overlay:rgba(18,19,22,.75);
+  --on-overlay:#F5F5F7;
+  --scrim:rgba(16,17,20,.40);
+
+  /* elevação: duas sombras no sistema inteiro, tingidas com a matiz do fundo */
+  --shadow-1:0 1px 2px rgba(16,17,20,.06), 0 1px 1px rgba(16,17,20,.04);
+  --shadow-2:0 10px 30px rgba(16,17,20,.12), 0 2px 8px rgba(16,17,20,.06);
+
+  /* forma: uma escala só */
+  --r-card:16px;
+  --r-control:10px;
+  --r-chip:999px;
+
+  /* espaço: base 4 */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --h-control:40px;
+
+  /* movimento */
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --d-press:120ms;
+  --d-state:160ms;
+  --d-panel:260ms;
+
+  /* tipografia */
+  --font:"Geist Variable","Geist",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --font-mono:"Geist Mono Variable","Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  color-scheme:light;
+}
+
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --canvas:#0C0D0F;
+    --surface:#17181C;
+    --sunken:#212228;
+    --hairline:#2A2B30;
+    --control-line:#6E6F76;   /* 3,55:1 */
+    --text:#F5F5F7;           /* 17,86:1 */
+    --text-2:#A1A1A8;         /*  7,57:1 */
+    --text-3:#8C8C95;         /*  5,83:1 */
+    --accent:#4C9DFF;         /*  7,01:1 */
+    --on-accent:#0C0D0F;
+    --danger:#FF8A3D;         /*  8,29:1 */
+    --stop:#FF5B52;           /*  6,36:1 */
+    --ok:#34C77E;             /*  8,90:1 */
+    --tint-danger:rgba(255,138,61,.14);
+    --scrim:rgba(0,0,0,.60);
+    --shadow-1:0 1px 2px rgba(0,0,0,.5);
+    --shadow-2:0 14px 36px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+
+:root[data-theme="dark"]{
+  --canvas:#0C0D0F; --surface:#17181C; --sunken:#212228;
+  --hairline:#2A2B30; --control-line:#6E6F76;
+  --text:#F5F5F7; --text-2:#A1A1A8; --text-3:#8C8C95;
+  --accent:#4C9DFF; --on-accent:#0C0D0F;
+  --danger:#FF8A3D; --stop:#FF5B52; --ok:#34C77E;
+  --tint-danger:rgba(255,138,61,.14);
+  --scrim:rgba(0,0,0,.60);
+  --shadow-1:0 1px 2px rgba(0,0,0,.5);
+  --shadow-2:0 14px 36px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
+  color-scheme:dark;
 }
