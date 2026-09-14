@@ -1,26 +1,31 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { subscribeToServerEvents, useDashboardStore, ROLE_ACCESS } from "./store/dashboardStore";
-import { Topbar, MessageBar } from "./components/layout";
-import { CameraGrid } from "./components/camera-grid";
+import { Topbar, MessageBar, ScreenHead } from "./components/layout";
+import { CameraGrid, type EstadoDaCamera } from "./components/camera-grid";
 import { OperatorKiosk } from "./components/operator-kiosk";
 import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
 import { Panel } from "./components/common";
 import { LoginScreen } from "./components/login";
 
-// Placeholder do dashboard agregado do Supervisor — o conteúdo de verdade
-// (risco consolidado, ranking por criticidade, feed de alertas combinado,
-// auditoria de falso positivo, exportação) é o próximo passo. Existir aqui
-// evita a tela ficar em branco se alguém já clicar em "Visão geral" antes
-// disso ser implementado.
+// Placeholder do dashboard agregado do Supervisor. O conteúdo de verdade
+// (risco consolidado, ranking por criticidade, feed combinado, auditoria de
+// falso positivo, exportação) é o próximo passo. Existir aqui evita a tela
+// ficar em branco se alguém clicar em "Visão geral" antes disso.
 function SupervisorOverviewPlaceholder({ onBack }: { onBack: () => void }) {
   return (
-    <div style={{ padding: 20 }}>
-      <button type="button" className="secondary small" onClick={onBack} style={{ marginBottom: 16 }}>
-        ← Voltar pra grade
-      </button>
-      <Panel title="Visão geral — todas as câmeras" description="Dashboard agregado do Supervisor.">
-        <p style={{ fontSize: 12.5, color: "var(--muted)" }}>Em construção — próximo passo.</p>
+    <div className="screen">
+      <ScreenHead
+        title="Visão geral"
+        sub="Todas as câmeras"
+        actions={
+          <button type="button" className="ghost" onClick={onBack}>
+            Voltar para a grade
+          </button>
+        }
+      />
+      <Panel title="Dashboard agregado" description="Consolidado do Supervisor.">
+        <p className="empty-state">Em construção, é o próximo passo.</p>
       </Panel>
     </div>
   );
@@ -32,22 +37,32 @@ function GridScreen() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const access = ROLE_ACCESS[mode];
 
+  // Cada cartão consulta o status da própria câmera; a linha embaixo do
+  // título só agrega o que os cartões já sabem.
+  const [estados, setEstados] = useState<Record<number, EstadoDaCamera>>({});
+  const onEstado = useCallback((id: number, estado: EstadoDaCamera) => {
+    setEstados((prev) => (prev[id] === estado ? prev : { ...prev, [id]: estado }));
+  }, []);
+  const noAr = cameras.filter((c) => estados[c.id]?.running).length;
+  const alertas = cameras.reduce((n, c) => n + (estados[c.id]?.alertas.length ?? 0), 0);
+  const sub = cameras.length
+    ? `${noAr} de ${cameras.length} no ar, ${alertas} alerta${alertas === 1 ? "" : "s"} ativo${alertas === 1 ? "" : "s"}`
+    : null;
+
   return (
-    <div>
-      <div className="view-bar">
-        <div className="view-bar-left">
-          <h2>Câmeras</h2>
-          <span>
-            {cameras.length} cadastrada{cameras.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {access.hasOverview && (
-          <button type="button" className="secondary small" onClick={() => setScreen("overview")}>
-            Visão geral
-          </button>
-        )}
-      </div>
-      <CameraGrid />
+    <div className="screen">
+      <ScreenHead
+        title="Câmeras"
+        sub={sub}
+        actions={
+          access.hasOverview ? (
+            <button type="button" className="ghost" onClick={() => setScreen("overview")}>
+              Visão geral
+            </button>
+          ) : undefined
+        }
+      />
+      <CameraGrid onEstado={onEstado} />
     </div>
   );
 }
@@ -93,15 +108,15 @@ export default function App() {
   // entre grid/foco/overview livremente dentro do próprio `screen`.
   let content;
   if (camerasLoading) {
-    content = <div style={{ padding: 40, color: "var(--muted)", fontSize: 13 }}>Carregando câmeras…</div>;
+    content = <p className="centered-empty">Carregando câmeras…</p>;
   } else if (mode === "operator") {
     content =
       camId !== null ? (
         <OperatorKiosk camId={camId} />
       ) : (
-        <div style={{ padding: 40, color: "var(--muted)", fontSize: 13 }}>
-          Nenhuma câmera cadastrada ainda. Peça pro Técnico/Supervisor cadastrar uma câmera antes de você conseguir monitorar.
-        </div>
+        <p className="centered-empty">
+          Nenhuma câmera cadastrada ainda. Peça ao Técnico ou ao Supervisor para cadastrar a câmera do seu setor.
+        </p>
       );
   } else if (screen === "focus" && hasCameras) {
     content = <CameraFocus />;
