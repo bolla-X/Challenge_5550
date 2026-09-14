@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useDashboardStore } from "../store/dashboardStore";
+import { effectiveTheme, useDashboardStore } from "../store/dashboardStore";
 
 const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
 const EASE_IN = "easeIn" as const; // exits — tokens.css only has the ease-out curve above
@@ -21,6 +21,37 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
       <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none" />
       {muted ? <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7" />}
     </svg>
+  );
+}
+
+/** Sol e lua em traço de 1,5 px na cor do texto ao lado. */
+function ThemeIcon({ dark }: { dark: boolean }) {
+  return dark ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  );
+}
+
+export function ThemeToggle() {
+  const theme = useDashboardStore((s) => s.theme);
+  const toggleTheme = useDashboardStore((s) => s.toggleTheme);
+  const dark = effectiveTheme(theme) === "dark";
+  return (
+    <button
+      type="button"
+      className="icon"
+      onClick={toggleTheme}
+      aria-label={dark ? "Mudar para o tema claro" : "Mudar para o tema escuro"}
+      title={dark ? "Tema escuro" : "Tema claro"}
+    >
+      <ThemeIcon dark={dark} />
+    </button>
   );
 }
 
@@ -128,6 +159,7 @@ export function Topbar() {
           <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
             Buscar <kbd>Ctrl K</kbd>
           </button>
+          <ThemeToggle />
           <MuteToggle />
           {/* O seletor de perfil virou identidade: o modo agora É o papel da
               pessoa logada, não um botão. Trocar de perfil exige outra conta —

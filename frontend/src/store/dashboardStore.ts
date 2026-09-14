@@ -87,6 +87,10 @@ interface DashboardState {
   mutedByProfile: Record<ViewMode, boolean>;
   toggleMuted: () => void;
 
+  // tema: persistido em localStorage (visionepi-theme). null = sistema decide.
+  theme: Theme | null;
+  toggleTheme: () => void;
+
   // Aba ativa por perfil — em memória, não persiste (ver App.tsx e o
   // comentário da Fase 1 sobre não resetar ao alternar perfil e voltar).
   // Vive no store, não em useState local, porque o cmdk (jumpTo) também
@@ -193,6 +197,42 @@ const fpsSamples: number[] = [];
 const MUTED_STORAGE_KEY = "visionepi-muted"; // legado (pré-Fase 4): boolean único, só lido pra migração
 const MUTED_BY_PROFILE_STORAGE_KEY = "visionepi-muted-by-profile";
 const MODE_STORAGE_KEY = "visionepi-mode";
+const THEME_STORAGE_KEY = "visionepi-theme";
+
+// Tema: "light" | "dark" quando a pessoa escolheu; null = segue o sistema
+// (prefers-color-scheme), que é o padrão. Mesmo padrão de leitura do muted:
+// try/catch porque em janela privada o localStorage lança.
+export type Theme = "light" | "dark";
+
+export function readStoredTheme(): Theme | null {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Marca o tema no <html>. Sem valor, tira o atributo e o CSS volta a
+ * decidir pelo prefers-color-scheme. Troca de tema não recarrega a página. */
+export function applyTheme(theme: Theme | null) {
+  if (theme) document.documentElement.setAttribute("data-theme", theme);
+  else document.documentElement.removeAttribute("data-theme");
+}
+
+function persistTheme(theme: Theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // localStorage indisponível (modo privado etc.), só não persiste
+  }
+}
+
+/** Tema em vigor agora: o escolhido, ou o do sistema quando ninguém escolheu. */
+export function effectiveTheme(theme: Theme | null): Theme {
+  if (theme) return theme;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 const SEVERITIES_WITH_CHIME = new Set(["critical", "high"]);
 // Supervisor nasce mudo (perfil de apresentação/gestão, som de alerta
 // atrapalha reunião); Operador/Técnico mantêm o padrão de sempre (som ligado).
@@ -325,6 +365,19 @@ export const useDashboardStore = create<DashboardState>()(
           },
           false,
           "toggleMuted",
+        ),
+
+      theme: readStoredTheme(),
+      toggleTheme: () =>
+        set(
+          (state) => {
+            const next: Theme = effectiveTheme(state.theme) === "dark" ? "light" : "dark";
+            persistTheme(next);
+            applyTheme(next);
+            return { theme: next };
+          },
+          false,
+          "toggleTheme",
         ),
 
       activeTabByMode: { ...DEFAULT_ACTIVE_TAB_BY_MODE },
