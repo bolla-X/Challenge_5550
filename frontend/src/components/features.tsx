@@ -77,16 +77,15 @@ function FeatureRow({ feature }: { feature: FeatureFlag }) {
   return (
     <button
       type="button"
-      className={`side-item ${checked ? "current" : ""} ${live ? "live" : ""}`.trim()}
+      className={`side-item ${checked ? "" : "off"} ${live ? "live" : ""}`.trim()}
       aria-pressed={checked}
+      title={supportMessage(feature.key, model)}
       onClick={() => updateFeatures({ [feature.key]: !checked }).catch(console.error)}
     >
       <span className="dot" />
       <span className="side-item-body">
         {feature.label}
-        <small>
-          {SHORT_DESCRIPTION[feature.key] || feature.description} · {supportMessage(feature.key, model)}
-        </small>
+        <small>{SHORT_DESCRIPTION[feature.key] || feature.description}</small>
       </span>
       <span className="side-item-state">{checked ? "Ligado" : "Desligado"}</span>
     </button>

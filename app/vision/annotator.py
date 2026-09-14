@@ -155,26 +155,30 @@ class FrameAnnotator:
                 text = self._display_label(det.label)
                 if show_confidence:
                     text = f"{text} {det.confidence:.2f}"
-                rotulos.append((text, det.box.x1, det.box.y1))
+                # Pessoa: pilula acima da caixa. EPI: dentro da propria caixa,
+                # senao colide com a pilula da pessoa quando os topos coincidem.
+                e_pessoa = det.label == "person" or det.category == "person"
+                rotulos.append((text, det.box.x1, det.box.y1, not e_pessoa))
             self._draw_labels(frame, rotulos)
 
     @staticmethod
-    def _draw_labels(frame: np.ndarray, rotulos: list[tuple[str, int, int]]) -> None:
+    def _draw_labels(frame: np.ndarray, rotulos: list[tuple[str, int, int, bool]]) -> None:
         """Todo rotulo vai sobre uma pilula escura a 75%, encostada no canto
-        superior esquerdo da caixa. cv2.putText com Hershey sobre imagem clara
-        e ilegivel e nenhuma cor de texto conserta isso."""
+        superior esquerdo da caixa (acima dela, ou dentro quando `dentro`).
+        cv2.putText com Hershey sobre imagem clara e ilegivel e nenhuma cor
+        de texto conserta isso."""
         if not rotulos:
             return
         h, w = frame.shape[:2]
         pilulas: list[tuple[tuple[int, int], tuple[int, int]]] = []
         textos: list[tuple[str, tuple[int, int]]] = []
-        for text, x, y in rotulos:
+        for text, x, y, dentro in rotulos:
             (tw, th), base = cv2.getTextSize(text, FONTE, ESCALA_FONTE, 1)
             alt = th + base + 8
             larg = tw + 12
             px1 = max(0, min(int(x), w - larg))
-            # Acima da caixa quando cabe; dentro dela quando esta no topo do frame.
-            py1 = int(y) - alt if int(y) - alt >= 0 else int(y)
+            # Acima da caixa quando cabe; dentro dela quando pedido ou no topo do frame.
+            py1 = int(y) if dentro or int(y) - alt < 0 else int(y) - alt
             py1 = max(0, min(py1, h - alt))
             pilulas.append(((px1, py1), (px1 + larg, py1 + alt)))
             textos.append((text, (px1 + 6, py1 + alt - base - 4)))
@@ -204,7 +208,7 @@ class FrameAnnotator:
         _com_opacidade(frame, 0.08, lambda camada: cv2.fillPoly(camada, [points], COR_PERIGO))
         cv2.polylines(frame, [points], isClosed=True, color=COR_PERIGO, thickness=TRACO_AREA, lineType=cv2.LINE_AA)
         if options.get("labels", True):
-            self._draw_labels(frame, [("area de risco", int(points[0][0]), int(points[0][1]))])
+            self._draw_labels(frame, [("area de risco", int(points[0][0]), int(points[0][1]), False)])
 
     # Sem acento de proposito: cv2.putText usa fonte Hershey, que nao tem
     # glifo pra acentuacao; sairia caixinha desenhada no frame.
