@@ -32,10 +32,11 @@
   --on-accent:#FFFFFF;      /*  5,69:1 sobre o accent */
 
   /* três cores de estado, cada uma com um lugar só */
-  --danger:#AF4A06;         /* perigo: EPI ausente, área de risco, alerta ativo. 5,07:1 */
+  --danger:#AF4606;         /* perigo: EPI ausente, área de risco, alerta ativo. 5,21:1;
+                               era #AF4A06, que dava 4,41:1 sobre a linha tingida assentada no canvas */
   --stop:#C9241B;           /* parada: só o botão Parar. 5,14:1 */
   --ok:#16794A;             /* conforme: ponto e rótulo, nunca área. 4,99:1 */
-  --tint-danger:rgba(175,74,6,.10);
+  --tint-danger:rgba(175,70,6,.10);
 
   /* material sobre vídeo e fundo de diálogo: papéis novos, documentados em
      REBRAND-NOTAS.md. O overlay é sempre escuro porque flutua sobre imagem,

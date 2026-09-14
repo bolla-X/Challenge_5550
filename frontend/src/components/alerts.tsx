@@ -3,19 +3,18 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, PanelSkeleton } from "./common";
 import type { Alert } from "../api/types";
+import { paraDate } from "../utils/datas";
 
 // Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
 const EASE = [0.23, 1, 0.32, 1] as const;
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
 function formatTime(value: string | null): string {
-  const date = value ? new Date(value) : new Date();
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return paraDate(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDateTime(value: string | null): string {
-  const date = value ? new Date(value) : new Date();
-  return date.toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return paraDate(value).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 /** Linha de alerta: ponto, título, contexto e horário à direita. Crítico e

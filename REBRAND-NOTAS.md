@@ -69,6 +69,27 @@ Bifurcações não previstas, resolvidas pela opção mais conservadora:
 - **Esqueleto de pose**: o annotator desenhava só os pontos (landmarks), não as conexões; continua desenhando pontos, agora brancos a 50%. Ligar os pontos exigiria a tabela de conexões do MediaPipe e é comportamento novo, fora desta sessão.
 - **Latência na pílula sobre o vídeo**: o diagnóstico da câmera (`CameraDiagnostico`) expõe fps e resolução, não latência; a pílula mostra os dois que existem mais o estado do socket.
 
+## Correções pós-rebrand (commit `rebrand(10)`)
+
+**1. Fuso.** `frontend/src/utils/datas.ts` exporta `paraDate(valor)`, que aplica `/Z$|[+-]\d\d:\d\d$/` e acrescenta `Z` quando falta (sem valor devolve agora, como todos os pontos faziam). Usado nos sete pontos: `export.tsx` (formatDateTimeLocal), `camera-focus.tsx` (decorrido), `alerts.tsx` (formatTime e formatDateTime), `timeline.tsx` (formatTime e a posição das marcas), `risk-score.tsx` (formatBucketHour). As duas cópias do regex saíram; ele existe só em `datas.ts` (`grep` = 1 ocorrência). `formatTime` da linha do tempo continua aceitando número, porque o eixo da trilha passa instantes já calculados.
+
+Teste: não há runner de front (`package.json` sem script `test`, sem vitest ou jest instalados), e adicionar um só para isto seria uma dependência nova para uma função de duas linhas. Foi pelo caminho de `tests/`: `tests/test_serializer_datas_naive.py` cria um alerta pelo `AlertRepository` no SQLite do fixture `app`, relê do banco e afirma que `created_at`, `first_seen_at` e `last_seen_at` do `to_dict()` saem sem `Z` nem offset, e que reler o valor como UTC cai em "agora" (menos de um minuto). É a premissa de que `paraDate` depende, conferida do lado que produz a string. 349 testes passam (348 + 1).
+
+**2. Contraste na linha tingida.** Em `.alert-row.critical` e `.alert-row.high`, `.alert-row-meta` e `.alert-row-time` passam de `--text-3` para `--text-2`. Medido antes: 4,23:1 no escuro (`--text-3` sobre `--tint-danger` composta em `--surface`); depois: 5,50:1.
+
+**3. Portão.** `scripts/check_contrast.py` agora compõe cada fundo rgba (`a*fg + (1-a)*bg` por canal) e confere o texto que de fato assenta nele: `--tint-danger` sobre canvas e surface com `--text`, `--text-2` e `--danger`; `--overlay` sobre canvas, surface, preto e branco puros com `--on-overlay`; `--scrim` sobre canvas e surface com `--text`. 24 pares compostos, 70 no total. A primeira rodada achou uma falha real: claro, `--danger` sobre `--tint-danger`+canvas, 4,41:1 (caso da barra de mensagem de erro e dos chips do kiosk, que ficam fora de cartão). Corrigido no token, não no script: `--danger` claro de `#AF4A06` para `#AF4606` (só o canal verde, 74 para 70), tinta acompanhando para `rgba(175,70,6,.10)`. Novo: 4,54:1 nesse par, 5,21:1 sobre canvas, 4,89:1 sobre tint+surface. Escuro inalterado. O script mantém o estilo de uma sentença por ponto e vírgula que a seção 7.3 forneceu; o ruff aponta E702 nessas linhas desde o commit `rebrand(1)`.
+
+**Números rodados de novo após as correções**
+
+| Item | Medido |
+|---|---|
+| 7.1 cor fora do sistema | **0** |
+| 7.2 `style={{}}` | **1** (trilha do tempo, comentado) |
+| 7.3 contraste | **falhas: 0** em 70 pares (46 sólidos + 24 compostos) |
+| 7.4 uppercase, raio numérico, sombra fora dos tokens, `transition: all` | **0, 0, 0, 0** |
+| 7.5 build | **exit 0**, `geist-latin-wght-normal` no CSS gerado, `#AF4606` presente no dist |
+| 7.6 pytest | **349 passed** |
+
 ## Fora do escopo, deixado como estava
 
 `command-palette.tsx` não precisou mudar (só rótulos, sem estilo). O `cmdk` não anima por padrão e o CSS não adiciona animação. `@number-flow` ficou só no índice de risco; `motion` ficou, com a curva trocada para `cubic-bezier(.23,1,.32,1)`.

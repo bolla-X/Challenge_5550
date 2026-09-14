@@ -2,6 +2,7 @@ import NumberFlow from "@number-flow/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
 import type { RiskTrendBucket } from "../api/types";
+import { paraDate } from "../utils/datas";
 
 // Mesmos rótulos usados em feature_manager.py / compliance.tsx.
 const FEATURE_LABELS: Record<string, string> = {
@@ -30,7 +31,7 @@ const LEVEL_LABEL: Record<string, string> = {
 };
 
 function formatBucketHour(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return paraDate(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Sparkline SVG puro, só a linha, em currentColor: o container decide a cor

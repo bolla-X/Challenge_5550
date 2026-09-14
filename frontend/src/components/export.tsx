@@ -1,5 +1,6 @@
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, EmptyState } from "./common";
+import { paraDate } from "../utils/datas";
 import type { Alert, TimelineEvent } from "../api/types";
 
 // CSV puro, sem lib: poucas colunas, escapar vírgula/aspas/quebra de linha
@@ -13,13 +14,10 @@ function toCsv(header: string[], rows: unknown[][]): string {
   return [header, ...rows].map((row) => row.map(csvField).join(",")).join("\r\n");
 }
 
-// Backend grava UTC mas o SQLite devolve o datetime naive na leitura, sem
-// sufixo de timezone. Sem forçar "Z" aqui, o Date() do JS interpretaria como
-// horário LOCAL. Saída DD/MM/AAAA HH:MM:SS, sem microssegundos.
+// Saída DD/MM/AAAA HH:MM:SS, sem microssegundos. O fuso é tratado em paraDate.
 function formatDateTimeLocal(value: string | null | undefined): string {
   if (!value) return "";
-  const hasOffset = /Z$|[+-]\d\d:\d\d$/.test(value);
-  const date = new Date(hasOffset ? value : `${value}Z`);
+  const date = paraDate(value);
   if (Number.isNaN(date.getTime())) return value;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;

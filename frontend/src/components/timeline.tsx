@@ -2,12 +2,14 @@ import { motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, EmptyState, PanelSkeleton } from "./common";
 import { listEvents } from "../api/endpoints";
+import { paraDate } from "../utils/datas";
 
 // Mesma curva de tokens.css (--ease-out).
 const EASE = [0.23, 1, 0.32, 1] as const;
 
+// Aceita número porque o eixo da trilha passa instantes já calculados (ms).
 function formatTime(value: string | number | null): string {
-  const date = value == null ? new Date() : new Date(value);
+  const date = typeof value === "number" ? new Date(value) : paraDate(value);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -71,7 +73,7 @@ export function TimelineCard() {
   const marks = timeline.map((event) => ({
     id: event.id,
     severity: event.severity || "info",
-    at: event.created_at ? new Date(event.created_at).getTime() : Date.now(),
+    at: paraDate(event.created_at).getTime(),
     label: `${formatTime(event.created_at)} ${stripResolvedPrefix(event.message)}`,
   }));
 

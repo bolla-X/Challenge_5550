@@ -14,14 +14,12 @@ import { temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid"
 import { deleteCamera, discoverCameras, getCameraStatus, startCamera, stopCamera, updateCamera } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
 import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
+import { paraDate } from "../utils/datas";
 
-/** Tempo decorrido desde o início do alerta, em "m:ss" ou "h:mm:ss".
- * O backend grava UTC e o SQLite devolve o ISO sem fuso; sem o "Z" o Date()
- * leria como horário local e o relógio nasceria deslocado. */
+/** Tempo decorrido desde o início do alerta, em "m:ss" ou "h:mm:ss". */
 function decorrido(desde: string | null, agora: number): string {
   if (!desde) return "";
-  const iso = /Z$|[+-]\d\d:\d\d$/.test(desde) ? desde : `${desde}Z`;
-  const s = Math.max(0, Math.floor((agora - new Date(iso).getTime()) / 1000));
+  const s = Math.max(0, Math.floor((agora - paraDate(desde).getTime()) / 1000));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = String(s % 60).padStart(2, "0");
