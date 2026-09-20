@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, PanelSkeleton } from "./common";
 import type { Alert } from "../api/types";
-import { acknowledgeAllAlerts, deleteResolvedAlerts, listAlerts, resolveActiveAlerts } from "../api/endpoints";
+import { acknowledgeAllAlerts, deleteResolvedAlerts, getCameraStatus, listAlerts, resolveActiveAlerts } from "../api/endpoints";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { paraDate } from "../utils/datas";
 
@@ -128,6 +128,27 @@ export function AlertPanel() {
       .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao resolver alertas.", "error"))
       .finally(() => setOcupado(false));
   };
+
+  // Rede de segurança: o socket pode ficar mudo (servidor reiniciado com a aba
+  // aberta, rede que caiu) sem a tela perceber. A lista confere com o servidor a
+  // cada 2 s, a mesma fonte da pílula de alerta sobre o vídeo, e nunca diverge.
+  useEffect(() => {
+    if (camId == null) return undefined;
+    let cancelado = false;
+    const conferir = () =>
+      getCameraStatus(camId)
+        .then((st) => {
+          if (!cancelado && useDashboardStore.getState().camId === camId) {
+            useDashboardStore.setState({ activeAlerts: st.active_alerts ?? [] }, false, "poll:active_alerts");
+          }
+        })
+        .catch(() => undefined);
+    const timer = setInterval(conferir, 2000);
+    return () => {
+      cancelado = true;
+      clearInterval(timer);
+    };
+  }, [camId]);
 
   const [pessoaFiltro, setPessoaFiltro] = useState<string | null>(null);
   const sorted = useMemo(
