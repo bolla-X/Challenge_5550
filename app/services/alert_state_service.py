@@ -10,9 +10,19 @@ from flask_socketio import SocketIO
 from app.models import Alert
 from app.repositories.alert_repository import AlertRepository
 from app.services.risk_rules import RuleAlert
+from app.vision.schemas import BoundingBox
 from app.utils.salas import emitir_para_camera
 
 logger = logging.getLogger(__name__)
+
+
+# Quanto tempo a violacao pode ficar AUSENTE sem a soneca cair. O rastreador de
+# pessoas perde e reencontra a mesma pessoa a cada poucos frames; se a soneca
+# caisse junto, o "resolver todos" nao segurava nada.
+SONECA_AUSENCIA_S = 10.0
+# IoU minimo entre a caixa da pessoa silenciada e a de um alerta novo da mesma
+# regra pra considerar que e a MESMA pessoa com id novo.
+SONECA_IOU_MESMA_PESSOA = 0.25
 
 
 @dataclass
@@ -50,6 +60,7 @@ class AlertStateService:
         resolve_after_frames: int = 5,
         camera_id: int | None = None,
         intervalo_touch: float = 2.0,
+        silencio_apos_limpar: float = 60.0,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
@@ -72,6 +83,50 @@ class AlertStateService:
         # renovação de um alerta que já está na tela. 0 desliga o espaçamento.
         self.intervalo_touch = max(0.0, float(intervalo_touch))
         self._states: dict[str, AlertRuntimeState] = {}
+        # "Soneca" depois de um "resolver todos" manual. Sem ela, quem continua
+        # sem o EPI recriava o mesmo alerta ~1 s depois (3 frames de histerese)
+        # e o botao parecia nao fazer nada. Chave (regra+pessoa) -> ate quando
+        # fica quieto e quantos frames seguidos a violacao ja esta ausente.
+        self.silencio_apos_limpar = max(0.0, float(silencio_apos_limpar))
+        self._silenciados: dict[str, dict[str, Any]] = {}
+
+    @staticmethod
+    def _caixa_da_pessoa(metadata: dict[str, Any] | None) -> BoundingBox | None:
+        caixa = (metadata or {}).get("person_box")
+        if isinstance(caixa, dict) and all(k in caixa for k in ("x1", "y1", "x2", "y2")):
+            try:
+                return BoundingBox(int(caixa["x1"]), int(caixa["y1"]), int(caixa["x2"]), int(caixa["y2"]))
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _silenciado(self, key: str, item: RuleAlert) -> bool:
+        agora = monotonic()
+        for chave in [k for k, v in self._silenciados.items() if agora >= v["ate"]]:
+            # Acabou o tempo: se ainda estiver sem EPI, o alerta volta, que e
+            # a rede de seguranca contra silenciar um risco real pra sempre.
+            del self._silenciados[chave]
+
+        soneca = self._silenciados.get(key)
+        caixa = self._caixa_da_pessoa(item.metadata)
+        if soneca is None and caixa is not None:
+            # O rastreador reatribuiu o id da pessoa (Pessoa 18 virou 26). Na
+            # mesma regra, uma caixa sobreposta a de quem foi silenciado e a
+            # mesma pessoa: herda a soneca em vez de disparar tudo de novo.
+            for outra in self._silenciados.values():
+                if (
+                    outra["rule"] == item.rule
+                    and outra["box"] is not None
+                    and outra["box"].iou(caixa) >= SONECA_IOU_MESMA_PESSOA
+                ):
+                    soneca = self._silenciados[key] = dict(outra)
+                    break
+        if soneca is None:
+            return False
+        soneca["visto"] = agora
+        if caixa is not None:
+            soneca["box"] = caixa  # acompanha a pessoa enquanto ela se move
+        return True
 
     def process(self, current_violations: list[RuleAlert], *, deteccao_nova: bool = True) -> dict[str, Any]:
         """Avança a histerese e grava/resolve o que passou do limiar.
@@ -92,6 +147,14 @@ class AlertStateService:
             return {"active": ativos, "changed": [], "created": [], "updated": [], "resolved": []}
 
         current_by_key = {item.key: item for item in current_violations}
+        # A soneca so vale enquanto a violacao continua: se sumiu de verdade
+        # (mesma histerese de resolucao), uma violacao NOVA depois dispara.
+        agora = monotonic()
+        for key in list(self._silenciados):
+            if key in current_by_key:
+                self._silenciados[key]["visto"] = agora
+            elif agora - self._silenciados[key]["visto"] >= SONECA_AUSENCIA_S:
+                del self._silenciados[key]
         created: list[dict[str, Any]] = []
         updated: list[dict[str, Any]] = []
         created_or_updated: list[dict[str, Any]] = []
@@ -106,7 +169,11 @@ class AlertStateService:
             state.violation_frames += 1
             state.normal_frames = 0
 
-            if state.alert is None and state.violation_frames >= self.create_after_frames:
+            if (
+                state.alert is None
+                and state.violation_frames >= self.create_after_frames
+                and not self._silenciado(key, item)
+            ):
                 state.alert = self.repository.create(
                     camera_id=self.camera_id,
                     rule=item.rule,
@@ -198,8 +265,17 @@ class AlertStateService:
         return sorted(items, key=lambda item: item.get("severity", ""), reverse=True)
 
 
-    def resolve_all(self, *, reason: str = "manual_reset") -> list[dict[str, Any]]:
+    def resolve_all(self, *, reason: str = "manual_reset", silenciar_s: float = 0.0) -> list[dict[str, Any]]:
         resolved: list[dict[str, Any]] = []
+        if silenciar_s > 0:
+            agora = monotonic()
+            for key, estado in self._states.items():
+                self._silenciados[key] = {
+                    "ate": agora + float(silenciar_s),
+                    "visto": agora,
+                    "rule": estado.rule_alert.rule,
+                    "box": self._caixa_da_pessoa(estado.rule_alert.metadata),
+                }
         for key in list(self._states.keys()):
             state = self._states[key]
             if state.alert is not None and state.alert.status == "active":
@@ -217,3 +293,4 @@ class AlertStateService:
 
     def reset(self) -> None:
         self._states.clear()
+        self._silenciados.clear()

@@ -144,6 +144,7 @@ interface DashboardState {
   toggleRiskEditor: () => void;
   clearRiskEditorPoints: () => void;
   addRiskEditorPoint: (point: { x: number; y: number }) => void;
+  moveRiskEditorPoint: (index: number, point: { x: number; y: number }) => void;
   resetRiskEditorFromServer: () => void;
 
   // actions
@@ -367,6 +368,12 @@ export const useDashboardStore = create<DashboardState>()(
       clearRiskEditorPoints: () => set({ riskEditorPoints: [] }, false, "clearRiskEditorPoints"),
       addRiskEditorPoint: (point) =>
         set((state) => ({ riskEditorPoints: [...state.riskEditorPoints, point] }), false, "addRiskEditorPoint"),
+      moveRiskEditorPoint: (index, point) =>
+        set(
+          (state) => ({ riskEditorPoints: state.riskEditorPoints.map((p, i) => (i === index ? point : p)) }),
+          false,
+          "moveRiskEditorPoint",
+        ),
       resetRiskEditorFromServer: () =>
         set(
           (state) => ({ riskEditorPoints: (state.riskArea?.polygon || []).map((p) => ({ x: p.x, y: p.y })) }),
@@ -426,7 +433,24 @@ export const useDashboardStore = create<DashboardState>()(
         }
       },
       setScreen: (screen) => set({ screen }, false, "setScreen"),
-      setCamId: (camId) => set({ camId }, false, "setCamId"),
+      setCamId: (camId) => {
+        set({ camId }, false, "setCamId");
+        // A zona de risco é de cada câmera: ao trocar o foco, carrega a DESTA
+        // câmera (senão o editor mostraria — e sobrescreveria — a da anterior).
+        getRiskArea(camId)
+          .then((res) => {
+            if (useDashboardStore.getState().camId !== camId) return;
+            set(
+              {
+                riskArea: res.risk_area,
+                riskEditorPoints: (res.risk_area.polygon || []).map((p) => ({ x: p.x, y: p.y })),
+              },
+              false,
+              "setCamId:riskArea",
+            );
+          })
+          .catch(() => undefined);
+      },
       setOperatorCam: (camId) =>
         set(
           (state) => ({
@@ -548,7 +572,7 @@ export const useDashboardStore = create<DashboardState>()(
       },
       updateRiskArea: async (payload) => {
         try {
-          const res = await apiPatchRiskArea(payload);
+          const res = await apiPatchRiskArea(payload, useDashboardStore.getState().camId);
           set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada no backend.", tone: "ok" } }, false, "updateRiskArea");
         } catch (error) {
           set({ message: { text: error instanceof Error ? error.message : "Falha ao salvar área de risco.", tone: "error" } }, false, "updateRiskArea:error");

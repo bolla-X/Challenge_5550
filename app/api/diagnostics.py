@@ -79,6 +79,9 @@ def get_risk_area():
 @runtime_bp.patch("/risk-area")
 @require_role(ROLE_TECHNICAL)
 def patch_risk_area():
+    camera_id, erro = escopo_ou_erro()
+    if erro:
+        return erro
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return jsonify({"error": "Payload inválido"}), 400
@@ -86,7 +89,7 @@ def patch_risk_area():
     if not hasattr(monitor, "update_risk_area"):
         return jsonify({"error": "monitor atual não suporta área de risco runtime"}), 501
     try:
-        return jsonify({"risk_area": monitor.update_risk_area(payload)})
+        return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

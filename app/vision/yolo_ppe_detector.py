@@ -48,6 +48,8 @@ PPE_CLASS_ALIASES = {
     "safety shoe": "safety_shoe",
     "safety shoes": "safety_shoe",
     "boots": "safety_shoe",
+    "shoes": "safety_shoe",
+    "shoe": "safety_shoe",
     "safety boots": "safety_shoe",
     "safety cone": "safety_cone",
     "safety_cone": "safety_cone",

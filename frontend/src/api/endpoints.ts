@@ -79,12 +79,35 @@ export const deleteCamera = (cameraId: number) => apiFetch<{ deleted: boolean; i
 // discover_cameras() no backend. maxIndex vira ?max_index=N.
 export const discoverCameras = (maxIndex = 5) => apiFetch<CameraDiscoveryResponse>(`/api/cameras/discover?max_index=${maxIndex}`);
 
-export const listAlerts = (params: { limit?: number; severity?: string; status?: string } = {}) => {
+export const listAlerts = (
+  params: { limit?: number; severity?: string; status?: string; cameraId?: number | null; feature?: string } = {},
+) => {
   const query = new URLSearchParams();
   query.set("limit", String(params.limit ?? 50));
   if (params.severity) query.set("severity", params.severity);
   if (params.status) query.set("status", params.status);
+  if (params.cameraId != null) query.set("camera_id", String(params.cameraId));
+  if (params.feature) query.set("feature", params.feature);
   return apiFetch<AlertsResponse>(`/alerts?${query.toString()}`);
+};
+
+// Ações em lote. Apagar só alcança alertas JÁ resolvidos (o backend recusa o resto).
+const comCamera = (cameraId?: number | null) => (cameraId != null ? `?camera_id=${cameraId}` : "");
+export const acknowledgeAllAlerts = (cameraId?: number | null) =>
+  apiFetch<{ acknowledged: number }>(`/alerts/acknowledge-all${comCamera(cameraId)}`, { method: "POST" });
+export const resolveActiveAlerts = (cameraId?: number | null) =>
+  apiFetch<{ active_before: number; silencio_s: number; pedidos: number[]; resolvidos_direto: number }>(
+    `/alerts/resolve-active${comCamera(cameraId)}`,
+    { method: "POST" },
+  );
+export const deleteResolvedAlerts = (params: { cameraId?: number | null; olderThanDays?: number } = {}) => {
+  const query = new URLSearchParams();
+  if (params.cameraId != null) query.set("camera_id", String(params.cameraId));
+  if (params.olderThanDays != null) query.set("older_than_days", String(params.olderThanDays));
+  const qs = query.toString();
+  return apiFetch<{ deleted: number; evidence_files_removed: number }>(`/alerts/resolved${qs ? `?${qs}` : ""}`, {
+    method: "DELETE",
+  });
 };
 export const markFalsePositive = (alertId: number, reason?: string) =>
   apiFetch<{ alert: Alert }>(`/alerts/${alertId}/false-positive`, {
@@ -112,9 +135,15 @@ export const getOverlay = () => apiFetch<{ overlay: OverlayOptions }>("/overlay"
 export const patchOverlay = (updates: Partial<OverlayOptions>) =>
   apiFetch<{ overlay: OverlayOptions }>("/overlay", { method: "PATCH", body: JSON.stringify(updates) });
 
-export const getRiskArea = () => apiFetch<{ risk_area: RiskAreaState }>("/risk-area");
-export const patchRiskArea = (payload: { name?: string; polygon: { x: number; y: number }[] }) =>
-  apiFetch<{ risk_area: RiskAreaState }>("/risk-area", { method: "PATCH", body: JSON.stringify(payload) });
+// Com camId, usa a rota POR CÂMERA (zona própria de cada câmera). Sem camId cai
+// na rota legada, que opera sobre a câmera padrão.
+export const getRiskArea = (camId?: number | null) =>
+  apiFetch<{ risk_area: RiskAreaState }>(camId != null ? `/api/cameras/${camId}/risk-area` : "/risk-area");
+export const patchRiskArea = (payload: { name?: string; polygon: { x: number; y: number }[] }, camId?: number | null) =>
+  apiFetch<{ risk_area: RiskAreaState }>(camId != null ? `/api/cameras/${camId}/risk-area` : "/risk-area", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 
 export const listEvents = (params: { limit?: number; eventType?: string; severity?: string } = {}) => {
   const query = new URLSearchParams();

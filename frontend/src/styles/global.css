@@ -357,7 +357,7 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .video-empty p { font-size: 13px; max-width: 34ch; }
 .video-empty button#startBtn { margin-top: 4px; }
 
-.risk-editor-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; z-index: 3; background: rgba(10, 13, 18, .08); }
+.risk-editor-canvas { touch-action: none; position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; z-index: 3; background: rgba(10, 13, 18, .08); }
 .risk-editor-canvas.hidden { display: none; }
 .video-frame.editing-risk { outline: 2px solid rgba(245, 158, 11, .6); outline-offset: -2px; }
 
@@ -734,3 +734,7 @@ summary { cursor: pointer; font-weight: 600; }
     display: none; /* na topbar estreita sobra só o "Sair" */
   }
 }
+
+.alert-group { margin-bottom: 8px; border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 8px; padding: 6px 8px; }
+.alert-group > summary { cursor: pointer; padding: 4px 0; list-style-position: inside; }
+.filter-row .secondary.small.active { outline: 1px solid var(--accent, #2fd4e6); }

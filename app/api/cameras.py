@@ -360,3 +360,31 @@ def _emit_cameras_updated() -> None:
         monitor.socketio.emit("cameras_updated", {})
         if hasattr(monitor, "load_cameras_from_db"):
             monitor.load_cameras_from_db()
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/risk-area")
+@login_required
+def get_camera_risk_area(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify({"risk_area": monitor.risk_area_state(camera_id=camera_id)})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/risk-area")
+@cameras_bp.patch("/api/cameras/<int:camera_id>/risk-area")
+@require_role(ROLE_TECHNICAL)
+def put_camera_risk_area(camera_id: int):
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return _validation_error("Payload inválido — esperado um objeto JSON.")
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})
+    except ValueError as exc:
+        return _validation_error(str(exc))
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409

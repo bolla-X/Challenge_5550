@@ -292,6 +292,11 @@ class Config:
     # acontecia por alerta a cada frame — o vídeo travava justamente quando
     # havia infração. Criar e resolver seguem imediatos. 0 volta ao antigo.
     ALERT_TOUCH_INTERVAL_SECONDS = env_float("ALERT_TOUCH_INTERVAL_SECONDS", 2.0)
+    # Depois de "Resolver todos", segundos em que o MESMO alerta (regra + pessoa)
+    # nao e recriado enquanto a violacao continua. Sem isso quem segue sem EPI
+    # recriava o alerta em ~1 s e o botao parecia nao fazer nada. Passado o
+    # tempo, se ainda estiver sem EPI o alerta volta. 0 desliga a soneca.
+    ALERT_SNOOZE_AFTER_CLEAR_S = env_float("ALERT_SNOOZE_AFTER_CLEAR_S", 60.0)
     # Quantas vezes por segundo a telemetria (analysis/compliance) vai pro
     # navegador. O VÍDEO não passa por aqui — ele é MJPEG com as caixas já
     # desenhadas — então baixar isto não deixa a imagem menos fluida; evita
@@ -312,8 +317,8 @@ class Config:
     POSE_MIN_TRACKING_CONFIDENCE = env_float("POSE_MIN_TRACKING_CONFIDENCE", 0.5)
 
     ALERT_COOLDOWN_SECONDS = env_int("ALERT_COOLDOWN_SECONDS", 0)
-    ALERT_CREATE_AFTER_FRAMES = env_int("ALERT_CREATE_AFTER_FRAMES", 3)
-    ALERT_RESOLVE_AFTER_FRAMES = env_int("ALERT_RESOLVE_AFTER_FRAMES", 5)
+    ALERT_CREATE_AFTER_FRAMES = env_int("ALERT_CREATE_AFTER_FRAMES", 8)
+    ALERT_RESOLVE_AFTER_FRAMES = env_int("ALERT_RESOLVE_AFTER_FRAMES", 20)
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
@@ -330,6 +335,8 @@ class Config:
     OVERLAY_SHOW_CONFIDENCE = env_bool("OVERLAY_SHOW_CONFIDENCE", True)
     OVERLAY_SHOW_POSE = env_bool("OVERLAY_SHOW_POSE", True)
     OVERLAY_SHOW_RISK_AREA = env_bool("OVERLAY_SHOW_RISK_AREA", True)
+    OVERLAY_SHOW_FACE = env_bool("OVERLAY_SHOW_FACE", False)
+    OVERLAY_SHOW_BODY_PARTS = env_bool("OVERLAY_SHOW_BODY_PARTS", False)
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",

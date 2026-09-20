@@ -12,6 +12,10 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Marcas gravadas por acao humana, que a renovacao automatica nao pode apagar.
+CHAVES_DE_RECONHECIMENTO = ("acknowledged", "acknowledged_at", "acknowledged_note")
+
+
 class AlertRepository:
     def create(
         self,
@@ -51,10 +55,22 @@ class AlertRepository:
         """Renova o alerta ativo. `incremento` permite gravar de uma vez as
         ocorrências acumuladas desde o último commit — ver
         AlertStateService.intervalo_touch, que espaça esta gravação."""
+        preservadas: dict[str, Any] = {}
+        if metadata is not None:
+            # O worker regrava a metadata inteira a cada renovacao, mas o
+            # "avisei" (unico ou em lote) e gravado por OUTRA thread, na rota
+            # HTTP. Sem reler o banco e preservar essas chaves, a marca sumia
+            # em ate 2 s: o botao parecia funcionar e o alerta voltava a
+            # aparecer como nao tratado. Recarrega SO a coluna de metadata e
+            # ANTES de mexer no resto: um refresh completo depois descartaria
+            # a contagem de ocorrencias ainda nao gravada.
+            db.session.refresh(alert, attribute_names=["metadata_json"])
+            atual = alert.metadata_json or {}
+            preservadas = {k: atual[k] for k in CHAVES_DE_RECONHECIMENTO if k in atual}
         alert.last_seen_at = utc_now()
         alert.occurrences = int(alert.occurrences or 0) + max(1, int(incremento))
         if metadata is not None:
-            alert.metadata_json = metadata
+            alert.metadata_json = {**metadata, **preservadas}
         db.session.commit()
         return alert
 
@@ -108,10 +124,13 @@ class AlertRepository:
         status: str | None = None,
         false_positive: bool | None = None,
         camera_id: int | None = None,
+        feature: str | None = None,
     ) -> list[Alert]:
         query = Alert.query
         if severity:
             query = query.filter(Alert.severity == severity)
+        if feature:
+            query = query.filter(Alert.feature == feature)
         if status:
             query = query.filter(Alert.status == status)
         if camera_id is not None:
@@ -142,6 +161,52 @@ class AlertRepository:
             alert.metadata_json = {**(alert.metadata_json or {}), "resolution_reason": reason}
         db.session.commit()
         return len(active_alerts)
+
+    def acknowledge_all_active(self, *, camera_id: int | None = None, note: str | None = None) -> int:
+        """Marca como "avisei" todos os ativos que ainda nao foram tratados.
+
+        So quem esta ativo e sem a marca: reconhecer de novo o que ja foi
+        reconhecido sobrescreveria o horario original da auditoria.
+        """
+        query = Alert.query.filter(Alert.status == "active")
+        if camera_id is not None:
+            query = query.filter(Alert.camera_id == camera_id)
+        agora = utc_now().isoformat()
+        total = 0
+        for alert in query.all():
+            metadata = alert.metadata_json or {}
+            if metadata.get("acknowledged"):
+                continue
+            novo = {**metadata, "acknowledged": True, "acknowledged_at": agora}
+            if note:
+                novo["acknowledged_note"] = note
+            alert.metadata_json = novo
+            total += 1
+        db.session.commit()
+        return total
+
+    def delete_resolved(
+        self, *, camera_id: int | None = None, older_than_days: int | None = None
+    ) -> tuple[int, list[str]]:
+        """Apaga SOMENTE alertas ja resolvidos. Ativo nunca e tocado.
+
+        Devolve (quantos, nomes de evidencia que ficaram orfaos): quem chama
+        remove os arquivos, e so os que nenhum alerta restante referencia.
+        """
+        from datetime import timedelta
+
+        query = Alert.query.filter(Alert.status == "resolved")
+        if camera_id is not None:
+            query = query.filter(Alert.camera_id == camera_id)
+        if older_than_days is not None:
+            query = query.filter(Alert.last_seen_at < utc_now() - timedelta(days=int(older_than_days)))
+        alvos = query.all()
+        arquivos = [PurePosixPath(str(a.frame_ref)).name for a in alvos if a.frame_ref]
+        for alert in alvos:
+            db.session.delete(alert)
+        db.session.commit()
+        restantes = self.referenced_frame_filenames()
+        return len(alvos), [nome for nome in arquivos if nome and nome not in restantes]
 
     def referenced_frame_filenames(self) -> set[str]:
         """Nomes de arquivo de evidencia que algum alerta ainda aponta.

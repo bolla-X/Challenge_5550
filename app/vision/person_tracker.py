@@ -36,8 +36,12 @@ class PersonTracker:
     ~12 FPS); oclusão longa ou troca de câmera continuam gerando id novo.
     """
 
-    def __init__(self, *, iou_threshold: float = 0.3, max_age: int = 15) -> None:
+    def __init__(self, *, iou_threshold: float = 0.2, max_age: int = 45, max_center_dist: float = 0.6) -> None:
         self.iou_threshold = iou_threshold
+        # Fallback quando o IoU falha (pessoa sentou, virou, caixa mudou muito):
+        # aceita o par se os centros estão a menos de esta fração do tamanho
+        # da caixa do track. Segura o id em vez de gerar "Pessoa N+1".
+        self.max_center_dist = max_center_dist
         # Quantos frames um track sobrevive sem ser visto. A 12 FPS, 15 frames
         # ≈ 1,2 s — cobre oclusão curta (alguém passa na frente) sem manter
         # fantasma de quem já saiu de cena.
@@ -68,7 +72,7 @@ class PersonTracker:
         # número de pessoas em cena (unidades, não centenas) isto é mais barato
         # e mais previsível que o húngaro.
         pairs = [
-            (track.box.iou(det.box), track_id, index)
+            (self._afinidade(track.box, det.box, track.misses), track_id, index)
             for track_id, track in self._tracks.items()
             for index, det in enumerate(detections)
         ]
@@ -76,8 +80,8 @@ class PersonTracker:
 
         matched_tracks: dict[int, int] = {}
         used_detections: set[int] = set()
-        for iou, track_id, index in pairs:
-            if iou < self.iou_threshold:
+        for afinidade, track_id, index in pairs:
+            if afinidade <= 0:
                 break
             if track_id in matched_tracks or index in used_detections:
                 continue
@@ -105,6 +109,22 @@ class PersonTracker:
         tracked = [det.with_track_id(assigned[index]) for index, det in enumerate(detections)]
         tracked.sort(key=lambda det: det.track_id or 0)
         return tracked
+
+    def _afinidade(self, track_box: BoundingBox, det_box: BoundingBox, misses: int) -> float:
+        """0 = não combina. IoU manda; distância entre centros é o plano B.
+
+        O plano B vale menos (metade) para não roubar o par de quem tem IoU
+        real, e encolhe conforme o track fica tempo sem ser visto.
+        """
+        iou = track_box.iou(det_box)
+        if iou >= self.iou_threshold:
+            return 1.0 + iou
+        tamanho = max(track_box.width, track_box.height, 1)
+        dx = track_box.center[0] - det_box.center[0]
+        dy = track_box.center[1] - det_box.center[1]
+        dist = (dx * dx + dy * dy) ** 0.5 / tamanho
+        limite = self.max_center_dist / (1 + 0.05 * misses)
+        return 0.5 * (1 - dist / limite) if dist < limite else 0.0
 
     def _age_unmatched(self, matched_ids: set[int]) -> None:
         for track_id in list(self._tracks.keys()):

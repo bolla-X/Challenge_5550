@@ -221,3 +221,17 @@ def test_compliance_service_ainda_funciona_sem_evaluation():
     )
     assert state["person_count"] == 1
     assert state["ppe"]["helmet"]["status"] == "missing"
+
+
+def test_pessoa_que_muda_de_forma_sem_iou_mantem_o_id():
+    """Sentou/inclinou: a caixa muda tanto que o IoU cai, mas o centro fica perto."""
+    tracker = PersonTracker()
+    a = tracker.update([person(100, y1=100, width=80, height=300)])[0].track_id
+    sentada = Detection(label="person", confidence=0.9, box=BoundingBox(60, 260, 260, 380), category="person")
+    assert tracker.update([sentada])[0].track_id == a
+
+
+def test_pessoa_longe_ganha_id_novo_mesmo_com_fallback():
+    tracker = PersonTracker()
+    tracker.update([person(100)])
+    assert tracker.update([person(900)])[0].track_id == 2

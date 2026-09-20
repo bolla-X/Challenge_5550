@@ -225,6 +225,8 @@ export interface OverlayOptions extends CameraScoped {
   confidence: boolean;
   pose: boolean;
   risk_area: boolean;
+  face: boolean;
+  body_parts: boolean;
 }
 
 // ---- app/services/monitor_service.py: risk_area_state() ------------------

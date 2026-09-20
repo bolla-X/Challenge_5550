@@ -32,13 +32,25 @@ class FrameAnnotator:
                     self._draw_pose_points(output, pose)
         return output
 
+    _FACE_LABELS = {"face", "head", "ear", "face-acessorio", "ear-acessorio"}
+    _BODY_PART_LABELS = {"hands", "foot", "tool", "medical-suit", "safety-suit"}
+
     def _draw_detections(self, frame: np.ndarray, detections: list[Detection], options: dict[str, bool]) -> None:
         show_boxes = options.get("boxes", True)
         show_labels = options.get("labels", True)
         show_confidence = options.get("confidence", True)
         if not show_boxes and not show_labels:
             return
+        show_face = options.get("face", False)
+        show_parts = options.get("body_parts", False)
         for det in detections:
+            # Rotulos anatomicos do SH17 (head/face/ear/hands/foot): so servem de
+            # contexto, entao ficam escondidos a menos que o operador ligue.
+            rotulo = det.label.lower()
+            if rotulo in self._FACE_LABELS and not show_face:
+                continue
+            if rotulo in self._BODY_PART_LABELS and not show_parts:
+                continue
             color = self._color_for(det.label)
             if show_boxes:
                 cv2.rectangle(frame, (det.box.x1, det.box.y1), (det.box.x2, det.box.y2), color, 2)

@@ -43,6 +43,8 @@ const OVERLAY_LABELS: Record<string, string> = {
   confidence: "Confiança",
   pose: "Pontos de pose",
   risk_area: "Zona de risco",
+  face: "Rosto / cabeça",
+  body_parts: "Mãos, pés e outros",
 };
 
 // ciano = dado vivo agora, não "feature ligada". Ligada-mas-parada é texto

@@ -7,6 +7,7 @@ from flask import Flask
 from flask_socketio import SocketIO
 
 from app.config import Config
+from app.extensions import db
 from app.models import Camera
 from app.services.camera_worker import CameraWorker
 from app.services.feature_manager import FeatureManager
@@ -212,6 +213,7 @@ class MonitorService:
             width=camera.width,
             height=camera.height,
             rotation=int(camera.rotation or 0),
+            risk_polygon=camera.risk_polygon,
             detector=self.detector,
             person_detector=self.person_detector,
             pose_estimator=self.pose_estimator,
@@ -296,11 +298,41 @@ class MonitorService:
     def update_overlay(self, updates: dict[str, Any], camera_id: int | None = None) -> dict[str, Any]:
         return self._get_worker(camera_id).update_overlay(updates)
 
+    def limpar_alertas_ativos(self, camera_id: int | None = None) -> dict[str, Any]:
+        """Resolve os alertas ativos de UMA camera (ou de todas).
+
+        Camera rodando: pede ao worker, que resolve na propria thread. Camera
+        parada: nao ha dono do estado, entao resolve direto no banco.
+        """
+        from app.repositories.alert_repository import AlertRepository
+
+        with self._workers_lock:
+            workers = dict(self._workers)
+        alvo_ids = [camera_id] if camera_id is not None else list(workers)
+        pedidos: list[int] = []
+        direto = 0
+        for cid in alvo_ids:
+            worker = workers.get(cid)
+            if worker is not None and worker._running.is_set():
+                worker.pedir_limpeza_alertas()
+                pedidos.append(cid)
+            else:
+                direto += AlertRepository().resolve_all_active(reason="manual_clear", camera_id=cid)
+        return {"pedidos": pedidos, "resolvidos_direto": direto}
+
     def risk_area_state(self, camera_id: int | None = None) -> dict[str, Any]:
         return self._get_worker(camera_id).risk_area_state()
 
     def update_risk_area(self, payload: dict[str, Any], camera_id: int | None = None) -> dict[str, Any]:
-        return self._get_worker(camera_id).update_risk_area(payload)
+        worker = self._get_worker(camera_id)
+        state = worker.update_risk_area(payload)
+        # Persiste na câmera: sem isto a zona voltava pro padrão do .env a cada
+        # reinício e toda câmera acabava com o mesmo polígono.
+        camera = db.session.get(Camera, worker.camera_id)
+        if camera is not None:
+            camera.risk_polygon = [[p["x"], p["y"]] for p in state["polygon"]]
+            db.session.commit()
+        return state
 
     # ---- atributos que as rotas acessam direto (sempre a câmera padrão) ---
     @property

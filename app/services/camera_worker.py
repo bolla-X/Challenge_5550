@@ -98,6 +98,7 @@ class CameraWorker:
         width: int = 960,
         height: int = 540,
         rotation: int = 0,
+        risk_polygon: list | None = None,
         detector: YoloPPEDetector,
         person_detector: YoloPPEDetector,
         pose_estimator: MediaPipePoseEstimator,
@@ -113,6 +114,10 @@ class CameraWorker:
         # vira 0 (sem rotacao) em vez de derrubar o worker.
         self.rotation = int(rotation) if int(rotation) in (0, 90, 180, 270) else 0
         self._running = threading.Event()
+        # Pedido de "limpar alertas ativos" vindo da rota HTTP. Quem executa e o
+        # proprio loop do worker: o estado dos alertas e os objetos do ORM sao
+        # dele, e mexer neles de outra thread ja causou erro de sessao.
+        self._limpeza_alertas_pedida = threading.Event()
         self._thread_lock = threading.RLock()
         self._task = None
         self._latest_jpeg: bytes | None = None
@@ -125,10 +130,11 @@ class CameraWorker:
         self._last_risk_score_emit_at = 0.0
         self.risk_score_interval_seconds = 30
 
-        # Área de risco/polígono ainda vem do .env global — cada câmera ter
-        # sua própria zona configurável fica pro backlog de câmera-config
-        # (o CameraConfigPanel mock do frontend já reserva esse espaço).
-        risk_polygon = self._parse_risk_polygon(app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON))
+        # Polígono próprio da câmera (Camera.risk_polygon); sem ele, o padrão do
+        # .env. Cada câmera enxerga um trecho diferente da planta.
+        risk_polygon = self._normalizar_poligono(risk_polygon) or self._parse_risk_polygon(
+            app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON)
+        )
         self.risk_area_name = str(app.config.get("RISK_AREA_NAME", "Área de risco"))
         self.video_stream = VideoStream(
             source=source,
@@ -223,6 +229,7 @@ class CameraWorker:
             resolve_after_frames=app.config.get("ALERT_RESOLVE_AFTER_FRAMES", 5),
             camera_id=camera_id,
             intervalo_touch=app.config.get("ALERT_TOUCH_INTERVAL_SECONDS", 2.0),
+            silencio_apos_limpar=app.config.get("ALERT_SNOOZE_AFTER_CLEAR_S", 60.0),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -247,6 +254,8 @@ class CameraWorker:
             "confidence": bool(app.config.get("OVERLAY_SHOW_CONFIDENCE", True)),
             "pose": bool(app.config.get("OVERLAY_SHOW_POSE", True)),
             "risk_area": bool(app.config.get("OVERLAY_SHOW_RISK_AREA", True)),
+            "face": bool(app.config.get("OVERLAY_SHOW_FACE", False)),
+            "body_parts": bool(app.config.get("OVERLAY_SHOW_BODY_PARTS", False)),
         }
         self.annotator = FrameAnnotator(risk_polygon=risk_polygon)
 
@@ -581,6 +590,21 @@ class CameraWorker:
             return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
         return frame
 
+    def pedir_limpeza_alertas(self) -> None:
+        self._limpeza_alertas_pedida.set()
+
+    def _limpar_alertas_ativos(self) -> None:
+        resolvidos = self.alert_state_service.resolve_all(
+            reason="manual_clear", silenciar_s=self.alert_state_service.silencio_apos_limpar
+        )
+        for payload in resolvidos:
+            self._emit_resolved_alert_event_once(payload, false_positive=False)
+        # Ativos que ficaram no banco sem dono (ex.: o processo anterior caiu).
+        AlertRepository().resolve_all_active(reason="manual_clear", camera_id=self.camera_id)
+        self._emit_timeline_event(
+            "alerts_cleared", "Alertas ativos resolvidos manualmente", "info", metadata={"resolvidos": len(resolvidos)}
+        )
+
     def _loop(self) -> None:
         target_fps = self.target_fps
         frame_interval = 1.0 / target_fps
@@ -588,6 +612,12 @@ class CameraWorker:
 
         with self.app.app_context():
             while self._running.is_set():
+                if self._limpeza_alertas_pedida.is_set():
+                    self._limpeza_alertas_pedida.clear()
+                    try:
+                        self._limpar_alertas_ativos()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("limpeza_de_alertas_falhou", extra={"error": str(exc)})
                 start_time = time.perf_counter()
                 self._perf_inicio()
                 try:
@@ -1221,21 +1251,36 @@ class CameraWorker:
             "enabled": self.feature_manager.is_enabled("risk_area"),
         }
 
-    def update_risk_area(self, payload: dict[str, Any]) -> dict[str, Any]:
-        raw_polygon = payload.get("polygon")
-        if not isinstance(raw_polygon, list) or len(raw_polygon) < 3:
+    @staticmethod
+    def _normalizar_poligono(raw) -> list[tuple[float, float]] | None:
+        """Aceita lista de {x,y} ou [x,y]; devolve pontos 0..1, ou None se vazio.
+
+        Levanta ValueError se vier algo preenchido mas inválido — melhor
+        recusar do que salvar uma zona quebrada em silêncio.
+        """
+        if raw is None or raw == []:
+            return None
+        if not isinstance(raw, list) or len(raw) < 3:
             raise ValueError("polygon deve conter pelo menos 3 pontos")
         polygon: list[tuple[float, float]] = []
-        for point in raw_polygon:
+        for point in raw:
             if isinstance(point, dict):
                 x, y = point.get("x"), point.get("y")
             elif isinstance(point, (list, tuple)) and len(point) >= 2:
                 x, y = point[0], point[1]
             else:
                 raise ValueError("cada ponto deve conter x e y")
-            xf = max(0.0, min(1.0, float(x)))
-            yf = max(0.0, min(1.0, float(y)))
-            polygon.append((xf, yf))
+            try:
+                xf, yf = float(x), float(y)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("cada ponto deve conter x e y numéricos") from exc
+            polygon.append((max(0.0, min(1.0, xf)), max(0.0, min(1.0, yf))))
+        return polygon
+
+    def update_risk_area(self, payload: dict[str, Any]) -> dict[str, Any]:
+        polygon = self._normalizar_poligono(payload.get("polygon"))
+        if polygon is None:
+            raise ValueError("polygon deve conter pelo menos 3 pontos")
         self.rule_engine.risk_polygon = polygon
         self.annotator.risk_polygon = polygon
         if str(payload.get("name", "")).strip():
@@ -1249,7 +1294,7 @@ class CameraWorker:
         return {"camera_id": self.camera_id, **self.overlay_options}
 
     def update_overlay(self, updates: dict[str, Any]) -> dict[str, Any]:
-        for key in ("boxes", "labels", "confidence", "pose", "risk_area"):
+        for key in ("boxes", "labels", "confidence", "pose", "risk_area", "face", "body_parts"):
             if key in updates:
                 self.overlay_options[key] = bool(updates[key])
         self._emitir("overlay_updated", self.get_overlay())

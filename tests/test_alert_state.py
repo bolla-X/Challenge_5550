@@ -154,3 +154,151 @@ def test_ocorrencias_acumuladas_entram_na_gravacao(app):
         # as 9 pendentes + esta entram de uma vez, nenhuma se perde
         assert service.active_alerts()[0]["occurrences"] == base + 10
         assert estado.ocorrencias_pendentes == 0
+
+
+# ------------------------------------------------ soneca apos "resolver todos"
+def _servico(socket=None):
+    return AlertStateService(
+        AlertRepository(), socket or DummySocket(), create_after_frames=2, resolve_after_frames=2
+    )
+
+
+def _ativos(service, frames=3):
+    resultado = None
+    for _ in range(frames):
+        resultado = service.process([missing_helmet()])
+    return resultado["active"]
+
+
+def test_sem_soneca_o_alerta_volta_logo_depois_de_resolver_todos(app):
+    """O comportamento que o usuario reportou: limpar e o mesmo alerta reaparece."""
+    with app.app_context():
+        service = _servico()
+        assert len(_ativos(service)) == 1
+        service.resolve_all(reason="manual_clear")
+        assert len(_ativos(service)) == 1
+
+
+def test_soneca_segura_o_alerta_enquanto_a_violacao_continua(app):
+    with app.app_context():
+        service = _servico()
+        assert len(_ativos(service)) == 1
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+        assert _ativos(service, frames=10) == []
+
+
+def test_soneca_acaba_com_o_tempo_e_o_risco_real_volta(app, monkeypatch):
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 1000.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico()
+        _ativos(service)
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+        assert _ativos(service) == []
+
+        relogio["t"] += 61  # passou a soneca e ainda esta sem capacete
+        assert len(_ativos(service)) == 1
+
+
+def test_soneca_cai_quando_a_violacao_some_de_verdade(app, monkeypatch):
+    """Pessoa colocou o capacete e depois tirou: violacao NOVA nao pode ficar muda."""
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 1000.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico()
+        _ativos(service)
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+        assert _ativos(service) == []
+
+        # Sumiu por tempo suficiente pra ser "de verdade" (nao um piscar do rastreador).
+        for _ in range(3):
+            relogio["t"] += 4
+            service.process([])
+        assert len(_ativos(service)) == 1
+
+
+def test_piscada_do_rastreador_nao_derruba_a_soneca(app, monkeypatch):
+    """O rastreador perde a pessoa por um instante; isso nao pode reativar os alertas."""
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 1000.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico()
+        _ativos(service)
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+
+        for _ in range(6):  # 6 deteccoes sem ver a pessoa, mas so ~1 s de relogio
+            relogio["t"] += 0.2
+            service.process([])
+        assert _ativos(service) == []
+
+
+def test_soneca_e_so_da_chave_limpada(app):
+    """Outra pessoa/regra continua alertando normalmente."""
+    with app.app_context():
+        service = _servico()
+        _ativos(service)
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+
+        outra = RuleAlert(
+            rule="missing_vest", severity="high", message="Sem colete", feature="vest", metadata={"person_id": "p2"}
+        )
+        for _ in range(3):
+            resultado = service.process([missing_helmet(), outra])
+        assert [a["rule"] for a in resultado["active"]] == ["missing_vest"]
+
+
+def _com_caixa(person_id, x1, y1, x2, y2, rule="missing_helmet"):
+    return RuleAlert(
+        rule=rule,
+        severity="critical",
+        message="Sem capacete",
+        feature="helmet",
+        metadata={"person_id": person_id, "person_box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}},
+    )
+
+
+def test_id_novo_da_mesma_pessoa_herda_a_soneca(app):
+    """Rastreador trocou Pessoa 18 por Pessoa 26 na mesma posicao: e a mesma pessoa."""
+    with app.app_context():
+        service = _servico()
+        for _ in range(3):
+            service.process([_com_caixa("person_18", 100, 100, 300, 500)])
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+
+        for _ in range(4):
+            resultado = service.process([_com_caixa("person_26", 110, 105, 305, 505)])
+        assert resultado["active"] == []
+
+
+def test_pessoa_diferente_em_outro_lugar_nao_e_silenciada(app):
+    """Alguem novo entrando sem capacete tem que alertar mesmo durante a soneca."""
+    with app.app_context():
+        service = _servico()
+        for _ in range(3):
+            service.process([_com_caixa("person_18", 100, 100, 300, 500)])
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+
+        for _ in range(4):
+            resultado = service.process([_com_caixa("person_30", 800, 100, 1000, 500)])
+        assert [a["metadata"]["person_id"] for a in resultado["active"]] == ["person_30"]
+
+
+def test_soneca_segue_a_pessoa_quando_ela_anda(app):
+    with app.app_context():
+        service = _servico()
+        for _ in range(3):
+            service.process([_com_caixa("person_18", 100, 100, 300, 500)])
+        service.resolve_all(reason="manual_clear", silenciar_s=60)
+
+        # anda aos poucos, mudando de id no caminho; cada passo sobrepoe o anterior
+        for i, pid in enumerate(["person_19", "person_20", "person_21", "person_22"]):
+            deslocamento = 80 * (i + 1)
+            for _ in range(3):
+                resultado = service.process([_com_caixa(pid, 100 + deslocamento, 100, 300 + deslocamento, 500)])
+            assert resultado["active"] == [], pid

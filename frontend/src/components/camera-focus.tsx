@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sidebar, OverlayControls } from "./features";
 // Sidebar de features por câmera do mock (Passo 2, CameraSidebar) foi
 // substituída pela Sidebar real: o backend ainda é single-source, então
@@ -6,7 +6,7 @@ import { Sidebar, OverlayControls } from "./features";
 // raciocínio do Checklist/Zona/Overlay/Modelo/Gráficos acima) — senão o
 // toggle parece funcionar mas não muda nada na detecção real.
 import { Tabs, Panel, Badge, EmptyState, type TabItem } from "./common";
-import { RiskAreaEditorPanel } from "./video";
+import { RiskAreaEditorPanel, RiskEditorCanvas } from "./video";
 import { ChecklistPanel, ModelStatusPanel, SettingsPanel } from "./diagnostics";
 import { RiskScoreCard } from "./risk-score";
 import { AlertPanel, AlertHistoryPanel } from "./alerts";
@@ -39,6 +39,8 @@ import type { CameraRecord } from "../api/types";
 function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const [running, setRunning] = useState<boolean | null>(null);
   const [starting, setStarting] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const riskEditorActive = useDashboardStore((st) => st.riskEditorActive);
 
   useEffect(() => {
     setRunning(null);
@@ -70,13 +72,14 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
 
   return (
     <section className="card video-card">
-      <div className="video-frame">
+      <div className={`video-frame ${riskEditorActive ? "editing-risk" : ""}`.trim()} ref={wrapRef}>
         {running ? (
           <>
             <span className="video-live-dot">
               <span className="status-dot ok" /> recebendo
             </span>
             <img src={`/api/cameras/${camera.id}/video_feed`} alt={`Feed de vídeo — ${camera.name}`} />
+            <RiskEditorCanvas wrapRef={wrapRef} />
           </>
         ) : (
           <div className="video-empty">

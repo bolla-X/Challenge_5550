@@ -148,6 +148,10 @@ class Camera(db.Model):
     # tronco passa a disparar em todo mundo. Só 0/90/180/270 — CSS não entra
     # (frame é array numpy, não elemento de tela).
     rotation = db.Column(db.Integer, nullable=False, default=0)
+    # Polígono da área de risco DESTA câmera, lista de [x, y] normalizados
+    # (0..1). None = usa RISK_AREA_POLYGON do .env. Cada câmera enxerga um
+    # trecho diferente da planta, então a zona não pode ser uma só pra todas.
+    risk_polygon = db.Column(db.JSON, nullable=True)
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     features_json = db.Column(db.JSON, nullable=False, default=lambda: dict(DEFAULT_CAMERA_FEATURES))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
@@ -164,6 +168,7 @@ class Camera(db.Model):
             "width": self.width,
             "height": self.height,
             "rotation": self.rotation,
+            "risk_polygon": self.risk_polygon,
             "enabled": self.enabled,
             # Merge com os defaults, não substituição: uma câmera cadastrada
             # ANTES de uma feature nova existir tem o JSON sem aquela chave, e
