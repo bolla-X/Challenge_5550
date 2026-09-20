@@ -4,6 +4,7 @@ import { FeatureGroups, OverlayControls, PartToggles } from "./features";
 import { Tabs, Panel, EmptyState, type TabItem } from "./common";
 import { RiskAreaEditorPanel, RiskEditorCanvas } from "./video";
 import { GateConfigPanel } from "./gate";
+import { LlmPanel } from "./llm-panel";
 import { ChecklistPanel, ModelStatusPanel, SettingsPanel } from "./diagnostics";
 import { RiskScoreCard } from "./risk-score";
 import { AlertPanel, AlertHistoryPanel } from "./alerts";
@@ -351,6 +352,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "overlay", label: "Overlay", content: <OverlayControls /> },
     { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
     { key: "gate", label: "Portaria", content: <></> },
+    { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
@@ -367,6 +369,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "overlay", label: "Overlay", content: <OverlayControls /> },
     { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
     { key: "gate", label: "Portaria", content: <></> },
+    { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
@@ -410,6 +413,7 @@ export function CameraFocus() {
   if (!camera || mode === "operator") return null;
 
   const tabs = TABS_BY_MODE[mode].map((tab) => {
+    if (tab.key === "llm") return { ...tab, content: <LlmPanel camId={camera.id} /> };
     if (tab.key === "gate") return { ...tab, content: <GateConfigPanel camera={camera} /> };
     if (tab.key === "camconfig") return { ...tab, content: <CameraConfigPanel camera={camera} /> };
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
