@@ -444,7 +444,13 @@ export function CameraFocus() {
             <MainCameraVideo camera={camera} />
           </div>
           <div className="side-column">
-            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} idPrefix={`focus-${camId}`} />
+            <Tabs
+              tabs={tabs}
+              active={activeTab}
+              onChange={setActiveTab}
+              idPrefix={`focus-${camId}`}
+              primary={["trend", "checklist", "alerts", "compliance", "people"]}
+            />
           </div>
         </div>
       </div>

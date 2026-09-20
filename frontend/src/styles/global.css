@@ -468,3 +468,10 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .account-list { display: flex; flex-direction: column; }
 .account-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .account-row.inactive { opacity: .6; }
+
+/* Menu "Mais" das abas: a faixa não rola mais escondida. */
+.tabs-list { overflow: visible; flex-wrap: wrap; }
+.tabs-more { position: relative; }
+.tabs-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px; display: flex; flex-direction: column; padding: 6px; border-radius: 10px; background: var(--surface, var(--sunken)); border: 1px solid var(--border); box-shadow: var(--shadow-2, 0 8px 24px rgba(0,0,0,.35)); }
+.tabs-more-menu button { text-align: left; background: transparent; border: 0; padding: 9px 12px; border-radius: 8px; color: var(--text); cursor: pointer; }
+.tabs-more-menu button:hover, .tabs-more-menu button.active { background: var(--sunken); }
