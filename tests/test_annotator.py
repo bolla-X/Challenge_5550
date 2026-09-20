@@ -44,3 +44,16 @@ def test_rotulo_sobre_pilula_nao_estoura_o_frame():
     out = FrameAnnotator([]).annotate(_frame(), [perto_da_borda], None, {}, None, None)
     assert out.shape == (200, 300, 3)
     assert out.sum() > 0
+
+
+def test_caixa_da_pessoa_mostra_o_numero_dela(monkeypatch):
+    import numpy as np
+
+    from app.vision.annotator import FrameAnnotator
+    from app.vision.schemas import BoundingBox, Detection
+
+    vistos = []
+    monkeypatch.setattr(FrameAnnotator, "_draw_labels", staticmethod(lambda frame, rotulos: vistos.extend(r[0] for r in rotulos)))
+    det = Detection(label="person", confidence=0.76, box=BoundingBox(10, 10, 100, 200), category="person", track_id=8)
+    FrameAnnotator(risk_polygon=[]).annotate(np.zeros((240, 320, 3), np.uint8), [det], None, {}, None, {})
+    assert vistos == ["Pessoa 8 0.76"]

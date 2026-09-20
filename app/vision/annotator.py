@@ -168,12 +168,17 @@ class FrameAnnotator:
         if show_labels:
             rotulos = []
             for det in detections:
-                text = self._display_label(det.label)
+                e_pessoa = det.label == "person" or det.category == "person"
+                # Pessoa leva o MESMO numero dos alertas ("Pessoa 8"), pra dar pra
+                # ligar a caixa ao alerta. Sem track_id cai no rotulo generico.
+                if e_pessoa and det.track_id is not None:
+                    text = f"Pessoa {det.track_id}"
+                else:
+                    text = self._display_label(det.label)
                 if show_confidence:
                     text = f"{text} {det.confidence:.2f}"
                 # Pessoa: pilula acima da caixa. EPI: dentro da propria caixa,
                 # senao colide com a pilula da pessoa quando os topos coincidem.
-                e_pessoa = det.label == "person" or det.category == "person"
                 rotulos.append((text, det.box.x1, det.box.y1, not e_pessoa))
             self._draw_labels(frame, rotulos)
 
