@@ -4,6 +4,7 @@ import { Topbar, MessageBar, ScreenHead } from "./components/layout";
 import { CameraGrid, type EstadoDaCamera } from "./components/camera-grid";
 import { OperatorKiosk } from "./components/operator-kiosk";
 import { GateKiosk } from "./components/gate";
+import { AccountsScreen, SupervisorHome } from "./components/accounts";
 import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
 import { Panel } from "./components/common";
@@ -120,12 +121,27 @@ export default function App() {
           Nenhuma câmera cadastrada ainda. Peça ao Técnico ou ao Supervisor para cadastrar a câmera do seu setor.
         </p>
       );
+  } else if (mode === "supervisor" && screen === "home") {
+    content = <SupervisorHome />;
+  } else if (mode === "supervisor" && screen === "accounts") {
+    content = <AccountsScreen />;
   } else if (screen === "focus" && hasCameras) {
     content = <CameraFocus />;
   } else if (screen === "overview" && ROLE_ACCESS[mode].hasOverview) {
     content = <SupervisorOverviewPlaceholder onBack={() => setScreen("grid")} />;
   } else {
-    content = <GridScreen />;
+    content = (
+      <>
+        {mode === "supervisor" && (
+          <div className="screen" style={{ paddingBottom: 0 }}>
+            <button type="button" className="ghost small" onClick={() => setScreen("home")}>
+              ← Início
+            </button>
+          </div>
+        )}
+        <GridScreen />
+      </>
+    );
   }
 
   return (

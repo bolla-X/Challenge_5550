@@ -453,3 +453,18 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .gate-verdict.denied strong { color: var(--danger); }
 .gate-video.approved { box-shadow: var(--shadow-1), inset 0 0 0 3px var(--ok); }
 .gate-video.denied { box-shadow: var(--shadow-1), inset 0 0 0 3px var(--danger); }
+
+/* Início do supervisor e contas. */
+.home-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s4); margin-top: var(--s4); }
+.home-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--s2); min-height: 220px; padding: 28px; text-align: left; border-radius: 14px; background: var(--surface, var(--sunken)); border: 1px solid var(--border); cursor: pointer; }
+.home-tile:hover { border-color: var(--accent); }
+.home-tile strong { font-size: 28px; font-weight: 650; letter-spacing: -.02em; }
+.home-tile span { font-size: 15px; color: var(--text-2); max-width: 36ch; }
+.account-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s3); align-items: end; }
+.account-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-2); }
+.account-form .actions { grid-column: 1 / -1; }
+.account-pass { display: flex; gap: var(--s2); }
+.account-pass input { flex: 1; }
+.account-list { display: flex; flex-direction: column; }
+.account-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.account-row.inactive { opacity: .6; }

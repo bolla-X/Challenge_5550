@@ -51,7 +51,7 @@ export type ViewMode = "operator" | "technical" | "supervisor";
 // Tela dentro do "espaço multi-câmera". Independente de `mode`: o mesmo
 // `mode` pode passear entre grid/foco (Técnico/Supervisor), e Operador fica
 // travado em "kiosk" (ver setMode e setScreenForMode abaixo).
-export type CameraScreen = "grid" | "focus" | "kiosk" | "overview";
+export type CameraScreen = "grid" | "focus" | "kiosk" | "overview" | "home" | "accounts";
 
 // Acesso por papel. A FONTE é a sessão (`user.role`), não um seletor de tela —
 // e o backend valida de novo em cada rota, então isto aqui é só para a UI não
@@ -447,7 +447,7 @@ export const useDashboardStore = create<DashboardState>()(
             // daquela câmera, nunca no grid (ele não pode "ver as outras").
             // Técnico/Supervisor voltam pro grid — não têm uma câmera "dona"
             // fixa, então grid é o ponto de partida natural dos dois.
-            const nextScreen: CameraScreen = mode === "operator" ? "kiosk" : "grid";
+            const nextScreen: CameraScreen = mode === "operator" ? "kiosk" : mode === "supervisor" ? "home" : "grid";
             const nextCamId = mode === "operator" ? state.operatorCam : state.camId;
             // Som "ao vivo" segue o default/última preferência do perfil pra
             // onde se está indo, não do perfil anterior.
@@ -462,7 +462,7 @@ export const useDashboardStore = create<DashboardState>()(
       camerasLoading: true,
       camId: null,
       operatorCam: null,
-      screen: readStoredMode() === "operator" ? "kiosk" : "grid",
+      screen: readStoredMode() === "operator" ? "kiosk" : readStoredMode() === "supervisor" ? "home" : "grid",
       loadCameras: async () => {
         try {
           const res = await listCameras();
