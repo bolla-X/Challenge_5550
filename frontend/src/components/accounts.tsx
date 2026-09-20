@@ -27,8 +27,8 @@ export function SupervisorHome() {
           <span>{cameras.length} câmera(s) cadastrada(s). Monitoramento, alertas, zonas e portaria.</span>
         </button>
         <button type="button" className="home-tile" onClick={() => setScreen("accounts")}>
-          <strong>Criação de conta</strong>
-          <span>Crie o acesso de cada operador: e-mail, senha e a câmera do setor dele.</span>
+          <strong>Contas</strong>
+          <span>Crie o acesso de cada operador e gerencie as contas existentes.</span>
         </button>
       </div>
     </div>
@@ -50,6 +50,7 @@ export function AccountsScreen() {
   const [papel, setPapel] = useState<UserRole>("operator");
   const [cameraId, setCameraId] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [aba, setAba] = useState<"menu" | "nova" | "gerenciar">("menu");
 
   const carregar = () =>
     listUsers()
@@ -100,15 +101,29 @@ export function AccountsScreen() {
   return (
     <div className="screen">
       <ScreenHead
-        title="Criação de conta"
-        sub="Acessos ao sistema"
+        title="Contas"
+        sub={aba === "nova" ? "Criar nova conta" : aba === "gerenciar" ? "Gerenciar contas existentes" : "Acessos ao sistema"}
         actions={
-          <button type="button" className="ghost" onClick={() => setScreen("home")}>
-            Voltar ao início
+          <button type="button" className="ghost" onClick={() => (aba === "menu" ? setScreen("home") : setAba("menu"))}>
+            {aba === "menu" ? "Voltar ao início" : "Voltar"}
           </button>
         }
       />
 
+      {aba === "menu" && (
+        <div className="home-tiles">
+          <button type="button" className="home-tile" onClick={() => setAba("nova")}>
+            <strong>Criar nova conta</strong>
+            <span>Defina e-mail, senha e a câmera do setor do operador.</span>
+          </button>
+          <button type="button" className="home-tile" onClick={() => setAba("gerenciar")}>
+            <strong>Gerenciar contas existentes</strong>
+            <span>{usuarios.length} conta(s). Trocar senha, desativar ou apagar.</span>
+          </button>
+        </div>
+      )}
+
+      {aba === "nova" && (
       <Panel id="panel-new-account" title="Nova conta" description="Você define o e-mail e a senha. Passe os dados ao operador em mãos.">
         <form onSubmit={criar} className="account-form">
           <label>
@@ -163,7 +178,9 @@ export function AccountsScreen() {
           </div>
         </form>
       </Panel>
+      )}
 
+      {aba === "gerenciar" && (
       <Panel id="panel-accounts" title="Contas existentes" description={`${usuarios.length} conta(s).`}>
         <div className="account-list">
           {usuarios.map((u) => (
@@ -203,6 +220,7 @@ export function AccountsScreen() {
           ))}
         </div>
       </Panel>
+      )}
     </div>
   );
 }
