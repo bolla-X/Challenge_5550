@@ -1,35 +1,27 @@
 import { useEffect, useState } from "react";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
-import { CAMERA_FEATURE_ORDER, PPE_LABELS } from "../api/ppe";
-import type { CameraDiagnostico, CameraDiscoveryEntry, CameraFeatureSet, CameraRecord } from "../api/types";
+import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord } from "../api/types";
 
-const CAMERA_FEATURE_LABELS: Record<keyof CameraFeatureSet, string> = {
-  ...PPE_LABELS,
-  pose: "Pose",
-  falls: "Quedas",
-  posture: "Postura",
-  risk_area: "Área de risco",
-  ppe: "EPIs (grupo)", // toggle de grupo do backend — não tem chip próprio na UI (ver CAMERA_FEATURE_ORDER)
-};
-
-// Backend agora suporta multi-source de verdade (Fase A, Passo 4/5) — cada
-// card consulta o status/feed da SUA PRÓPRIA câmera via /api/cameras/<id>,
-// não mais o /video_feed legado (que só serve a câmera padrão e fazia
-// todo card parecer "parado" mesmo com outra câmera rodando).
-type EstadoDaCamera = {
+// Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
+// /api/cameras/<id>, não o /video_feed legado (que só serve a câmera padrão).
+export type EstadoDaCamera = {
   running: boolean;
-  /** De qual fonte esta lendo. `undefined` num backend que nao manda o campo. */
+  /** De qual fonte está lendo. `undefined` num backend que não manda o campo. */
   modo?: "ao_vivo" | "reconectando" | "fixture";
   tentativas: number;
-  /** FPS do loop de captura e resolucao do frame que CHEGOU (ver types.ts). */
+  /** FPS do loop de captura e resolução do frame que CHEGOU (ver types.ts). */
   diagnostico?: CameraDiagnostico;
+  /** Alertas ativos desta câmera, do mesmo GET /status. */
+  alertas: Alert[];
 };
 
-/** Exportado para o painel de diagnóstico reaproveitar o MESMO polling de 3 s,
- *  em vez de abrir um segundo contra a mesma rota. */
+const PARADA: EstadoDaCamera = { running: false, tentativas: 0, alertas: [] };
+
+/** Exportado para o painel de diagnóstico e a tela de foco reaproveitarem o
+ *  MESMO polling de 3 s, em vez de abrir um segundo contra a mesma rota. */
 export function useCameraEstado(cameraId: number): EstadoDaCamera {
-  const [estado, setEstado] = useState<EstadoDaCamera>({ running: false, tentativas: 0 });
+  const [estado, setEstado] = useState<EstadoDaCamera>(PARADA);
   useEffect(() => {
     let cancelled = false;
     const refresh = () => {
@@ -41,10 +33,11 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
             modo: status.video?.modo,
             tentativas: status.video?.reconnect_attempts ?? 0,
             diagnostico: status.diagnostico,
+            alertas: status.active_alerts ?? [],
           });
         })
         .catch(() => {
-          if (!cancelled) setEstado({ running: false, tentativas: 0 });
+          if (!cancelled) setEstado(PARADA);
         });
     };
     refresh();
@@ -57,124 +50,80 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
   return estado;
 }
 
-/** Rotulo e cor do badge de modo. Reaproveita `status-dot ok|warn`.
- *
- * `fixture` fica em `warn` e nao em `error`: e fallback DELIBERADO, e a
- * leitura tem que ser "fonte de demonstracao", nao "camera quebrada". */
-function badgeDeModo(estado: EstadoDaCamera): { tom: "ok" | "warn"; texto: string } {
-  if (estado.modo === "fixture") return { tom: "warn", texto: "modo fixture" };
-  if (estado.modo === "reconectando") {
-    return { tom: "warn", texto: `reconectando (${estado.tentativas + 1})` };
-  }
-  return { tom: "ok", texto: "recebendo" };
+/** Estado crítico: alerta ativo `critical` ou `high` na câmera. */
+export function temAlertaCritico(estado: EstadoDaCamera): Alert | undefined {
+  return estado.alertas.find((a) => a.severity === "critical" || a.severity === "high");
 }
 
+/** Uma linha de estado, em caixa normal. `fixture` NÃO é falha: é fallback
+ * deliberado, e a leitura tem que ser "fonte de demonstração". */
+export function textoDeEstado(estado: EstadoDaCamera): string {
+  if (!estado.running) return "Monitoramento parado";
+  if (estado.modo === "fixture") return "Fonte de demonstração";
+  if (estado.modo === "reconectando") return `Reconectando, tentativa ${estado.tentativas + 1}`;
+  if (estado.diagnostico?.fonte_sem_imagem) return "Recebendo, sem imagem";
+  return "Recebendo";
+}
+
+function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/** Cartão de câmera: imagem no topo, nome do setor e uma linha de estado.
+ * Sem cabeçalho, sem fps, sem chip em cima da imagem. Estado crítico coloca
+ * um anel de 2 px no cartão (ver .cam-card.critical). */
 function CameraCard({
   camera,
-  onConfigure,
+  onOpen,
   canConfigure,
+  onEstado,
 }: {
   camera: CameraRecord;
-  onConfigure: (id: number) => void;
+  onOpen: (id: number) => void;
   canConfigure: boolean;
+  onEstado?: (id: number, estado: EstadoDaCamera) => void;
 }) {
   const estado = useCameraEstado(camera.id);
-  const running = estado.running;
-  const modo = badgeDeModo(estado);
+  useEffect(() => {
+    onEstado?.(camera.id, estado);
+  }, [camera.id, estado, onEstado]);
+
+  const critico = Boolean(temAlertaCritico(estado));
+  const linha = [camera.location, textoDeEstado(estado)].filter(Boolean).join(" · ");
 
   return (
-    <div className="cam-card">
-      {running ? (
+    <button
+      type="button"
+      className={`card cam-card ${critico ? "critical" : ""}`.trim()}
+      onClick={() => onOpen(camera.id)}
+      aria-label={`${canConfigure ? "Configurar" : "Ver"} ${camera.name}`}
+    >
+      {estado.running ? (
         <div className="cam-frame">
-          <span
-            className="cam-live-tag"
-            title={
-              estado.modo === "fixture"
-                ? "Fonte de demonstração — a fonte configurada não respondeu"
-                : undefined
-            }
-          >
-            <span className={`status-dot ${modo.tom}`} /> {modo.texto}
-          </span>
-          <img src={`/api/cameras/${camera.id}/video_feed`} alt={camera.name} />
+          <img src={`/api/cameras/${camera.id}/video_feed`} alt="" />
         </div>
       ) : (
-        <div className="cam-frame offline">
-          <span>Monitoramento parado</span>
-        </div>
+        <div className="cam-frame offline">Monitoramento parado</div>
       )}
       <div className="cam-body">
-        <div className="cam-title-row">
-          <h3>
-            <span className={`status-dot ${running ? "ok" : "warn"}`} /> {camera.name}
-          </h3>
-        </div>
-        <div className="cam-location">
-          {camera.location || "Sem local definido"} · {camera.source_type} {camera.source}
-        </div>
-        <div className="cam-feature-chips">
-          {CAMERA_FEATURE_ORDER.map((key) => (
-            <span key={key} className={`cam-chip ${camera.features[key] ? "on" : ""}`.trim()}>
-              {CAMERA_FEATURE_LABELS[key]}
-            </span>
-          ))}
-        </div>
-        <div className="cam-footer">
-          <span
-            className="cam-footer-stat"
-            style={{
-              color: !running
-                ? "var(--muted)"
-                : estado.modo === undefined || estado.modo === "ao_vivo"
-                  ? "var(--ok, #22c55e)"
-                  : "var(--warning, #f59e0b)",
-            }}
-          >
-            {!running ? "parada" : estado.modo === "fixture" ? "fonte de demonstração" : "rodando"}
-          </span>
-          {/* FPS do LOOP e resolução do frame recebido. É o par que separa, de
-              relance, "a fonte está ruim" de "o modelo não está achando nada" —
-              sem abrir terminal. Só com a câmera rodando: parada, o número
-              seria da sessão anterior. */}
-          {running && estado.diagnostico ? (
-            <span
-              className="cam-footer-stat"
-              style={{
-                fontFamily: "var(--font-mono, monospace)",
-                // Âmbar, não vermelho: fonte cega é um AVISO, não uma falha —
-                // cena legitimamente escura cai aqui também.
-                color: estado.diagnostico.fonte_sem_imagem ? "var(--warning, #f59e0b)" : "var(--muted)",
-              }}
-              title={
-                estado.diagnostico.fonte_sem_imagem
-                  ? `Brilho médio ${estado.diagnostico.brilho} — abaixo de ${estado.diagnostico.brilho_minimo}. ` +
-                    "Frame chega e imagem não: outro aplicativo pode estar com a câmera, " +
-                    "ou a lente está tampada."
-                  : undefined
-              }
-            >
-              {estado.diagnostico.fonte_sem_imagem ? "⚠ sem imagem · " : ""}
-              {estado.diagnostico.fps.toFixed(1)} fps
-              {estado.diagnostico.resolucao ? ` · ${estado.diagnostico.resolucao}` : ""}
-            </span>
-          ) : null}
-          <button type="button" className="cam-configure" onClick={() => onConfigure(camera.id)}>
-            {canConfigure ? "Configurar" : "Ver"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </button>
-        </div>
+        <span className="cam-text">
+          <span className="cam-name">{camera.name}</span>
+          <span className="cam-state">{linha}</span>
+        </span>
+        <ChevronIcon />
       </div>
-    </div>
+    </button>
   );
 }
 
 /**
- * Formulário de cadastro de câmera nova — Fase A, Passo 6. Pra USB, testa
- * de verdade quais índices respondem AGORA (GET /api/cameras/discover) em
- * vez de pedir pra digitar um número no escuro; RTSP/Arquivo continuam
- * exigindo endereço manual (não tem como "descobrir" isso sozinho).
+ * Formulário de cadastro de câmera nova. Pra USB, testa de verdade quais
+ * índices respondem AGORA (GET /api/cameras/discover) em vez de pedir pra
+ * digitar um número no escuro; RTSP/Arquivo continuam exigindo endereço.
  */
 function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
@@ -206,11 +155,11 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
   const handleSubmit = () => {
     if (!name.trim()) {
-      setSubmitError("Dá um nome pra câmera.");
+      setSubmitError("Dê um nome à câmera.");
       return;
     }
     if (!source.trim()) {
-      setSubmitError(sourceType === "USB" ? "Escolhe um índice detectado abaixo." : "Preenche o endereço da câmera.");
+      setSubmitError(sourceType === "USB" ? "Escolha um índice detectado abaixo." : "Preencha o endereço da câmera.");
       return;
     }
     setSubmitting(true);
@@ -222,19 +171,12 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
   };
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}
-      onClick={onClose}
-    >
-      <div
-        className="card"
-        style={{ width: 480, maxWidth: "92vw", maxHeight: "88vh", overflowY: "auto" }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="card modal" role="dialog" aria-labelledby="add-camera-title" onClick={(e) => e.stopPropagation()}>
         <div className="card-head">
           <div>
-            <h2>Adicionar câmera</h2>
-            <p>Cadastre uma fonte de vídeo real — sem câmeras de exemplo.</p>
+            <h2 id="add-camera-title">Adicionar câmera</h2>
+            <p>Cadastre uma fonte de vídeo real, sem câmeras de exemplo.</p>
           </div>
         </div>
         <div className="card-body">
@@ -275,29 +217,25 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
               <input type="number" value={height} min={120} max={2160} onChange={(e) => setHeight(Number(e.target.value) || 540)} />
             </label>
           </div>
-          <p style={{ fontSize: 11, color: "var(--muted-2)", marginTop: -8, marginBottom: 8 }}>
-            Escolher uma câmera USB detectada preenche a resolução nativa dela automaticamente — ajuste manual só se quiser forçar outra.
+          <p className="hint">
+            Escolher uma câmera USB detectada preenche a resolução nativa dela automaticamente. Ajuste manual só se quiser forçar outra.
           </p>
 
           {sourceType === "USB" ? (
-            <div style={{ marginTop: 4 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <strong style={{ fontSize: 12.5 }}>Câmeras detectadas agora</strong>
-                <button type="button" className="secondary small" onClick={runDiscovery} disabled={discovering}>
+            <div>
+              <div className="card-head-inline">
+                <strong>Câmeras detectadas agora</strong>
+                <button type="button" className="ghost small" onClick={runDiscovery} disabled={discovering}>
                   {discovering ? "Testando…" : "Testar de novo"}
                 </button>
               </div>
-              {discoverError && <p style={{ fontSize: 12, color: "var(--danger, #ef4444)" }}>{discoverError}</p>}
-              {discovering && !discovered && <p style={{ fontSize: 12, color: "var(--muted)" }}>Testando índices 0 a 5…</p>}
+              {discoverError && <p className="status-text error">{discoverError}</p>}
+              {discovering && !discovered && <p className="status-text">Testando índices 0 a 5…</p>}
               <div className="row-list">
                 {discovered
                   ?.filter((d) => d.available)
                   .map((d) => (
-                    <label
-                      key={d.index}
-                      className="row-item"
-                      style={{ cursor: d.already_registered ? "not-allowed" : "pointer", opacity: d.already_registered ? 0.5 : 1 }}
-                    >
+                    <label key={d.index} className={`row-item selectable ${d.already_registered ? "disabled" : ""}`.trim()}>
                       <input
                         type="radio"
                         name="usb-source"
@@ -305,17 +243,14 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
                         checked={source === d.source}
                         onChange={() => {
                           setSource(d.source);
-                          // Preenche com a resolução NATIVA já detectada —
-                          // é por isso que o discover() já traz width/height
-                          // (ver conversa: "a Logitech é 1920x1080 também").
+                          // Preenche com a resolução NATIVA já detectada.
                           if (d.width && d.height) {
                             setWidth(d.width);
                             setHeight(d.height);
                           }
                         }}
-                        style={{ marginTop: 4 }}
                       />
-                      <div>
+                      <div className="row-detail">
                         <strong>
                           Índice {d.index} {d.width ? `· ${d.width}×${d.height}` : ""}
                         </strong>
@@ -324,13 +259,13 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
                     </label>
                   ))}
                 {discovered && discovered.filter((d) => d.available).length === 0 && (
-                  <p style={{ fontSize: 12, color: "var(--muted)" }}>Nenhuma câmera USB respondendo agora. Conecta e clica "Testar de novo".</p>
+                  <p className="status-text">Nenhuma câmera USB respondendo agora. Conecte uma e clique em "Testar de novo".</p>
                 )}
               </div>
             </div>
           ) : (
-            <label style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-              {sourceType === "RTSP" ? "URL RTSP" : "Caminho do arquivo"}
+            <label className="field">
+              <span>{sourceType === "RTSP" ? "URL RTSP" : "Caminho do arquivo"}</span>
               <input
                 type="text"
                 value={source}
@@ -340,13 +275,13 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
             </label>
           )}
 
-          {submitError && <p style={{ fontSize: 12, color: "var(--danger, #ef4444)", marginTop: 10 }}>{submitError}</p>}
+          {submitError && <p className="status-text error">{submitError}</p>}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button type="button" onClick={handleSubmit} disabled={submitting}>
+          <div className="actions actions-top">
+            <button type="button" className="primary" onClick={handleSubmit} disabled={submitting}>
               {submitting ? "Cadastrando…" : "Cadastrar câmera"}
             </button>
-            <button type="button" className="secondary" onClick={onClose}>
+            <button type="button" onClick={onClose}>
               Cancelar
             </button>
           </div>
@@ -357,12 +292,11 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
 }
 
 /**
- * Grid de câmeras — tela inicial de Técnico/Supervisor. Sem câmeras de
- * exemplo (Fase A, Passo 6): começa vazio até o usuário cadastrar a
- * primeira pelo modal acima. Operador nunca chega aqui (ver setMode no
+ * Grade de câmeras, tela inicial de Técnico/Supervisor. Começa vazia até o
+ * usuário cadastrar a primeira. Operador nunca chega aqui (ver setMode no
  * store, que trava screen="kiosk" pro Operador).
  */
-export function CameraGrid() {
+export function CameraGrid({ onEstado }: { onEstado?: (id: number, estado: EstadoDaCamera) => void }) {
   const cameras = useDashboardStore((s) => s.cameras);
   const mode = useDashboardStore((s) => s.mode);
   const setCamId = useDashboardStore((s) => s.setCamId);
@@ -383,12 +317,13 @@ export function CameraGrid() {
 
   if (cameras.length === 0) {
     return (
-      <div style={{ padding: 40, textAlign: "center", maxWidth: 420, margin: "0 auto" }}>
-        <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
-          Nenhuma câmera cadastrada ainda. {access.canConfigure ? "Cadastre a primeira pra começar." : "Peça pro Técnico/Supervisor cadastrar uma."}
+      <div className="centered-empty">
+        <p>
+          Nenhuma câmera cadastrada ainda.{" "}
+          {access.canConfigure ? "Cadastre a primeira para começar." : "Peça ao Técnico ou ao Supervisor para cadastrar uma."}
         </p>
         {access.canConfigure && (
-          <button type="button" onClick={() => setShowAddModal(true)}>
+          <button type="button" className="primary" onClick={() => setShowAddModal(true)}>
             Adicionar câmera
           </button>
         )}
@@ -400,15 +335,15 @@ export function CameraGrid() {
   return (
     <div className="camera-grid">
       {cameras.map((camera) => (
-        <CameraCard key={camera.id} camera={camera} onConfigure={openFocus} canConfigure={access.canConfigure} />
+        <CameraCard key={camera.id} camera={camera} onOpen={openFocus} canConfigure={access.canConfigure} onEstado={onEstado} />
       ))}
       {access.canConfigure && (
-        <div className="cam-add-card" role="button" tabIndex={0} onClick={() => setShowAddModal(true)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <button type="button" className="cam-add" onClick={() => setShowAddModal(true)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>
           <span>Adicionar câmera</span>
-        </div>
+        </button>
       )}
       {showAddModal && <AddCameraModal onClose={() => setShowAddModal(false)} onCreated={handleCreated} />}
     </div>

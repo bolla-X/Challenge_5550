@@ -35,7 +35,7 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 - Zustand (estado global, assinando os eventos WebSocket)
 - Socket.IO client
 - `motion` (animação declarativa), `@number-flow/react` (transição de números), `cmdk` (command palette)
-- CSS global com design tokens próprios — direção visual "Autoridade Discreta": grafite + acento ciano industrial, tipografia mono para dados, cor usada com raridade
+- CSS global com design tokens próprios. Direção visual calma: superfície neutra clara (escuro suportado), hierarquia por espaço e tipografia Geist, cor guardada para o estado que importa (laranja de perigo pela ABNT NBR 7195, vermelho só no botão Parar, verde só em ponto e rótulo), Geist Mono apenas em número que alinha em coluna
 
 ## Arquitetura
 

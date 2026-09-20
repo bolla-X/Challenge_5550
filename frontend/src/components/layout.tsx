@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useDashboardStore } from "../store/dashboardStore";
+import { effectiveTheme, ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
+import { Mark, Wordmark } from "./brand";
+import { exportAlertsCsv } from "./export";
 
-const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
-const EASE_IN = "easeIn" as const; // exits — tokens.css only has the ease-out curve above
+// Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
+export const EASE = [0.23, 1, 0.32, 1] as const;
 
 const ROTULO_DO_PAPEL: Record<string, string> = {
   operator: "Operador",
@@ -11,15 +14,44 @@ const ROTULO_DO_PAPEL: Record<string, string> = {
   supervisor: "Supervisor",
 };
 
-/** Ícone de alto-falante — traço grosso, sem preenchimento fino, pra ler
- * a distância num monitor de chão de fábrica. Riscado quando mudo, com
- * cor de aviso (mesma --danger dos status-dots) em vez de um cinza neutro:
- * "mudo" é um estado que precisa saltar aos olhos, não passar despercebido. */
+/** Sol e lua em traço de 1,5 px na cor do texto ao lado. */
+function ThemeIcon({ dark }: { dark: boolean }) {
+  return dark ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  );
+}
+
+export function ThemeToggle() {
+  const theme = useDashboardStore((s) => s.theme);
+  const toggleTheme = useDashboardStore((s) => s.toggleTheme);
+  const dark = effectiveTheme(theme) === "dark";
+  return (
+    <button
+      type="button"
+      className="icon"
+      onClick={toggleTheme}
+      aria-label={dark ? "Mudar para o tema claro" : "Mudar para o tema escuro"}
+      title={dark ? "Tema escuro" : "Tema claro"}
+    >
+      <ThemeIcon dark={dark} />
+    </button>
+  );
+}
+
+/** Alto-falante em traço, riscado quando mudo. O estado também está no
+ * aria-label e no title, então não depende só do desenho. */
 function SpeakerIcon({ muted }: { muted: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none" />
-      {muted ? <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7" />}
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5H4z" />
+      {muted ? <path d="M16 9.5l5 5M21 9.5l-5 5" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7" />}
     </svg>
   );
 }
@@ -30,7 +62,7 @@ export function MuteToggle() {
   return (
     <button
       type="button"
-      className={`mute-toggle ${muted ? "muted" : ""}`.trim()}
+      className="icon"
       onClick={toggleMuted}
       aria-pressed={muted}
       aria-label={muted ? "Ativar som de alertas" : "Silenciar som de alertas"}
@@ -44,22 +76,18 @@ export function MuteToggle() {
 /** Aviso para o Operador cuja conta ainda não tem setor atribuído.
  *
  * O backend não entrega câmera nenhuma nesse estado (ver camera_scope em
- * app/utils/auth.py), então não há o que escolher — o que cabe aqui é dizer
- * a quem pedir. O seletor que existia antes prometia uma escolha que o
- * servidor recusaria.
- */
+ * app/utils/auth.py), então não há o que escolher, só a quem pedir. */
 function OperadorSemSetor() {
   const user = useDashboardStore((s) => s.user);
   if (user?.camera_id != null) return null;
   return (
-    <div className="sim-select-wrap" role="status">
-      <label>sem setor</label>
-      <span title="Peça ao supervisor para atribuir a câmera do seu setor.">peça ao supervisor</span>
-    </div>
+    <span className="appbar-note" role="status" title="Peça ao supervisor para atribuir a câmera do seu setor.">
+      Sem setor atribuído, peça ao supervisor
+    </span>
   );
 }
 
-/** Quem está logado + sair. Substitui o seletor de perfil da topbar. */
+/** Quem está logado + sair. */
 function UserMenu() {
   const user = useDashboardStore((s) => s.user);
   const logout = useDashboardStore((s) => s.logout);
@@ -74,7 +102,7 @@ function UserMenu() {
       </div>
       <button
         type="button"
-        className="secondary small"
+        className="ghost"
         disabled={saindo}
         onClick={() => {
           setSaindo(true);
@@ -87,11 +115,18 @@ function UserMenu() {
   );
 }
 
+/** Uma barra translúcida: logotipo à esquerda, ações à direita. Os dados que
+ * a antiga faixa de status mostrava vivem agora sobre o vídeo, na tela de
+ * foco, e embaixo do título da tela, na grade. */
 export function Topbar() {
-  const { mode, start, stop, connected, running, setCommandPaletteOpen } = useDashboardStore();
-  const video = useVideoStatus();
-  // Feedback de "seu clique registrou" durante a latência real do REST —
-  // sem isso, Iniciar/Parar não dão nenhum sinal até a resposta chegar.
+  const mode = useDashboardStore((s) => s.mode);
+  const start = useDashboardStore((s) => s.start);
+  const stop = useDashboardStore((s) => s.stop);
+  const running = useDashboardStore((s) => s.running);
+  const setCommandPaletteOpen = useDashboardStore((s) => s.setCommandPaletteOpen);
+  const alertHistory = useDashboardStore((s) => s.alertHistory);
+  const access = ROLE_ACCESS[mode];
+  // Feedback de "seu clique registrou" durante a latência real do REST.
   const [pending, setPending] = useState<"start" | "stop" | null>(null);
   const runAction = (which: "start" | "stop", action: () => Promise<void>) => {
     setPending(which);
@@ -100,59 +135,62 @@ export function Topbar() {
       .finally(() => setPending(null));
   };
   return (
-    <header className="topbar">
-      <div className="topbar-inner">
-        <div className="topbar-brand">
-          <h1>VisionEPI</h1>
-          <div className="topbar-status">
-            <span className="status-dot-item">
-              <span className="status-dot ok" /> backend
-            </span>
-            <span className="status-dot-item">
-              <span className={`status-dot ${connected ? "ok" : "error"}`} /> conexão
-            </span>
-            <span className="status-dot-item">
-              <span className={`status-dot ${running ? "ok" : "warn"}`} /> {running ? "monitorando" : "parado"}
-            </span>
-            {/* Status do vídeo só é informação útil quando há stream — com
-                running=false os dois dots diziam "parado" ao mesmo tempo. */}
-            {running && (
-              <span className="status-dot-item">
-                <span className={`status-dot ${video.status}`} /> {video.label}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="topbar-actions">
-          {mode === "operator" && <OperadorSemSetor />}
-          <button type="button" className="secondary command-palette-trigger" onClick={() => setCommandPaletteOpen(true)}>
-            Buscar <kbd>Ctrl K</kbd>
-          </button>
-          <MuteToggle />
-          {/* O seletor de perfil virou identidade: o modo agora É o papel da
-              pessoa logada, não um botão. Trocar de perfil exige outra conta —
-              é o ponto de ter autenticação de verdade. */}
-          <UserMenu />
+    <header className="appbar">
+      <span className="brand-lockup">
+        <Mark size={24} />
+        <Wordmark />
+      </span>
+      <div className="appbar-actions">
+        {mode === "operator" && <OperadorSemSetor />}
+        <button type="button" className="ghost" onClick={() => setCommandPaletteOpen(true)}>
+          Buscar <kbd>Ctrl K</kbd>
+        </button>
+        {access.hasOverview && (
           <button
-            className={`secondary ${pending === "stop" ? "is-pending" : ""}`.trim()}
             type="button"
+            className="ghost"
+            disabled={!alertHistory.length}
+            title="Baixa em CSV o histórico de alertas carregado agora"
+            onClick={() => exportAlertsCsv(alertHistory)}
+          >
+            Exportar
+          </button>
+        )}
+        <ThemeToggle />
+        <MuteToggle />
+        <UserMenu />
+        {running ? (
+          <button
+            type="button"
+            className={`stop ${pending === "stop" ? "is-pending" : ""}`.trim()}
             disabled={pending !== null}
             onClick={() => runAction("stop", stop)}
           >
             {pending === "stop" ? "Parando…" : "Parar"}
           </button>
+        ) : (
           <button
             type="button"
-            id="startBtn"
-            className={pending === "start" ? "is-pending" : ""}
+            className={`primary ${pending === "start" ? "is-pending" : ""}`.trim()}
             disabled={pending !== null}
             onClick={() => runAction("start", start)}
           >
             {pending === "start" ? "Iniciando…" : "Iniciar"}
           </button>
-        </div>
+        )}
       </div>
     </header>
+  );
+}
+
+/** Cabeçalho de tela: título em 28 px e, ao lado, uma linha secundária. */
+export function ScreenHead({ title, sub, actions }: { title: string; sub?: string | null; actions?: ReactNode }) {
+  return (
+    <div className="screen-head">
+      <h1>{title}</h1>
+      {sub && <span className="screen-sub">{sub}</span>}
+      {actions && <div className="screen-actions">{actions}</div>}
+    </div>
   );
 }
 
@@ -167,15 +205,12 @@ export function MessageBar() {
           className={`message-bar ${message.tone === "warning" ? "" : message.tone}`.trim()}
           onClick={hideMessage}
           role="status"
-          initial={shouldReduceMotion ? false : { opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={
-            shouldReduceMotion
-              ? { opacity: 0 }
-              : { opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0, transition: { duration: 0.15, ease: EASE_IN } }
-          }
-          transition={{ duration: shouldReduceMotion ? 0.001 : 0.2, ease: EASE }}
+          initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
         >
+          {message.tone === "ok" && <span className="dot" />}
           {message.text}
         </motion.section>
       )}
@@ -183,10 +218,10 @@ export function MessageBar() {
   );
 }
 
-/** Video status derived the same way the old setVideoState() interval did:
- * fresh analysis -> ok, stale -> warn, very stale -> error. Recomputed every
- * second via a render tick since it must age even without new WS events. */
-function useVideoStatus() {
+/** Estado do vídeo da câmera padrão, derivado como antes: análise fresca
+ * -> ok, velha -> instável, muito velha -> congelado. Recalculado a cada
+ * segundo porque envelhece mesmo sem evento novo. */
+export function useVideoStatus() {
   const running = useDashboardStore((s) => s.running);
   const lastAnalysisAt = useDashboardStore((s) => s.lastAnalysisAt);
   const video = useDashboardStore((s) => s.videoStream);
@@ -197,19 +232,14 @@ function useVideoStatus() {
   }, []);
   if (!running) return { status: "warn" as const, label: "parado" };
 
-  // O backend sabe o estado real da captura (VideoStream.status()). Quando ele
-  // chega, vale mais que a heurística de idade do frame abaixo: "reconectando,
-  // 3ª tentativa" diz o que "congelado" não dizia.
   if (video) {
-    // Modo fixture vem ANTES dos estados de falha, e de propósito: é fallback
-    // deliberado, não degradação. Mostrar "reconectando" aqui faria quem olha
-    // ler "quebrado" numa câmera que está entregando imagem. Fica em `warn` e
-    // não em `error` pelo mesmo motivo — chama atenção sem alarmar.
+    // Modo fixture vem ANTES dos estados de falha: é fallback deliberado,
+    // não degradação. Fica em `warn`, chama atenção sem alarmar.
     if (video.modo === "fixture") {
-      return { status: "warn" as const, label: "modo fixture — fonte de demonstração" };
+      return { status: "warn" as const, label: "modo fixture, fonte de demonstração" };
     }
     if (video.state === "unavailable") {
-      return { status: "error" as const, label: `sem sinal — nova tentativa em ${Math.ceil(video.seconds_until_retry)}s` };
+      return { status: "error" as const, label: `sem sinal, nova tentativa em ${Math.ceil(video.seconds_until_retry)}s` };
     }
     if (video.state === "reconnecting") {
       return { status: "error" as const, label: `reconectando (tentativa ${video.reconnect_attempts + 1})` };
@@ -221,8 +251,4 @@ function useVideoStatus() {
   if (age > 4500) return { status: "error" as const, label: "congelado" };
   if (age > 1800) return { status: "warn" as const, label: "instável" };
   return { status: "ok" as const, label: "recebendo" };
-}
-
-export function useVideoStreamLabel() {
-  return useVideoStatus();
 }
