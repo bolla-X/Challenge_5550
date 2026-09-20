@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from app.extensions import db
-from app.models import ROLE_SUPERVISOR, VALID_ROLES, User
+from app.models import ROLE_SUPERVISOR, VALID_ROLES, Camera, User
 from app.services.auth_service import AuthError, AuthService, WeakPassword, normalize_email
 from app.utils.auth import current_user, login_required, login_user, logout_user, require_role
 
@@ -88,6 +88,13 @@ def list_users():
 @require_role(ROLE_SUPERVISOR, sempre=True)
 def create_user():
     payload = request.get_json(silent=True) or {}
+    # Regras de tela (o serviço fica permissivo para uso via CLI/testes): operador
+    # exige uma câmera que EXISTA no sistema.
+    camera_id = payload.get("camera_id")
+    if payload.get("role") == "operator" and camera_id is None:
+        return jsonify({"error": "Operador precisa de uma câmera do setor."}), 400
+    if camera_id is not None and db.session.get(Camera, camera_id) is None:
+        return jsonify({"error": "Câmera não cadastrada no sistema."}), 400
     try:
         usuario = AuthService().create_user(
             email=str(payload.get("email", "")),

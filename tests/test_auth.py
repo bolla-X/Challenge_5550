@@ -288,3 +288,18 @@ def test_authenticate_devolve_erro_generico(app):
         with pytest.raises(AuthError) as exc:
             AuthService().authenticate("ninguem@fabrica.com", "seja-o-que-for")
         assert "inválidos" in exc.value.message
+
+
+def test_supervisor_cria_operador_so_com_camera_cadastrada(app, client):
+    from app.models import Camera
+
+    with app.app_context():
+        db.session.add(Camera(name="Portaria", source_type="USB", source="0"))
+        db.session.commit()
+        cam_id = Camera.query.first().id
+
+    entrar(client, ROLE_SUPERVISOR)
+    corpo = {"email": "novo@fabrica.com", "name": "Novo", "password": SENHA, "role": "operator"}
+    assert client.post("/api/users", json=corpo).status_code == 400  # sem câmera
+    assert client.post("/api/users", json=corpo | {"camera_id": 9999}).status_code == 400  # não existe
+    assert client.post("/api/users", json=corpo | {"camera_id": cam_id}).status_code == 201

@@ -160,8 +160,8 @@ export function AccountsScreen() {
           {precisaCamera && (
             <label>
               Câmera do setor
-              <select value={cameraId} onChange={(e) => setCameraId(e.target.value)} required>
-                <option value="">Escolha…</option>
+              <select value={cameraId} onChange={(e) => setCameraId(e.target.value)} required disabled={cameras.length === 0}>
+                <option value="">{cameras.length ? "Escolha uma câmera cadastrada…" : "Nenhuma câmera cadastrada"}</option>
                 {cameras.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -169,6 +169,7 @@ export function AccountsScreen() {
                   </option>
                 ))}
               </select>
+              {cameras.length === 0 && <small>Cadastre a câmera primeiro, em Câmeras, para poder vincular o operador.</small>}
             </label>
           )}
           <div className="actions">
