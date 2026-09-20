@@ -214,6 +214,7 @@ class MonitorService:
             height=camera.height,
             rotation=int(camera.rotation or 0),
             risk_polygon=camera.risk_polygon,
+            gate_required=camera.gate_required,
             detector=self.detector,
             person_detector=self.person_detector,
             pose_estimator=self.pose_estimator,
@@ -333,6 +334,22 @@ class MonitorService:
             camera.risk_polygon = [[p["x"], p["y"]] for p in state["polygon"]]
             db.session.commit()
         return state
+
+    def gate_state(self, camera_id: int) -> dict[str, Any]:
+        return self._get_worker(camera_id).gate_state()
+
+    def update_gate(self, camera_id: int, required: list[str] | None) -> dict[str, Any]:
+        """Liga/desliga a portaria e persiste (funciona com a câmera parada)."""
+        camera = db.session.get(Camera, camera_id)
+        if camera is None:
+            raise LookupError("câmera não encontrada")
+        camera.gate_required = required
+        db.session.commit()
+        try:
+            self._get_worker(camera_id).set_gate(required)
+        except LookupError:
+            pass  # sem worker ativo: vale no próximo start
+        return {"camera_id": camera_id, "required": required or [], "enabled": required is not None}
 
     # ---- atributos que as rotas acessam direto (sempre a câmera padrão) ---
     @property

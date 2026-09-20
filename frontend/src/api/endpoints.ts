@@ -9,6 +9,7 @@ import type {
   CamerasResponse,
   EventsResponse,
   FeaturesResponse,
+  GateState,
   ModelDiagnostics,
   MonitorStatus,
   OverlayOptions,
@@ -152,3 +153,11 @@ export const listEvents = (params: { limit?: number; eventType?: string; severit
   if (params.severity) query.set("severity", params.severity);
   return apiFetch<EventsResponse>(`/events?${query.toString()}`);
 };
+
+// ---- modo portaria (ver app/services/gate_service.py) ---------------------
+export const getGate = (camId: number) => apiFetch<GateState>(`/api/cameras/${camId}/gate`);
+export const putGate = (camId: number, required: string[] | null) =>
+  apiFetch<{ camera_id: number; required: string[]; enabled: boolean }>(`/api/cameras/${camId}/gate`, {
+    method: "PUT",
+    body: JSON.stringify({ required }),
+  });

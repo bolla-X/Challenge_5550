@@ -8,6 +8,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.llm import MARCA_DE_REDACAO
+from app.services.gate_service import normalizar_exigidos
 from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
 from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
 from app.vision.video_stream import capture_api
@@ -360,6 +361,49 @@ def _emit_cameras_updated() -> None:
         monitor.socketio.emit("cameras_updated", {})
         if hasattr(monitor, "load_cameras_from_db"):
             monitor.load_cameras_from_db()
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/gate")
+@login_required
+def get_camera_gate(camera_id: int):
+    """Configuração + veredito atual da portaria. Câmera parada: 'waiting'."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify(monitor.gate_state(camera_id))
+    except LookupError:
+        exigidos = camera.gate_required
+        return jsonify(
+            {
+                "camera_id": camera_id,
+                "enabled": exigidos is not None,
+                "required": exigidos or [],
+                "verdict": "waiting" if exigidos else "off",
+                "missing": [],
+                "people": 0,
+            }
+        )
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/gate")
+@require_role(ROLE_TECHNICAL)
+def put_camera_gate(camera_id: int):
+    """Body: {"required": ["helmet","vest"]} liga; {"required": null} desliga."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or "required" not in payload:
+        return _validation_error('Envie {"required": [...]} ou {"required": null}.')
+    try:
+        exigidos = normalizar_exigidos(payload["required"])
+        monitor = current_app.extensions["monitor_service"]
+        return jsonify(monitor.update_gate(camera_id, exigidos))
+    except ValueError as exc:
+        return _validation_error(str(exc))
+    except LookupError:
+        return jsonify({"error": "câmera não encontrada"}), 404
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/risk-area")

@@ -225,8 +225,12 @@ export interface OverlayOptions extends CameraScoped {
   confidence: boolean;
   pose: boolean;
   risk_area: boolean;
-  face: boolean;
-  body_parts: boolean;
+  part_head: boolean;
+  part_face: boolean;
+  part_ear: boolean;
+  part_hands: boolean;
+  part_foot: boolean;
+  part_tool: boolean;
 }
 
 // ---- app/services/monitor_service.py: risk_area_state() ------------------
@@ -442,6 +446,7 @@ export interface CameraRecord {
   width: number;
   height: number;
   rotation: 0 | 90 | 180 | 270;
+  gate_required: string[] | null;
   enabled: boolean;
   features: CameraFeatureSet;
   created_at: string | null;
@@ -469,3 +474,13 @@ export interface CameraDiscoveryResponse {
   count: number;
 }
 
+
+// ---- app/api/cameras.py: modo portaria ------------------------------------
+export interface GateState {
+  camera_id: number;
+  enabled: boolean;
+  required: string[];
+  verdict: "off" | "waiting" | "approved" | "denied";
+  missing: string[];
+  people: number;
+}

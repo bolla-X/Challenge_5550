@@ -62,7 +62,7 @@ class DummyMonitor:
         return {"camera_id": None, "target_fps": 12, "snapshot_enabled": True}
 
     def get_overlay(self, camera_id=None):
-        return {"camera_id": None, "boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True, "face": False, "body_parts": False}
+        return {"camera_id": None, "boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True, "part_face": False}
 
     def update_settings(self, updates, camera_id=None):
         current = self.settings()

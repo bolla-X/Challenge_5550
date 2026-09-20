@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { FeatureGroups, OverlayControls } from "./features";
+import { FeatureGroups, OverlayControls, PartToggles } from "./features";
 import { Tabs, Panel, EmptyState, type TabItem } from "./common";
 import { RiskAreaEditorPanel, RiskEditorCanvas } from "./video";
+import { GateConfigPanel } from "./gate";
 import { ChecklistPanel, ModelStatusPanel, SettingsPanel } from "./diagnostics";
 import { RiskScoreCard } from "./risk-score";
 import { AlertPanel, AlertHistoryPanel } from "./alerts";
@@ -110,6 +111,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
           </div>
         )}
       </div>
+      {estado.running && <PartToggles />}
     </section>
   );
 }
@@ -348,6 +350,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "timeline", label: "Timeline", content: <TimelineCard /> },
     { key: "overlay", label: "Overlay", content: <OverlayControls /> },
     { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
+    { key: "gate", label: "Portaria", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
@@ -363,6 +366,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "timeline", label: "Timeline", content: <TimelineCard /> },
     { key: "overlay", label: "Overlay", content: <OverlayControls /> },
     { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
+    { key: "gate", label: "Portaria", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
@@ -406,6 +410,7 @@ export function CameraFocus() {
   if (!camera || mode === "operator") return null;
 
   const tabs = TABS_BY_MODE[mode].map((tab) => {
+    if (tab.key === "gate") return { ...tab, content: <GateConfigPanel camera={camera} /> };
     if (tab.key === "camconfig") return { ...tab, content: <CameraConfigPanel camera={camera} /> };
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
     return tab;

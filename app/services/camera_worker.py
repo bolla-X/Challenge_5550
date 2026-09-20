@@ -27,6 +27,7 @@ from app.services.storage_cleanup_service import StorageCleanupService
 from app.utils.salas import emitir_para_camera
 from app.vision.annotator import FrameAnnotator
 from app.vision.person_tracker import PersonTracker
+from app.services.gate_service import GateState, avaliar_quadro
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
@@ -99,6 +100,7 @@ class CameraWorker:
         height: int = 540,
         rotation: int = 0,
         risk_polygon: list | None = None,
+        gate_required: list | None = None,
         detector: YoloPPEDetector,
         person_detector: YoloPPEDetector,
         pose_estimator: MediaPipePoseEstimator,
@@ -254,10 +256,14 @@ class CameraWorker:
             "confidence": bool(app.config.get("OVERLAY_SHOW_CONFIDENCE", True)),
             "pose": bool(app.config.get("OVERLAY_SHOW_POSE", True)),
             "risk_area": bool(app.config.get("OVERLAY_SHOW_RISK_AREA", True)),
-            "face": bool(app.config.get("OVERLAY_SHOW_FACE", False)),
-            "body_parts": bool(app.config.get("OVERLAY_SHOW_BODY_PARTS", False)),
+            **{
+                f"part_{parte}": parte in {p.strip() for p in str(app.config.get("OVERLAY_SHOW_PARTS", "")).split(",")}
+                for parte in ("head", "face", "ear", "hands", "foot", "tool")
+            },
         }
         self.annotator = FrameAnnotator(risk_polygon=risk_polygon)
+        self.gate_required: list[str] | None = list(gate_required) if gate_required else None
+        self._gate = GateState()
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -658,6 +664,9 @@ class CameraWorker:
                         active_alerts=alert_state["active"],
                         evaluation=evaluation,
                     )
+
+                    if self.gate_required:
+                        self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
 
                     enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
                     annotated = self.annotator.annotate(
@@ -1290,11 +1299,21 @@ class CameraWorker:
         self._emitir("risk_area_updated", state)
         return state
 
+    def gate_state(self) -> dict[str, Any]:
+        base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}
+        if not self.gate_required:
+            return base | {"verdict": "off", "missing": [], "people": 0}
+        return base | self._gate.atual
+
+    def set_gate(self, required: list[str] | None) -> None:
+        self.gate_required = list(required) if required else None
+        self._gate.reset()
+
     def get_overlay(self) -> dict[str, Any]:
         return {"camera_id": self.camera_id, **self.overlay_options}
 
     def update_overlay(self, updates: dict[str, Any]) -> dict[str, Any]:
-        for key in ("boxes", "labels", "confidence", "pose", "risk_area", "face", "body_parts"):
+        for key in ("boxes", "labels", "confidence", "pose", "risk_area", *(f"part_{p}" for p in ("head", "face", "ear", "hands", "foot", "tool"))):
             if key in updates:
                 self.overlay_options[key] = bool(updates[key])
         self._emitir("overlay_updated", self.get_overlay())

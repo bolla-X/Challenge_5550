@@ -3,6 +3,7 @@ import { subscribeToServerEvents, useDashboardStore, ROLE_ACCESS } from "./store
 import { Topbar, MessageBar, ScreenHead } from "./components/layout";
 import { CameraGrid, type EstadoDaCamera } from "./components/camera-grid";
 import { OperatorKiosk } from "./components/operator-kiosk";
+import { GateKiosk } from "./components/gate";
 import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
 import { Panel } from "./components/common";
@@ -74,6 +75,7 @@ export default function App() {
   const mode = useDashboardStore((s) => s.mode);
   const screen = useDashboardStore((s) => s.screen);
   const camId = useDashboardStore((s) => s.camId);
+  const cameras = useDashboardStore((s) => s.cameras);
   const camerasLoading = useDashboardStore((s) => s.camerasLoading);
   const hasCameras = useDashboardStore((s) => s.cameras.length > 0);
   const bootstrap = useDashboardStore((s) => s.bootstrap);
@@ -112,7 +114,7 @@ export default function App() {
   } else if (mode === "operator") {
     content =
       camId !== null ? (
-        <OperatorKiosk camId={camId} />
+        cameras.find((c) => c.id === camId)?.gate_required ? <GateKiosk camId={camId} /> : <OperatorKiosk camId={camId} />
       ) : (
         <p className="centered-empty">
           Nenhuma câmera cadastrada ainda. Peça ao Técnico ou ao Supervisor para cadastrar a câmera do seu setor.

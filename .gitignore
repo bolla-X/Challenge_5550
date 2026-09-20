@@ -39,3 +39,4 @@ tests/fixtures/cenas/
 # nem por acidente num `git add -A`. Regenerado sozinho a cada execucao.
 auto.crt
 auto.key
+runtime_server.log

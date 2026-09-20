@@ -152,6 +152,8 @@ class Camera(db.Model):
     # (0..1). None = usa RISK_AREA_POLYGON do .env. Cada câmera enxerga um
     # trecho diferente da planta, então a zona não pode ser uma só pra todas.
     risk_polygon = db.Column(db.JSON, nullable=True)
+    # Modo portaria: EPIs obrigatórios. NULL = câmera fora do modo portaria.
+    gate_required = db.Column(db.JSON, nullable=True)
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     features_json = db.Column(db.JSON, nullable=False, default=lambda: dict(DEFAULT_CAMERA_FEATURES))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
@@ -169,6 +171,7 @@ class Camera(db.Model):
             "height": self.height,
             "rotation": self.rotation,
             "risk_polygon": self.risk_polygon,
+            "gate_required": self.gate_required,
             "enabled": self.enabled,
             # Merge com os defaults, não substituição: uma câmera cadastrada
             # ANTES de uma feature nova existir tem o JSON sem aquela chave, e

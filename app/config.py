@@ -335,8 +335,8 @@ class Config:
     OVERLAY_SHOW_CONFIDENCE = env_bool("OVERLAY_SHOW_CONFIDENCE", True)
     OVERLAY_SHOW_POSE = env_bool("OVERLAY_SHOW_POSE", True)
     OVERLAY_SHOW_RISK_AREA = env_bool("OVERLAY_SHOW_RISK_AREA", True)
-    OVERLAY_SHOW_FACE = env_bool("OVERLAY_SHOW_FACE", False)
-    OVERLAY_SHOW_BODY_PARTS = env_bool("OVERLAY_SHOW_BODY_PARTS", False)
+    # Partes do corpo do SH17 (contexto visual): cada uma liga/desliga sozinha.
+    OVERLAY_SHOW_PARTS = os.getenv("OVERLAY_SHOW_PARTS", "")
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",

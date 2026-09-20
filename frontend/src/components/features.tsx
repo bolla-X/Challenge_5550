@@ -28,9 +28,44 @@ const OVERLAY_LABELS: Record<string, string> = {
   confidence: "Confiança",
   pose: "Pontos de pose",
   risk_area: "Zona de risco",
-  face: "Rosto / cabeça",
-  body_parts: "Mãos, pés e outros",
 };
+
+// Partes do corpo detectadas pelo SH17. Só contexto visual: ligar/desligar não
+// muda a detecção nem os alertas.
+export const PARTES_DO_CORPO: { key: string; label: string }[] = [
+  { key: "part_head", label: "Cabeça" },
+  { key: "part_face", label: "Rosto" },
+  { key: "part_ear", label: "Orelha" },
+  { key: "part_hands", label: "Mãos" },
+  { key: "part_foot", label: "Pés" },
+  { key: "part_tool", label: "Ferramentas" },
+];
+
+/** Faixa de botões sob o vídeo: liga/desliga cada parte do corpo desenhada. */
+export function PartToggles() {
+  const overlay = useDashboardStore((s) => s.overlay);
+  const updateOverlay = useDashboardStore((s) => s.updateOverlay);
+  if (!overlay) return null;
+  return (
+    <div className="part-toggles" role="group" aria-label="Partes do corpo no vídeo">
+      <span className="t-secondary">Mostrar no vídeo:</span>
+      {PARTES_DO_CORPO.map(({ key, label }) => {
+        const ligado = Boolean(overlay[key as keyof typeof overlay]);
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`ghost small${ligado ? " active" : ""}`}
+            aria-pressed={ligado}
+            onClick={() => updateOverlay({ [key]: !ligado }).catch(console.error)}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // "Vivo" = aparece no frame atual (ou dispara alerta, no caso de falls/
 // posture, que não têm detecção própria). Ligado-mas-parado é texto normal.
@@ -129,12 +164,12 @@ export function OverlayControls() {
   return (
     <Panel id="panel-overlay" title="Overlay do vídeo" description="Controle o que aparece dentro do frame sem misturar dados operacionais.">
       <div className="features">
-        {Object.entries(OVERLAY_LABELS).map(([key, label]) => (
+        {[...Object.entries(OVERLAY_LABELS), ...PARTES_DO_CORPO.map(({ key, label }) => [key, `${label} (parte do corpo)`] as [string, string])].map(([key, label]) => (
           <label className="feature-item" key={key}>
             <span className="switch">
               <input
                 type="checkbox"
-                checked={overlay[key as keyof typeof overlay] !== false}
+                checked={key.startsWith("part_") ? Boolean(overlay[key as keyof typeof overlay]) : overlay[key as keyof typeof overlay] !== false}
                 onChange={(e) => updateOverlay({ [key]: e.target.checked }).catch(console.error)}
               />
               <span className="switch-track">

@@ -439,3 +439,17 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .alert-group { margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); padding: 6px 8px; }
 .alert-group > summary { cursor: pointer; padding: 4px 0; }
 .filter-row .secondary.small.active, .filter-row .ghost.small.active { border-color: var(--accent); color: var(--text); }
+
+.part-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2, 8px); padding: 10px 4px 2px; }
+.part-toggles .ghost.small.active { border-color: var(--accent); color: var(--text); }
+
+/* Modo portaria: veredito grande, legível de longe. Cor + texto (nunca só cor). */
+.gate-verdict { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s2); padding: 28px 20px; margin-bottom: var(--s4); border-radius: 12px; background: var(--sunken); text-align: center; }
+.gate-verdict strong { font-size: clamp(32px, 7vw, 64px); font-weight: 700; letter-spacing: .02em; line-height: 1.1; }
+.gate-verdict span { font-size: 18px; color: var(--text-2); }
+.gate-verdict.approved { background: rgba(22, 121, 74, .14); }
+.gate-verdict.approved strong { color: var(--ok); }
+.gate-verdict.denied { background: var(--tint-danger); }
+.gate-verdict.denied strong { color: var(--danger); }
+.gate-video.approved { box-shadow: var(--shadow-1), inset 0 0 0 3px var(--ok); }
+.gate-video.denied { box-shadow: var(--shadow-1), inset 0 0 0 3px var(--danger); }

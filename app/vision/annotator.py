@@ -92,8 +92,17 @@ class FrameAnnotator:
                 _com_opacidade(output, 0.5, lambda camada: [self._draw_pose_points(camada, pose) for pose in encontradas])
         return output
 
-    _FACE_LABELS = {"face", "head", "ear", "face-acessorio", "ear-acessorio"}
-    _BODY_PART_LABELS = {"hands", "foot", "tool", "medical-suit", "safety-suit"}
+    # Rotulo do SH17 -> parte do corpo controlada por overlay `part_<parte>`.
+    _PARTES = {
+        "head": "head",
+        "face": "face",
+        "face-acessorio": "face",
+        "ear": "ear",
+        "ear-acessorio": "ear",
+        "hands": "hands",
+        "foot": "foot",
+        "tool": "tool",
+    }
 
     @staticmethod
     def _caixas_sem_epi(compliance_state: dict[str, Any] | None) -> set[tuple[int, int, int, int]]:
@@ -126,12 +135,7 @@ class FrameAnnotator:
 
         # Rotulos anatomicos do SH17 (head/face/ear/hands/foot): so servem de
         # contexto, entao ficam escondidos a menos que o operador ligue.
-        ocultos = set()
-        if not options.get("face", False):
-            ocultos |= self._FACE_LABELS
-        if not options.get("body_parts", False):
-            ocultos |= self._BODY_PART_LABELS
-        detections = [d for d in detections if d.label.lower() not in ocultos]
+        detections = [d for d in detections if d.label.lower() not in self._PARTES or options.get(f"part_{self._PARTES[d.label.lower()]}", False)]
 
         sem_epi = self._caixas_sem_epi(compliance_state)
         conformes: list[Detection] = []
