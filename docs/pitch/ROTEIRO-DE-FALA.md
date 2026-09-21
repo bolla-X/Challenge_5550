@@ -1,6 +1,6 @@
 # Vídeo pitch: roteiro de fala (5 minutos)
 
-Slides: `VisionEPI-pitch-v2.pptx` (e o PDF). Fale em ritmo calmo, cerca de 140 palavras
+Slides: `VisionEPI-pitch-v3.pptx` (e o PDF). Fale em ritmo calmo, cerca de 140 palavras
 por minuto. Os trechos entre `[colchetes]` são ações, não fala. Os nomes e o curso
 estão como `[...]` e precisam ser preenchidos.
 
@@ -36,17 +36,15 @@ supervisor de alertas falsos."
 "Quatro coisas nos diferenciam. Primeiro, dois modelos de visão trabalhando
 juntos: um pronto e outro que treinamos com mais de oito mil imagens. Segundo, uma
 portaria que só libera a entrada quando todos os EPIs exigidos são vistos, e que
-na dúvida nega. Terceiro, um modelo de linguagem com visão que dá uma segunda
-opinião, mas nunca decide sozinho. E quarto, alertas pensados para o supervisor:
-agrupados por pessoa e sem ficar piscando."
+na dúvida nega. Terceiro, acesso por perfil: o operador vê só a câmera do setor dele. E quarto,
+alertas pensados para o supervisor: agrupados por pessoa e sem ficar piscando."
 
 ## 1:20 a 1:50 · Slides 4 e 5: arquitetura e tecnologias
 
 "O fluxo é este: a câmera envia o vídeo, o OpenCV captura os quadros, os modelos
 YOLO detectam pessoas e EPIs, e o backend em Flask aplica as regras, cria os
 alertas e grava no banco SQLite. Tudo chega em tempo real ao dashboard em React
-por Socket.IO. Ao lado, e fora do caminho do vídeo, o Gemini dá a segunda opinião.
-Usamos Python e TypeScript, PyTorch com a placa de vídeo, MediaPipe para a pose, e
+por Socket.IO, e cada perfil enxerga só o que precisa. Usamos Python e TypeScript, PyTorch com a placa de vídeo, MediaPipe para a pose, e
 mais de trezentos e setenta testes automatizados."
 
 ---
@@ -79,23 +77,19 @@ capacete. Sem capacete, o veredito é 'ENTRADA NEGADA' e mostra o que falta.
 veredito grande. E o supervisor cria essa conta em segundos: nome, e-mail, senha e
 a câmera do operador."
 
-*[Se a Gemini estiver ligada, acrescente 10 s: "aqui está a segunda opinião do
-modelo de linguagem, com risco, justificativa e a ação sugerida."]*
-
 ---
 
 ## 4:00 a 4:25 · Slide 7: o que falta
 
 "A maior parte já funciona: detecção, câmeras, alertas, portaria e contas. O que
-falta é ligar a chave da Gemini, para a segunda opinião funcionar ao vivo, e validar
-a detecção nas câmeras reais da planta, que já estão conectadas." [Diga aqui o
-percentual que a equipe combinar.]
+falta é validar a detecção nas câmeras reais da planta, que já estão conectadas, e
+fechar a documentação da entrega." [Diga aqui o percentual que a equipe combinar.]
 
 ## 4:25 a 4:45 · Slide 8: códigos
 
 [Mostre rápido o editor ou o slide.] "Dois trechos: a regra da portaria, que nega
-se qualquer EPI exigido não estiver confirmado, e o schema da resposta do modelo de
-linguagem: se a resposta não cabe no schema, ela nunca vira alerta."
+se qualquer EPI exigido não estiver confirmado, e o rastreador de pessoas, que
+mantém o número da pessoa mesmo quando a caixa muda muito, por exemplo ao sentar."
 
 ## 4:45 a 5:00 · Slide 9: fechamento
 
