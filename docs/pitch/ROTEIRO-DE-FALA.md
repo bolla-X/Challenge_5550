@@ -1,6 +1,6 @@
 # Vídeo pitch: roteiro de fala (5 minutos)
 
-Slides: `VisionEPI-pitch.pptx` (e o PDF). Fale em ritmo calmo, cerca de 140 palavras
+Slides: `VisionEPI-pitch-v2.pptx` (e o PDF). Fale em ritmo calmo, cerca de 140 palavras
 por minuto. Os trechos entre `[colchetes]` são ações, não fala. Os nomes e o curso
 estão como `[...]` e precisam ser preenchidos.
 
@@ -86,10 +86,10 @@ modelo de linguagem, com risco, justificativa e a ação sugerida."]*
 
 ## 4:00 a 4:25 · Slide 7: o que falta
 
-"Hoje, cerca de oitenta por cento está funcional: detecção, câmeras, alertas,
-portaria e contas. O que falta: ligar a chave da Gemini, para a segunda opinião
-funcionar ao vivo; validar a detecção nas câmeras reais da planta, que já estão
-conectadas; e o aviso externo por Telegram, que depende do bot da equipe."
+"A maior parte já funciona: detecção, câmeras, alertas, portaria e contas. O que
+falta é ligar a chave da Gemini, para a segunda opinião funcionar ao vivo, e validar
+a detecção nas câmeras reais da planta, que já estão conectadas." [Diga aqui o
+percentual que a equipe combinar.]
 
 ## 4:25 a 4:45 · Slide 8: códigos
 
