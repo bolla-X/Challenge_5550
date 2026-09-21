@@ -40,3 +40,5 @@ tests/fixtures/cenas/
 auto.crt
 auto.key
 runtime_server.log
+docs/pitch/*.mp4
+docs/pitch/*.webm
