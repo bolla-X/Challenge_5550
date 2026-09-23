@@ -1,11 +1,11 @@
 # VisionEPI — Relatório Técnico: Fase 4 — Validação em Ambiente Industrial Simulado
 
-**Challenge 2026 — Innovation Challenge CUP — Parceria FIAP × SPI**
+**Challenge 2026 — Innovation Challenge CUP — Parceria FIAP × SPI**  
 Engenharia da Computação, 3º ano. Entrega: 23/09/2026 (banca final).
 
 ## Equipe
 
-Lucas Baraldi Rodrigues · Lucas Zolla Assis · Pedro Costa Belisário · Vitor Pantarotto de Brito
+Lucas Baraldi Rodrigues · Lucas Zolla Assis · Pedro Costa Belisário · Vitor Pantarotto de Brito  
 Professor: Fabio Henrique Pimentel · Mentores SPI: Fernando Marcolina, Wendel de Almeida Passos
 
 ---

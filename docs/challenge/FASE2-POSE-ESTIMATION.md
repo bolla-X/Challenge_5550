@@ -1,11 +1,11 @@
 # VisionEPI — Relatório Técnico: Fase 2 — Pose Estimation
 
-**Challenge 2026 — Innovation Challenge CUP — Parceria FIAP × SPI**
+**Challenge 2026 — Innovation Challenge CUP — Parceria FIAP × SPI**  
 Engenharia da Computação, 3º ano. Entrega: 22/06/2026.
 
 ## Equipe
 
-Lucas Baraldi Rodrigues · Lucas Zolla Assis · Pedro Costa Belisário · Vitor Pantarotto de Brito
+Lucas Baraldi Rodrigues · Lucas Zolla Assis · Pedro Costa Belisário · Vitor Pantarotto de Brito  
 Professor: Fabio Henrique Pimentel · Mentores SPI: Fernando Marcolina, Wendel de Almeida Passos
 
 ---
@@ -47,10 +47,33 @@ nesta fase).
   simultaneamente. **100% de acerto** nos casos controlados. Isso comprova que a lógica
   de decisão está correta; não substitui uma medição de recall em cenas reais e
   variadas, que depende de imagens ou vídeos rotulados que o projeto não possui.
-- **Recall em postura de risco (cena real):** não medido de forma automática, pela
-  mesma razão. Fica registrado como próximo passo um teste ao vivo estruturado (pessoa
-  em pé, caindo com segurança, postura ruim, entrando na zona), com os resultados
-  anotados manualmente.
+- **Teste ao vivo estruturado, feito contra a webcam real (23/09/2026, véspera da
+  banca):** pessoa em pé parada (baseline), depois queda simulada com segurança,
+  postura ruim proposital e entrada na área de risco marcada no vídeo. Resultado
+  anotado a partir do histórico real de alertas do sistema (`GET /alerts`, não só o
+  painel "ativos" — que some sozinho quando a condição normal volta):
+  - **Baseline (em pé, parado):** nenhum alerta de queda/postura/zona disparou —
+    zero falso positivo no período.
+  - **Queda:** disparou (`fallen_person`, severidade crítica) em **múltiplos eventos
+    distintos** dentro da janela do teste, com evidência de imagem salva por alerta
+    (`/alerts/<id>/evidence`). Confirma a detecção funcionando em cena real, não só
+    em teste controlado.
+  - **Postura suspeita:** disparou (`suspicious_posture`, severidade média) durante o
+    teste.
+  - **Área de risco:** disparou (`risk_area_presence`, severidade alta) ao entrar na
+    zona marcada.
+  - **Achado honesto sobre o rastreador:** durante a queda, o sistema trocou o ID da
+    "pessoa" no meio do evento (ex.: o mesmo indivíduo caindo gerou alertas em nome de
+    "Pessoa 2", "Pessoa 5" e "Pessoa 9" em poucos segundos) — a caixa delimitadora muda
+    muito quando alguém cai, e o rastreador (IoU + distância de centro) perde
+    continuidade por um instante. A **detecção de queda em si funcionou**; o que
+    ficou exposto é uma limitação do rastreamento de identidade durante quedas, não da
+    classificação de postura.
+  - **Limite deste teste:** foi qualitativo (confirma que cada categoria dispara em
+    cena real, com evidência), não uma contagem rigorosa de tentativas-vs-acertos por
+    ausência de um roteiro cronometrado e árbitro externo. Um recall numérico (N
+    tentativas conhecidas, M detectadas) com vídeo gravado e rotulado continua sendo o
+    próximo passo para um número formal de revocação.
 
 ## 4. Integração com a Fase 1
 
@@ -77,5 +100,6 @@ nesta fase).
 - [x] Demo funcional em vídeo
 - [x] Integração com Fase 1 (mesmo stream)
 - [~] Métricas: PCK não medido (limitação declarada, §3); lógica de classificação
-      verificada por 19 testes automatizados
+      verificada por 19 testes automatizados; as 3 categorias confirmadas em teste ao
+      vivo estruturado contra webcam real, com evidência de imagem por alerta (§3)
 - [x] Relatório técnico (este documento)

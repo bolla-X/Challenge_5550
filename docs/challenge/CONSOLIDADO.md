@@ -1,6 +1,6 @@
 # VisionEPI — Documento técnico consolidado (Fases 1 a 4)
 
-**Challenge 2026 — Innovation Challenge CUP — Parceria FIAP × SPI**
+**Challenge 2026 — Innovation Challenge CUP — Parceria FIAP × SPI**  
 Engenharia da Computação, 3º ano.
 
 ## Equipe
@@ -90,11 +90,21 @@ instâncias no conjunto de teste, a classe mais rara do dataset inteiro, e a rev
 cai para 0,235. Os demais itens ficam na faixa de 0,49 a 0,70 de mAP@0.5, abaixo da meta
 de 0,75 do guia, com destaque positivo para óculos e máscara.
 
-⚠️ **Limitação declarada:** essas métricas são do modelo SH17 **isolado**, no próprio
-conjunto de teste dele — não do **ensemble** (Vyra + SH17) que roda em produção, e não
-contra imagens da planta real. É a medição mais honesta possível com o que existe hoje;
-medir o ensemble completo, com gate de confiança e filtro geométrico, num conjunto
-próprio anotado da planta, continua sendo o próximo passo correto.
+O **ensemble completo** (Vyra + SH17, fundidos por IoU, config idêntica à de produção)
+também foi medido contra o mesmo teste: saiu **pior em mAP@0.5** que o SH17 isolado na
+maioria das classes (só o protetor auricular melhorou), mas com **precisão bem maior**
+em óculos (0,71→0,81) e máscara (0,84→0,94). Não é regressão — o gabarito de teste é do
+SH17, não do Vyra (treinado noutro dataset, caixas calibradas diferente), então o
+número mede mal a contribuição real do Vyra. Detalhe completo e a tabela em
+`FASE1-DETECCAO-DE-EPIS.md` §3.1.
+
+O **detector de pessoa** (pré-requisito de EPI e pose — YOLOv8n/COCO dedicado, já que
+o Vyra sozinho não cobre bem várias pessoas na cena) saiu com **mAP@0.5 = 0,740**,
+P=0,759, R=0,698, F1=0,727 — a melhor métrica de todo o sistema, e esperado: "pessoa" é
+o caso de uso mais maduro do YOLO. Detalhe em `FASE1-DETECCAO-DE-EPIS.md` §3.2.
+
+⚠️ **Limitação declarada:** as métricas acima são contra o conjunto de teste do SH17 —
+não contra imagens da planta real, e não é o terreno de teste nativo do Vyra.
 
 - **FPS:** ~19,5 quadros/segundo com o pipeline completo numa câmera, GPU (RTX). Em
   múltiplas câmeras simultâneas, cai — ver §5, achado da validação real.
@@ -133,9 +143,15 @@ mínimo do guia:
   postura inclinada, dentro/fora da zona) — **100% de acerto** nesses casos controlados.
   Isso comprova que a lógica está correta; não substitui uma medição de recall em
   cenas reais, que depende de imagens rotuladas.
-- **Recall em postura de risco, em cena real:** não medido de forma automática por
-  falta de gravações rotuladas; um teste rápido ao vivo (pessoa em pé, caindo com
-  segurança, postura ruim, entrando na zona) fica registrado como próximo passo.
+- **Teste ao vivo estruturado (23/09/2026, véspera da banca):** pessoa em pé (baseline,
+  zero falso positivo), queda simulada com segurança, postura ruim proposital e entrada
+  na zona marcada — as três categorias dispararam em cena real, cada uma com evidência
+  de imagem salva (`/alerts/<id>/evidence`), lido do histórico real de alertas. Achado
+  honesto: durante a queda, o rastreador trocou o ID da pessoa no meio do evento
+  (limitação de continuidade do rastreamento, não da classificação de postura — ver
+  limitação 8 no §10). O teste foi qualitativo, não uma contagem formal de
+  tentativas-vs-acertos; um recall numérico com vídeo rotulado é o próximo passo
+  (detalhe completo em `FASE2-POSE-ESTIMATION.md` §3).
 
 ### 3.3 Integração com a Fase 1
 
@@ -267,8 +283,12 @@ multimodal nesse contexto separado).
 
 ## 10. Limitações conhecidas (declaradas, não escondidas)
 
-1. Métricas por classe medidas só do SH17 isolado, no próprio conjunto de teste dele —
-   não do ensemble completo (Vyra + SH17 + gate de confiança) em imagens da planta real.
+1. Métricas por classe medidas contra o conjunto de teste do **SH17** — do modelo
+   isolado e também do ensemble completo (Vyra + SH17, ver `FASE1-DETECCAO-DE-EPIS.md`
+   §3.1) — mas não em imagens da planta real, e não é o terreno de teste nativo do
+   Vyra (medido lá, o ensemble sai pior em mAP na maioria das classes; achado honesto,
+   explicado no relatório da Fase 1 — não é regressão real, é desalinhamento de
+   gabarito).
 2. PCK de pose não medido (falta dataset rotulado; ver §3.2).
 3. Telegram (terceiro canal de notificação) planejado, não implementado.
 4. Dataset de treino é 100% público; sem imagens próprias anotadas da equipe.
@@ -278,11 +298,27 @@ multimodal nesse contexto separado).
 6. `.env` de produção usa confirmação de 3 quadros para criar um alerta (não os 8 que
    chegaram a ser testados) — mantido assim deliberadamente por ser o valor já validado
    em uso, para não introduzir mudança de comportamento na véspera da apresentação.
+7. O teste ao vivo de pose (queda/postura/zona, ver `FASE2-POSE-ESTIMATION.md` §3) foi
+   qualitativo — confirma que cada categoria dispara em cena real, com evidência de
+   imagem salva por alerta — mas não é uma contagem formal de tentativas-vs-acertos.
+   Um recall numérico exige vídeo gravado e rotulado, roteiro cronometrado e árbitro
+   externo, que continua sendo o próximo passo.
+8. O mesmo teste ao vivo expôs uma limitação do **rastreador de pessoas** durante
+   quedas: a caixa delimitadora muda muito quando alguém cai, e o rastreador (IoU +
+   distância de centro) por vezes perde continuidade e troca o ID da pessoa no meio do
+   evento. A classificação de queda em si funcionou; o que fica exposto é a robustez do
+   rastreamento de identidade nesse cenário específico.
 
 ## 11. Próximos passos
 
-- Medir mAP/precisão/revocação por classe do ensemble em produção, num conjunto próprio.
-- Fazer o teste de recall de pose ao vivo, com gravação rotulada.
+- Anotar um conjunto de teste próprio (ou usar o dataset nativo do Vyra) para medir a
+  contribuição real do Vyra no ensemble — o teste contra o gabarito do SH17 (§3.1 da
+  Fase 1) mede mal um modelo treinado em outro dataset.
+- Fazer um teste de recall de pose formal (N tentativas conhecidas, vídeo gravado e
+  rotulado) para um número de revocação em cena real, e não só a confirmação
+  qualitativa já feita (ver limitação 7).
+- Deixar o rastreador de pessoas mais robusto à mudança brusca de caixa durante quedas
+  (limitação 8), para não trocar de identidade no meio de um evento crítico.
 - Implementar o canal Telegram.
 - Construir um dataset próprio anotado (fotos da planta ou de voluntários), para reduzir
   a dependência de dados só públicos.

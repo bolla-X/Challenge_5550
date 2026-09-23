@@ -250,6 +250,72 @@ export function AlertPanel() {
   );
 }
 
+/** Aba dedicada a queda e postura suspeita — separada da lista geral de
+ * alertas porque esses dois eventos são o que a demo ao vivo mais precisa
+ * destacar, e o painel "Alertas ativos" some sozinho assim que a pessoa
+ * levanta ou corrige a postura. Aqui mostra também o que já foi resolvido
+ * nos últimos minutos, pra o evento não sumir da tela no meio da demo. */
+export function SafetyEventsPanel() {
+  const camId = useDashboardStore((s) => s.camId);
+  const [itens, setItens] = useState<Alert[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    if (camId == null) return undefined;
+    let cancelado = false;
+    const carregar = () =>
+      Promise.all([
+        listAlerts({ limit: 30, cameraId: camId, feature: "falls" }),
+        listAlerts({ limit: 30, cameraId: camId, feature: "posture" }),
+      ])
+        .then(([quedas, posturas]) => {
+          if (cancelado) return;
+          const combinado = [...quedas.items, ...posturas.items].sort(
+            (a, b) => new Date(b.last_seen_at ?? 0).getTime() - new Date(a.last_seen_at ?? 0).getTime(),
+          );
+          setItens(combinado);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (!cancelado) setCarregando(false);
+        });
+    carregar();
+    const timer = setInterval(carregar, 5000);
+    return () => {
+      cancelado = true;
+      clearInterval(timer);
+    };
+  }, [camId]);
+
+  if (carregando && itens.length === 0) {
+    return (
+      <Panel id="panel-safety-events" title="Quedas e postura" description="Eventos de queda e postura suspeita, ativos e recentes.">
+        <PanelSkeleton lines={2} />
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      id="panel-safety-events"
+      title="Quedas e postura"
+      description="Eventos de queda e postura suspeita, ativos e recentes."
+      action={itens.length ? <span className="chip miss">{itens.length}</span> : undefined}
+    >
+      <div className="alert-list">
+        {itens.length ? (
+          itens.map((alert) => <AlertRow key={alert.id} alert={alert} active={alert.status === "active"} />)
+        ) : (
+          <div className="all-clear">
+            <span className="dot" />
+            Nenhuma queda ou postura suspeita registrada recentemente.
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 export function AlertHistoryPanel() {
   const cameras = useDashboardStore((st) => st.cameras);
   const user = useDashboardStore((st) => st.user);

@@ -7,7 +7,7 @@ import { GateConfigPanel } from "./gate";
 import { LlmPanel } from "./llm-panel";
 import { ChecklistPanel, ModelStatusPanel, SettingsPanel } from "./diagnostics";
 import { RiskScoreCard } from "./risk-score";
-import { AlertPanel, AlertHistoryPanel } from "./alerts";
+import { AlertPanel, AlertHistoryPanel, SafetyEventsPanel } from "./alerts";
 import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
@@ -346,6 +346,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
   technical: [
     { key: "checklist", label: "Checklist", content: <ChecklistPanel /> },
     { key: "alerts", label: "Alertas", content: <AlertPanel /> },
+    { key: "safety", label: "Quedas e postura", content: <SafetyEventsPanel /> },
     { key: "compliance", label: "Conformidade", content: <ComplianceCard /> },
     { key: "people", label: "Pessoas", content: <PersonCard /> },
     { key: "timeline", label: "Timeline", content: <TimelineCard /> },
@@ -363,6 +364,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "trend", label: "Gráficos", content: <RiskScoreCard /> },
     { key: "checklist", label: "Checklist", content: <ChecklistPanel /> },
     { key: "alerts", label: "Alertas", content: <AlertPanel /> },
+    { key: "safety", label: "Quedas e postura", content: <SafetyEventsPanel /> },
     { key: "compliance", label: "Conformidade", content: <ComplianceCard /> },
     { key: "people", label: "Pessoas", content: <PersonCard /> },
     { key: "timeline", label: "Timeline", content: <TimelineCard /> },
