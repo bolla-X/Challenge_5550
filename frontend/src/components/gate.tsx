@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
+import { playGateApprovedChime, playGateDeniedChime } from "../audio/chime";
 import { MuteToggle } from "./layout";
 import { Panel } from "./common";
 import { getGate, putGate, startCamera } from "../api/endpoints";
@@ -13,16 +14,32 @@ const TITULO: Record<string, string> = {
   off: "PORTARIA DESLIGADA",
 };
 
-/** Consulta o veredito a cada 700 ms: o veredito não pode andar atrás da câmera. */
-function useGate(camId: number): GateState | null {
+/**
+ * Consulta o veredito a cada 700 ms: o veredito não pode andar atrás da câmera.
+ *
+ * `comSom` toca o alarme de aprovada/negada a cada TRANSIÇÃO de veredito — nunca
+ * no primeiro carregamento (senão toda vez que se abre a tela ela apita) e nunca
+ * enquanto o veredito se mantém (senão "negada" viraria sirene contínua). A
+ * prévia de configuração (GateConfigPanel) passa `comSom=false`: quem está
+ * ajustando os EPIs exigidos não precisa ouvir a portaria apitando a cada clique.
+ */
+function useGate(camId: number, comSom = false): GateState | null {
   const [gate, setGate] = useState<GateState | null>(null);
+  const anterior = useRef<GateState["verdict"] | null>(null);
   useEffect(() => {
     setGate(null);
+    anterior.current = null;
     let cancelled = false;
     const tick = () =>
       getGate(camId)
         .then((g) => {
-          if (!cancelled) setGate(g);
+          if (cancelled) return;
+          setGate(g);
+          if (comSom && anterior.current !== null && anterior.current !== g.verdict && !useDashboardStore.getState().muted) {
+            if (g.verdict === "approved") playGateApprovedChime();
+            else if (g.verdict === "denied") playGateDeniedChime();
+          }
+          anterior.current = g.verdict;
         })
         .catch(() => {
           if (!cancelled) setGate(null);
@@ -33,7 +50,7 @@ function useGate(camId: number): GateState | null {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [camId]);
+  }, [camId, comSom]);
   return gate;
 }
 
@@ -71,7 +88,7 @@ function ChipsExigidos({ gate }: { gate: GateState | null }) {
 /** Tela cheia da portaria: veredito enorme, vídeo e a lista do que é exigido. */
 export function GateKiosk({ camId }: { camId: number }) {
   const camera = useDashboardStore((s) => s.cameras.find((c) => c.id === camId));
-  const gate = useGate(camId);
+  const gate = useGate(camId, true);
   const [starting, setStarting] = useState(false);
   if (!camera) return null;
 

@@ -45,3 +45,21 @@ export function playAllClearChime() {
   tone(523, 0, 0.12, 0.05);
   tone(784, 0.1, 0.18, 0.06);
 }
+
+/**
+ * Portaria aprovada: entrada franqueada. Tom subindo em dois degraus, mais
+ * "oficial" que o all-clear — é uma decisão de acesso, não só "sem alerta".
+ */
+export function playGateApprovedChime() {
+  tone(587, 0, 0.1, 0.07);
+  tone(880, 0.09, 0.16, 0.08);
+}
+
+/**
+ * Portaria negada: alarme curto de dois bipes graves e insistentes — precisa
+ * ser notado por quem está tentando entrar, não só por quem olha a tela.
+ */
+export function playGateDeniedChime() {
+  tone(220, 0, 0.14, 0.1);
+  tone(220, 0.2, 0.14, 0.1);
+}
