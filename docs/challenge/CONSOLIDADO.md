@@ -70,21 +70,31 @@ protocolo Dahua) e contra webcam, com um dashboard web para três perfis de aces
 
 ### 2.2 Métricas
 
-**Treino do modelo SH17** (época 80, YOLOv8, imgsz 640, 5.670 imagens de treino / 1.619
-de validação / 810 de teste):
+**Validação por classe do modelo SH17** (`model.val()`, Ultralytics, imgsz 640, GPU,
+conjunto de **teste** — 810 imagens, nunca usadas no treino nem na validação durante o
+treino):
 
-| Métrica | Valor medido | Meta do guia |
-|---|---|---|
-| mAP@0.5 (agregado, todas as classes) | 0,61 | ≥ 0,75 |
-| mAP@0.5:0.95 | 0,41 | — |
-| Precisão (agregada) | 0,70 | — |
-| Revocação (agregada) | 0,56 | — |
+| EPI nosso | Classe SH17 | Precisão | Revocação | F1 | mAP@0.5 | mAP@0.5:0.95 |
+|---|---|---|---|---|---|---|
+| Capacete | helmet | 0,810 | 0,512 | 0,628 | 0,669 | 0,441 |
+| Colete | safety-vest | 0,810 | 0,433 | 0,564 | 0,490 | 0,323 |
+| Luvas | gloves | 0,678 | 0,527 | 0,593 | 0,570 | 0,351 |
+| Óculos | glasses | 0,712 | 0,678 | 0,694 | 0,696 | 0,411 |
+| Máscara | face-mask | 0,837 | 0,588 | 0,691 | 0,696 | 0,472 |
+| Calçado | shoes | 0,745 | 0,570 | 0,646 | 0,615 | 0,332 |
+| Protetor auricular | ear-acessorio | 0,654 | 0,235 | 0,346 | 0,244 | 0,151 |
+| **Agregado (17 classes do SH17)** | — | 0,733 | 0,588 | — | 0,621 | 0,414 |
 
-⚠️ **Limitação declarada:** essas métricas são do modelo SH17 **isolado**, medidas no
-próprio conjunto de validação do treino — não do **ensemble** (Vyra + SH17) que roda em
-produção, e não são **por classe**. Ficam abaixo da meta sugerida (0,75). Medir o
-ensemble por classe, num conjunto próprio anotado, é um próximo passo declarado, não
-uma lacuna escondida.
+**Achado honesto:** o **protetor auricular é o item mais fraco de longe** — só 17
+instâncias no conjunto de teste, a classe mais rara do dataset inteiro, e a revocação
+cai para 0,235. Os demais itens ficam na faixa de 0,49 a 0,70 de mAP@0.5, abaixo da meta
+de 0,75 do guia, com destaque positivo para óculos e máscara.
+
+⚠️ **Limitação declarada:** essas métricas são do modelo SH17 **isolado**, no próprio
+conjunto de teste dele — não do **ensemble** (Vyra + SH17) que roda em produção, e não
+contra imagens da planta real. É a medição mais honesta possível com o que existe hoje;
+medir o ensemble completo, com gate de confiança e filtro geométrico, num conjunto
+próprio anotado da planta, continua sendo o próximo passo correto.
 
 - **FPS:** ~19,5 quadros/segundo com o pipeline completo numa câmera, GPU (RTX). Em
   múltiplas câmeras simultâneas, cai — ver §5, achado da validação real.
@@ -257,7 +267,8 @@ multimodal nesse contexto separado).
 
 ## 10. Limitações conhecidas (declaradas, não escondidas)
 
-1. Métricas por classe do ensemble em produção não medidas (só o SH17 isolado, agregado).
+1. Métricas por classe medidas só do SH17 isolado, no próprio conjunto de teste dele —
+   não do ensemble completo (Vyra + SH17 + gate de confiança) em imagens da planta real.
 2. PCK de pose não medido (falta dataset rotulado; ver §3.2).
 3. Telegram (terceiro canal de notificação) planejado, não implementado.
 4. Dataset de treino é 100% público; sem imagens próprias anotadas da equipe.
