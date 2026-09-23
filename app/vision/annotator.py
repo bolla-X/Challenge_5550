@@ -93,12 +93,14 @@ class FrameAnnotator:
         return output
 
     # Rotulo do SH17 -> parte do corpo controlada por overlay `part_<parte>`.
+    # "ear-acessorio" NAO entra aqui: e o protetor auricular (EPI de verdade,
+    # ver yolo_ppe_detector.PPE_CLASS_ALIASES), desenhado sempre, como
+    # qualquer outro EPI — nao e rotulo de contexto que o operador liga/desliga.
     _PARTES = {
         "head": "head",
         "face": "face",
         "face-acessorio": "face",
         "ear": "ear",
-        "ear-acessorio": "ear",
         "hands": "hands",
         "foot": "foot",
         "tool": "tool",
@@ -106,13 +108,13 @@ class FrameAnnotator:
 
     @staticmethod
     def _caixas_sem_epi(compliance_state: dict[str, Any] | None) -> set[tuple[int, int, int, int]]:
-        """Caixas das pessoas com algum EPI `missing` no estado de conformidade.
-        E isso que decide "EPI ausente": a deteccao sozinha so sabe o que ESTA
-        no frame, nunca o que falta."""
+        """Caixas das pessoas com algum EPI `missing` OU `incorrect` no estado
+        de conformidade. E isso que decide "EPI ausente/incorreto": a deteccao
+        sozinha so sabe o que ESTA no frame, nunca o que falta ou esta errado."""
         caixas: set[tuple[int, int, int, int]] = set()
         for pessoa in (compliance_state or {}).get("people", []) or []:
             ppe = pessoa.get("ppe") or {}
-            if any((item or {}).get("status") == "missing" for item in ppe.values()):
+            if any((item or {}).get("status") in ("missing", "incorrect") for item in ppe.values()):
                 box = pessoa.get("box") or {}
                 try:
                     caixas.add((int(box["x1"]), int(box["y1"]), int(box["x2"]), int(box["y2"])))
@@ -240,6 +242,7 @@ class FrameAnnotator:
         "glasses": "oculos",
         "mask": "mascara",
         "safety_shoe": "calcado",
+        "ear_protection": "protetor auricular",
         "safety_cone": "cone",
         "fall_detected": "queda",
         "person": "pessoa",

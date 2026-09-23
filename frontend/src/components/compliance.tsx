@@ -5,7 +5,7 @@ import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
 /** Chip de EPI: pílula com ponto e rótulo. Conforme em --ok, ausente com o
  * tingimento de perigo, não avaliado neutro. */
 function PpeChip({ label, status }: { label: string; status?: string }) {
-  const cls = status === "ok" ? "chip ok" : status === "missing" ? "chip miss" : "chip";
+  const cls = status === "ok" ? "chip ok" : status === "missing" || status === "incorrect" ? "chip miss" : "chip";
   return (
     <span className={cls}>
       <span className="dot" />

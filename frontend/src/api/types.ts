@@ -423,6 +423,7 @@ export interface CameraFeatureSet {
   glasses: boolean;
   mask: boolean;
   safety_shoe: boolean;
+  ear_protection: boolean;
   pose: boolean;
   falls: boolean;
   posture: boolean;

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-PPE_KEYS = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe")
+PPE_KEYS = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe", "ear_protection")
 
 
 def normalizar_exigidos(valor: Any) -> list[str] | None:

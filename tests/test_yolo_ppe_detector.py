@@ -54,11 +54,13 @@ def test_modelo_so_com_o_nucleo_continua_pronto():
 
 
 def test_ppe_only_model_is_ready_without_person_when_require_person_false():
-    # epi_pretrained.pt: 6 classes de EPI, sem "person".
+    # epi_pretrained.pt: 6 classes de EPI, sem "person" e sem protetor auricular.
     names = {0: "Gloves", 1: "Vest", 2: "goggles", 3: "helmet", 4: "mask", 5: "safety_shoe"}
     diagnostics = _diagnostics_for(names, require_person=False)
 
-    assert diagnostics["supported_ppe"] == {key: True for key in TODAS_AS_CLASSES}
+    suportadas = diagnostics["supported_ppe"]
+    assert all(suportadas[key] for key in TODAS_AS_CLASSES - {"ear_protection"})
+    assert suportadas["ear_protection"] is False  # este peso não tem a classe
     assert diagnostics["person_supported"] is False
     assert diagnostics["ppe_ready"] is True  # não deve travar por falta de "person"
     assert diagnostics["warning"] is None

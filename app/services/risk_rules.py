@@ -22,6 +22,20 @@ PPE_RULES: dict[str, tuple[str, str]] = {
     "glasses": ("Sem óculos de proteção", "high"),
     "mask": ("Sem máscara", "medium"),
     "safety_shoe": ("Sem calçado de segurança", "medium"),
+    "ear_protection": ("Sem protetor auricular", "medium"),
+}
+
+# Mensagem do alerta quando o EPI está PRESENTE mas fora da posição esperada
+# (ex.: capacete na mão) — ver `PersonComplianceMatcher._assign_incorretos`.
+# Mesma severidade da ausência: uso incorreto não protege mais que a ausência.
+PPE_INCORRECT_MESSAGES: dict[str, str] = {
+    "helmet": "Capacete em uso incorreto",
+    "vest": "Colete em uso incorreto",
+    "gloves": "Luvas em uso incorreto",
+    "glasses": "Óculos em uso incorreto",
+    "mask": "Máscara em uso incorreto",
+    "safety_shoe": "Calçado em uso incorreto",
+    "ear_protection": "Protetor auricular em uso incorreto",
 }
 
 
@@ -121,13 +135,18 @@ class RuleEngine:
                 for feature_key, (message, severity) in PPE_RULES.items():
                     if not self.feature_manager.is_enabled(feature_key) or feature_key not in supported_ppe:
                         continue
-                    if person_state["ppe"][feature_key]["status"] != "missing":
+                    status = person_state["ppe"][feature_key]["status"]
+                    if status == "missing":
+                        rule, texto = f"missing_{feature_key}", message
+                    elif status == "incorrect":
+                        rule, texto = f"incorrect_{feature_key}", PPE_INCORRECT_MESSAGES[feature_key]
+                    else:
                         continue
                     alerts.append(
                         RuleAlert(
-                            rule=f"missing_{feature_key}",
+                            rule=rule,
                             severity=severity,
-                            message=f"{message} — {person_state['label']}",
+                            message=f"{texto} — {person_state['label']}",
                             feature=feature_key,
                             metadata={
                                 "person_id": person_state["id"],

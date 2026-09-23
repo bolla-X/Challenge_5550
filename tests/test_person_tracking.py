@@ -131,13 +131,38 @@ def test_epi_fora_da_caixa_da_pessoa_nao_conta():
     assert people[0]["ppe"]["helmet"]["status"] == "missing"
 
 
-def test_calcado_na_cabeca_nao_conta_como_calcado():
-    """Faixa vertical importa: um `safety_shoe` detectado na altura da cabeça é
-    erro do modelo, não conformidade."""
+def test_calcado_na_cabeca_conta_como_uso_incorreto():
+    """Faixa vertical importa: um `safety_shoe` detectado na altura da cabeça
+    está SOBRE a pessoa, só na posição errada — "uso incorreto", não "ausente"
+    (que é reservado a quando o item não aparece em lugar nenhum dela)."""
     p = person(100)
     na_cabeca = Detection(label="safety_shoe", confidence=0.9, box=BoundingBox(120, 105, 160, 150), category="ppe")
     people = _build([p, na_cabeca])
-    assert people[0]["ppe"]["safety_shoe"]["status"] == "missing"
+    assert people[0]["ppe"]["safety_shoe"]["status"] == "incorrect"
+    assert people[0]["ppe"]["safety_shoe"]["detections"]  # o item incorreto continua listado
+
+
+def test_uso_incorreto_nao_rebaixa_quem_ja_esta_ok():
+    """Pessoa com capacete na cabeça (OK) e um segundo capacete solto perto do
+    corpo: o veredito dela continua "ok" — a sobra incorreta não derruba quem
+    já está em conformidade."""
+    p = person(100)
+    correto = helmet_on(p)
+    solto = Detection(label="helmet", confidence=0.6, box=BoundingBox(p.box.x1 + 10, p.box.y1 + 200, p.box.x1 + 50, p.box.y1 + 240), category="ppe")
+    people = _build([p, correto, solto])
+    assert people[0]["ppe"]["helmet"]["status"] == "ok"
+
+
+def test_epi_incorreto_gera_alerta_proprio_sem_apagar_o_de_ausente_de_outro():
+    """`incorrect_<epi>` é uma regra própria, distinta de `missing_<epi>` —
+    a mensagem precisa dizer "uso incorreto", não "ausente"."""
+    engine_local = engine(supported=("helmet", "vest", "gloves", "safety_shoe"))
+    p = person(100)
+    calcado_na_cabeca = Detection(label="safety_shoe", confidence=0.9, box=BoundingBox(p.box.x1 + 20, p.box.y1 + 5, p.box.x1 + 60, p.box.y1 + 50), category="ppe")
+    alerts = engine_local.evaluate([p, calcado_na_cabeca], pose=None, frame_shape=(450, 300, 3))
+    incorreto = next(a for a in alerts if a.feature == "safety_shoe")
+    assert incorreto.rule == "incorrect_safety_shoe"
+    assert "incorreto" in incorreto.message.lower()
 
 
 def test_duas_luvas_contam_para_a_mesma_pessoa():

@@ -113,6 +113,7 @@ DEFAULT_CAMERA_FEATURES = {
     "glasses": True,
     "mask": True,
     "safety_shoe": True,
+    "ear_protection": True,
     "pose": True,
     "falls": True,
     "posture": True,

@@ -55,6 +55,17 @@ PPE_CLASS_ALIASES = {
     "safety_cone": "safety_cone",
     "person": "person",
     "worker": "person",
+    # protetor auricular — no peso SH17 corrigido (best_corrigido.pt) a classe
+    # "Earmuffs" do dataset original foi renomeada "ear-acessorio" (confirmado
+    # em F:/treino_sh17/yolo_labels/sh17.yaml: indice 2 = "ear-mufs"). "ear"
+    # sozinho continua sendo so a orelha nua (rotulo anatomico, nao EPI).
+    "ear-acessorio": "ear_protection",
+    "ear_acessorio": "ear_protection",
+    "ear-mufs": "ear_protection",
+    "earmuffs": "ear_protection",
+    "ear muffs": "ear_protection",
+    "ear protection": "ear_protection",
+    "ear_protection": "ear_protection",
 }
 
 # Nucleo: sem estas tres o sistema nao cumpre o que promete, entao sao elas
@@ -64,7 +75,7 @@ PPE_CORE_CLASSES = ("helmet", "vest", "gloves")
 # como "unsupported" ate entrar um peso que a tenha. Um modelo so com o
 # nucleo continua PRONTO — marcar estas como obrigatorias faria todo peso
 # de 3 classes ja em uso reportar "modelo parcial" sem nada ter piorado.
-PPE_OPTIONAL_CLASSES = ("glasses", "mask", "safety_shoe")
+PPE_OPTIONAL_CLASSES = ("glasses", "mask", "safety_shoe", "ear_protection")
 PPE_REQUIRED_CLASSES = PPE_CORE_CLASSES + PPE_OPTIONAL_CLASSES
 
 

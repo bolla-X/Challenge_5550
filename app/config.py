@@ -340,7 +340,7 @@ class Config:
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",
-        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area",
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area",
     )
     RISK_AREA_POLYGON = os.getenv("RISK_AREA_POLYGON", "0.70,0.10;0.98,0.10;0.98,0.95;0.70,0.95")
 
@@ -388,7 +388,7 @@ class TestConfig(Config):
     # sobe com AUTH_REQUIRED=True e verifica rota por rota — inclusive uma
     # varredura que falha se aparecer rota nova desprotegida.
     AUTH_REQUIRED = False
-    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area"
+    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area"
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
