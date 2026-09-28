@@ -313,8 +313,8 @@ oficial.
   troca de imagem a cada 4 s é mais brusca que uma cena real, e o tracker
   carrega ids entre cortes; alertas da imagem anterior levam 5 detecções para
   resolver. E o vídeo **penaliza** o detector: cada imagem ocupa ~720 px de um
-  quadro de 1280, e a `imgsz=416` chega à rede com ~234 px — cerca de um terço
-  da resolução com que foi avaliada. Por isso aparecem, nas capturas, erros
+  quadro de 1280, e a `imgsz=416` chega à rede com ~234 px, contra ~416 px na
+  avaliação — pouco mais da metade da resolução. Por isso aparecem, nas capturas, erros
   que a avaliação da mesma imagem não tem (ex.: trabalhadores de capacete
   vermelho, agachados, acusados de "sem capacete" em `05_operador.jpg`).
 - **3 testes da suíte dependem da fixture `bench.mp4`** (Wikimedia, também
