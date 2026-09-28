@@ -1,0 +1,159 @@
+{
+ "_como_foi_feito": "Revisao VISUAL, por um anotador (Claude, a pedido da equipe), de TODOS os erros do alerta de capacete e colete do peso da Sprint 4 no teste (politica ausencia, conf 0,35): 7 FN e 6 FP de colete, 6 FP de capacete (0 FN de capacete). Cada caso foi desenhado com scripts/renderizar_casos.py. Acertos NAO foram revisados — por isso a 'sensibilidade' abaixo e enviesada a favor do sistema e serve so para dimensionar o ruido da anotacao, nao como numero oficial.",
+ "totais": {
+  "erro_do_sistema": 8,
+  "anotacao_errada": 6,
+  "ambiguo": 5
+ },
+ "sensibilidade_colete_se_corrigir_anotacao_errada": {
+  "oficial": {
+   "vp": 40,
+   "fp": 6,
+   "fn": 18,
+   "precisao": 0.8696,
+   "revocacao": 0.6897
+  },
+  "corrigido": {
+   "vp": 41,
+   "fp": 5,
+   "fn": 13,
+   "precisao": 0.8913,
+   "revocacao": 0.7593
+  }
+ },
+ "itens": [
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image1145.jpg#7",
+   "veredito": "erro_do_sistema",
+   "nota": "pessoa sem camisa em quadra; sistema nao alertou"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image190.jpg#0",
+   "veredito": "anotacao_errada",
+   "nota": "pessoa usa colete refletivo amarelo; anotada como 'none' (sem colete)"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image225.jpg#0",
+   "veredito": "anotacao_errada",
+   "nota": "colete laranja refletivo visivel; anotado como sem colete"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image231.jpg#0",
+   "veredito": "anotacao_errada",
+   "nota": "colete laranja com faixas refletivas; anotado como sem colete"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image459.jpg#0",
+   "veredito": "anotacao_errada",
+   "nota": "colete laranja visivel; anotado como sem colete"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image484.jpg#0",
+   "veredito": "anotacao_errada",
+   "nota": "mesma cena de image225 (outro quadro); colete visivel; anotado como sem colete"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fn",
+   "caso": "image696.jpg#1",
+   "veredito": "erro_do_sistema",
+   "nota": "pessoa de jaqueta bege sem colete; sistema marcou colete ok"
+  },
+  {
+   "epi": "capacete",
+   "tipo": "fp",
+   "caso": "image1354.jpg#0",
+   "veredito": "ambiguo",
+   "nota": "capacete de ciclismo anotado como 'helmet'; nao e capacete de seguranca de obra"
+  },
+  {
+   "epi": "capacete",
+   "tipo": "fp",
+   "caso": "image1354.jpg#1",
+   "veredito": "ambiguo",
+   "nota": "idem"
+  },
+  {
+   "epi": "capacete",
+   "tipo": "fp",
+   "caso": "image1354.jpg#2",
+   "veredito": "ambiguo",
+   "nota": "idem"
+  },
+  {
+   "epi": "capacete",
+   "tipo": "fp",
+   "caso": "image450.jpg#3",
+   "veredito": "erro_do_sistema",
+   "nota": "cena pequena e densa; capacete nao detectado ou nao associado a pessoa"
+  },
+  {
+   "epi": "capacete",
+   "tipo": "fp",
+   "caso": "image58.jpeg#0",
+   "veredito": "erro_do_sistema",
+   "nota": "pessoa distante em escada; capacete pequeno demais a imgsz=416"
+  },
+  {
+   "epi": "capacete",
+   "tipo": "fp",
+   "caso": "image633.jpg#0",
+   "veredito": "erro_do_sistema",
+   "nota": "capacete branco visivel, pessoa sentada; nao detectado"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fp",
+   "caso": "image1354.jpg#0",
+   "veredito": "ambiguo",
+   "nota": "jaqueta amarela de ciclismo anotada como colete"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fp",
+   "caso": "image149.jpg#1",
+   "veredito": "anotacao_errada",
+   "nota": "pessoa de jaqueta, sem colete; anotada como com colete — o sistema acerta"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fp",
+   "caso": "image149.jpg#2",
+   "veredito": "ambiguo",
+   "nota": "colete cinza sem faixa refletiva; colete para a anotacao, nao para o modelo"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fp",
+   "caso": "image169.jpg#0",
+   "veredito": "erro_do_sistema",
+   "nota": "jaqueta de alta visibilidade (nao colete) nao reconhecida como colete"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fp",
+   "caso": "image536.jpg#2",
+   "veredito": "erro_do_sistema",
+   "nota": "grupo de 7 com colete; o de um deles nao foi detectado ou associado"
+  },
+  {
+   "epi": "colete",
+   "tipo": "fp",
+   "caso": "image796.jpg#5",
+   "veredito": "erro_do_sistema",
+   "nota": "cena com 6 pessoas proximas; colete nao detectado ou nao associado"
+  }
+ ]
+}

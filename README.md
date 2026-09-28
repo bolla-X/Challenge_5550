@@ -8,7 +8,8 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 
 ## Funcionalidades
 
-- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos, máscara e calçado de segurança, via modelo YOLOv8 dedicado (Vyra, 14 classes). O segundo modelo para detecção de pessoa continua disponível para pesos que não trazem a classe `Person` (arquitetura dual-model opcional).
+- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos e calçado de segurança, via **peso próprio** (Sprint 4): YOLOv8n treinado no dataset Construction-PPE na resolução em que o pipeline roda, com pessoa, 5 EPIs e 5 classes *negativas* num peso só. Medido por pessoa no teste: precisão do alerta "sem capacete" 0,39 → **0,85**, inferência 354 → **49 ms** ([docs/SPRINT4.md](docs/SPRINT4.md)). O Vyra (14 classes) e a arquitetura dual-model continuam suportados.
+- **Ausente não é não visto** — cada EPI sai como *detectado*, *visto sem* ou *não detectado*; a política (`PPE_MISSING_POLICY`) decide o que vira alerta, e o alerta diz ao operador se a pessoa foi vista sem o EPI.
 - **Multi-pessoa com identidade estável** — múltiplas pessoas detectadas e avaliadas no mesmo frame, cada uma com id que persiste entre frames (tracking por IoU). O EPI é associado à pessoa por geometria e de forma exclusiva: um capacete pertence a uma pessoa só, mesmo com as caixas se sobrepondo.
 - **Multi-câmera de verdade** — um worker por câmera, modelos YOLO carregados uma única vez e compartilhados. Todo alerta, evento e mensagem de WebSocket carrega `camera_id`.
 - **Análise de postura e quedas** — via MediaPipe Pose, sinalizando posturas suspeitas e pessoas caídas.
@@ -26,7 +27,8 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 **Backend**
 - Python 3.11–3.12 · Flask · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-SocketIO
 - gunicorn em produção (o servidor de desenvolvimento do Werkzeug nunca é usado fora de dev)
-- Ultralytics YOLOv8 (detecção de EPI e de pessoa, dual-model)
+- Ultralytics YOLOv8 — peso próprio `models/visionepi_cppe_n416.pt` (YOLOv8n, 6,2 MB, versionado); Vyra + COCO como alternativa
+- Google Gemini 3.6 Flash (segunda opinião multimodal, opcional)
 - MediaPipe Pose (postura e quedas)
 - SQLite (dev) / PostgreSQL (produção, via Docker)
 
@@ -45,9 +47,9 @@ flowchart TB
         direction TB
         FONTE["<b>VideoStream</b><br/>RTSP · USB · arquivo<br/>retry com backoff e teto"]
         LOOP["<b>_loop</b> — um frame por vez"]
-        YOLO["YOLO EPI + YOLO pessoa<br/><i>inference_lock compartilhado</i>"]
+        YOLO["<b>YOLOv8n VisionEPI</b> — 1 peso<br/>pessoa + 5 EPIs + 5 negativas<br/><i>38 ms p50 · inference_lock</i>"]
         POSE["MediaPipe Pose<br/>por pessoa rastreada"]
-        REGRAS["RuleEngine + PersonComplianceMatcher"]
+        REGRAS["RuleEngine + PersonComplianceMatcher<br/><i>detectado · visto sem · não detectado</i>"]
         ALERTA["AlertStateService<br/><i>histerese conta DETECÇÃO</i>"]
         ENCODE["cv2.imencode<br/><i>uma vez por frame, 2,5 ms</i>"]
         FONTE --> LOOP --> YOLO --> POSE --> REGRAS --> ALERTA --> ENCODE
@@ -73,7 +75,7 @@ flowchart TB
         SCHEMA -- "sim" --> OPINIAO
     end
 
-    ALERTA == "alerta CRIADO<br/>+ o JPEG já codificado" ==> SUBMETER
+    ALERTA == "alerta CRIADO ou<br/>'não verificado' confirmado<br/>+ o JPEG já codificado" ==> SUBMETER
 
     BANCO[("SQLite / PostgreSQL<br/>alertas · eventos · câmeras · usuários")]
     FLASK["<b>Flask</b><br/>API REST + Socket.IO<br/><i>escopo por câmera em rooms</i>"]
@@ -183,7 +185,9 @@ Para desenvolvimento do frontend com hot-reload, rode `npm run dev` dentro de `f
 
 ### Configuração do modelo de EPI
 
-O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI. O padrão é **`models/vyra_ppe.pt`** ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
+**Sprint 4 — o default é o peso próprio**, `models/visionepi_cppe_n416.pt`, que **já vem no repositório** (6,2 MB; SHA-256 travado em `tests/test_onboarding.py`). Nada a baixar: `YOLO_CLASSES` vazio e `MULTI_PERSON_DETECTION=false`, porque a classe `Person` deste peso generaliza no domínio (revocação de pessoa 0,90 contra 0,84 do COCO, na validação). Reproduzir o treino: `python scripts/baixar_dataset.py && python scripts/treinar_modelo.py` (~2,6 h em CPU de 2 núcleos). Por que trocou, com todos os números: [docs/SPRINT4.md](docs/SPRINT4.md).
+
+O restante desta seção documenta o **Vyra**, peso das Sprints 2 e 3, que continua suportado. Para usá-lo: `PPE_MODEL_PATH=models/vyra_ppe.pt` ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
 
 Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve em `models/vyra_ppe.pt`.
 
@@ -200,7 +204,7 @@ O modelo **tem** a classe `Person`, e por isso o projeto nasceu com `MULTI_PERSO
 
 **Consequência:** com `MULTI_PERSON_DETECTION=false`, `person_compliance_matcher.py:83` recebe lista de pessoas vazia. O sistema desenha capacetes e coletes no vídeo e **nunca avalia a conformidade de ninguém** — nenhum alerta de EPI é criado.
 
-Por isso **`MULTI_PERSON_DETECTION=true` é o padrão** do `.env.example`, travado por `tests/test_onboarding.py`. O custo é declarado, não escondido: **−20% de FPS** (24,32 → 19,42 a `imgsz=416`, ver [docs/BENCH.md](docs/BENCH.md)). É o preço de o sistema fazer o que promete.
+Por isso, **com o Vyra**, `MULTI_PERSON_DETECTION=true` é obrigatório — `tests/test_onboarding.py` trava isso se o `.env.example` voltar a apontar para ele. O custo é declarado, não escondido: **−20% de FPS** (24,32 → 19,42 a `imgsz=416`, ver [docs/BENCH.md](docs/BENCH.md)). É o preço de o sistema fazer o que promete.
 
 Isso exige o segundo peso, também não versionado. Baixe uma vez e mova para `models/`:
 
@@ -315,6 +319,12 @@ tests/                  Testes backend (pytest)
 ```
 
 ## Roadmap
+
+- [x] **Peso treinado no domínio** (Sprint 4) — YOLOv8n no Construction-PPE a `imgsz=416`; um modelo só no lugar de dois; avaliação por pessoa em 236 pessoas anotadas, com IC por reamostragem de cenas. [docs/SPRINT4.md](docs/SPRINT4.md)
+- [x] **Classes negativas e o estado "não verificado"** (Sprint 4) — `PPE_MISSING_POLICY=ausencia|evidencia`, escolhida na validação.
+- [x] **Segundo gatilho do LLM** (Sprint 4) — capacete/colete "não verificado" por 3 detecções aciona a segunda opinião, sem criar alerta.
+- [ ] **Medir o LLM no conjunto anotado** — `scripts/avaliar_llm_dataset.py` pronto; falta rodar com chave (bloqueio de rede no ambiente da Sprint 4).
+- [ ] **Dataset das câmeras da planta**, anotado por duas pessoas — única forma de afirmar acurácia lá.
 
 - [x] Tracking estável de pessoa entre frames — feito com um tracker IoU por câmera (`app/vision/person_tracker.py`) em vez de `model.track(persist=True)`: o estado do tracker do Ultralytics vive dentro do objeto do modelo, e os modelos aqui são compartilhados entre câmeras.
 - [x] Matching geométrico EPI–pessoa por posição real, com atribuição exclusiva

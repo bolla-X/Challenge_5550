@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 980" width="1600" height="980" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+    <marker id="setaA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+    </marker>
+    <style>
+      .t{font-size:15px;font-weight:650;fill:#0f172a}
+      .s{font-size:12.5px;fill:#334155}
+      .m{font-size:12px;fill:#475569;font-family:'JetBrains Mono',Consolas,monospace}
+      .lane{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+      .novo{font-size:11px;font-weight:700;fill:#fff}
+    </style>
+  </defs>
+  <rect width="1600" height="980" fill="#ffffff"/>
+  <text x="40" y="52" font-size="28" font-weight="750" fill="#0f172a">VisionEPI — arquitetura final (Sprint 4)</text>
+  <text x="40" y="80" class="s" font-size="14">YOLO treinado no domínio + LLM multimodal como segunda opinião assíncrona. Selo verde = o que mudou na Sprint 4.</text>
+
+  <!-- Lane síncrona -->
+  <rect x="30" y="105" width="1180" height="400" rx="16" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="50" y="132" class="lane" fill="#1d4ed8">Caminho do frame — síncrono, uma thread por câmera</text>
+
+  <!-- fonte -->
+  <rect x="50" y="155" width="200" height="130" rx="12" fill="#fff" stroke="#60a5fa"/>
+  <text x="66" y="182" class="t">VideoStream</text>
+  <text x="66" y="204" class="s">RTSP (Dahua) · USB · arquivo</text>
+  <text x="66" y="224" class="s">retry com backoff e teto</text>
+  <text x="66" y="244" class="s">descarta frame atrasado</text>
+  <text x="66" y="264" class="s">modo fixture se a fonte morre</text>
+
+  <!-- YOLO -->
+  <rect x="290" y="155" width="270" height="130" rx="12" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="470" y="143" width="80" height="22" rx="11" fill="#16a34a"/><text x="510" y="158" class="novo" text-anchor="middle">SPRINT 4</text>
+  <text x="306" y="182" class="t">YOLOv8n VisionEPI (1 peso)</text>
+  <text x="306" y="204" class="s">treinado no Construction-PPE, imgsz 416</text>
+  <text x="306" y="224" class="s">pessoa + 5 EPIs + 5 classes negativas</text>
+  <text x="306" y="244" class="s">(no_helmet, sem colete, no_gloves…)</text>
+  <text x="306" y="268" class="m">EPI 38 ms p50 · antes 197 + 35 ms</text>
+
+  <!-- tracker -->
+  <rect x="600" y="155" width="170" height="130" rx="12" fill="#fff" stroke="#60a5fa"/>
+  <text x="616" y="182" class="t">PersonTracker</text>
+  <text x="616" y="204" class="s">id estável por IoU</text>
+  <text x="616" y="224" class="s">um por câmera</text>
+
+  <!-- matcher -->
+  <rect x="810" y="155" width="380" height="130" rx="12" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="1100" y="143" width="80" height="22" rx="11" fill="#16a34a"/><text x="1140" y="158" class="novo" text-anchor="middle">SPRINT 4</text>
+  <text x="826" y="182" class="t">PersonComplianceMatcher</text>
+  <text x="826" y="204" class="s">EPI → pessoa por geometria, atribuição exclusiva</text>
+  <text x="826" y="226" class="s">3 leituras por EPI: <tspan font-weight="700" fill="#15803d">detectado</tspan> ·
+    <tspan font-weight="700" fill="#b91c1c">visto sem</tspan> · <tspan font-weight="700" fill="#a16207">não detectado</tspan></text>
+  <text x="826" y="248" class="s">política: ausência (default) | evidência</text>
+  <text x="826" y="268" class="m">PPE_MISSING_POLICY, escolhida na validação</text>
+
+  <!-- segunda linha -->
+  <rect x="290" y="330" width="230" height="140" rx="12" fill="#fff" stroke="#60a5fa"/>
+  <text x="306" y="357" class="t">MediaPipe Pose</text>
+  <text x="306" y="379" class="s">recorte por pessoa rastreada</text>
+  <text x="306" y="399" class="s">queda e postura em pixels</text>
+
+  <rect x="560" y="330" width="260" height="140" rx="12" fill="#fff" stroke="#60a5fa"/>
+  <text x="576" y="357" class="t">RuleEngine</text>
+  <text x="576" y="379" class="s">EPI por pessoa · queda · postura</text>
+  <text x="576" y="399" class="s">presença em área de risco</text>
+  <text x="576" y="421" class="s">alerta diz se foi "visto sem o EPI"</text>
+
+  <rect x="860" y="330" width="330" height="140" rx="12" fill="#fff" stroke="#60a5fa"/>
+  <text x="876" y="357" class="t">AlertStateService</text>
+  <text x="876" y="379" class="s">histerese: cria após 3 detecções,</text>
+  <text x="876" y="399" class="s">resolve após 5 — conta DETECÇÃO</text>
+  <text x="876" y="421" class="s">JPEG codificado uma vez por frame</text>
+  <text x="876" y="447" class="m">11,15 fps (antes 3,42), CPU 2 núcleos</text>
+
+  <!-- setas síncronas -->
+  <line x1="250" y1="220" x2="286" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="560" y1="220" x2="596" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="770" y1="220" x2="806" y2="220" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <path d="M1000,285 L1000,305 L405,305 L405,326" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="520" y1="400" x2="556" y2="400" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="820" y1="400" x2="856" y2="400" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+
+  <!-- Lane assíncrona -->
+  <rect x="30" y="530" width="1180" height="250" rx="16" fill="#fffbeb" stroke="#fcd34d" stroke-dasharray="6 4"/>
+  <text x="390" y="560" class="lane" fill="#b45309">Segunda opinião — assíncrona, fora da thread do frame, descartável</text>
+
+  <rect x="50" y="580" width="300" height="170" rx="12" fill="#fff" stroke="#f59e0b"/>
+  <rect x="260" y="568" width="80" height="22" rx="11" fill="#16a34a"/><text x="300" y="583" class="novo" text-anchor="middle">SPRINT 4</text>
+  <text x="66" y="607" class="t">Dois gatilhos</text>
+  <text x="66" y="629" class="s">1. alerta CRIADO (Sprint 3)</text>
+  <text x="66" y="649" class="s">2. capacete/colete "não verificado"</text>
+  <text x="84" y="669" class="s">por 3 detecções seguidas</text>
+  <text x="66" y="691" class="s">uma vez por borda; mesmo frame</text>
+  <text x="84" y="711" class="s">nunca submete duas vezes</text>
+
+  <rect x="390" y="580" width="250" height="170" rx="12" fill="#fff" stroke="#f59e0b"/>
+  <text x="406" y="607" class="t">ServicoDeRiscoLLM</text>
+  <text x="406" y="629" class="s">submeter() em 9–13 µs</text>
+  <text x="406" y="649" class="s">debounce 15 s por câmera</text>
+  <text x="406" y="669" class="s">uma chamada em voo</text>
+  <text x="406" y="689" class="s">descarta em vez de enfileirar</text>
+
+  <rect x="680" y="580" width="250" height="170" rx="12" fill="#fff" stroke="#f59e0b"/>
+  <text x="696" y="607" class="t">Gemini 3.6 Flash</text>
+  <text x="696" y="629" class="s">prompt v2: ausente ≠ não visível,</text>
+  <text x="696" y="649" class="s">conta pessoas, calibra confiança,</text>
+  <text x="696" y="669" class="s">pondera exigência da atividade</text>
+  <text x="696" y="693" class="m">16–38 s por chamada (medido)</text>
+
+  <rect x="970" y="580" width="220" height="170" rx="12" fill="#fff" stroke="#f59e0b"/>
+  <text x="986" y="607" class="t">Schema Pydantic</text>
+  <text x="986" y="629" class="s">inválido → None + log</text>
+  <text x="986" y="655" class="t">segunda_opiniao</text>
+  <text x="986" y="677" class="s">campo separado: nunca cria,</text>
+  <text x="986" y="697" class="s">resolve nem suprime alerta</text>
+
+  <path d="M1025,470 L1025,518 L200,518 L200,576" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#setaA)"/>
+  <rect x="470" y="508" width="560" height="20" fill="#ffffff"/><text x="480" y="522" class="m" fill="#b45309">alerta criado + JPEG já codificado · ou "não verificado" confirmado</text>
+  <line x1="350" y1="665" x2="386" y2="665" stroke="#b45309" stroke-width="2" marker-end="url(#setaA)"/>
+  <line x1="640" y1="665" x2="676" y2="665" stroke="#b45309" stroke-width="2" marker-end="url(#setaA)"/>
+  <line x1="930" y1="665" x2="966" y2="665" stroke="#b45309" stroke-width="2" marker-end="url(#setaA)"/>
+
+  <!-- Lane apresentação -->
+  <rect x="1240" y="105" width="330" height="675" rx="16" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="1260" y="132" class="lane" fill="#15803d">Estado e interface</text>
+  <rect x="1260" y="155" width="290" height="120" rx="12" fill="#fff" stroke="#22c55e"/>
+  <text x="1276" y="182" class="t">SQLite / PostgreSQL</text>
+  <text x="1276" y="204" class="s">alertas · eventos · câmeras</text>
+  <text x="1276" y="224" class="s">usuários (scrypt, 3 papéis)</text>
+  <text x="1276" y="244" class="s">migrações Alembic</text>
+  <rect x="1260" y="300" width="290" height="140" rx="12" fill="#fff" stroke="#22c55e"/>
+  <text x="1276" y="327" class="t">Flask · REST + Socket.IO</text>
+  <text x="1276" y="349" class="s">sessão HttpOnly revogável</text>
+  <text x="1276" y="369" class="s">escopo por câmera em rooms</text>
+  <text x="1276" y="389" class="s">vídeo MJPEG já anotado</text>
+  <rect x="1260" y="465" width="290" height="150" rx="12" fill="#fff" stroke="#22c55e"/>
+  <text x="1276" y="492" class="t">React SPA (Vite)</text>
+  <text x="1276" y="514" class="s">Operador: câmera do setor</text>
+  <text x="1276" y="534" class="s">Técnico: diagnóstico do modelo</text>
+  <text x="1276" y="554" class="s">Supervisor: parque inteiro</text>
+  <text x="1276" y="578" class="s">EPI "não verificado" em amarelo</text>
+  <line x1="1190" y1="400" x2="1256" y2="370" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="1190" y1="665" x2="1256" y2="400" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#setaA)"/>
+  <line x1="1405" y1="275" x2="1405" y2="296" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="1405" y1="440" x2="1405" y2="461" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+
+  <!-- Offline -->
+  <rect x="30" y="805" width="1540" height="150" rx="16" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="50" y="832" class="lane" fill="#475569">Fora do sistema em produção — como o peso nasceu e como foi medido (Sprint 4)</text>
+  <rect x="50" y="850" width="330" height="85" rx="10" fill="#fff" stroke="#94a3b8"/>
+  <text x="66" y="876" class="t">Construction-PPE (AGPL-3.0)</text>
+  <text x="66" y="898" class="s">1132 treino · 143 validação · 141 teste</text>
+  <text x="66" y="918" class="m">SHA-256 conferido no download</text>
+  <rect x="420" y="850" width="330" height="85" rx="10" fill="#fff" stroke="#94a3b8"/>
+  <text x="436" y="876" class="t">Treino em CPU</text>
+  <text x="436" y="898" class="s">YOLOv8n COCO → 40 épocas, seed 0</text>
+  <text x="436" y="918" class="m">~3,8 min/época · 2,6 h no total</text>
+  <rect x="790" y="850" width="360" height="85" rx="10" fill="#fff" stroke="#94a3b8"/>
+  <text x="806" y="876" class="t">Validação → escolhe</text>
+  <text x="806" y="898" class="s">modelo único vs +COCO · conf · política</text>
+  <text x="806" y="918" class="m">o teste não participa da escolha</text>
+  <rect x="1190" y="850" width="360" height="85" rx="10" fill="#fff" stroke="#94a3b8"/>
+  <text x="1206" y="876" class="t">Teste → relata</text>
+  <text x="1206" y="898" class="s">métrica POR PESSOA do alerta, IC 95%</text>
+  <text x="1206" y="918" class="m">por reamostragem de 81 cenas</text>
+  <line x1="380" y1="892" x2="416" y2="892" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="750" y1="892" x2="786" y2="892" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="1150" y1="892" x2="1186" y2="892" stroke="#334155" stroke-width="2" marker-end="url(#seta)"/>
+</svg>
