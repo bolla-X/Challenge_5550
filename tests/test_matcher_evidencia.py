@@ -182,3 +182,13 @@ def test_config_le_a_politica_do_ambiente(monkeypatch):
     finally:
         monkeypatch.delenv("PPE_MISSING_POLICY")
         importlib.reload(modulo)
+
+
+def test_alerta_diz_se_a_pessoa_foi_vista_sem_o_epi():
+    alertas = _engine("ausencia").evaluate([PESSOA, _det("no_helmet", CABECA)], None, (1000, 1000, 3))
+    capacete = next(a for a in alertas if a.feature == "helmet")
+    colete = next(a for a in alertas if a.feature == "vest")
+    assert capacete.metadata["evidence"] == "negativa_detectada"
+    assert capacete.message.endswith("(visto sem o EPI)")
+    assert colete.metadata["evidence"] == "nao_detectado"
+    assert "visto sem" not in colete.message

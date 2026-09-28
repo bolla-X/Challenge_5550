@@ -347,6 +347,10 @@ class TestConfig(Config):
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
+    # Mesmo motivo: um .env com PPE_MISSING_POLICY=evidencia mudaria quais
+    # alertas nascem e quebraria testes que nada tem a ver com politica. Quem
+    # testa a outra politica pede explicitamente (test_matcher_evidencia.py).
+    PPE_MISSING_POLICY = "ausencia"
 
 
 class AuthTestConfig(TestConfig):

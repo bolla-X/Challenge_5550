@@ -125,15 +125,22 @@ class RuleEngine:
                 for feature_key, (message, severity) in PPE_RULES.items():
                     if not self.feature_manager.is_enabled(feature_key) or feature_key not in supported_ppe:
                         continue
-                    if person_state["ppe"][feature_key]["status"] != "missing":
+                    check = person_state["ppe"][feature_key]
+                    if check["status"] != "missing":
                         continue
+                    # Sprint 4: o operador precisa saber se o sistema VIU a
+                    # pessoa sem o EPI ou só não achou o EPI. São erros de
+                    # natureza diferente (ver docs/SPRINT4.md, análise de erro).
+                    evidencia = check.get("evidence", "nao_detectado")
+                    sufixo = " (visto sem o EPI)" if evidencia == "negativa_detectada" else ""
                     alerts.append(
                         RuleAlert(
                             rule=f"missing_{feature_key}",
                             severity=severity,
-                            message=f"{message} — {person_state['label']}",
+                            message=f"{message} — {person_state['label']}{sufixo}",
                             feature=feature_key,
                             metadata={
+                                "evidence": evidencia,
                                 "person_id": person_state["id"],
                                 "person_label": person_state["label"],
                                 "person_box": person_state["box"],

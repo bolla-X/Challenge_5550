@@ -92,7 +92,52 @@ def test_env_example_liga_o_detector_de_pessoa():
     Custo de deixar `true`, medido (docs/BENCH.md): -20% de FPS
     (24,32 -> 19,42 a imgsz=416). E o preco de o sistema funcionar.
     """
-    assert ler_env_example()["MULTI_PERSON_DETECTION"] == "true"
+    valores = ler_env_example()
+    if valores["PPE_MODEL_PATH"].endswith("vyra_ppe.pt"):
+        assert valores["MULTI_PERSON_DETECTION"] == "true"
+
+
+def test_env_example_com_o_peso_da_sprint4_usa_um_modelo_so():
+    """Sprint 4: com o peso proprio, o segundo YOLO sai — por medicao.
+
+    O peso treinado no Construction-PPE tem classe Person que generaliza no
+    dominio: revocacao de pessoa 0,90 na validacao contra 0,84 do COCO. Somar
+    o COCO piorou o F1 do alerta de capacete (0,88 -> 0,83, validacao) e
+    dobrou o custo (47 -> 98 ms/imagem). Ver docs/SPRINT4.md.
+
+    O inverso do teste acima, e pela mesma razao: a configuracao documentada
+    tem que ser a medida. E YOLO_CLASSES vazio, porque os indices do Vyra
+    filtrariam as classes erradas deste peso em silencio.
+    """
+    valores = ler_env_example()
+    assert valores["PPE_MODEL_PATH"] == "models/visionepi_cppe_n416.pt"
+    assert valores["MULTI_PERSON_DETECTION"] == "false"
+    assert valores["YOLO_CLASSES"] == ""
+
+
+def test_peso_da_sprint4_esta_versionado_e_e_o_avaliado():
+    """O peso do default precisa existir num clone limpo, e ser o que foi medido.
+
+    Sem ele, quem clona teria de treinar 2,5 h antes de subir. O SHA-256 e o
+    do arquivo avaliado em docs/avaliacao/ — trocar o peso sem refazer a
+    avaliacao faria o relatorio descrever outro modelo.
+    """
+    import hashlib
+
+    peso = RAIZ / "models" / "visionepi_cppe_n416.pt"
+    assert peso.exists(), "models/visionepi_cppe_n416.pt ausente — ver .gitignore (excecao do peso)"
+    assert hashlib.sha256(peso.read_bytes()).hexdigest() == (
+        "f0dfeea760eea2b9a8a8ae1955b3e6b5dee6770c42171ea8b24a5eceaacae935"
+    )
+
+
+def test_politica_de_missing_padrao_e_a_escolhida_na_validacao():
+    """`ausencia` venceu `evidencia` no F1 medio capacete+colete (0,83 x 0,62)
+    na VALIDACAO. O teste nao participou da escolha."""
+    from app.config import Config
+
+    assert ler_env_example()["PPE_MISSING_POLICY"] == "ausencia"
+    assert Config.PPE_MISSING_POLICY in ("ausencia", "evidencia")
 
 
 def test_env_example_aponta_o_peso_de_pessoa_para_arquivo_local():

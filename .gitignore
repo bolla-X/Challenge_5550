@@ -18,7 +18,7 @@ tsc.log
 # zip por dentro, entao `vyra_ppe.pt.zip` e o proprio checkpoint renomeado —
 # passa batido pela regra `*.pt` acima e estoura o aviso de 50 MB do GitHub.
 *.pt.zip
-models/
+models/*
 
 # Fixtures de video: baixadas por scripts/fetch_fixtures.py, nunca versionadas.
 # Repositorio publico + binario grande. Origem, licenca e checksum em docs/FIXTURES.md.
@@ -45,3 +45,7 @@ auto.key
 datasets/
 runs_treino/
 tests/fixtures/demo_sprint4.mp4
+
+# Excecao: o peso da Sprint 4 (6,2 MB) E versionado, para o default rodar num
+# clone limpo sem 2,5 h de treino. SHA-256 travado em tests/test_onboarding.py.
+!models/visionepi_cppe_n416.pt
