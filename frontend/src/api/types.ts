@@ -145,9 +145,13 @@ export interface ModelDiagnostics extends CameraScoped {
 // ---- app/vision/person_compliance_matcher.py: build() --------------------
 export interface PersonPpeCheck {
   key: string;
-  status: "ok" | "missing" | "unsupported" | "disabled" | string;
+  status: "ok" | "missing" | "unverified" | "unsupported" | "disabled" | string;
   message: string;
+  // Sprint 4: por que o status saiu assim. "negativa_detectada" = a pessoa foi
+  // VISTA sem o EPI; "nao_detectado" = nada foi visto, nem com nem sem.
+  evidence?: "detectado" | "negativa_detectada" | "nao_detectado";
   detections: Detection[];
+  negative_detections?: Detection[];
   confidence: number;
 }
 
@@ -169,7 +173,7 @@ export interface PersonCompliance {
 export interface PpeComplianceCard {
   key: string;
   label: string;
-  status: "ok" | "missing" | "critical" | "warning" | "unsupported" | "waiting" | "disabled" | string;
+  status: "ok" | "missing" | "unverified" | "critical" | "warning" | "unsupported" | "waiting" | "disabled" | string;
   message: string;
   enabled: boolean;
   supported: boolean;

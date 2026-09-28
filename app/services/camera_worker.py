@@ -211,6 +211,7 @@ class CameraWorker:
             cooldown_seconds=app.config.get("ALERT_COOLDOWN_SECONDS", 0),
             risk_polygon=risk_polygon,
             supported_ppe_getter=self.detector.supported_ppe_classes,
+            missing_policy=app.config.get("PPE_MISSING_POLICY", "ausencia"),
         )
         self.alert_state_service = AlertStateService(
             AlertRepository(),

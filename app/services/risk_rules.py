@@ -63,12 +63,16 @@ class RuleEngine:
         cooldown_seconds: int,
         risk_polygon: list[tuple[float, float]],
         supported_ppe_getter: Callable[[], set[str]] | None = None,
+        missing_policy: str = "ausencia",
     ) -> None:
         self.feature_manager = feature_manager
         self.cooldown_seconds = cooldown_seconds
         self.risk_polygon = risk_polygon
         self.supported_ppe_getter = supported_ppe_getter
-        self.person_matcher = PersonComplianceMatcher()
+        # "ausencia" | "evidencia" — ver PersonComplianceMatcher e docs/SPRINT4.md.
+        # Com "evidencia", EPI nao detectado vira "unverified" e NAO gera
+        # alerta: so gera quem teve a classe negativa detectada.
+        self.person_matcher = PersonComplianceMatcher(missing_policy=missing_policy)
 
     def analyze(
         self,

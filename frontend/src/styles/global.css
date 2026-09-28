@@ -368,7 +368,7 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 .row-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex: none; background: var(--muted-2); transition: background .18s var(--ease); }
 .row-dot.ok { background: var(--ok); }
 .row-dot.missing, .row-dot.critical { background: var(--danger); }
-.row-dot.warning, .row-dot.unsupported, .row-dot.waiting { background: var(--warning); }
+.row-dot.warning, .row-dot.unsupported, .row-dot.waiting, .row-dot.unverified { background: var(--warning); }
 .row-item strong { display: block; font-size: 13px; font-weight: 600; }
 .row-item span, .row-item small { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
 .row-item .metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
@@ -379,7 +379,7 @@ button.is-pending { opacity: .65; cursor: progress; pointer-events: none; }
 }
 .metric.ok { border-color: rgba(34, 197, 94, .35); color: #bbf7d0; }
 .metric.missing, .metric.critical { border-color: rgba(239, 68, 68, .4); color: #fecaca; }
-.metric.unsupported, .metric.waiting, .metric.warning { border-color: rgba(245, 158, 11, .4); color: #fed7aa; }
+.metric.unsupported, .metric.waiting, .metric.warning, .metric.unverified { border-color: rgba(245, 158, 11, .4); color: #fed7aa; }
 .metric.disabled { opacity: .55; }
 
 /* ---------------- Alert card ---------------- */

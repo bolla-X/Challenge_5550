@@ -53,6 +53,39 @@ PPE_CLASS_ALIASES = {
     "safety_cone": "safety_cone",
     "person": "person",
     "worker": "person",
+    # --- Classes NEGATIVAS (Sprint 4): a pessoa foi vista SEM o EPI. -------
+    # Nao sao EPI: nunca contam como item presente. O matcher usa essas caixas
+    # para separar "ausente" (negativa detectada) de "nao visto" (nada
+    # detectado). Vyra: NO-Hardhat, NO-Safety Vest, NO-Gloves, NO-Goggles,
+    # NO-Mask. Construction-PPE (Ultralytics): no_helmet, none, no_gloves,
+    # no_goggle, no_boots.
+    "no_hardhat": "no_helmet",
+    "no_helmet": "no_helmet",
+    "no_safety vest": "no_vest",
+    "no_safety_vest": "no_vest",
+    "no_vest": "no_vest",
+    # No Construction-PPE a classe "none" e o torso SEM colete (verificado
+    # desenhando o ground truth). Nome generico, mas nenhum outro peso deste
+    # projeto tem uma classe "none".
+    "none": "no_vest",
+    "no_gloves": "no_gloves",
+    "no_glove": "no_gloves",
+    "no_goggles": "no_glasses",
+    "no_goggle": "no_glasses",
+    "no_glasses": "no_glasses",
+    "no_mask": "no_mask",
+    "no_boots": "no_safety_shoe",
+    "no_safety_shoe": "no_safety_shoe",
+}
+
+# Classe negativa -> EPI a que ela se refere.
+PPE_NEGATIVE_CLASSES = {
+    "no_helmet": "helmet",
+    "no_vest": "vest",
+    "no_gloves": "gloves",
+    "no_glasses": "glasses",
+    "no_mask": "mask",
+    "no_safety_shoe": "safety_shoe",
 }
 
 # Nucleo: sem estas tres o sistema nao cumpre o que promete, entao sao elas
@@ -215,7 +248,12 @@ class YoloPPEDetector:
             class_id = int(box.cls[0].detach().cpu().item()) if box.cls is not None else None
             raw_label = str(names.get(class_id, class_id)).strip().lower()
             normalized = self.normalize_label(raw_label)
-            category = "ppe" if normalized in set(PPE_REQUIRED_CLASSES) else normalized
+            if normalized in PPE_NEGATIVE_CLASSES:
+                category = "ppe_negativo"
+            elif normalized in set(PPE_REQUIRED_CLASSES):
+                category = "ppe"
+            else:
+                category = normalized
             detections.append(
                 Detection(
                     label=normalized,
