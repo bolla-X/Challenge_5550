@@ -204,6 +204,9 @@ class CameraWorker:
         self.brilho_minimo = float(app.config.get("FONTE_BRILHO_MINIMO", 2.0))
         self.brilho_janela_s = float(app.config.get("FONTE_BRILHO_JANELA_S", 5.0))
         self._brilho: float | None = None
+        # Detecções novas seguidas com alguém "unverified" (ver
+        # _nao_verificado_confirmou).
+        self._frames_nao_verificado = 0
         self._ultima_amostra_de_brilho = 0.0
         self._escuro_desde: float | None = None
         self.rule_engine = RuleEngine(
@@ -589,6 +592,10 @@ class CameraWorker:
                     # entrega ao executor (11 microssegundos, docs/SPRINT3.md).
                     # Reaproveita o JPEG acima — não há segundo encode.
                     self._submeter_ao_llm(alert_state, jpeg)
+                    # Segundo gatilho: "não verificado" confirmado. Se o mesmo
+                    # frame já criou alerta, a chamada acima já leva esta imagem.
+                    if self._nao_verificado_confirmou(evaluation.people) and not alert_state.get("created"):
+                        self._submeter_ao_llm({"created": [{"motivo": "nao_verificado"}]}, jpeg)
 
                     # camera_id em TODO payload: o dashboard usa isso pra
                     # descartar o que não é da câmera em foco. Sem o carimbo,
@@ -707,6 +714,30 @@ class CameraWorker:
             return
         self._ultimo_diagnostico = assinatura
         self._emitir("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
+
+    def _nao_verificado_confirmou(self, people: list[dict[str, Any]]) -> bool:
+        """Segundo gatilho do LLM (Sprint 4): alguém com capacete ou colete
+        "unverified" por N detecções NOVAS seguidas — o mesmo N que confirma um
+        alerta (ALERT_CREATE_AFTER_FRAMES). Dispara UMA vez, na borda; volta a
+        armar quando o estado some.
+
+        Por que só capacete e colete: são os dois EPIs que a avaliação por
+        pessoa mede com suporte suficiente (docs/SPRINT4.md). E por que existe:
+        com PPE_MISSING_POLICY=evidencia, "não vi o capacete" deixa de ser
+        alerta — e é justamente onde a Sprint 3 mostrou o LLM distinguindo
+        ausente de não visível.
+        """
+        if not self._analise_foi_nova:
+            return False
+        nao_verificado = any(
+            pessoa["ppe"].get(chave, {}).get("status") == "unverified" for pessoa in people for chave in ("helmet", "vest")
+        )
+        if not nao_verificado:
+            self._frames_nao_verificado = 0
+            return False
+        self._frames_nao_verificado += 1
+        limiar = max(1, int(self.app.config.get("ALERT_CREATE_AFTER_FRAMES", 3)))
+        return self._frames_nao_verificado == limiar
 
     def _submeter_ao_llm(self, alert_state: dict[str, Any], jpeg: bytes | None) -> None:
         """Dispara a análise multimodal quando um alerta é CRIADO.

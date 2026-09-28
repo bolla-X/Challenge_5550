@@ -219,3 +219,44 @@ def contar(matriz: Matriz, *, verdade: str, alerta: bool, exemplo: str | None = 
         chave = None
     if exemplo and chave and len(matriz.exemplos[chave]) < 12:
         matriz.exemplos[chave].append(exemplo)
+
+
+# --- Nivel IMAGEM: o que da para comparar com o LLM --------------------------
+#
+# O LLM responde por cena ("epis_ausentes": [...]), nao por pessoa. Para
+# comparar as duas camadas na mesma regua, as duas sao reduzidas a imagem:
+# "ha alguem sem capacete nesta imagem?".
+
+
+def verdade_por_imagem(status_por_pessoa: list[dict[str, str]], epi: str) -> str:
+    """AUSENTE se alguem esta sem; PRESENTE se todos os julgaveis estao com;
+    NAO_VISIVEL se ninguem e julgavel."""
+    valores = [s[epi] for s in status_por_pessoa]
+    if AUSENTE in valores:
+        return AUSENTE
+    if PRESENTE in valores:
+        return PRESENTE
+    return NAO_VISIVEL
+
+
+def alerta_combinado(status_yolo: list[str], llm_ausentes: set[str] | None, epi: str, *, regra: str) -> bool:
+    """Decisao de alerta por imagem para um EPI, dadas as leituras das camadas.
+
+    `status_yolo` e o status desse EPI em cada pessoa prevista, ja calculado
+    pela politica "evidencia" (ok / missing / unverified).
+
+    Regras:
+    - "yolo": alerta se alguma pessoa esta missing (negativa detectada).
+    - "llm": alerta se o LLM listou o EPI (None = LLM nao respondeu: sem alerta).
+    - "yolo_ou_llm_nos_nao_verificados": o YOLO decide onde tem evidencia; onde
+      so ha "unverified", quem desempata e o LLM. E a arquitetura final.
+    """
+    yolo = "missing" in status_yolo
+    llm = bool(llm_ausentes) and epi in llm_ausentes
+    if regra == "yolo":
+        return yolo
+    if regra == "llm":
+        return llm
+    if regra == "yolo_ou_llm_nos_nao_verificados":
+        return yolo or ("unverified" in status_yolo and llm)
+    raise ValueError(f"regra desconhecida: {regra}")

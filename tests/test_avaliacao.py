@@ -120,3 +120,27 @@ def test_contar_trata_violacao_como_classe_positiva():
     contar(m, verdade=NAO_VISIVEL, alerta=True)  # nao entra: nao ha verdade
     assert (m.vp, m.fp, m.fn, m.vn) == (1, 1, 1, 1)
     assert m.sem_verdade_com_alerta == 1
+
+
+def test_verdade_por_imagem():
+    from app.vision.avaliacao import verdade_por_imagem
+
+    assert verdade_por_imagem([{"helmet": PRESENTE}, {"helmet": AUSENTE}], "helmet") == AUSENTE
+    assert verdade_por_imagem([{"helmet": PRESENTE}, {"helmet": NAO_VISIVEL}], "helmet") == PRESENTE
+    assert verdade_por_imagem([{"helmet": NAO_VISIVEL}], "helmet") == NAO_VISIVEL
+    assert verdade_por_imagem([], "helmet") == NAO_VISIVEL
+
+
+def test_llm_so_desempata_onde_o_yolo_nao_verificou():
+    from app.vision.avaliacao import alerta_combinado
+
+    regra = "yolo_ou_llm_nos_nao_verificados"
+    # YOLO viu o EPI em todos: o LLM dizendo "ausente" NAO cria alerta.
+    assert alerta_combinado(["ok", "ok"], {"helmet"}, "helmet", regra=regra) is False
+    # YOLO viu a negativa: alerta, diga o LLM o que disser.
+    assert alerta_combinado(["missing"], set(), "helmet", regra=regra) is True
+    # So "nao verificado": o LLM decide.
+    assert alerta_combinado(["unverified", "ok"], {"helmet"}, "helmet", regra=regra) is True
+    assert alerta_combinado(["unverified"], {"vest"}, "helmet", regra=regra) is False
+    # LLM fora do ar (None) nunca vira alerta.
+    assert alerta_combinado(["unverified"], None, "helmet", regra=regra) is False
