@@ -254,6 +254,10 @@ passou a ser o estágio mais caro** (p90 ~115 ms) — é o próximo gargalo.
 - [`docs/evidencias/app/`](evidencias/app/): capturas por papel e por aba.
 - [`docs/evidencias/casos/`](evidencias/casos/): lado a lado anotação ×
   sistema, antes (Sprint 3) e depois (Sprint 4), em acertos e erros.
+- A captura achou um defeito real, corrigido nesta sprint: o kiosk do
+  Operador mostrava **máscara com check verde** — o peso novo não tem classe
+  de máscara, e "sem alerta" virava "conforme". Agora aparece
+  "Máscara: indisponível" (lido de `status.model.supported_ppe`).
 
 ![antes](evidencias/casos/antes_image1037_sprint3_ausencia.jpg)
 ![depois](evidencias/casos/depois_image1037_cppe_ausencia.jpg)
@@ -308,7 +312,11 @@ oficial.
 - **Evidência de execução é sobre vídeo montado**, não câmera ao vivo: a
   troca de imagem a cada 4 s é mais brusca que uma cena real, e o tracker
   carrega ids entre cortes; alertas da imagem anterior levam 5 detecções para
-  resolver.
+  resolver. E o vídeo **penaliza** o detector: cada imagem ocupa ~720 px de um
+  quadro de 1280, e a `imgsz=416` chega à rede com ~234 px — cerca de um terço
+  da resolução com que foi avaliada. Por isso aparecem, nas capturas, erros
+  que a avaliação da mesma imagem não tem (ex.: trabalhadores de capacete
+  vermelho, agachados, acusados de "sem capacete" em `05_operador.jpg`).
 - **3 testes da suíte dependem da fixture `bench.mp4`** (Wikimedia, também
   bloqueada aqui). Rodados com o vídeo da Sprint 4 no lugar: **375 de 375
   verdes**; sem nenhum vídeo, 372.
