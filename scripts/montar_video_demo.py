@@ -66,6 +66,7 @@ def main() -> int:
     parser.add_argument("--por-categoria", type=int, default=4)
     parser.add_argument("--segundos", type=float, default=2.5)
     parser.add_argument("--saida", default=str(RAIZ / "tests" / "fixtures" / "demo_sprint4.mp4"))
+    parser.add_argument("--imagens", default="", help="lista explicita, na ordem (curadoria para a apresentacao)")
     args = parser.parse_args()
 
     raiz = Path(args.dataset)
@@ -88,6 +89,15 @@ def main() -> int:
         for cat in ("conforme", "sem_capacete", "sem_colete"):
             if i < len(escolhidas[cat]):
                 ordem.append((cat, escolhidas[cat][i]))
+    if args.imagens:
+        # Curadoria explicita: a categoria continua vindo do ground truth.
+        ordem = []
+        for nome in args.imagens.split(","):
+            caminho = raiz / "images" / args.split / nome
+            img = cv2.imread(str(caminho))
+            rotulo = raiz / "labels" / args.split / f"{caminho.stem}.txt"
+            gt = ground_truth_por_pessoa(ler_rotulos_yolo(rotulo, NOMES_CPPE, largura=img.shape[1], altura=img.shape[0]))
+            ordem.append((_categoria(gt) or "misto", caminho))
 
     destino = Path(args.saida)
     destino.parent.mkdir(parents=True, exist_ok=True)
