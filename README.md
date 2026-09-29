@@ -2,6 +2,8 @@
 
 Sistema de monitoramento de segurança industrial em tempo real, desenvolvido para o **Challenge 2026 — Metaindústria** (FIAP × SPI Integração). Usa visão computacional para detectar uso de EPIs, analisar postura e comportamento, e sinalizar risco antes que o incidente aconteça — não apenas registrar a infração depois do fato.
 
+> **Sprint 4 (entrega final de IA):** relatório técnico em [docs/SPRINT4.md](docs/SPRINT4.md) e em PDF ([docs/entrega/](docs/entrega/)), diagrama em [docs/arquitetura_sprint4.png](docs/arquitetura_sprint4.png), tabelas geradas em [docs/avaliacao/RESUMO.md](docs/avaliacao/RESUMO.md), evidências em [docs/evidencias/](docs/evidencias/).
+
 ## O problema
 
 O modelo tradicional de segurança industrial é reativo: inspeções periódicas, checklists manuais, punição depois do incidente. O VisionEPI propõe o oposto — monitoramento contínuo por IA, alertas em tempo real, e uma camada de tendência que aponta onde o risco está se acumulando antes de virar acidente.
