@@ -1,5 +1,5 @@
 {
- "_como_foi_feito": "Revisao VISUAL, por um anotador (Claude, a pedido da equipe), de TODOS os erros do alerta de capacete e colete do peso da Sprint 4 no teste (politica ausencia, conf 0,35): 7 FN e 6 FP de colete, 6 FP de capacete (0 FN de capacete). Cada caso foi desenhado com scripts/renderizar_casos.py. Acertos NAO foram revisados — por isso a 'sensibilidade' abaixo e enviesada a favor do sistema e serve so para dimensionar o ruido da anotacao, nao como numero oficial.",
+ "_como_foi_feito": "Revisao VISUAL, por um anotador (Claude, a pedido da equipe), dos erros do alerta de capacete e colete do peso da Sprint 4 no teste (politica ausencia, conf 0,35) SOBRE PESSOAS DETECTADAS: 7 FN e 6 FP de colete, 6 FP de capacete. Os 14 erros de pessoas que o detector nao encontrou (3 de capacete, 11 de colete) nao foram revisados. Cada caso foi desenhado com scripts/renderizar_casos.py. Acertos NAO foram revisados — por isso a 'sensibilidade' abaixo e enviesada a favor do sistema e serve so para dimensionar o ruido da anotacao, nao como numero oficial.",
  "totais": {
   "erro_do_sistema": 8,
   "anotacao_errada": 6,

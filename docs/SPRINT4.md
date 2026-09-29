@@ -275,7 +275,7 @@ calçado ainda geram alertas.
 
 ### O quanto dos erros é da anotação
 
-Revisei visualmente os 19 erros de capacete e colete do peso novo **sobre
+Foram revisados visualmente os 19 erros de capacete e colete do peso novo **sobre
 pessoas que o detector encontrou**
 ([auditoria_erros_cppe.json](avaliacao/auditoria_erros_cppe.json)). Os 14
 erros de pessoas não detectadas (3 violações de capacete, 11 de colete) não
