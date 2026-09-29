@@ -118,7 +118,7 @@ def test_env_example_com_o_peso_da_sprint4_usa_um_modelo_so():
 def test_peso_da_sprint4_esta_versionado_e_e_o_avaliado():
     """O peso do default precisa existir num clone limpo, e ser o que foi medido.
 
-    Sem ele, quem clona teria de treinar 2,5 h antes de subir. O SHA-256 e o
+    Sem ele, quem clona teria de treinar 2,6 h antes de subir. O SHA-256 e o
     do arquivo avaliado em docs/avaliacao/ — trocar o peso sem refazer a
     avaliacao faria o relatorio descrever outro modelo.
     """

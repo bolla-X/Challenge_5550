@@ -20,7 +20,7 @@ Medido nesta execucao (CPU Intel Xeon 2,1 GHz, 2 nucleos, sem GPU): ~3,8 min
 por epoca.
 
     python scripts/baixar_dataset.py
-    python scripts/treinar_modelo.py            # ~2,5 h em CPU de 2 nucleos
+    python scripts/treinar_modelo.py            # ~2,6 h em CPU de 2 nucleos
 """
 
 from __future__ import annotations

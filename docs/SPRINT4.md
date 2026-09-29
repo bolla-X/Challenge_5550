@@ -28,9 +28,10 @@ Sprint 3, 61% dos alertas de capacete eram sobre pessoas de capacete
 (52 de 85). Agora são 15% (6 de 41).
 
 **O que não melhorou, e está dito:** a revocação do colete caiu de 0,79 para
-0,69. Uma revisão visual dos 7 coletes "perdidos" mostrou que 5 deles são
-**erros da anotação** (a pessoa está de colete e o dataset diz que não) — ver
-[auditoria](#o-quanto-dos-erros-é-da-anotação) —, mas a revisão cobriu só os
+0,69. Das 18 violações de colete perdidas, 11 são pessoas que o detector nem
+encontrou; das 7 restantes, a revisão visual mostrou que 5 são **erros da
+anotação** (a pessoa está de colete e o dataset diz que não) — ver
+[auditoria](#o-quanto-dos-erros-é-da-anotação). A revisão cobriu só parte dos
 erros, então o número oficial continua 0,69.
 
 ---
@@ -60,8 +61,8 @@ nenhuma. **A Sprint 4 começa aí: medir em escala e corrigir a causa.**
 | sprint | o que entrou | o que a medição mostrou |
 |---|---|---|
 | 1 (jul) | protótipo VisionEPI | — |
-| 2 (ago) | YOLOv8 **Vyra** (14 classes) + YOLOv8n COCO para pessoa, MediaPipe Pose por pessoa, tracker IoU, matching EPI↔pessoa, multi-câmera, React + Socket.IO, autenticação com 3 papéis | classe `Person` do Vyra não generaliza (0 detecções em 36 células) → segundo modelo obrigatório, −20% FPS |
-| 3 (set) | **LLM multimodal** (Gemini 3.6 Flash) como segunda opinião assíncrona; prompts v1/v2; resiliência RTSP; bench | Vyra dá 0,14–0,26 de confiança para capacete visível (Fase 9); falso "sem capacete" na cena segura; o LLM v2 **corrige** esse falso positivo; 16–38 s por chamada |
+| 2 (ago) | YOLOv8 **Vyra** (14 classes) + YOLOv8n COCO para pessoa, MediaPipe Pose por pessoa, tracker IoU, matching EPI↔pessoa, multi-câmera, React + Socket.IO, autenticação com 3 papéis | — |
+| 3 (set) | **LLM multimodal** (Gemini 3.6 Flash) como segunda opinião assíncrona; prompts v1/v2; resiliência RTSP; bench | classe `Person` do Vyra não generaliza (0 detecções em 36 células) → segundo modelo obrigatório, −20% FPS; Vyra dá 0,14–0,26 de confiança para capacete visível (Fase 9); falso "sem capacete" na cena segura; o LLM v2 **corrige** esse falso positivo; 16–38 s por chamada |
 | **4 (set)** | **peso próprio** treinado no domínio; **classes negativas** e o estado "não verificado"; **segundo gatilho** do LLM; **avaliação por pessoa** em conjunto anotado | tabela acima |
 
 A decisão da Sprint 4 sai direto dos achados da Sprint 3: se o capacete é
@@ -118,7 +119,7 @@ Decidido **na validação** (143 imagens), nunca no teste:
 A classe `Person` do peso novo foi treinada com o resto do dataset e acha
 mais pessoas que o COCO **neste domínio**. Somar o COCO não ajuda e dobra o
 custo. `MULTI_PERSON_DETECTION=false` volta a ser o default — o oposto da
-Sprint 2, e pela mesma razão: medição.
+Sprint 3, e pela mesma razão: medição.
 
 ## 4. O modelo
 
@@ -227,9 +228,10 @@ Por subconjunto (alertas falsos / pessoas que estão de EPI):
 | **industrial, uma por cena (54)** | **27 / 92** | **3 / 92** | **49 / 89** | **5 / 89** |
 
 A sequência repetida **não** infla o resultado do peso novo: nenhum dos 6
-alertas falsos dele está nela, e as taxas por cena são iguais às do completo.
+alertas falsos dele está nela — as contagens são as mesmas nos três recortes
+(a taxa sobe só porque o denominador encolhe).
 
-A resolução não era a saída: o Vyra a 640 (2× o custo) sobe a precisão de
+A resolução não era a saída: o Vyra a 640 (o dobro do custo de inferência, ver README/BENCH.md) sobe a precisão de
 capacete só de 0,39 para 0,44.
 
 ### Desempenho
@@ -242,8 +244,9 @@ capacete só de 0,39 para 0,44.
 | FPS, detecção a cada 3 frames (default) | 10,13 | **32,82** |
 
 `scripts/bench_pipeline.py --classes ''`, 240 frames medidos, vídeo de
-demonstração da Sprint 4. Com o YOLO 5× mais barato, **o MediaPipe Pose
-passou a ser o estágio mais caro** (p90 ~115 ms) — é o próximo gargalo.
+demonstração da Sprint 4. Com o YOLO 5× mais barato, o MediaPipe Pose passou a
+ter **a cauda mais cara** do frame: p95 de 116 ms contra 46 ms do YOLO (no p50
+o YOLO ainda custa mais, 38 × 29 ms) — é o próximo gargalo.
 
 ### Evidências de execução
 
@@ -262,16 +265,21 @@ passou a ser o estágio mais caro** (p90 ~115 ms) — é o próximo gargalo.
 ![antes](evidencias/casos/antes_image1037_sprint3_ausencia.jpg)
 ![depois](evidencias/casos/depois_image1037_cppe_ausencia.jpg)
 
-Canteiro com 6 pessoas de capacete e colete. Sprint 3: 1 "sem capacete" e 4
-"sem colete", todos falsos. Sprint 4: nenhum alerta, e os EPIs aparecem
-associados a cada pessoa.
+Canteiro com 6 pessoas anotadas (6 de colete; 5 de capacete e 1 com o
+capacete não visível). Sprint 3: 1 "sem capacete" e 4 "sem colete", todos
+falsos. Sprint 4: **nenhum alerta de capacete ou colete** — as 4 pessoas
+detectadas recebem os dois EPIs; 2 das 6 não são detectadas, e luvas, óculos e
+calçado ainda geram alertas.
 
 ## 7. Erros e limitações
 
 ### O quanto dos erros é da anotação
 
-Revisei visualmente **todos** os 19 erros de capacete e colete do peso novo
-([auditoria_erros_cppe.json](avaliacao/auditoria_erros_cppe.json)):
+Revisei visualmente os 19 erros de capacete e colete do peso novo **sobre
+pessoas que o detector encontrou**
+([auditoria_erros_cppe.json](avaliacao/auditoria_erros_cppe.json)). Os 14
+erros de pessoas não detectadas (3 violações de capacete, 11 de colete) não
+entram nesta revisão:
 
 | veredito | casos |
 |---|---|
@@ -279,10 +287,11 @@ Revisei visualmente **todos** os 19 erros de capacete e colete do peso novo
 | **ambíguo** (capacete de ciclismo anotado como `helmet`; jaqueta amarela como colete) | 5 |
 | **erro do sistema** | 8 |
 
-Os 8 erros reais têm padrão: **pessoa pequena ou distante** (capacete de 10 px
-a `imgsz=416`), **cena densa** (EPI detectado mas associado à pessoa
-vizinha), **jaqueta de alta visibilidade** que não é colete, e **postura
-atípica** (pessoa sentada). Se as 6 anotações erradas fossem corrigidas, a
+Seis dos 8 erros reais têm padrão: **pessoa pequena ou distante**, **cena
+densa** (EPI não detectado ou associado à pessoa vizinha), **jaqueta de alta
+visibilidade** que não é colete, e **postura atípica** (pessoa sentada); os
+outros dois são uma pessoa sem camisa em quadra e uma jaqueta bege tomada por
+colete. Se as 6 anotações erradas fossem corrigidas, a
 revocação do colete iria de 0,69 para 0,76 — número **enviesado a favor do
 sistema** (só os erros foram revisados, não os acertos) e por isso não é o
 oficial.
@@ -318,8 +327,9 @@ oficial.
   que a avaliação da mesma imagem não tem (ex.: trabalhadores de capacete
   vermelho, agachados, acusados de "sem capacete" em `05_operador.jpg`).
 - **3 testes da suíte dependem da fixture `bench.mp4`** (Wikimedia, também
-  bloqueada aqui). Rodados com o vídeo da Sprint 4 no lugar: **375 de 375
-  verdes**; sem nenhum vídeo, 372.
+  bloqueada aqui). Rodados com um vídeo no lugar: **375 de 375
+  verdes**. Sem o arquivo, 2 falham e 1 (`test_em_modo_fixture_a_camera_volta_a_entregar_imagem`)
+  trava — comportamento que já existia antes desta sprint; use `--timeout`.
 
 ## 8. Próximos passos
 
@@ -332,7 +342,7 @@ oficial.
 3. **Mais exemplos negativos** (cabeça descoberta, torso sem colete em obra)
    para a política "evidência" deixar de perder 73% dos capacetes.
 4. **Pose por track em modo stream**: agora que o YOLO custa 38 ms, o
-   MediaPipe (p90 ~115 ms) é o gargalo — o ganho de 2,25× medido na Sprint 3
+   MediaPipe (p95 de 116 ms) é o gargalo da cauda — o ganho de 2,25× medido na Sprint 3
    passou a valer a pena.
 5. **Contexto de área**: exigência de EPI por zona (área de obra × escritório),
    para o alerta não disparar onde o EPI não é exigido.
