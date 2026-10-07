@@ -73,6 +73,25 @@ function ChevronIcon() {
   );
 }
 
+/** Miniatura do painel: um quadro por segundo, cada pedido abre e fecha. Video
+ * contínuo por cartão prende as 6 conexões do navegador com 6 câmeras ligadas
+ * e trava os cliques. O atraso inicial varia por câmera pra não pedir todas juntas. */
+function Miniatura({ cameraId }: { cameraId: number }) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let intervalo: number | undefined;
+    const inicio = window.setTimeout(() => {
+      setTick((n) => n + 1);
+      intervalo = window.setInterval(() => setTick((n) => n + 1), 1000);
+    }, (cameraId % 6) * 150);
+    return () => {
+      window.clearTimeout(inicio);
+      if (intervalo !== undefined) window.clearInterval(intervalo);
+    };
+  }, [cameraId]);
+  return <img src={`/api/cameras/${cameraId}/frame.jpg?t=${tick}`} alt="" />;
+}
+
 /** Cartão de câmera: imagem no topo, nome do setor e uma linha de estado.
  * Sem cabeçalho, sem fps, sem chip em cima da imagem. Estado crítico coloca
  * um anel de 2 px no cartão (ver .cam-card.critical). */
@@ -104,7 +123,7 @@ function CameraCard({
     >
       {estado.running ? (
         <div className="cam-frame">
-          <img src={`/api/cameras/${camera.id}/video_feed`} alt="" />
+          <Miniatura cameraId={camera.id} />
         </div>
       ) : (
         <div className="cam-frame offline">Monitoramento parado</div>

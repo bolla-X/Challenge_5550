@@ -193,9 +193,15 @@ alerta aparecer gravado no banco, 5 execuções contra o sistema rodando:
 | 4ª | 1,12 s | alto |
 | 5ª | 1,18 s | alto |
 
-**Com o sistema já aquecido: ~1,2 s de média.** Meta do guia: ≤1s para crítico, ≤5s
-para alto. Ficamos **levemente acima da meta no crítico** (1,2 s vs. 1 s) e **dentro da
-meta no alto**, com folga.
+**Separando por severidade (comparação correta — a meta do guia é por severidade):**
+
+- **Crítico**: só a 3ª execução (aquecida) teve esse rótulo — **1,37 s** vs. meta ≤1s
+  — **37% acima da meta**, gap real, não suavizado.
+- **Alto**: 2ª, 4ª e 5ª execuções (aquecidas) — média de **1,17 s** vs. meta ≤5s —
+  dentro da meta, com folga confortável.
+
+(A média bruta das 4 execuções aquecidas, ~1,2s, mistura as duas severidades e não deve
+ser comparada contra nenhuma meta isolada — ver `FASE3-NOTIFICACAO-INTELIGENTE.md` §3.)
 
 ## 5. Fase 4 — Validação em Ambiente Industrial
 
@@ -215,7 +221,8 @@ estável durante todo o período.
 ### 5.3 Confidencialidade das câmeras reais
 
 As câmeras da planta real mostram trabalhadores e instalações reais — informação
-sensível conforme a política do guia (§2.5). **Usadas só em demonstração ao vivo, com
+sensível conforme o *Guia de Regras, Métricas e Avaliação — Challenge 2026* §2.5
+("Confidencialidade"). **Usadas só em demonstração ao vivo, com
 autorização da empresa**: nenhuma imagem delas foi armazenada, publicada ou incluída em
 vídeo, slide ou neste repositório. Todo material público da entrega (vídeo institucional,
 demonstração gravada, slides) usa exclusivamente fontes públicas (Wikimedia Commons,

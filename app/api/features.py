@@ -2,17 +2,29 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
-from app.models import ROLE_TECHNICAL
-from app.utils.auth import login_required, require_role
+from app.extensions import db
+from app.models import ROLE_TECHNICAL, Camera
+from app.utils.auth import camera_permitida, erro_fora_do_escopo, login_required, require_role
 
 features_bp = Blueprint("features", __name__)
+
+
+def _manager_da_camera(camera_id: int | None):
+    """FeatureManager de quem manda na câmera. Sem `camera_id`, o global (a
+    câmera padrão), como sempre foi."""
+    if camera_id is None:
+        return current_app.extensions["feature_manager"]
+    return current_app.extensions["monitor_service"].features_of(camera_id)
 
 
 @features_bp.get("/features")
 @login_required
 def get_features():
-    manager = current_app.extensions["feature_manager"]
-    return jsonify({"features": [item.to_dict() for item in manager.list()]})
+    camera_id = request.args.get("camera_id", type=int)
+    if camera_id is not None and not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    manager = _manager_da_camera(camera_id)
+    return jsonify({"features": [item.to_dict() for item in manager.list()], "camera_id": camera_id})
 
 
 @features_bp.put("/features")
@@ -22,11 +34,26 @@ def update_features():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return jsonify({"error": "Payload inválido. Use {'features': {'helmet': true}}"}), 400
+    camera_id = request.args.get("camera_id", type=int)
+    if camera_id is None and isinstance(payload.get("camera_id"), int):
+        camera_id = payload["camera_id"]
     updates = payload.get("features", payload)
     if not isinstance(updates, dict):
         return jsonify({"error": "Payload inválido. Use {'features': {'helmet': true}}"}), 400
-    manager = current_app.extensions["feature_manager"]
-    updated = manager.update({str(key): bool(value) for key, value in updates.items()})
-    response = {"features": [item.to_dict() for item in updated]}
+    updates = {str(key): bool(value) for key, value in updates.items() if key != "camera_id"}
+
+    manager = _manager_da_camera(camera_id)
+    updated = manager.update(updates)
+
+    if camera_id is not None:
+        # Persiste no banco pra não voltar ao estado antigo no próximo boot.
+        camera = db.session.get(Camera, camera_id)
+        if camera is not None:
+            atual = dict(camera.features_json or {})
+            atual.update(updates)
+            camera.features_json = atual
+            db.session.commit()
+
+    response = {"features": [item.to_dict() for item in updated], "camera_id": camera_id}
     current_app.extensions["monitor_service"].socketio.emit("features_updated", response)
     return jsonify(response)

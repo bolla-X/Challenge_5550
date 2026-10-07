@@ -72,9 +72,17 @@ o **alerta aparecer gravado no banco**, 5 execuções contra o sistema rodando d
 | 4ª | 1,12 s | alto |
 | 5ª | 1,18 s | alto |
 
-**Com o sistema já aquecido: ~1,2 s de média.** Meta do guia: ≤1s para crítico, ≤5s
-para alto. Ficamos **levemente acima da meta no crítico** (1,2 s vs. 1 s) e **dentro da
-meta no alto**, com folga.
+**Separando por severidade (a comparação correta — a meta do guia é por severidade, não
+uma média geral):**
+
+- **Crítico**: só a 3ª execução (já aquecida) teve esse rótulo — **1,37 s**. Meta:
+  ≤1s. **37% acima da meta**, não "levemente" — gap real, declarado sem suavizar.
+- **Alto**: 2ª, 4ª e 5ª execuções (aquecidas) — média de **1,17 s** (1,22 / 1,12 / 1,18).
+  Meta: ≤5s. **Dentro da meta, com folga confortável.**
+
+(A média das 4 execuções aquecidas juntas, ~1,2s, mistura as duas severidades e não deve
+ser comparada contra nenhuma das duas metas isoladamente — é só a média bruta do tempo
+de resposta do sistema, útil como número solto, não como comparação contra a meta.)
 
 ## 4. Inovações desta fase
 

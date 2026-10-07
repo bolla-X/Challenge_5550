@@ -46,6 +46,28 @@ def test_alert_state_creates_and_resolves_after_confirmation_frames(app):
         assert any(event == "alert_resolved" for event, _ in socket.events)
 
 
+def test_desligar_a_feature_encerra_o_alerta_na_hora(app):
+    """Alerta de uma detecção desligada não espera a histerese: acaba no quadro
+    seguinte, mesmo com `resolve_after_frames` alto e mesmo se o quadro só
+    reaproveitou a análise anterior."""
+    with app.app_context():
+        socket = DummySocket()
+        service = AlertStateService(AlertRepository(), socket, create_after_frames=1, resolve_after_frames=50)
+
+        criado = service.process([missing_helmet()])
+        assert len(criado["active"]) == 1
+
+        # Ainda ligada: segue ativo.
+        assert len(service.process([missing_helmet()], features_desligadas={"vest"})["active"]) == 1
+
+        # Desligou o capacete: some agora, sem esperar 50 detecções limpas.
+        depois = service.process([], deteccao_nova=False, features_desligadas={"helmet"})
+        assert depois["active"] == []
+        assert len(depois["resolved"]) == 1
+        assert depois["resolved"][0]["status"] == "resolved"
+        assert any(evento == "alert_resolved" for evento, _ in socket.events)
+
+
 def test_frame_reaproveitado_nao_conta_como_confirmacao(app):
     """Histerese tem que contar DETECCAO, nao iteracao do loop.
 

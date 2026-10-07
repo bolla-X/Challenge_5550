@@ -198,6 +198,17 @@ def test_video_feed_por_camera_serve_placeholder(real_monitor_client):
     response.response.close()
 
 
+def test_frame_avulso_serve_um_jpeg_e_encerra(real_monitor_client):
+    """A miniatura do painel pede um quadro por vez (conexão curta), pra não
+    prender as conexões do navegador como o MJPEG contínuo fazia."""
+    camera_id = _create(real_monitor_client).get_json()["id"]
+    response = real_monitor_client.get(f"/api/cameras/{camera_id}/frame.jpg")
+    assert response.status_code == 200
+    assert response.mimetype == "image/jpeg"
+    assert response.data.startswith(b"\xff\xd8")
+    assert response.headers["Cache-Control"] == "no-store"
+
+
 # ------------------------------------------------------ rotas legadas -------
 def test_video_feed_legado_sem_camera_nao_explode(real_monitor_client):
     """Nenhuma câmera cadastrada é estado VÁLIDO (o seed automático foi

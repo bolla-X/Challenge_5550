@@ -128,7 +128,37 @@ class AlertStateService:
             soneca["box"] = caixa  # acompanha a pessoa enquanto ela se move
         return True
 
-    def process(self, current_violations: list[RuleAlert], *, deteccao_nova: bool = True) -> dict[str, Any]:
+    def _resolver_features_desligadas(self, desligadas: set[str]) -> list[dict[str, Any]]:
+        """Encerra na hora os alertas de uma feature que acabou de ser desligada.
+
+        Sem isto o alerta só resolvia depois de `resolve_after_frames`
+        detecções sem violação — e, em câmera que não recebia o botão, nunca.
+        """
+        resolved: list[dict[str, Any]] = []
+        for key in list(self._states.keys()):
+            state = self._states[key]
+            if state.rule_alert.feature not in desligadas:
+                continue
+            if state.alert is not None and state.alert.status == "active":
+                state.alert = self.repository.resolve(
+                    state.alert,
+                    metadata=(state.alert.metadata_json or {}) | {"resolution_reason": "feature_disabled"},
+                )
+                payload = state.alert.to_dict()
+                state.snapshot = payload
+                resolved.append(payload)
+                self._emitir("alert_resolved", payload)
+                logger.info("alert_resolved", extra={"alert": payload})
+            del self._states[key]
+        return resolved
+
+    def process(
+        self,
+        current_violations: list[RuleAlert],
+        *,
+        deteccao_nova: bool = True,
+        features_desligadas: set[str] | frozenset[str] = frozenset(),
+    ) -> dict[str, Any]:
         """Avança a histerese e grava/resolve o que passou do limiar.
 
         `deteccao_nova=False` significa que este frame REAPROVEITOU a análise do
@@ -141,10 +171,12 @@ class AlertStateService:
         O default é `True` para que qualquer chamador que não saiba de
         intercalação siga com o comportamento de antes.
         """
+        encerrados_por_desligar = self._resolver_features_desligadas(set(features_desligadas)) if features_desligadas else []
+
         if not deteccao_nova:
             ativos = self.active_alerts()
             self._emit_active(ativos)
-            return {"active": ativos, "changed": [], "created": [], "updated": [], "resolved": []}
+            return {"active": ativos, "changed": [], "created": [], "updated": [], "resolved": encerrados_por_desligar}
 
         current_by_key = {item.key: item for item in current_violations}
         # A soneca so vale enquanto a violacao continua: se sumiu de verdade
@@ -158,7 +190,7 @@ class AlertStateService:
         created: list[dict[str, Any]] = []
         updated: list[dict[str, Any]] = []
         created_or_updated: list[dict[str, Any]] = []
-        resolved: list[dict[str, Any]] = []
+        resolved: list[dict[str, Any]] = list(encerrados_por_desligar)
 
         for key, item in current_by_key.items():
             state = self._states.get(key)

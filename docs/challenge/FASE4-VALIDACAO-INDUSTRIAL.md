@@ -37,8 +37,9 @@ estável durante todo o período, cumprindo o mínimo exigido pelo escopo desta 
 ## 4. Confidencialidade das câmeras reais
 
 As câmeras da planta real mostram trabalhadores e instalações reais — informação
-sensível conforme a política do guia (§2.5, "imagens de instalações industriais
-reais", "identificadores de funcionários"). **Usadas só em demonstração ao vivo, com
+sensível conforme o *Guia de Regras, Métricas e Avaliação — Challenge 2026* §2.5
+("Confidencialidade": "imagens de instalações industriais reais", "identificadores de
+funcionários"). **Usadas só em demonstração ao vivo, com
 autorização da empresa parceira**: nenhuma imagem delas foi armazenada, publicada ou
 incluída em vídeo, slide, print ou neste repositório. Todo material público da entrega
 (vídeo institucional, demonstração gravada, slides) usa exclusivamente fontes públicas

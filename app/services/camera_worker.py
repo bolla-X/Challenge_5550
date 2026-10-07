@@ -26,6 +26,7 @@ from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
 from app.utils.salas import emitir_para_camera
 from app.vision.annotator import FrameAnnotator
+from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import PersonTracker
 from app.services.gate_service import GateState, avaliar_quadro
 from app.vision.pose_estimator import MediaPipePoseEstimator
@@ -652,7 +653,9 @@ class CameraWorker:
                     # `deteccao_nova` impede que uma inferência reaproveitada
                     # conte como confirmação nova na histerese.
                     alert_state = self.alert_state_service.process(
-                        evaluation.alerts, deteccao_nova=self._analise_foi_nova
+                        evaluation.alerts,
+                        deteccao_nova=self._analise_foi_nova,
+                        features_desligadas=self._features_desligadas(),
                     )
                     self._perf_marca("alertas")
                     model_diagnostics = self._safe_model_diagnostics()
@@ -1140,6 +1143,16 @@ class CameraWorker:
 
         global_pose = self.pose_estimator.estimate(frame)
         return [global_pose] if global_pose.found else []
+
+    def _features_desligadas(self) -> set[str]:
+        """Features cujos alertas devem acabar: as desligadas, mais as que
+        dependem de uma chave-mestra desligada (ppe -> cada EPI; pose -> queda e postura)."""
+        desligadas = {item.key for item in self.feature_manager.list() if not item.enabled}
+        if "ppe" in desligadas:
+            desligadas |= set(PPE_KEYS)
+        if "pose" in desligadas:
+            desligadas |= {"falls", "posture"}
+        return desligadas
 
     def _needs_yolo_detection(self) -> bool:
         return bool(

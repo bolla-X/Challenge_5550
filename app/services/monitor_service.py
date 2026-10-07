@@ -250,6 +250,11 @@ class MonitorService:
             raise CameraNotFoundError(f"câmera {target_id!r} não encontrada ou sem worker ativo")
         return worker
 
+    def features_of(self, camera_id: int | None = None) -> FeatureManager:
+        """FeatureManager que de fato governa a câmera: o global para a padrão,
+        o próprio worker para as demais."""
+        return self._get_worker(camera_id).feature_manager
+
     def start_all(self) -> dict[int, dict[str, Any]]:
         with self._workers_lock:
             workers = dict(self._workers)

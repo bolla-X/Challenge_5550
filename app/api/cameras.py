@@ -333,6 +333,28 @@ def camera_video_feed(camera_id: int):
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
+@cameras_bp.get("/api/cameras/<int:camera_id>/frame.jpg")
+@login_required
+def camera_frame(camera_id: int):
+    """UM quadro e a conexao fecha. E o que o painel usa nas miniaturas:
+    o video continuo (MJPEG) de cada camera prendia uma das 6 conexoes que o
+    navegador permite por site, e com 6 cameras ligadas os cliques (portaria,
+    recursos...) ficavam na fila ate um F5."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        jpeg, _versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
+    except LookupError:
+        jpeg = None
+    resposta = Response(jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame"), mimetype="image/jpeg")
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
+
+
 @cameras_bp.get("/api/cameras/<int:camera_id>/analysis")
 @login_required
 def camera_analysis(camera_id: int):

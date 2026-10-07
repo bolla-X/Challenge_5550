@@ -354,6 +354,7 @@ export interface PreflightResponse {
 // ---- GET /features -> {features: FeatureFlag[]} --------------------------
 export interface FeaturesResponse {
   features: FeatureFlag[];
+  camera_id?: number | null;
 }
 
 // ---- GET /alerts -> {items: Alert[], count} ------------------------------

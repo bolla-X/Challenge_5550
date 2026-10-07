@@ -19,7 +19,7 @@ import type {
  */
 export interface ServerEvents {
   monitor_status: MonitorStatus;
-  features_updated: { features: FeatureFlag[] };
+  features_updated: { features: FeatureFlag[]; camera_id?: number | null };
   model_diagnostics: ModelDiagnostics;
   settings_updated: RuntimeSettings;
   overlay_updated: OverlayOptions;

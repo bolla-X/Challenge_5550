@@ -35,9 +35,10 @@ export const getPreflight = () => apiFetch<PreflightResponse>("/preflight");
 export const startMonitor = () => apiFetch<StatusResponse>("/start", { method: "POST" });
 export const stopMonitor = () => apiFetch<StatusResponse>("/stop", { method: "POST" });
 
-export const getFeatures = () => apiFetch<FeaturesResponse>("/features");
-export const patchFeatures = (features: Record<string, boolean>) =>
-  apiFetch<FeaturesResponse>("/features", { method: "PATCH", body: JSON.stringify({ features }) });
+const comCameraQuery = (cameraId?: number | null) => (cameraId != null ? `?camera_id=${cameraId}` : "");
+export const getFeatures = (cameraId?: number | null) => apiFetch<FeaturesResponse>(`/features${comCameraQuery(cameraId)}`);
+export const patchFeatures = (features: Record<string, boolean>, cameraId?: number | null) =>
+  apiFetch<FeaturesResponse>(`/features${comCameraQuery(cameraId)}`, { method: "PATCH", body: JSON.stringify({ features }) });
 
 // ---- controle por câmera (Fase A, Passo 5/6 — ver app/api/cameras.py) ----
 // Mesmo shape de resposta do /status legado (MonitorStatus), só que

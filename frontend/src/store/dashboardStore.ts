@@ -503,6 +503,13 @@ export const useDashboardStore = create<DashboardState>()(
             );
           })
           .catch(() => undefined);
+        // Recursos ligados/desligados também são de cada câmera.
+        getFeatures(camId)
+          .then((res) => {
+            if (useDashboardStore.getState().camId !== camId) return;
+            set({ features: res.features }, false, "setCamId:features");
+          })
+          .catch(() => undefined);
       },
       setOperatorCam: (camId) =>
         set(
@@ -612,7 +619,7 @@ export const useDashboardStore = create<DashboardState>()(
         set({ running: status.running }, false, "stop");
       },
       updateFeatures: async (updates) => {
-        const res = await apiPatchFeatures(updates);
+        const res = await apiPatchFeatures(updates, useDashboardStore.getState().camId);
         set({ features: res.features }, false, "updateFeatures");
       },
       updateOverlay: async (updates) => {
@@ -781,7 +788,12 @@ export function subscribeToServerEvents(): () => void {
       "ws:monitor_status",
     );
   });
-  on("features_updated", (payload) => set({ features: payload.features }, false, "ws:features_updated"));
+  on("features_updated", (payload) => {
+    // Evento de outra câmera não pode sobrescrever a lista da que está na tela.
+    const atual = useDashboardStore.getState().camId;
+    if (payload.camera_id != null && atual != null && payload.camera_id !== atual) return;
+    set({ features: payload.features }, false, "ws:features_updated");
+  });
   on("model_diagnostics", (model) => {
     if (!belongsToFocusedCamera(model)) return;
     set({ model }, false, "ws:model_diagnostics");
