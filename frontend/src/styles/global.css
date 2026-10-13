@@ -667,3 +667,16 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 .planta-calibracao figure { margin: 0; display: grid; gap: 4px; }
 .planta-pe circle { transition: cx .4s ease, cy .4s ease; }
 @media (prefers-reduced-motion: reduce) { .planta-pe circle { transition: none; } }
+
+/* Você vs. a IA (G2). */
+.desafio { max-width: 1100px; margin: 0 auto; padding: var(--s5); display: flex; flex-direction: column; gap: var(--s4); }
+.desafio-cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.desafio-cabeca h1 { margin: 0; font-size: 32px; letter-spacing: -.02em; }
+.desafio-cabeca .t-data { font-size: 20px; }
+.desafio-inicio { display: grid; gap: var(--s3); padding: var(--s5); max-width: 640px; }
+.desafio-inicio label { display: grid; gap: 6px; font-size: 14px; color: var(--text-2); }
+.desafio-pergunta { margin: 0; font-size: 22px; font-weight: 600; }
+.desafio-quadro { width: 100%; height: auto; border-radius: 14px; background: #000; cursor: crosshair; display: block; }
+.desafio-resultado table { width: 100%; border-collapse: collapse; font-size: 18px; }
+.desafio-resultado th, .desafio-resultado td { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.desafio-resultado { display: grid; gap: var(--s3); }

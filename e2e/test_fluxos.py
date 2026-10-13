@@ -414,3 +414,17 @@ def test_planta_baixa_calibra_com_8_cliques_e_mostra_pes(pagina, servidor):
     finally:
         servidor.sessao("technical").put(f"{servidor.base}/api/cameras/{cid}/planta",
                                          json={"pontos_camera": None}, timeout=10)
+
+
+def test_voce_vs_ia_mostra_placar_honesto(pagina, servidor):
+    """G2: rodada "pegadinha" (ninguém sem capacete): sem clicar, a pessoa acerta tudo; o placar mostra a IA também."""
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+    pagina.goto(f"{servidor.base}/desafio")
+    pagina.locator("[data-testid=desafio-comecar]").click(timeout=30_000)
+    pagina.locator("[data-testid=desafio-responder]").click(timeout=60_000)
+    pagina.locator("[data-testid=desafio-resultado]").wait_for(timeout=120_000)
+    humano = pagina.locator("[data-testid=desafio-linha-humano]").inner_text()
+    assert "0 / 0" in humano, humano  # canteiro-94: ninguém sem capacete
+    assert pagina.locator("[data-testid=desafio-linha-ia]").count() == 1
+    assert "1 rodada" in pagina.locator("[data-testid=desafio-placar]").inner_text()
