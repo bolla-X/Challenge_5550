@@ -138,6 +138,41 @@ Batata 1 câm., 3 repetições, `*-l1-r*.json` — CPU-ms do servidor por análi
 ONNX → OpenVINO GPU FP32: **6.432 → 1.401 (−78 %)**. Detalhes e guarda no
 CHANGELOG ("L1"). Padrão a partir do PR2: `RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`.
 
+## Portão do PR2: PR1 (`3891aaa`) × PR2 (13/10, 3 repetições intercaladas)
+
+`scripts/rodar_portao.py --rotulo pr2gate --reps 1,2,3 --perfis batata --cameras 1,4
+--liberar-docker`, base = worktree em `3891aaa` (padrão do PR1: ONNX, `models/export`
+por junção), novo = `next-2026` (OpenVINO na iGPU para EPI, pessoa e pose).
+Mesmo `CONFIG_BASE` nas duas árvores (inclui `MULTI_PERSON_DETECTION=true`).
+Arquivos: `bench/results/*-pr2gate-r{1,2,3}.json`.
+
+Métricas do portão (ADENDO 1, `scripts/resumo_cpu.py`), mediana [r1, r2, r3]:
+
+| câm. | árvore | CPU-ms do servidor por análise | CPU-ms por quadro publicado | encodes por quadro |
+|---|---|---|---|---|
+| 1 | PR1 | **4.110** [2.743, 4.912, 4.110] | 243,3 | 1,0 |
+| 1 | PR2 | **1.197** [575, 1.364, 1.197] | 244,8 | 1,0 |
+| 4 | PR1 | **4.168** [3.392, 4.818, 4.168] | 137,8 | 0,6 |
+| 4 | PR2 | **1.305** [966, 1.434, 1.305] | 139,6 | 0,6 |
+
+Regra (>10 % pior na mediana E as 3 repetições na mesma direção): **passa** em
+todas. Por análise, PR2/PR1 = 0,21–0,31 nas 6 repetições pareadas; por quadro,
+0,87–1,10 (empate).
+
+Indicativo (relógio de parede; mediana das 3 repetições, câmera 1 = multidão):
+
+| câm. | árvore | FPS de análise | idade da análise p95 | latência do 1º alerta |
+|---|---|---|---|---|
+| 1 | PR1 | 0,45 | 3.257 ms | 5.586 ms |
+| 1 | PR2 | 1,44 | 1.671 ms | 1.941 ms |
+| 4 | PR1 | 0,11 (média das 4) | 3.146 ms | 6.640 ms |
+| 4 | PR2 | 0,34 (média das 4) | 2.271 ms | 3.236 ms |
+
+CPU de terceiros antes de cada rodada: r1 = 12,9 / 8,3 / 6,2 / 15,5 %; r2 e r3
+entre 12,7 e 42,1 %. Só a r1 ficou (quase toda) abaixo de 15 %; nela: 1 câm.
+0,69 → 2,74 FPS de análise e 4.713 → 1.764 ms de latência de alerta; 4 câm.
+0,14 → 0,46 FPS (a rodada do PR2 4 câm. começou com 15,5 % de terceiros).
+
 ## Tracker
 
 ByteTrack não reduziu fragmentação de forma consistente e custou até 4,2 % da
