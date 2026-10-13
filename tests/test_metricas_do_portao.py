@@ -125,11 +125,18 @@ class FonteQuePula(FonteFalsa):
 
     def pular(self):
         if self.restantes <= 0:
+            self.lidos.set()
             return False
         self.restantes -= 1
         self.pulados += 1
         time.sleep(0.002)
         return True
+
+    def converter(self):
+        # O quadro do último pular() foi convertido, não pulado.
+        self.pulados -= 1
+        self.convertidos += 1
+        return True, np.zeros((4, 4, 3), dtype=np.uint8)
 
 
 def test_captura_so_converte_na_taxa_util_e_conta_todos_os_quadros():
@@ -187,3 +194,38 @@ def test_gravacao_com_espectador_segue_o_relogio():
     time.sleep(1.0)
     captura.parar()
     assert fonte.convertidos >= 35, f"tempo real a 50 fps; leu {fonte.convertidos} em 1 s"
+
+
+class AoVivoFalsa:
+    """Câmera ao vivo a 10 fps: o grab BLOQUEIA até o próximo quadro."""
+
+    def __init__(self) -> None:
+        self.convertidos = 0
+        self.pulados = 0
+
+    def read(self):
+        time.sleep(0.1)
+        self.convertidos += 1
+        return True, np.zeros((4, 4, 3), dtype=np.uint8)
+
+    def pular(self):
+        time.sleep(0.1)
+        self.pulados += 1
+        return True
+
+    def converter(self):
+        self.pulados -= 1
+        self.convertidos += 1
+        return True, np.zeros((4, 4, 3), dtype=np.uint8)
+
+
+def test_fonte_ao_vivo_mais_lenta_que_a_taxa_util_nao_perde_quadro():
+    """Regressão: decidir ANTES de o grab esperar o quadro descartava esse quadro
+    (câmera de rede a 10 fps com espectador publicava ~5 fps)."""
+    fonte = AoVivoFalsa()
+    captura = CapturaContinua(lambda: fonte, stats=EstatisticasDoPipeline(), taxa_util=lambda: 12.0)
+    captura.iniciar()
+    time.sleep(1.25)
+    captura.parar()
+    assert fonte.convertidos >= 9, (fonte.convertidos, fonte.pulados)
+    assert fonte.pulados <= 1

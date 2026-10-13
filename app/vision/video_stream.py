@@ -332,19 +332,50 @@ class VideoStream:
         decoder de 1 thread: `grab()` custa 1,2 ms contra 2,9 ms do `read()`
         (960x540) e 3,3 contra 6,0 ms (1280x720) — o `grab()` do FFmpeg
         DECODIFICA; o que ele economiza é a conversão para BGR e a alocação.
-        Mesma semântica de falha e de fim de arquivo em loop do `read()`.
-        Sem captura aberta devolve False e quem chamou cai no `read()`, que é
-        quem sabe reabrir.
+        Mesma semântica de falha e de fim de arquivo em loop do `read()`, e o
+        mesmo descarte de quadro acumulado em fonte de rede: depois de um
+        `pular()` bem-sucedido a captura está no quadro mais novo, e
+        `converter()` entrega ESSE quadro. Sem captura aberta devolve False e
+        quem chamou cai no `read()`, que é quem sabe reabrir.
         """
         with self._lock:
             if self._capture is None:
                 return False
-            if self._capture.grab():
+            if self._avancar_locked():
                 self._consecutive_failures = 0
                 self._rebobinando = False
                 return True
             self._on_failure()
             return False
+
+    def converter(self) -> tuple[bool, Any]:
+        """O quadro em que o último `pular()` parou (`retrieve()`)."""
+        with self._lock:
+            if self._capture is None:
+                return False, None
+            ok, frame = self._capture.retrieve()
+            if ok and frame is not None:
+                self._on_success(frame)
+                return True, frame
+            self._on_failure()
+            return False, None
+
+    def _avancar_locked(self) -> bool:
+        """`grab()`; em fonte de rede, até o quadro corrente (ver `_ler_do_capture`)."""
+        if not self._descartar_atrasados:
+            return bool(self._capture.grab())
+        inicio = monotonic()
+        if not self._capture.grab():
+            return False
+        grabs = 1
+        esperou_pela_rede = (monotonic() - inicio) * 1000.0 >= self.limiar_grab_ms
+        while not esperou_pela_rede and grabs < self.max_grabs_por_leitura:
+            inicio = monotonic()
+            if not self._capture.grab():
+                return False
+            grabs += 1
+            esperou_pela_rede = (monotonic() - inicio) * 1000.0 >= self.limiar_grab_ms
+        return True
 
     def _ler_do_capture(self) -> tuple[bool, Any]:
         """Lê um frame. Em fonte de REDE, o mais NOVO disponível.

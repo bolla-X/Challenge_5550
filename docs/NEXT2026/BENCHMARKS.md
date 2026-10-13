@@ -28,7 +28,13 @@ repetições em negrito, valores individuais entre colchetes. Nada foi digitado
 
 ## Métricas
 
-Principais (decidem o portão):
+**Desde o ADENDO 1, o portão é decidido por CPU do processo do servidor**
+(`scripts/resumo_cpu.py`): CPU-ms por análise concluída, CPU-ms por quadro
+publicado e encodes por quadro. Reprova só se a mediana do novo for > 10 % pior
+que a da base E as 3 repetições pareadas concordarem. As métricas abaixo
+seguem no relatório, rotuladas "sob saturação — indicativo".
+
+Métricas de relógio (indicativas sob saturação):
 
 - **FPS de análise por câmera** — análises novas publicadas por segundo;
 - **idade da análise p50/p95** — da captura do quadro analisado até o
@@ -54,7 +60,44 @@ a `YOLO_IMGSZ=640` (referência do guarda de qualidade).
 
 ### Perfil batata (decide o portão)
 
-<!-- GATE4 -->
+Portão final do PR1: `bench/results/*-gate6-r*.json` — 3 repetições, ordem
+base/PR1 alternada, WSL e Docker Desktop desligados durante a rodada (ADENDO 1,
+item 2), 30 s de CPU de terceiros medidos antes de cada rodada
+(`carga_terceiros_pre`): **10–29 % da máquina** (só uma rodada abaixo de 15 %
+→ números absolutos NÃO valem para a banca; ver Limitações).
+
+**Métricas do portão (CPU do processo do servidor por trabalho feito):**
+
+| perfil | câm. | árvore | análises/rodada | CPU-ms por análise | CPU-ms por quadro | encodes por quadro |
+|---|---|---|---|---|---|---|
+| batata | 1 | base | 16, 11, 21 | **6,351.9** [6,351.9, 8,990.6, 5,070.9] | **2,117.3** [2,117.3, 3,002.2, 1,691.9] | **1.0** [1.0, 1.0, 1.0] |
+| batata | 1 | pr1 | 17, 23, 15 | **6,343.5** [6,343.5, 4,983.1, 6,549.2] | **261.9** [271.4, 261.9, 249.7] | **1.0** [1.0, 1.0, 1.0] |
+| batata | 4 | base | 23, 20, 18 | **5,521.5** [4,814.4, 5,521.5, 6,191.6] | **1,844.1** [1,607.5, 1,844.1, 2,068.5] | **0.9** [0.9, 0.9, 0.9] |
+| batata | 4 | pr1 | 16, 29, 21 | **5,436.2** [7,127.8, 3,945.2, 5,436.2] | **139.6** [138.8, 140.4, 139.6] | **0.6** [0.5, 0.6, 0.6] |
+
+Regra: pr1 reprova se mediana > base em mais de 10 % e todas as repetições pareadas concordarem.
+- batata 1 câm. cpu_ms_por_analise: novo/base por repetição = 1.00, 0.55, 1.29; medianas 6,343.5 vs 6,351.9 → **passa**
+- batata 1 câm. cpu_ms_por_quadro: novo/base por repetição = 0.13, 0.09, 0.15; medianas 261.9 vs 2,117.3 → **passa**
+- batata 1 câm. encodes_por_quadro: novo/base por repetição = 1.02, 1.02, 1.01; medianas 1.0 vs 1.0 → **passa**
+- batata 4 câm. cpu_ms_por_analise: novo/base por repetição = 1.48, 0.71, 0.88; medianas 5,436.2 vs 5,521.5 → **passa**
+- batata 4 câm. cpu_ms_por_quadro: novo/base por repetição = 0.09, 0.08, 0.07; medianas 139.6 vs 1,844.1 → **passa**
+- batata 4 câm. encodes_por_quadro: novo/base por repetição = 0.61, 0.62, 0.62; medianas 0.6 vs 0.9 → **passa**
+
+**Tempo de relógio — sob saturação, indicativo:**
+
+| perfil | câm. | árvore | n | FPS de análise/câm. | idade da análise p50 (ms) | idade p95 (ms) | latência de alerta (s) | fundo (% de 1 núcleo) |
+|---|---|---|---|---|---|---|---|---|
+| batata | 1 | base | 3 | **0,27** [0,27, 0,19, 0,34] | **3.394** [3.394, 5.154, 2.684] | **4.199** [4.199, 6.033, 3.275] | **38,0** [41,5, 38,0, 31,2] | 514 |
+| batata | 1 | pr1 | 3 | **0,28** [0,28, 0,38, 0,26] | **4.275** [4.275, 3.302, 5.013] | **5.204** [5.204, 5.088, 5.908] | **6,0** [9,5, 6,0, 4,3] | 778 |
+| batata | 4 | base | 3 | **0,08** [0,10, 0,08, 0,07] | **13.521** [11.272, 13.521, 14.262] | **14.272** [11.762, 14.272, 17.548] | **—** [—, —, —] (3× sem alerta em ≥91 s) | 590 |
+| batata | 4 | pr1 | 3 | **0,09** [0,06, 0,12, 0,09] | **3.993** [5.683, 2.993, 3.993] | **4.478** [6.590, 4.122, 4.478] | **7,4** [10,2, 7,4, 6,7] | 488 |
+
+Histórico do mesmo portão, para transparência: a 1ª rodada com a métrica de
+CPU (`*-gate5-r*.json`) REPROVOU o batata 4 câm. em CPU-ms por análise (+12 %,
+as 3 repetições concordando). Causa e correção no CHANGELOG ("ADENDO 1"):
+regras/conformidade/`to_dict()` refeitos a cada quadro de vídeo e emissão para
+sala vazia serializando o payload. Rodadas anteriores (`gate`, `gate2`–`gate4`)
+foram medidas só em tempo de relógio, sob saturação, e ficam como indicativo.
 
 ### Perfil atual (2 repetições, `*-gate-at-r*.json`)
 
@@ -81,8 +124,10 @@ espectador; o PR1 de hoje só tem mudanças que reduzem trabalho nesse cenário.
 | batata | 1 | openvino | 3 | **0,56** [0,56, 0,70, 0,52] | **1.957** [2.150, 1.656, 1.957] | **2.891** [2.891, 2.254, 3.572] | **4,7** [5,8, 4,2, 4,7] | 430 |
 | batata | 1 | pytorch | 3 | **0,42** [0,37, 0,42, 0,42] | **2.707** [3.140, 2.707, 2.701] | **3.997** [3.824, 3.997, 4.059] | **6,2** [5,7, 6,4, 6,2] | 356 |
 
-Regra: vence o aprovado com menor idade da análise p95; empate ≤ 5 % →
-PyTorch. **ONNX** (2571 ms) vence: OpenVINO fica 12 % atrás e PyTorch 55 %.
+Regra original: vence o aprovado com menor idade da análise p95; empate ≤ 5 %
+→ PyTorch. **Regra do ADENDO 1 (a que vale):** menor CPU-ms por análise;
+empate ≤ 10 % → PyTorch. Pelas duas, ONNX: CPU-ms por análise ONNX **2.926**,
+OpenVINO 3.373, PyTorch 4.427 (mesmas rodadas; `resumo_cpu.py`). **ONNX** (2571 ms) vence: OpenVINO fica 12 % atrás e PyTorch 55 %.
 Padrão `PPE_RUNTIME=auto` / `PERSON_RUNTIME=auto` (o primeiro aprovado de
 `RUNTIME_ORDEM=onnx,pytorch` que exista no disco; sem export, PyTorch).
 O OpenVINO usa 1,1 GB de RSS contra 0,7 GB do ONNX.
@@ -94,6 +139,11 @@ inferência do detector de pessoa na multidão (> 3 %): fica em config
 (`TRACKER=bytetrack`). Tabela e método em CHANGELOG §4.5.
 
 ## Limitações
+
+- **Nenhuma rodada desta sessão teve a máquina livre** (CPU de terceiros
+  < 15 % em todas as rodadas de um portão). Pelo ADENDO 1, item 6, os números
+  absolutos daqui não são para a banca: antes da final, rodar
+  `python scripts/bench.py --rapido` na máquina da apresentação (ver DEMO.md).
 
 - Carga de fundo de terceiros alta e variável (ver acima): números absolutos
   desta máquina não valem para outra; as comparações intercaladas valem.

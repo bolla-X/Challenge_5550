@@ -30,6 +30,9 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
+# Sentinela de `_ler`: a fonte avançou sem converter o quadro.
+PULADO = object()
+
 
 class CapturaContinua:
     def __init__(
@@ -109,14 +112,14 @@ class CapturaContinua:
             if fonte is not fonte_anterior:
                 proximo = 0.0
                 fonte_anterior = fonte
-            if self._pular_se_ninguem_precisa(fonte):
-                proximo = self._cadenciar(fonte, proximo)
-                continue
             try:
-                ok, frame = fonte.read()
+                ok, frame = self._ler(fonte)
             except Exception as exc:  # noqa: BLE001  (fonte nunca derruba a thread)
                 logger.warning("captura_read_falhou", extra={"error": str(exc)})
                 ok, frame = False, None
+            if ok is PULADO:
+                proximo = self._cadenciar(fonte, proximo)
+                continue
             if not ok or frame is None:
                 self.falhando = True
                 with self._cond:
@@ -141,26 +144,30 @@ class CapturaContinua:
                 self._stats.quadro_lido(agora_ms)
             proximo = self._cadenciar(fonte, proximo)
 
-    def _pular_se_ninguem_precisa(self, fonte: Any) -> bool:
-        """True se avançou a fonte sem converter o quadro (ver `taxa_util`)."""
+    def _ler(self, fonte: Any) -> tuple[Any, Any]:
+        """(ok, quadro), ou (PULADO, None) se a fonte só avançou (ver `taxa_util`).
+
+        A ordem importa: AVANÇA primeiro e só depois decide se converte. Em
+        fonte ao vivo o `grab()` bloqueia até o quadro novo chegar; decidir
+        antes de esperar descartava justamente esse quadro (medido: câmera de
+        rede a 10 fps, com espectador, publicando só ~5 fps).
+        """
         taxa = float(self._taxa_util() or 0.0) if self._taxa_util is not None else 0.0
-        if taxa <= 0 or not hasattr(fonte, "pular") or time.monotonic() - self._ultimo_util >= 1.0 / taxa:
-            return False
-        if self._e_arquivo(fonte) and self._ritmo_gravacao() is not None:
-            return False  # a gravação desacelera em vez de pular (ver _cadenciar)
-        try:
-            if not fonte.pular():
-                return False
-        except Exception:  # noqa: BLE001  (na dúvida, o read() normal decide)
-            return False
-        self.falhando = False
-        if self._stats is not None:
-            # Lido da fonte, só não convertido: conta como lido (a fração do
-            # tempo real continua honesta) e mantém o índice dos quadros.
-            self._stats.contar("frames_lidos")
-            self._stats.contar("frames_pulados")
-            self._stats.quadro_lido(time.time() * 1000.0)
-        return True
+        if (taxa <= 0 or not hasattr(fonte, "pular") or not hasattr(fonte, "converter")
+                or (self._e_arquivo(fonte) and self._ritmo_gravacao() is not None)):
+            return fonte.read()
+        if not fonte.pular():
+            return fonte.read()  # falha ou sem captura aberta: o read() trata reabrir/backoff
+        if time.monotonic() - self._ultimo_util < 1.0 / taxa:
+            self.falhando = False
+            if self._stats is not None:
+                # Lido da fonte, só não convertido: conta como lido (a fração do
+                # tempo real continua honesta) e mantém o índice dos quadros.
+                self._stats.contar("frames_lidos")
+                self._stats.contar("frames_pulados")
+                self._stats.quadro_lido(time.time() * 1000.0)
+            return PULADO, None
+        return fonte.converter()
 
     def _cadenciar(self, fonte: Any, proximo: float) -> float:
         """Arquivo entrega tão rápido quanto se pede: sem ritmo, um vídeo de
