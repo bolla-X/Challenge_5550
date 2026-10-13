@@ -64,6 +64,16 @@ function prioridade(a: Alert): number {
   return 3;
 }
 
+/**
+ * O pré-alerta de aproximação cede só para emergência ou EPI crítico. Antes
+ * cedia a qualquer `high` — e "pessoa na área de risco" é `high`: numa cena
+ * com alguém sempre dentro da zona, a projeção de quem se aproxima nunca
+ * aparecia (E2E da pílula, 13/10).
+ */
+export function cobrePreAlerta(alerta: Alert | undefined): boolean {
+  return alerta !== undefined && prioridade(alerta) <= 1;
+}
+
 export function temAlertaCritico(estado: EstadoDaCamera): Alert | undefined {
   const candidatos = estado.alertas.filter((a) => prioridade(a) < 3);
   return candidatos.sort((x, y) => prioridade(x) - prioridade(y))[0];

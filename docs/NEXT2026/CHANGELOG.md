@@ -352,6 +352,25 @@ referência PyTorch@640 dividida pela diagonal da caixa, p95 ≤ 0,05
 Bancada é só pista (processo isolado); a decisão vale pelo E2E e pelo bench do
 portão. Fonte: `bench/results/concordancia-esqueleto-20261013-170752.json`.
 
+## E2E com pessoas de verdade na cena: dois testes e uma regra de tela
+
+Com o detector de pessoa padrão, a câmera Multidão passou a ter ~8 pessoas com
+alerta. Rodada `e2e-pr2d`: 9/11. Diagnóstico por captura de tela (script
+Playwright contra o servidor do E2E, 120 s na aba Alertas):
+
+- **Replay**: a aba Alertas agrupa por pessoa e recolhe os grupos quando há
+  mais de 3 (`alerts.tsx`); o botão "Ver replay" existia, dentro de um grupo
+  fechado. O teste agora abre o primeiro grupo. Sem mudança no produto.
+- **Pílula de aproximação**: a pílula cedia a QUALQUER alerta `high`, e "pessoa
+  na área de risco" é `high`. Com a zona do teste (40 % do quadro) sempre havia
+  alguém dentro, então a projeção de quem se aproximava nunca aparecia — o
+  mesmo aconteceria numa doca movimentada. Regra nova (`cobrePreAlerta`): o
+  pré-alerta cede só para emergência (queda, SOS) ou EPI crítico.
+
+Ruído observado (não corrigido neste PR, vai para o PR4): ~1.000 alertas em 16
+min no servidor do E2E — 5 por pessoa e um novo conjunto a cada troca de ID do
+rastreador na multidão. Cada alerta também grava o próprio clipe de replay.
+
 ## Alerta que ficava ativo depois de parar a câmera
 
 Achado no log do servidor do E2E (`alert_state_stop_resolution_failed`,

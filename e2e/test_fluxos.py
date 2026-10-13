@@ -176,9 +176,17 @@ def test_replay_do_incidente_abre_e_toca(pagina, servidor):
     _abrir_aba(pagina, "Alertas")
     botao = pagina.get_by_role("button", name="Ver replay").first
     canvas = pagina.locator('canvas[aria-label="Replay do incidente"]')
+    # Com mais de 3 pessoas com alerta, a lista agrupa por pessoa em grupos
+    # recolhidos (alerts.tsx): abre o primeiro para o botão ficar visível.
+    grupo_fechado = pagina.locator("details.alert-group:not([open]) > summary").first
     limite = time.monotonic() + 240
     while time.monotonic() < limite:
-        botao.wait_for(timeout=max(1_000, int((limite - time.monotonic()) * 1000)))
+        if not botao.is_visible() and grupo_fechado.count():
+            grupo_fechado.click()
+        try:
+            botao.wait_for(timeout=5_000)
+        except Exception:  # noqa: BLE001  (grupo sumiu ou ainda sem alerta: tenta de novo)
+            continue
         botao.click()
         try:
             canvas.wait_for(timeout=10_000)

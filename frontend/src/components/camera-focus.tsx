@@ -12,7 +12,7 @@ import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
-import { Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { cobrePreAlerta, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
 import { PipelinePanel } from "./pipeline-panel";
 import { HeatmapPanel } from "./heatmap-panel";
@@ -97,7 +97,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 <span className={`dot ${connected ? "ok" : "off"}`} />
                 {connected ? "Conectado" : "Sem conexão"}
               </span>
-              {preAlertas.length > 0 && !critico && (
+              {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
                 <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
                   <span className="dot" />
                   Aproximação · Pessoa {preAlertas[0].track_id} · ~{preAlertas[0].segundos_ate_entrar.toFixed(1)} s
