@@ -12,6 +12,7 @@ from app.api.auth import auth_bp
 from app.api.cameras import cameras_bp
 from app.api.celular import celular_bp
 from app.api.desafio import desafio_bp
+from app.api.lab import lab_bp
 from app.api.rotulos import rotulos_bp
 from app.api.tv import tv_bp
 from app.api.diagnostics import runtime_bp
@@ -107,6 +108,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(tv_bp)
     app.register_blueprint(rotulos_bp)
     app.register_blueprint(desafio_bp)
+    app.register_blueprint(lab_bp)
     app.register_blueprint(alerts_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)

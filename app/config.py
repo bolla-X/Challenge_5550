@@ -364,6 +364,8 @@ class Config:
     ROTULOS_CONF_MIN = env_float("ROTULOS_CONF_MIN", 0.25)
     ROTULOS_CONF_MAX = env_float("ROTULOS_CONF_MAX", 0.5)
     ROTULOS_INTERVALO_S = env_float("ROTULOS_INTERVALO_S", 5.0)
+    # Laboratório "Pergunte à planta": desligado por padrão; exige também LLM ligado e chave.
+    LAB_PERGUNTE_ATIVO = env_bool("LAB_PERGUNTE_ATIVO", False)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
