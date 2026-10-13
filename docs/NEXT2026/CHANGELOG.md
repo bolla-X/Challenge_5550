@@ -155,6 +155,28 @@ análise: +12 %, repetições 1,12 / 1,13 / 1,16, `*-gate5-r*.json`):
 | Regras, conformidade e `analysis.to_dict()` (com as poses da multidão) refeitos a cada quadro publicado, para a MESMA análise (~95 % dos quadros) | regras/matcher/conformidade são função pura (sem relógio nem estado — `grep` em `risk_rules.py`, `person_compliance_matcher.py`, `compliance_service.py`) | `_publicar` reaproveita enquanto a análise, a zona, os recursos e a lista de alertas ativos forem os mesmos; contador `publicacoes_reaproveitadas`; `tests/test_publicacao_reaproveitada.py` |
 | Emitir para sala vazia não é de graça | python-socketio 5.16.4, `socketio/manager.py`, `Manager.emit`: `pkt.encode()` antes de `get_participants()`. O comentário de `app/utils/salas.py` dizia o contrário | `_tem_alguem` pula a emissão quando a sala comprovadamente está vazia; com dublê de teste, emite como antes |
 
+## E2E do portão do PR1 (13/10)
+
+1ª execução: 3 passed, 1 failed — `test_queda_da_fonte_mostra_reconectando_e_volta`
+("a fonte de rede nunca ficou ao vivo"). Reproduzindo o cenário (mesmo
+servidor do E2E, câmera "Rede" aberta, diagnóstico por 40 s) apareceu um bug
+real introduzido pelo `grab` da captura: a decisão de pular era tomada ANTES
+de o `grab()` esperar o próximo quadro, e numa fonte ao vivo o quadro que
+chegava era justamente o descartado — câmera de rede a 10 fps, COM
+espectador, publicava ~5 fps (`frames_pulados` 5,4/s). Correção: avança
+primeiro, decide depois; `VideoStream.converter()` entrega o quadro em que o
+`pular()` parou (e o `pular()` de fonte de rede drena o buffer como o
+`read()`). Teste de regressão `test_fonte_ao_vivo_mais_lenta_que_a_taxa_util_nao_perde_quadro`:
+falha no código anterior (7 de ≥ 9 quadros) e passa no novo. A rodada de CPU
+do portão (`gate6`) foi medida ANTES desta correção; ela só acrescenta
+conversões até o FPS configurado na câmera assistida.
+
+Pendência registrada para o PR4 (confiabilidade da demo): câmera do tipo
+"Arquivo" cadastrada pela API não usa `em_loop` — no fim do vídeo acumula 15
+falhas e reabre do início (log do E2E: `video_stream_reconnecting`,
+`consecutive_failures: 15`, a cada volta da fixture). Comportamento anterior
+a esta missão; é um engasgo visível a cada loop.
+
 ## 4.1 Pipeline
 
 | Mudança | Motivo | Evidência |
