@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-import pytest
-from app import create_app
-from app.config import TestConfig
-from app.extensions import db
+import os
+
+# Antes de importar `app`: `app.config` le o arquivo de ambiente local no
+# import. A suite tem que valer igual em qualquer maquina.
+os.environ["VISIONEPI_DOTENV"] = "0"
+
+import pytest  # noqa: E402
+from app import create_app  # noqa: E402
+from app.config import TestConfig  # noqa: E402
+from app.extensions import db  # noqa: E402
 
 
 class DummySocket:

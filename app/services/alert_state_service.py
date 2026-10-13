@@ -10,8 +10,8 @@ from flask_socketio import SocketIO
 from app.models import Alert
 from app.repositories.alert_repository import AlertRepository
 from app.services.risk_rules import RuleAlert
-from app.vision.schemas import BoundingBox
 from app.utils.salas import emitir_para_camera
+from app.vision.schemas import BoundingBox
 
 logger = logging.getLogger(__name__)
 

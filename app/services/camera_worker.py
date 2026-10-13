@@ -20,6 +20,7 @@ from app.repositories.event_repository import EventRepository
 from app.services.alert_state_service import AlertStateService
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
+from app.services.gate_service import GateState, avaliar_quadro
 from app.services.risk_rules import RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
@@ -28,7 +29,6 @@ from app.utils.salas import emitir_para_camera
 from app.vision.annotator import FrameAnnotator
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import PersonTracker
-from app.services.gate_service import GateState, avaliar_quadro
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
@@ -1326,7 +1326,8 @@ class CameraWorker:
         return {"camera_id": self.camera_id, **self.overlay_options}
 
     def update_overlay(self, updates: dict[str, Any]) -> dict[str, Any]:
-        for key in ("boxes", "labels", "confidence", "pose", "risk_area", *(f"part_{p}" for p in ("head", "face", "ear", "hands", "foot", "tool"))):
+        partes = (f"part_{p}" for p in ("head", "face", "ear", "hands", "foot", "tool"))
+        for key in ("boxes", "labels", "confidence", "pose", "risk_area", *partes):
             if key in updates:
                 self.overlay_options[key] = bool(updates[key])
         self._emitir("overlay_updated", self.get_overlay())

@@ -8,8 +8,8 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.llm import MARCA_DE_REDACAO
-from app.services.gate_service import normalizar_exigidos
 from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
+from app.services.gate_service import normalizar_exigidos
 from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
 from app.vision.video_stream import capture_api
 

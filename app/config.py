@@ -9,7 +9,13 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# VISIONEPI_DOTENV=0 ignora o arquivo de ambiente local. Dois consumidores
+# precisam disso: a suite de testes (o arquivo de quem desenvolve vazava para
+# `Config` e derrubava `test_default_features_liga_todos_os_epis` quando a
+# maquina tinha outro DEFAULT_FEATURES) e o `scripts/bench.py`/modo demo, que
+# precisam de configuracao reproduzivel, igual em qualquer maquina.
+if os.getenv("VISIONEPI_DOTENV", "1").strip() != "0":
+    load_dotenv(BASE_DIR / ".env")
 
 
 def env_bool(name: str, default: bool) -> bool:

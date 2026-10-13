@@ -12,8 +12,8 @@ from app.models import Camera
 from app.services.camera_worker import CameraWorker
 from app.services.feature_manager import FeatureManager
 from app.services.llm_risk_service import ServicoDeRiscoLLM
-from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
+from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 
