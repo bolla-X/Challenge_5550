@@ -214,6 +214,26 @@ ByteTrack reduz fragmentação mas custa **+5 a +14 ms p95**, acima do teto de
 1 ms → **não adotado como padrão**. Vendorizado (MIT) em `app/vision/bytetrack/`
 e disponível como laboratório (`TRACKER=bytetrack`).
 
+**Re-decisão de 13/10 com o critério da missão** (ByteTrack vira padrão se
+reduzir fragmentação nas fixtures E custar p95 ≤ 3 % da inferência p95 no
+perfil batata). Detector da aplicação (yolov8n@640), E-cores 10 e 11,
+`VISIONEPI_THREADS=2` (`bench/results/trackers-yolov8n-20261013-*.json`):
+
+| passo (fixture 25–30 fps) | fixture (reais) | IDs IoU | IDs ByteTrack | ByteTrack p95 / inferência p95 |
+|---|---|---|---|---|
+| 6 (~5 Hz) | bench (3) | 4 | 2 (funde identidades) | 0,7 % |
+| 6 | queda (9) | 7 | 8 | 1,0 % |
+| 6 | multidão (>30) | 22 | 35 | **4,2 %** |
+| 25 (~1 Hz) | bench / queda / multidão | 4 / 5 / 15 | 0 / 5 / 12 | 0,3 / 1,1 / 3,8 % |
+| 50 (~0,5 Hz, taxa real do batata) | bench / queda / multidão | 5 / 4 / 14 | 0 / 4 / 11 | 0,5 / 1,0 / 2,9 % |
+
+E no servidor real (bench batata 1 câm., ONNX, intercalado, 2 repetições,
+`*-trk-r{1,2}.json`): latência de alerta IoU 37,0 / 37,6 s contra ByteTrack
+37,8 / 40,3 s. Nas taxas baixas o ByteTrack nem ativa track nos clipes curtos
+(0 IDs na `bench`), e a ~5 Hz ora funde, ora fragmenta mais. Redução de
+fragmentação **não demonstrada** e custo **acima de 3 %** na multidão →
+**fica em config** (`TRACKER=bytetrack`), padrão segue IoU.
+
 ## 4.6 Controlador adaptativo
 
 `app/services/controlador_adaptativo.py` + `MonitorService.tique_adaptativo`:

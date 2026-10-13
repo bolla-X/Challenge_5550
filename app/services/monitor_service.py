@@ -58,7 +58,7 @@ class MonitorService:
         peso_epi = str(app.config.get("PPE_MODEL_PATH", "yolov8n.pt"))
         caminho_epi, motivo_epi = resolver_caminho(
             BASE_DIR, modelo="epi", peso_pt=peso_epi, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
-            pedido=str(app.config.get("PPE_RUNTIME", "pytorch")), ordem=str(app.config.get("RUNTIME_ORDEM", "pytorch")),
+            pedido=str(app.config.get("PPE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
         )
         detector_principal = YoloPPEDetector(
             model_path=caminho_epi,
@@ -128,7 +128,7 @@ class MonitorService:
         peso_pessoa = str(app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"))
         caminho_pessoa, motivo_pessoa = resolver_caminho(
             BASE_DIR, modelo="pessoa", peso_pt=peso_pessoa, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
-            pedido=str(app.config.get("PERSON_RUNTIME", "pytorch")), ordem=str(app.config.get("RUNTIME_ORDEM", "pytorch")),
+            pedido=str(app.config.get("PERSON_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
         )
         self.person_detector = YoloPPEDetector(
             model_path=caminho_pessoa,

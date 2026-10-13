@@ -305,8 +305,13 @@ class Config:
     INFERENCIA_ASSINCRONA = env_bool("INFERENCIA_ASSINCRONA", True)
     # Runtime dos modelos (ver app/vision/runtime_do_modelo.py): pytorch | onnx |
     # openvino | auto. Só entra export APROVADO no guarda de qualidade.
-    PPE_RUNTIME = os.getenv("PPE_RUNTIME", "pytorch")
-    PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "pytorch")
+    # Padrão "auto" (13/10): o primeiro APROVADO de RUNTIME_ORDEM que exista em
+    # models/export/aprovados.json; sem export aprovado no disco, PyTorch.
+    # Decisão medida (docs/NEXT2026/BENCHMARKS.md, batata 1 câm., mediana de 3
+    # rodadas intercaladas): idade da análise p95 ONNX 2571 ms, OpenVINO 2891,
+    # PyTorch 3997. Exportar e aprovar: python scripts/concordancia.py.
+    PPE_RUNTIME = os.getenv("PPE_RUNTIME", "auto")
+    PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "auto")
     RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "onnx,pytorch")
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
