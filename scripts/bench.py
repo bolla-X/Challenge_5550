@@ -545,7 +545,8 @@ def main() -> int:
     ap.add_argument("--soak", type=float, default=0.0, help="segundos de soak (4 câmeras, perfil atual)")
     ap.add_argument("--env", action="append", default=[], help="KEY=VAL extra para o servidor")
     ap.add_argument("--rotulo", default="", help="sufixo do nome da rodada/arquivo")
-    ap.add_argument("--arvores", default="", help="rotulo=caminho,... : compara árvores de código INTERCALADAS")
+    ap.add_argument("--arvores", default="",
+                    help="rotulo=caminho[|K=V;K=V],... : compara árvores (ou configs) INTERCALADAS")
     ap.add_argument("--sem-prioridade", action="store_true", help="não eleva a prioridade do servidor")
     args = ap.parse_args()
 
@@ -568,19 +569,24 @@ def main() -> int:
 
     resultados = []
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
-    arvores = [(item.split("=", 1)[0], Path(item.split("=", 1)[1]).resolve()) for item in args.arvores.split(",") if "=" in item]
-    arvores = arvores or [("", RAIZ)]
+    arvores = []
+    for item in [i for i in args.arvores.split(",") if "=" in i]:
+        nome_arvore, resto = item.split("=", 1)
+        caminho, _, extras = resto.partition("|")
+        env_arvore = dict(par.split("=", 1) for par in extras.split(";") if "=" in par)
+        arvores.append((nome_arvore, Path(caminho).resolve(), env_arvore))
+    arvores = arvores or [("", RAIZ, {})]
     for perfil in perfis:
         for n in cenarios:
             # Árvores no laço de DENTRO: baseline e candidata rodam uma logo após
             # a outra, sob a mesma carga de fundo.
-            for nome_arvore, arvore in arvores:
+            for nome_arvore, arvore, env_arvore in arvores:
                 fixtures = FIXTURES_1CAM if n == 1 else FIXTURES_4CAM
                 rotulo = f"{perfil}-{n}cam" + (f"-{nome_arvore}" if nome_arvore else "") + (f"-{args.rotulo}" if args.rotulo else "")
                 rotulo += "-soak" if args.soak else ""
                 print(f"[bench] rodada {rotulo}: aquecimento {args.aquecimento:.0f} s + medição {args.soak or args.duracao:.0f} s")
                 r = rodar(rotulo=rotulo, perfil=perfil, fixtures=fixtures, caminhos=caminhos, duracao=args.duracao,
-                          aquecimento=args.aquecimento, env_extra=env_extra, afinidade_batata=afinidade_batata,
+                          aquecimento=args.aquecimento, env_extra=env_extra | env_arvore, afinidade_batata=afinidade_batata,
                           soak_s=args.soak, arvore=arvore, prioridade_alta=not args.sem_prioridade)
                 resultados.append(r)
                 print(tabela([r]).splitlines()[-1], flush=True)

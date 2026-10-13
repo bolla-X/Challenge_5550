@@ -36,7 +36,7 @@ from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
-from app.vision.yolo_pose_detector import pose_da_deteccao
+from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,7 @@ class CameraWorker:
         person_detector: YoloPPEDetector,
         pose_estimator: MediaPipePoseEstimator,
         inference_lock: threading.Lock,
+        pose_detector: Any | None = None,
         servico_llm: Any | None = None,
         agendador: AgendadorDeInferencia | None = None,
         gravador: Any | None = None,
@@ -187,6 +188,15 @@ class CameraWorker:
         self.detector = detector
         self.person_detector = person_detector
         self.pose_estimator = pose_estimator
+        # YOLO-pose multi-pessoa (POSE_BACKEND=yolo). None = MediaPipe por recorte.
+        self.pose_detector = pose_detector
+        # Pose a cada K inferências (o controlador adaptativo sobe K na máquina
+        # fraca). Entre uma e outra, cada track reaproveita o último esqueleto
+        # que teve — por até `_idade_max_esqueleto` inferências.
+        self.pose_a_cada_k = max(1, int(app.config.get("POSE_A_CADA_N", 1)))
+        self._contador_pose = 0
+        self._esqueletos: dict[int, tuple[int, tuple]] = {}
+        self._idade_max_esqueleto = 3
         self.inference_lock = inference_lock
         # Agendador único de inferência (ver agendador_de_inferencia.py). Com
         # ele, o loop vira assíncrono: captura em thread própria, inferência no
@@ -742,7 +752,7 @@ class CameraWorker:
         self._pose_por_pessoa = bool(cfg.get("POSE_PER_PERSON", True))
         # "yolo": o detector de pessoa é um YOLO-pose e a pose sai junto (ver
         # yolo_pose_detector.py). "mediapipe": recorte por pessoa, como antes.
-        self._pose_backend = "yolo" if getattr(self.person_detector, "e_pose", False) else "mediapipe"
+        self._pose_backend = "yolo" if self.pose_detector is not None else "mediapipe"
         self._pose_max_pessoas = int(cfg.get("POSE_MAX_PEOPLE", 4))
         self._exigir_sobreposicao = bool(cfg.get("PPE_REQUIRE_PERSON_OVERLAP", True))
         self._sobreposicao_min = float(cfg.get("PPE_PERSON_OVERLAP_MIN", 0.35))
@@ -1406,32 +1416,61 @@ class CameraWorker:
         self._cached_analysis = analise
         return analise
 
-    def _detectar(self, frame, marcar) -> tuple[list, list]:
-        """As chamadas de modelo de UM frame: EPI e (opcional) pessoa."""
+    def _pose_devida(self) -> bool:
+        """Roda o YOLO-pose nesta inferência? (a cada `pose_a_cada_k`)."""
+        if self.pose_detector is None or not self.feature_manager.is_enabled("pose"):
+            return False
+        self._contador_pose += 1
+        return self.pose_a_cada_k <= 1 or self._contador_pose % self.pose_a_cada_k == 1
+
+    def _detectar(self, frame, marcar) -> tuple[list, list, list | None]:
+        """As chamadas de modelo de UM frame: EPI, pessoa e (opcional) pose."""
         if not self._needs_yolo_detection():
-            return [], []
+            return [], [], None
         ppe_detections = self.detector.detect(frame)
         marcar("inferencia_epi")
         pessoas: list = []
         if self._multi_pessoa:
             pessoas = self.person_detector.detect(frame)
             marcar("inferencia_pessoa")
-        return ppe_detections, pessoas
+        esqueletos = None
+        if self._pose_devida():
+            esqueletos = self.pose_detector.detect(frame)
+            marcar("inferencia_pose")
+        return ppe_detections, pessoas, esqueletos
 
-    def _detectar_lote(self, frames: list) -> list[tuple[list, list]]:
+    def _detectar_lote(self, frames: list) -> list[tuple[list, list, list | None]]:
         """Como `_detectar`, para vários frames numa chamada de modelo só."""
         if not self._needs_yolo_detection():
-            return [([], []) for _ in frames]
+            return [([], [], None) for _ in frames]
         epis = self.detector.detect_lote(frames)
         pessoas = self.person_detector.detect_lote(frames) if self._multi_pessoa else [[] for _ in frames]
-        return list(zip(epis, pessoas, strict=True))
+        esqueletos = self.pose_detector.detect_lote(frames) if self._pose_devida() else [None for _ in frames]
+        return list(zip(epis, pessoas, esqueletos, strict=True))
+
+    def _anexar_esqueletos(self, people: list, esqueletos: list | None) -> list:
+        """Esqueleto novo por IoU; sem passada de pose agora, o último do track."""
+        if esqueletos is not None:
+            people = associar_esqueletos(people, esqueletos)
+            for pessoa in people:
+                if pessoa.track_id is not None and pessoa.keypoints:
+                    self._esqueletos[pessoa.track_id] = (0, pessoa.keypoints)
+            return people
+        saida = []
+        for pessoa in people:
+            guardado = self._esqueletos.get(pessoa.track_id) if pessoa.track_id is not None else None
+            if guardado is not None and guardado[0] < self._idade_max_esqueleto:
+                self._esqueletos[pessoa.track_id] = (guardado[0] + 1, guardado[1])
+                pessoa = pessoa.with_keypoints(guardado[1])
+            saida.append(pessoa)
+        return saida
 
     def _inferir(self, frame, marcar) -> FrameAnalysis:
         return self._pos_inferencia(frame, self._detectar(frame, marcar), marcar)
 
     def _pos_inferencia(self, frame, bruto: tuple[list, list], marcar) -> FrameAnalysis:
         """Tracking, filtro EPI↔pessoa e pose — o que vem depois do modelo."""
-        ppe_detections, pessoas_detectadas = bruto
+        ppe_detections, pessoas_detectadas, esqueletos = bruto if len(bruto) == 3 else (*bruto, None)
         detections: list = []
         pose = None
         poses: list[PoseResult] = []
@@ -1443,6 +1482,8 @@ class CameraWorker:
                 # rastreados por conta própria.
                 people = self.person_tracker.update(pessoas_detectadas)
                 marcar("tracking")
+                if self._pose_backend == "yolo":
+                    people = self._anexar_esqueletos(people, esqueletos)
             ppe_detections = self._gate_ppe_to_people(ppe_detections, people)
             marcar("filtro_epi")
             detections = ppe_detections + people
@@ -1462,8 +1503,8 @@ class CameraWorker:
         como rede de seguranca.
         """
         if self._pose_backend == "yolo":
-            # Pessoas vieram do YOLO-pose: cada caixa já traz o esqueleto dela,
-            # e o track_id é o do tracker — nada a associar, nada a re-rodar.
+            # Os esqueletos já foram associados aos tracks em `_pos_inferencia`
+            # (uma passada de YOLO-pose para todas as pessoas, não uma por pessoa).
             poses = []
             for item in detections:
                 if (item.label == "person" or item.category == "person") and item.keypoints:

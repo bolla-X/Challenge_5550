@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
-import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord } from "../api/types";
+import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
 // /api/cameras/<id>, não o /video_feed legado (que só serve a câmera padrão).
@@ -14,6 +14,8 @@ export type EstadoDaCamera = {
   diagnostico?: CameraDiagnostico;
   /** Alertas ativos desta câmera, do mesmo GET /status. */
   alertas: Alert[];
+  /** Reduções do controlador adaptativo (banner DEGRADADO). */
+  adaptativo?: ModoAdaptativo | null;
 };
 
 const PARADA: EstadoDaCamera = { running: false, tentativas: 0, alertas: [] };
@@ -34,6 +36,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
             tentativas: status.video?.reconnect_attempts ?? 0,
             diagnostico: status.diagnostico,
             alertas: status.active_alerts ?? [],
+            adaptativo: status.adaptativo ?? null,
           });
         })
         .catch(() => {

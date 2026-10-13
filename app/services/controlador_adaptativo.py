@@ -9,6 +9,7 @@ passa do limite, reduz carga em degraus, sempre na mesma ordem e sempre
 avisando o operador o que foi reduzido:
 
 1. detectar a cada N+1 quadros (até `n_max`) — o vídeo segue no FPS da fonte;
+1b. pose a cada K inferências (até `pose_k_max`), quando a pose é YOLO;
 2. resolução do modelo para o próximo valor APROVADO no guarda de qualidade
    (`imgsz_permitidos`, ver scripts/concordancia.py) — nunca abaixo disso;
 3. telemetria do painel pela metade (menos eventos por segundo no socket).
@@ -40,6 +41,7 @@ class EstadoAdaptativo:
 class ControladorAdaptativo:
     n_base: int = 1
     n_max: int = 6
+    pose_k_max: int = 1
     imgsz_base: int = 416
     imgsz_permitidos: list[int] = field(default_factory=list)
     telemetria_base_hz: float = 8.0
@@ -52,11 +54,15 @@ class ControladorAdaptativo:
     # ---------------------------------------------------------------- níveis
     def degraus(self) -> list[dict[str, Any]]:
         """A escada de degradação, do nível 0 (nada reduzido) ao máximo."""
-        escada: list[dict[str, Any]] = [{"n": self.n_base, "imgsz": self.imgsz_base, "telemetria_hz": self.telemetria_base_hz}]
+        escada: list[dict[str, Any]] = [
+            {"n": self.n_base, "pose_k": 1, "imgsz": self.imgsz_base, "telemetria_hz": self.telemetria_base_hz}
+        ]
         n = self.n_base
         while n < self.n_max:
             n += 1
             escada.append(escada[-1] | {"n": n})
+        for k in range(2, self.pose_k_max + 1):
+            escada.append(escada[-1] | {"pose_k": k})
         for imgsz in sorted((v for v in self.imgsz_permitidos if v < self.imgsz_base), reverse=True):
             escada.append(escada[-1] | {"imgsz": imgsz})
         escada.append(escada[-1] | {"telemetria_hz": max(1.0, self.telemetria_base_hz / 2)})
@@ -76,6 +82,8 @@ class ControladorAdaptativo:
         textos = []
         if atual["n"] != base["n"]:
             textos.append(f"detecção a cada {atual['n']} quadros (era {base['n']})")
+        if atual["pose_k"] != base["pose_k"]:
+            textos.append(f"pose a cada {atual['pose_k']} análises (era a cada análise)")
         if atual["imgsz"] != base["imgsz"]:
             textos.append(f"resolução do modelo {atual['imgsz']} px (era {base['imgsz']})")
         if atual["telemetria_hz"] != base["telemetria_hz"]:

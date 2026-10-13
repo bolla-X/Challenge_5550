@@ -88,12 +88,12 @@ def amostrar_quadros(por_fixture: int) -> list[tuple[str, int, object]]:
     return quadros
 
 
-def exportar(modelo: str, formato: str, imgsz: int, *, int8: bool = False) -> Path:
+def exportar(modelo: str, formato: str, imgsz: int, *, int8: bool = False, dinamico: bool = False) -> Path:
     """Exporta (uma vez) o peso para `formato` em `imgsz`. Devolve o caminho carregável."""
     from ultralytics import YOLO
 
     peso = MODELOS[modelo]["peso"]
-    sufixo = f"{peso.stem}_{imgsz}" + ("_int8" if int8 else "")
+    sufixo = f"{peso.stem}_{imgsz}" + ("_int8" if int8 else "") + ("_dyn" if dinamico else "")
     pasta = DIR_EXPORT / sufixo
     pasta.mkdir(parents=True, exist_ok=True)
     copia = pasta / f"{sufixo}.pt"
@@ -102,11 +102,18 @@ def exportar(modelo: str, formato: str, imgsz: int, *, int8: bool = False) -> Pa
     alvo = pasta / (f"{sufixo}.onnx" if formato == "onnx" else f"{sufixo}_openvino_model")
     if alvo.exists():
         return alvo
-    argumentos = {"format": formato, "imgsz": imgsz, "dynamic": False, "half": False, "verbose": False}
+    # dynamic=True: a forma de entrada fica livre, então o letterbox é o MESMO
+    # do PyTorch (retângulo no múltiplo de 32, não quadrado 640x640) e a
+    # comparação mede só o runtime, não o pré-processamento.
+    argumentos = {"format": formato, "imgsz": imgsz, "dynamic": dinamico, "half": False, "verbose": False}
     if int8:
         # Doc oficial: https://docs.ultralytics.com/modes/export/ (argumentos int8/data) e
         # https://docs.ultralytics.com/integrations/openvino/ (INT8 via NNCF, calibrado com `data`).
         argumentos |= {"int8": True, "data": str(preparar_calibracao(modelo))}
+    if formato == "openvino":
+        # O exportador do ultralytics 8.3.40 também usa `openvino.runtime`, que o
+        # OpenVINO 2026 removeu — mesmo shim que o detector aplica ao carregar.
+        YoloPPEDetector._compatibilizar_openvino()
     inicio = time.perf_counter()
     saida = YOLO(str(copia)).export(**argumentos)
     print(f"  export {formato} imgsz={imgsz}{' int8' if int8 else ''}: {time.perf_counter() - inicio:.1f} s -> {saida}")
@@ -143,6 +150,10 @@ def detector_para(modelo: str, candidato: str) -> YoloPPEDetector:
         caminho = exportar(modelo, "onnx", imgsz)
     elif runtime == "openvino":
         caminho = exportar(modelo, "openvino", imgsz)
+    elif runtime == "onnx-dyn":
+        caminho = exportar(modelo, "onnx", imgsz, dinamico=True)
+    elif runtime == "openvino-dyn":
+        caminho = exportar(modelo, "openvino", imgsz, dinamico=True)
     elif runtime == "openvino-int8":
         caminho = exportar(modelo, "openvino", imgsz, int8=True)
     elif runtime == "pose":

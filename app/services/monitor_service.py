@@ -112,26 +112,35 @@ class MonitorService:
         # um modelo de EPI sem classe "person" propria (ex: epi_pretrained.pt).
         # Com o Vyra, que ja detecta "Person", fica ocioso.
         # Mesmo par de modelos, compartilhado por todas as cameras.
-        # POSE_BACKEND=yolo: o detector de pessoa É o modelo de pose (pessoa +
-        # esqueleto numa chamada só; ver yolo_pose_detector.py). Isso exige o
-        # caminho multi-pessoa, então MULTI_PERSON_DETECTION passa a valer true.
-        pose_yolo = str(app.config.get("POSE_BACKEND", "mediapipe")).lower() == "yolo"
-        if pose_yolo:
-            app.config["MULTI_PERSON_DETECTION"] = True
-        classe_pessoa = YoloPoseDetector if pose_yolo else YoloPPEDetector
         # Com ByteTrack o detector entrega a partir de 0,1: a caixa fraca só
         # continua um track existente, nunca cria pessoa (ByteTrackPessoas).
         confianca_pessoa = 0.1 if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack" else app.config.get(
             "YOLO_CONFIDENCE", 0.35
         )
-        self.person_detector = classe_pessoa(
-            model_path=app.config.get("POSE_MODEL_PATH" if pose_yolo else "PERSON_MODEL_PATH", "yolov8n.pt"),
+        self.person_detector = YoloPPEDetector(
+            model_path=app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"),
             confidence=confianca_pessoa,
             device=app.config.get("YOLO_DEVICE"),
             classes=[0],
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
             imgsz=app.config.get("YOLO_IMGSZ", 640),
             half=app.config.get("YOLO_HALF", True),
+        )
+        # POSE_BACKEND=yolo: UMA passada de YOLO-pose por inferência para todas
+        # as pessoas; cada esqueleto é associado ao track do detector de pessoa
+        # por IoU (ver yolo_pose_detector.associar_esqueletos). O detector de
+        # pessoa NÃO é trocado: o yolo11n-pose concordou só 83,8% com o yolov8n
+        # nas caixas de pessoa (scripts/concordancia.py, CHANGELOG).
+        self.pose_detector = (
+            YoloPoseDetector(
+                str(app.config.get("POSE_MODEL_PATH", "models/yolo11n-pose.pt")),
+                confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
+                device=app.config.get("YOLO_DEVICE"),
+                max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
+                imgsz=app.config.get("POSE_IMGSZ", 640),
+            )
+            if str(app.config.get("POSE_BACKEND", "mediapipe")).lower() == "yolo"
+            else None
         )
         self.pose_estimator = MediaPipePoseEstimator(
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
@@ -167,6 +176,7 @@ class MonitorService:
         self.controlador = ControladorAdaptativo(
             n_base=max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))),
             n_max=max(1, int(app.config.get("ADAPTATIVO_N_MAX", 6))),
+            pose_k_max=3 if self.pose_detector is not None else 1,
             imgsz_base=int(self.detector.imgsz) if hasattr(self.detector, "imgsz") else int(app.config.get("YOLO_IMGSZ", 640)),
             imgsz_permitidos=permitidos,
             telemetria_base_hz=float(app.config.get("TELEMETRY_HZ", 8.0)),
@@ -262,6 +272,7 @@ class MonitorService:
             detector=self.detector,
             person_detector=self.person_detector,
             pose_estimator=self.pose_estimator,
+            pose_detector=self.pose_detector,
             inference_lock=self._inference_lock,
             servico_llm=self._criar_servico_llm(),
             agendador=self.agendador,
@@ -361,6 +372,7 @@ class MonitorService:
         resumo = self.controlador.resumo()
         for worker in workers:
             worker.detect_every_n = int(cfg["n"])
+            worker.pose_a_cada_k = int(cfg.get("pose_k", 1))
             worker._intervalo_telemetria = 1.0 / float(cfg["telemetria_hz"]) if cfg["telemetria_hz"] else 0.0
             worker.modo_adaptativo = resumo
         # imgsz só muda em runtime no PyTorch: ONNX/OpenVINO congelam a forma

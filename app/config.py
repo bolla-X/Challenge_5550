@@ -336,6 +336,9 @@ class Config:
     # recorte); "mediapipe" = caminho anterior. Decisão e números no CHANGELOG.
     POSE_BACKEND = os.getenv("POSE_BACKEND", "yolo").strip().lower()
     POSE_MODEL_PATH = os.getenv("POSE_MODEL_PATH", "models/yolo11n-pose.pt")
+    POSE_IMGSZ = env_int("POSE_IMGSZ", 640)
+    # Pose a cada N inferências (1 = sempre). O controlador adaptativo sobe.
+    POSE_A_CADA_N = env_int("POSE_A_CADA_N", 1)
     # "iou" (padrão) ou "bytetrack" (laboratório; o detector de pessoa passa a
     # entregar a partir de 0,1 para a segunda associação). Ver CHANGELOG.
     TRACKER = os.getenv("TRACKER", "iou").strip().lower()

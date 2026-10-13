@@ -79,3 +79,13 @@ def test_resumo_diz_ao_operador_o_que_foi_reduzido():
     assert resumo["degradado"] is True
     assert any("resolução do modelo 320" in r for r in resumo["reducoes"])
     assert "análise atrasada" in resumo["motivo"]
+
+
+def test_com_pose_yolo_reduz_a_frequencia_da_pose_antes_da_resolucao():
+    c = controlador(pose_k_max=3)
+    degraus = c.degraus()
+    ks = [d["pose_k"] for d in degraus]
+    assert ks.index(2) < [d["imgsz"] for d in degraus].index(320), "pose antes da resolução"
+    for _ in range(3 * 4):
+        c.avaliar(5000)
+    assert any("pose a cada" in r for r in c.reducoes())
