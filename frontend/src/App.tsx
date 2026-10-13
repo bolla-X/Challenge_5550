@@ -13,6 +13,7 @@ import { ScaleProof } from "./components/scale-proof";
 import { AboutScreen } from "./components/about";
 import { PortalScreen } from "./components/portal";
 import { TvScreen } from "./components/tv";
+import { RotularScreen } from "./components/rotular";
 
 // Placeholder do dashboard agregado do Supervisor. O conteúdo de verdade
 // (risco consolidado, ranking por criticidade, feed combinado, auditoria de
@@ -123,6 +124,9 @@ export default function App() {
   // no store, screen já chega como "kiosk"); Técnico/Supervisor navegam
   // entre grid/foco/overview livremente dentro do próprio `screen`.
   // Telas de tela cheia por endereço (PR3): sem barra superior, para TV/totem.
+  if (window.location.pathname.startsWith("/rotular")) {
+    return <RotularScreen />;
+  }
   if (window.location.pathname.startsWith("/tv")) {
     return <TvScreen />;
   }

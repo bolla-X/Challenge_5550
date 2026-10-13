@@ -59,7 +59,10 @@ def estado_tv():
         setor["metas"] = meta
         setor["conquistas"] = conquistas(setor, meta)
         setores.append(setor)
-    return jsonify({"setores": setores, "janela_h": JANELA_DO_TURNO_H})
+    fila = current_app.extensions["monitor_service"].fila_de_rotulos
+    contagem = fila.contagem() if fila is not None else {"confirmados": 0, "rejeitados": 0}
+    equipe = {"rotulos_revisados": contagem["confirmados"] + contagem["rejeitados"]}
+    return jsonify({"setores": setores, "janela_h": JANELA_DO_TURNO_H, "equipe": equipe})
 
 
 @tv_bp.get("/api/tv/metas")

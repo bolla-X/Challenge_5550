@@ -369,3 +369,26 @@ def test_modo_tv_mostra_setores_e_metas_do_supervisor(navegador, servidor):
         assert "Pessoa " not in texto, "o Modo TV não mostra nada por pessoa"
     finally:
         contexto.close()
+
+
+def test_rotular_recorte_com_teclado_e_exportar_zip(pagina, servidor):
+    """G9: recorte duvidoso chega à fila, → confirma, e o zip YOLO traz o rótulo."""
+    import io
+    import zipfile
+
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+    pagina.goto(f"{servidor.base}/rotular")
+    item = pagina.locator("[data-testid=rotular-item]")
+    item.wait_for(timeout=240_000)
+    ident = item.get_attribute("data-id")
+    pagina.keyboard.press("ArrowRight")
+    pagina.wait_for_function(
+        f"document.querySelector('[data-testid=rotular-item]')?.dataset.id !== '{ident}'", timeout=30_000
+    )
+    zipado = servidor.sessao("technical").get(f"{servidor.base}/api/rotulos/dataset.zip", timeout=30)
+    assert zipado.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(zipado.content)) as z:
+        assert f"labels/train/{ident}.txt" in z.namelist()
+        assert "data.yaml" in z.namelist()
+    assert servidor.sessao("operator").get(f"{servidor.base}/api/rotulos/proximo", timeout=10).status_code == 403

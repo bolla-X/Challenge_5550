@@ -649,3 +649,14 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 .tv-conquistas li { font-size: 18px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--ok); color: var(--ok); animation: portal-entra .4s cubic-bezier(.2, .8, .2, 1) both; }
 .tv-rodape { font-size: 16px; }
 @media (prefers-reduced-motion: reduce) { .tv-barra span, .tv-conquistas li { transition: none; animation: none; } }
+
+/* Aprendizado ativo (G9): um recorte por vez, decisão no teclado. */
+.rotular { min-height: 100vh; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s5); }
+.rotular-cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.rotular-cabeca h1 { margin: 0; font-size: 28px; letter-spacing: -.02em; }
+.rotular-cartao { display: flex; flex-direction: column; align-items: center; gap: var(--s3); padding: var(--s5); }
+.rotular-pergunta { margin: 0; font-size: 24px; }
+.rotular-imagem { width: min(100%, 360px); aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: var(--sunken); image-rendering: auto; }
+.rotular-acoes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); width: 100%; }
+.rotular-acoes button { height: 52px; font-size: 17px; }
+.rotular-rodape { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }

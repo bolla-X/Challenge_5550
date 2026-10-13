@@ -381,6 +381,8 @@ class CameraWorker:
         self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
         # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
         self.andon = ContadorDeMinutos()
+        # Aprendizado ativo (G9): fila compartilhada, injetada pelo MonitorService.
+        self.fila_de_rotulos = None
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -1312,6 +1314,9 @@ class CameraWorker:
         with self._thread_lock:
             self._quadro_bruto = frame
             self._quadro_estado = (analysis, compliance_state, enabled_map)
+        if nova and self.fila_de_rotulos is not None:
+            # G9: recorte do quadro PÚBLICO (desfocado) da detecção mais duvidosa.
+            self.fila_de_rotulos.talvez_coletar(self.camera_id, self.quadro_publico, analysis.detections)
             self._latest_capture_ts_ms = ts_captura_ms
             self._frame_counter += 1
         self.stats.contar("frames_publicados")

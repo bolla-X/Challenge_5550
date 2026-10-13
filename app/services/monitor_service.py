@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import threading
 from typing import Any
 
@@ -12,6 +14,7 @@ from app.models import Camera
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.camera_worker import CameraWorker
 from app.services.controlador_adaptativo import ControladorAdaptativo
+from app.services.aprendizado_ativo import FilaDeRotulos
 from app.services.feature_manager import FeatureManager
 from app.services.gravador_assincrono import GravadorAssincrono
 from app.services.llm_risk_service import ServicoDeRiscoLLM
@@ -220,6 +223,18 @@ class MonitorService:
         self._llm_habilitado = bool(app.config.get("LLM_ENABLED", False))
 
         self._workers: dict[int, CameraWorker] = {}
+        # Aprendizado ativo (G9): UMA fila no disco para todas as câmeras.
+        self.fila_de_rotulos = (
+            FilaDeRotulos(
+                Path(app.instance_path) / "rotulos",
+                limite=int(app.config.get("ROTULOS_LIMITE", 300)),
+                conf_min=float(app.config.get("ROTULOS_CONF_MIN", 0.25)),
+                conf_max=float(app.config.get("ROTULOS_CONF_MAX", 0.5)),
+                intervalo_s=float(app.config.get("ROTULOS_INTERVALO_S", 5.0)),
+            )
+            if app.config.get("APRENDIZADO_ATIVO", True)
+            else None
+        )
         self.espectadores: dict[int, int] = {}
 
         # ---- controlador adaptativo ("modo batata") -----------------------
@@ -321,7 +336,7 @@ class MonitorService:
         # empurra pro worker já rodando — limitação conhecida, resolvida
         # quando /features ganhar suporte a camera_id no Passo 5).
         feature_manager = self.feature_manager if is_default else FeatureManager.from_camera_features(camera.features_json or {})
-        return CameraWorker(
+        worker = CameraWorker(
             self.app,
             self.socketio,
             feature_manager,
@@ -342,6 +357,8 @@ class MonitorService:
             agendador=self.agendador,
             gravador=self.gravador,
         )
+        worker.fila_de_rotulos = self.fila_de_rotulos
+        return worker
 
     def _criar_servico_llm(self):
         """Servico de segunda opiniao para UMA camera, ou None.

@@ -358,6 +358,12 @@ class Config:
     ERGONOMIA_SEGUNDOS = env_float("ERGONOMIA_SEGUNDOS", 10.0)
     # Portal de Entrada (G1): análises seguidas com tudo confirmado para liberar.
     PORTAL_CONFIRMACOES = env_int("PORTAL_CONFIRMACOES", 3)
+    # Aprendizado ativo (G9): recortes de EPI com confiança no meio da faixa.
+    APRENDIZADO_ATIVO = env_bool("APRENDIZADO_ATIVO", True)
+    ROTULOS_LIMITE = env_int("ROTULOS_LIMITE", 300)
+    ROTULOS_CONF_MIN = env_float("ROTULOS_CONF_MIN", 0.25)
+    ROTULOS_CONF_MAX = env_float("ROTULOS_CONF_MAX", 0.5)
+    ROTULOS_INTERVALO_S = env_float("ROTULOS_INTERVALO_S", 5.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
