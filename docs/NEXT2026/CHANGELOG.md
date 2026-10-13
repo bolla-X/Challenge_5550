@@ -86,6 +86,15 @@ fundo variável; `[1,7]` mistura P-core com HT e E-core). Agora:
 | Análise pronta esperava até ~0,9 s para sair: um commit SQLite por alerta criado/tocado/resolvido | etapa `alertas` p99 565 ms / máx 917 ms; `espera_publicacao` p50 522 ms (bench `diag-espera`) | uma transação por análise, eventos depois do commit: `alertas` máx 154 ms, `espera_publicacao` p50 185 ms (`diag-espera2`); `tests/test_alert_state.py::test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois` |
 | Histerese de 8 quadros = ~0,7 s no loop antigo, ~27 s a 0,3 análise/s | latência de alerta batata 1 câm.: base 31 s, PyTorch 18 s, ONNX 42 s (medianas de 3) | cria com 8 quadros **ou** 2 s com ≥ 2 inferências novas seguidas; resolve com 20 **ou** 6 s com ≥ 3 (`ALERT_CREATE_AFTER_SECONDS`, `ALERT_MIN_CONFIRMATIONS`, `ALERT_RESOLVE_AFTER_SECONDS`, `ALERT_MIN_RESOLVE_CONFIRMATIONS`); 7 testes novos |
 | No modo assíncrono, os degraus de N do controlador não aliviam nada e atrasam a redução da pose em ~30 s | o slot por câmera já guarda só o quadro mais novo | escada assíncrona começa pela pose (`tests/test_controlador_adaptativo.py::test_no_modo_assincrono_a_escada_comeca_pela_pose`) |
+| Primeira análise depois de ligar a câmera levava ~30 s (pose carregada preguiçosamente, predictor e sessão ONNX criados na 1ª inferência) e isso entrava inteiro na latência do 1º alerta | log da rodada ONNX: câmera ligada 10:31:23, `sessao_onnx_ajustada` 10:31:53, alerta 10:31:59 | `MonitorService.aquecer()` chamado pelo `run.py` antes de servir (não no construtor: o `wsgi.py` também é importado pelos comandos `flask users`) |
+| No batata 4 câm., FPS de análise do PR1 0,10–0,11/câm. contra 0,14–0,15 da base: cada análise custava ~2x disputando os 2 núcleos com o vídeo das 4 fontes em tempo real (a base toca o arquivo em câmera lenta, no ritmo da inferência) | custo por análise: EPI 1837 vs 1379 ms, pessoa 358 vs 241 ms (`*-gate2-b4-*.json`) | (1) câmera sem espectador publica vídeo a `VIDEO_FPS_SEM_ESPECTADOR=2` (miniatura = 1 quadro/s por cartão), análise nova fura a cadência; (2) o agendador faz o resize só do quadro que vai inferir; (3) acima da taxa útil a captura só AVANÇA a fonte (`VideoStream.pular`: grab sem retrieve), mantendo o tempo real. Micro-bench (2 E-cores, 4 fontes): inferência EPI ONNX 791 ms sem vídeo, 1178 ms com as 4 convertendo todo quadro, 981 ms convertendo ~2,5 quadros/s cada; prioridade de thread mais baixa sozinha: 1186 ms (não adotada) |
+
+**Documentação no código que estava errada:** o comentário de
+`VideoStream._ler_do_capture` dizia que descartar N quadros com `grab()` custa
+"N demux e UM decode". Medido num E-core (1 thread de decode): `grab()` 1,17 ms
+contra `read()` 2,89 ms (960x540); 3,25 contra 5,97 ms (1280x720). O `grab()`
+do FFmpeg decodifica; economiza a conversão para BGR e a cópia. Comentário
+corrigido.
 
 Teste ajustado (contrato, não afrouxamento): `test_arquivo_local_nao_recebe_timeout`
 afirmava `params is None`; a intenção declarada era "sem timeout de rede em

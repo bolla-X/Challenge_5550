@@ -2,49 +2,51 @@
 
 Retomar lendo só este arquivo e `MISSAO.md`. Reescrito a cada marco.
 
-## Marco atual: PASSO 0 concluído → FASE 1 em andamento
+## Marco atual: FASE 1 (PR1) — medições de decisão em andamento
 
-| Item | Situação | Evidência |
-|---|---|---|
-| MISSAO.md salvo | feito | `docs/NEXT2026/MISSAO.md` |
-| Backup remoto | feito | `git push -u origin next-2026 next-2026-pr2-wip wip-preservado-2026-10-12` → 3 `[new branch]` (13/10/2026) |
-| Carga de fundo registrada | feito | tabela abaixo |
+Branch `next-2026` @ `0eb5dec` (local + `origin/next-2026` em `6385e0f`; ainda não
+publicada a parte nova). Worktree congelada do candidato:
+`C:/Users/L-BARALDI/Desktop/VisionEPI-novo` (detached no mesmo commit).
+Baseline instrumentada: `C:/Users/L-BARALDI/Desktop/VisionEPI-baseline`, branch
+LOCAL `bench/base-instrumentada` @ `918219a` = `2f3c49a` + backport SÓ de
+medição (idade da análise, instante do quadro). Não é para PR.
 
-## Branches
+### Feito nesta sessão (com evidência)
 
-- Base dos PRs: `origin/feat/completo-com-rebrand` (`e3a8af7`). Tag de rollback: `pre-next-2026`.
-- `next-2026` (`6385e0f` + commits desta sessão): candidato ao PR1.
-- `next-2026-pr2-wip` (`b344f5e`): F1/F3/F4/F5/F7/F9/F10, ainda não compilado.
+| Item | Evidência |
+|---|---|
+| Passo 0 (missão, estado, push das 3 branches, carga de fundo) | commit `51dd005`; push com 3 `[new branch]` |
+| "72 %" corrigido: era o pytorch:512; pytorch:640 = 100 % | `bench/results/concordancia-epi-20261013-055538.json` |
+| OpenVINO dinâmico rodava com letterbox quadrado → corrigido → 99,17 % (EPI) / 100 % (pessoa), aprovado | mesmo JSON + `concordancia-pessoa-20261013-055740.json`; `tests/test_yolo_ppe_detector.py` |
+| OpenVINO recompilado em CPU, LATENCY, `INFERENCE_NUM_THREADS=VISIONEPI_THREADS` | `6e9a027`; doc citada no CHANGELOG §4.2 |
+| Métricas do portão: `fps_analise`, `idade_analise` p50/p95, latência de alerta | `6793eb6`; `tests/test_metricas_do_portao.py` |
+| Gabarito da latência: `multidao`/`missing_helmet` no quadro 0 | `python scripts/primeira_violacao.py` → `bench/primeira_violacao.json` |
+| Controlador adaptativo nunca mexe no imgsz; no assíncrono começa pela pose | `tests/test_controlador_adaptativo.py` (11) |
+| Histerese de alerta também por tempo (2 s/≥2 confirmações; resolve 6 s/≥3) | `0eb5dec`; `tests/test_alert_state.py` (+6) |
+| Decoder FFmpeg com 2 threads (padrão abria 12 por câmera) | `tests/test_video_stream.py::test_decoder_de_arquivo_abre_com_teto_de_threads` |
+| Perfil batata = E-cores 10 e 11 pela topologia | `scripts/bench.py::nucleos_eficientes` |
+| Suíte | `pytest -q` → 432 passed; `ruff check .` limpo |
 
-## Carga de fundo da máquina (13/10/2026 ~05:50, amostra de 5 s)
+### Medições que já existem (fundo ~1000 % — ver BENCHMARKS.md quando escrito)
 
-Máquina: Intel i7-1355U (2 P-cores + 8 E-cores, 12 lógicos), 15,7 GB RAM (1,8 GB livres), sem GPU.
+`bench/results/20261013-061102-pr1-batata.json` (antes das correções de
+histerese/decoder, afinidade ainda instável [1,7]): batata 1 câm. idade da
+análise p95 — base 3180 ms, PyTorch 5412, ONNX 3602, OpenVINO 11088; latência
+de alerta — base 83,9 s, PyTorch 59,7 s, ONNX sem alerta em 122 s.
 
-| Processo de terceiros | CPU (% de 1 núcleo) | O que é |
-|---|---|---|
-| ffmpeg (PID 8840) | 470 % | encode `libx264 -preset veryslow` de outro projeto (`fe-diaria`) |
-| python 3.14 (PID 30404) | 93 % | teste de outro projeto (`plantio-arvore`) |
-| node (PID 2788) | 54 % | `sf data delete bulk` de outro projeto (`agentes-rachel`) |
-| msedge (vários) | ~150 % somados | navegador do usuário |
-| claude (vários) | ~50 % somados | apps Claude |
+### Bloqueios registrados
 
-Nenhum foi encerrado (não são desta missão). Toda medição de desempenho desta
-sessão registra `carga_de_fundo_pct` e compara candidatos **intercalados**.
-
-## Achados ao verificar o estado herdado
-
-1. O "640 fica em 72 %" herdado é um rótulo trocado: 72,03 % é o total de
-   **pytorch:512** em `bench/results/concordancia-epi-20261013-005918.json`.
-   (Re-execução do guarda pendente para fechar o registro.)
-2. `openvino-dyn:640` deu exatamente o mesmo 95,04 % do ONNX estático — indício
-   de que o export "dinâmico" saiu estático (passo 4 da Fase 1).
-3. `.env.example` e `CONFIG_BASE` do `scripts/bench.py` ainda usam
-   `YOLO_IMGSZ=416`, contradizendo a decisão registrada (640). A corrigir no PR1.
-4. Rodadas `batata` de `20261013-010705-pr1.json` têm CPU do servidor 500–680 %
-   (afinidade não aplicada; corrigido depois em `d5ecd86`) → inválidas.
-   `20261013-020530-gate1.json` (não commitado) tem batata a 172–195 % → válido.
+- `.env.example` está negado para leitura/edição pelas permissões desta
+  sessão; ele ainda tem `YOLO_IMGSZ=416` (reprovado no guarda). O default do
+  código e do bench é 640.
+- Carga de fundo de terceiros variável e alta (ffmpeg `veryslow`, 2 JVMs, outro
+  python): 600–1190 % de 1200 % possíveis. Nada foi encerrado.
 
 ## Próximo passo exato
 
-Fase 1, itens 2–3: instrumentar `idade_analise`, `fps_analise` e latência de
-alerta no worker e no `scripts/bench.py`; re-rodar o guarda de 640.
+1. Ler `scratchpad`/`bench/results/*-b1cam-r{1,2,3}.json` (3 repetições
+   intercaladas, batata 1 câm.: base/pytorch/onnx/openvino) e decidir o
+   runtime (menor idade da análise p95; empate ≤5 % → PyTorch).
+2. Rodar `comparar_trackers.py` no perfil batata (VISIONEPI_CPUS=10,11) e decidir o tracker.
+3. Batata 4 câm. e perfil atual 1/4 câm.; escrever `docs/NEXT2026/BENCHMARKS.md`.
+4. Portão completo (pytest, ruff, build do frontend, E2E) → PR1 → squash.
