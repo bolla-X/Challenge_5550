@@ -184,3 +184,52 @@ Resumo final em até 25 linhas:
 - tabela antes/depois com idade da análise p95, latência de alerta e FPS de análise no perfil batata;
 - features que entraram, as que foram para laboratório e as descartadas, com o motivo;
 - os 3 maiores riscos remanescentes para a apresentação.
+
+---
+
+# ADENDO 1
+
+PARE o ciclo de benchmark. Leia este adendo, acrescente-o ao final de docs/NEXT2026/MISSAO.md como "ADENDO 1" e siga em modo autônomo.
+
+## Diagnóstico
+A máquina está saturada por processos de terceiros, então tempos de relógio (FPS, idade, latência) medem a carga de fundo e não o VisionEPI. Com ~4 análises por rodada, comparações de FPS de análise não têm validade estatística. Correção de registro: "FPS de análise 0,06 vs 0,08 da base" é regressão nominal, não melhoria; reescreva no CHANGELOG como "inconclusivo sob saturação (n≈4 análises)".
+
+## Higiene de benchmark (substitui a regra dos 5%)
+1. Antes de cada rodada, meça por 30 s a CPU de processos de terceiros e grave no JSON.
+2. [OPCIONAL — autorizado] Antes de cada rodada: `wsl --shutdown` e encerrar o Docker Desktop. Religue o Docker Desktop ao terminar a rodada. Não toque em nenhum outro processo de terceiros.
+3. Métricas de portão sob saturação, por serem menos sensíveis à disputa:
+   - CPU-ms do processo do servidor por análise concluída;
+   - CPU-ms por quadro publicado;
+   - contadores determinísticos (encodes por quadro, emissões de socket por quadro, cópias evitadas).
+   Tempos de relógio seguem no relatório, rotulados "sob saturação — indicativo".
+4. Sempre 3 repetições, com ordem base/novo alternada. Uma métrica só reprova se a mediana do novo for pior que a da base em mais de 10% e as 3 repetições concordarem na direção.
+5. Teto: no máximo 2 rodadas de bench por decisão. Se não decidir em 2, vale o default mais simples (PyTorch, tracker IoU), registrado como "inconclusivo".
+6. Números absolutos para o BENCHMARKS.md final e para a banca só valem se a CPU de terceiros estiver abaixo de 15% na rodada. Se isso não acontecer até o PR4, o BENCHMARKS.md diz isso explicitamente, e o DEMO.md inclui um comando `python scripts/bench.py --rapido` (≤ 5 min) para rodar na máquina da apresentação antes da final.
+
+## Decisões imediatas
+A. Encerre a comparação de spinning com o que já tiver. Defaults:
+   - spinning desligado, a menos que reduza CPU-ms por análise em mais de 10% nas 3 repetições;
+   - runtime: o aprovado no guarda com menor CPU-ms por análise no perfil batata com 1 câmera; empate dentro de 10% → PyTorch.
+B. PR1: se pytest, ruff, build e os E2E passarem e nenhuma métrica do item 3 reprovar pela regra do item 4, abra e mergeie o PR1 agora (squash) e atualize o ESTADO.md.
+C. Resolva o "640 = 72% de concordância" em uma execução de no máximo 10 minutos e registre a explicação.
+
+## Duas alavancas grandes (logo após o merge do PR1, antes do PR2, em branch própria que entra no PR2)
+L1. OpenVINO na iGPU Intel
+1. Leia a doc oficial do export OpenVINO da Ultralytics e a do plugin GPU do OpenVINO; cite as URLs.
+2. Refaça o export com shape dinâmico de verdade e o mesmo letterbox retangular do ONNX dinâmico. Inspecione o modelo exportado para confirmar o shape.
+3. Rode o guarda de concordância (≥ 97%) para os dispositivos CPU e GPU, em FP32 e FP16.
+4. Aprovado no guarda e com menor CPU-ms do servidor por análise → entra no `auto` com prioridade máxima, com fallback garantido.
+5. O dispositivo ativo aparece no painel de diagnóstico.
+6. Se o plugin GPU não enxergar a iGPU, registre a saída de `openvino.Core().available_devices` e a página da doc, e siga.
+
+L2. Modo batata com modelo de EPI leve
+1. Busque no Hugging Face e no GitHub modelos de detecção de EPI em YOLO tamanho n ou s, com pesos públicos e licença permissiva compatível. Busque também um conjunto de teste de EPI rotulado e público com licença compatível, cobrindo capacete e colete no mínimo.
+2. Avalie o Vyra e cada candidato no MESMO conjunto rotulado: mAP50 e recall por classe, com mapeamento explícito de nomes de classe.
+3. O candidato vira o modelo do "modo batata" se:
+   - o recall de capacete e de colete ficar no máximo 5 pontos abaixo do Vyra;
+   - a inferência levar no máximo 1/3 do tempo do Vyra no perfil batata.
+4. Ele fica selecionável por config e pelo controlador adaptativo, como degrau máximo de degradação, com o banner DEGRADADO informando "modelo leve". O Vyra continua como default de qualidade.
+5. Sem candidato aprovado ou sem conjunto rotulado de licença compatível → registre o que foi tentado e siga.
+6. Não treine nem faça fine-tune nesta máquina.
+
+Depois disso, siga o MISSAO.md a partir da Fase 2 (PR2), usando a higiene de benchmark deste adendo em todos os portões seguintes. Mantenha o ESTADO.md atualizado a cada marco.

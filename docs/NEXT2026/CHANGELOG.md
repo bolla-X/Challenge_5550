@@ -87,11 +87,14 @@ fundo variável; `[1,7]` mistura P-core com HT e E-core). Agora:
 | Histerese de 8 quadros = ~0,7 s no loop antigo, ~27 s a 0,3 análise/s | latência de alerta batata 1 câm.: base 31 s, PyTorch 18 s, ONNX 42 s (medianas de 3) | cria com 8 quadros **ou** 2 s com ≥ 2 inferências novas seguidas; resolve com 20 **ou** 6 s com ≥ 3 (`ALERT_CREATE_AFTER_SECONDS`, `ALERT_MIN_CONFIRMATIONS`, `ALERT_RESOLVE_AFTER_SECONDS`, `ALERT_MIN_RESOLVE_CONFIRMATIONS`); 7 testes novos |
 | No modo assíncrono, os degraus de N do controlador não aliviam nada e atrasam a redução da pose em ~30 s | o slot por câmera já guarda só o quadro mais novo | escada assíncrona começa pela pose (`tests/test_controlador_adaptativo.py::test_no_modo_assincrono_a_escada_comeca_pela_pose`) |
 | Primeira análise depois de ligar a câmera levava ~30 s (pose carregada preguiçosamente, predictor e sessão ONNX criados na 1ª inferência) e isso entrava inteiro na latência do 1º alerta | log da rodada ONNX: câmera ligada 10:31:23, `sessao_onnx_ajustada` 10:31:53, alerta 10:31:59 | `MonitorService.aquecer()` chamado pelo `run.py` antes de servir (não no construtor: o `wsgi.py` também é importado pelos comandos `flask users`) |
-| No batata 4 câm., FPS de análise do PR1 0,10–0,11/câm. contra 0,14–0,15 da base: cada análise custava ~2x disputando os 2 núcleos com o vídeo das 4 fontes em tempo real (a base toca o arquivo em câmera lenta, no ritmo da inferência) | custo por análise: EPI 1837 vs 1379 ms, pessoa 358 vs 241 ms (`*-gate2-b4-*.json`) | (1) câmera sem espectador publica vídeo a `VIDEO_FPS_SEM_ESPECTADOR=2` (miniatura = 1 quadro/s por cartão), análise nova fura a cadência; (2) o agendador faz o resize só do quadro que vai inferir; (3) acima da taxa útil a captura só AVANÇA a fonte (`VideoStream.pular`: grab sem retrieve), mantendo o tempo real. Micro-bench (2 E-cores, 4 fontes): inferência EPI ONNX 791 ms sem vídeo, 1178 ms com as 4 convertendo todo quadro, 981 ms convertendo ~2,5 quadros/s cada; prioridade de thread mais baixa sozinha: 1186 ms (não adotada) |
+| No batata 4 câm., FPS de análise do PR1 0,10–0,11/câm. contra 0,14–0,15 da base (**inconclusivo sob saturação, n≈4 análises por câmera por rodada** — ver nota do ADENDO 1 abaixo; a causa apontada abaixo foi confirmada depois pela métrica de CPU): cada análise custava ~2x disputando os 2 núcleos com o vídeo das 4 fontes em tempo real (a base toca o arquivo em câmera lenta, no ritmo da inferência) | custo por análise: EPI 1837 vs 1379 ms, pessoa 358 vs 241 ms (`*-gate2-b4-*.json`) | (1) câmera sem espectador publica vídeo a `VIDEO_FPS_SEM_ESPECTADOR=2` (miniatura = 1 quadro/s por cartão), análise nova fura a cadência; (2) o agendador faz o resize só do quadro que vai inferir; (3) acima da taxa útil a captura só AVANÇA a fonte (`VideoStream.pular`: grab sem retrieve), mantendo o tempo real. Micro-bench (2 E-cores, 4 fontes): inferência EPI ONNX 791 ms sem vídeo, 1178 ms com as 4 convertendo todo quadro, 981 ms convertendo ~2,5 quadros/s cada; prioridade de thread mais baixa sozinha: 1186 ms (não adotada) |
 
 **Política de gravação sem espectador (decisão de produto, 13/10).** Mesmo
 com as três mudanças acima, no batata 4 câm. sob saturação o FPS de análise
-do PR1 ficou 0,05 contra 0,08 da base (`*-gate4-r*.json`, fundo ~1000 %).
+do PR1 ficou 0,05 contra 0,08 da base (`*-gate4-r*.json`, fundo ~1000 %) —
+regressão NOMINAL e **inconclusiva sob saturação (n≈4 análises)**: com a
+máquina cheia, tempo de relógio mede a carga de fundo (ADENDO 1). A métrica
+que decide passou a ser CPU-ms do servidor por análise (ver BENCHMARKS.md).
 Causa: manter um arquivo H.264 no relógio exige decodificar TODO quadro
 (25–30/s por gravação); a base não paga isso porque toca o arquivo em câmera
 lenta (fração do tempo real 0,01–0,04). Alternativas medidas e rejeitadas:
@@ -125,6 +128,32 @@ Teste ajustado (contrato, não afrouxamento): `test_arquivo_local_nao_recebe_tim
 afirmava `params is None`; a intenção declarada era "sem timeout de rede em
 arquivo". Agora afirma que o ÚNICO parâmetro de abertura de arquivo é
 `CAP_PROP_N_THREADS=2` — timeouts seguem proibidos.
+
+## ADENDO 1 — métricas de CPU e decisões (13/10)
+
+Máquina saturada por terceiros: tempo de relógio passou a ser "sob saturação —
+indicativo". Portão e decisões usam CPU-ms do processo do servidor por análise
+concluída e por quadro publicado, e contadores determinísticos
+(`scripts/resumo_cpu.py`; regra: reprova só se a mediana do novo for > 10 %
+pior E as 3 repetições pareadas concordarem).
+
+**Runtime (decisão A):** batata 1 câm., CPU-ms por análise (`*-dec1cam-r*.json`,
+3 repetições): ONNX **2.926**, OpenVINO 3.373, PyTorch 4.427 (ONNX/PyTorch por
+repetição: 0,74 / 0,64 / 0,66). Confirmado em `*-rt-r*.json` (2 repetições, sob
+saturação): ONNX 5.655 vs PyTorch 9.026. **ONNX segue padrão.**
+
+**Spinning do ONNX (decisão A):** ligar (`ONNX_SPINNING=1`) AUMENTOU o CPU por
+análise (1 câm. 7.458 vs 5.655; 4 câm. 8.656 vs 6.657, `*-rt-r*.json`).
+**Desligado** (padrão).
+
+**Duas fontes de trabalho idêntico repetido a cada quadro de vídeo** (achadas
+porque a 1ª rodada com a métrica nova reprovou o batata 4 câm. em CPU-ms por
+análise: +12 %, repetições 1,12 / 1,13 / 1,16, `*-gate5-r*.json`):
+
+| Achado | Evidência | Mudança |
+|---|---|---|
+| Regras, conformidade e `analysis.to_dict()` (com as poses da multidão) refeitos a cada quadro publicado, para a MESMA análise (~95 % dos quadros) | regras/matcher/conformidade são função pura (sem relógio nem estado — `grep` em `risk_rules.py`, `person_compliance_matcher.py`, `compliance_service.py`) | `_publicar` reaproveita enquanto a análise, a zona, os recursos e a lista de alertas ativos forem os mesmos; contador `publicacoes_reaproveitadas`; `tests/test_publicacao_reaproveitada.py` |
+| Emitir para sala vazia não é de graça | python-socketio 5.16.4, `socketio/manager.py`, `Manager.emit`: `pkt.encode()` antes de `get_participants()`. O comentário de `app/utils/salas.py` dizia o contrário | `_tem_alguem` pula a emissão quando a sala comprovadamente está vazia; com dublê de teste, emite como antes |
 
 ## 4.1 Pipeline
 
