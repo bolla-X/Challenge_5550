@@ -36,10 +36,13 @@ def pipeline_diagnostics():
         janela = max(1.0, min(float(request.args.get("janela_s", 30)), 120.0))
     except ValueError:
         janela = 30.0
+    # `quadro=K`: instante de captura do K-ésimo quadro lido desde o start
+    # (âncora da latência de alerta do scripts/bench.py).
+    quadro = request.args.get("quadro", type=int)
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "diagnostico_do_pipeline"):
         return jsonify({"cameras": {}, "modelos": {}})
-    return jsonify(monitor.diagnostico_do_pipeline([escopo] if escopo is not None else None, janela_s=janela))
+    return jsonify(monitor.diagnostico_do_pipeline([escopo] if escopo is not None else None, janela_s=janela, quadro=quadro))
 
 
 @runtime_bp.get("/settings")

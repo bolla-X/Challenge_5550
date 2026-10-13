@@ -97,3 +97,78 @@ def test_normalize_label_maps_new_model_raw_names():
     assert YoloPPEDetector.normalize_label("Safety Goggles") == "glasses"
     assert YoloPPEDetector.normalize_label("face mask") == "mask"
     assert YoloPPEDetector.normalize_label("safety boots") == "safety_shoe"
+
+
+class _FormaParcial:
+    def __init__(self, dinamica: bool) -> None:
+        self.is_dynamic = dinamica
+
+
+class _EntradaOV:
+    def __init__(self, dinamica: bool) -> None:
+        self._dinamica = dinamica
+
+    def get_partial_shape(self):
+        return _FormaParcial(self._dinamica)
+
+
+class _CompiladoOV:
+    def __init__(self, dinamica: bool) -> None:
+        self._dinamica = dinamica
+
+    def input(self, indice):  # noqa: ARG002
+        return _EntradaOV(self._dinamica)
+
+
+class _YoloOpenVinoFalso:
+    """Imita o `YOLO` do ultralytics 8.3.40 com backend OpenVINO.
+
+    Guarda, a cada predict, se o AutoBackend estava marcado como dinâmico —
+    é esse atributo que decide entre letterbox quadrado e retangular no
+    predictor (`auto=... getattr(self.model, "dynamic", False)`).
+    """
+
+    def __init__(self, dinamica: bool) -> None:
+        self.predictor = type("P", (), {})()
+        self.predictor.model = type("B", (), {"dynamic": False, "ov_compiled_model": _CompiladoOV(dinamica)})()
+        self.dinamico_em_cada_chamada: list[bool] = []
+
+    def predict(self, **kwargs):  # noqa: ARG002
+        self.dinamico_em_cada_chamada.append(self.predictor.model.dynamic)
+        return []
+
+
+def _detector_openvino(tmp_path, dinamica: bool):
+    pasta = tmp_path / "vyra_ppe_640_dyn_openvino_model"
+    pasta.mkdir()
+    detector = YoloPPEDetector(model_path=str(pasta))
+    falso = _YoloOpenVinoFalso(dinamica)
+    detector.__dict__["model"] = falso  # cached_property: injeta sem carregar peso
+    return detector, falso
+
+
+def test_openvino_com_entrada_dinamica_usa_letterbox_retangular_e_refaz_a_primeira_chamada(tmp_path):
+    """Medido: sem isto o export dinâmico dava a MESMA concordância do estático (95,04 %)."""
+    import numpy as np
+
+    detector, falso = _detector_openvino(tmp_path, dinamica=True)
+    quadro = np.zeros((540, 960, 3), dtype=np.uint8)
+
+    detector.detect(quadro)
+    detector.detect(quadro)
+
+    # 1ª chamada saiu quadrada e foi refeita já retangular; daí em diante, retangular.
+    assert falso.dinamico_em_cada_chamada == [False, True, True]
+    assert falso.predictor.model.dynamic is True
+
+
+def test_openvino_estatico_continua_quadrado_e_nao_refaz(tmp_path):
+    import numpy as np
+
+    detector, falso = _detector_openvino(tmp_path, dinamica=False)
+    quadro = np.zeros((540, 960, 3), dtype=np.uint8)
+
+    detector.detect(quadro)
+    detector.detect(quadro)
+
+    assert falso.dinamico_em_cada_chamada == [False, False]

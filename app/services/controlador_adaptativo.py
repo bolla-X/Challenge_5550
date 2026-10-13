@@ -9,10 +9,13 @@ passa do limite, reduz carga em degraus, sempre na mesma ordem e sempre
 avisando o operador o que foi reduzido:
 
 1. detectar a cada N+1 quadros (até `n_max`) — o vídeo segue no FPS da fonte;
-1b. pose a cada K inferências (até `pose_k_max`), quando a pose é YOLO;
-2. resolução do modelo para o próximo valor APROVADO no guarda de qualidade
-   (`imgsz_permitidos`, ver scripts/concordancia.py) — nunca abaixo disso;
+2. pose a cada K inferências (até `pose_k_max`), quando a pose é YOLO;
 3. telemetria do painel pela metade (menos eventos por segundo no socket).
+
+A resolução do modelo NUNCA entra na escada: 640 é a referência do guarda de
+qualidade e toda resolução menor foi reprovada nele (512: 72 %, 416: 64 %,
+capacete a 8 % — docs/NEXT2026/CHANGELOG.md §4.3). Reduzir imgsz sob carga
+trocaria atraso por cegueira, justamente quando a máquina está apertada.
 
 Histerese: degrada só depois de `ticks_para_degradar` leituras seguidas acima
 do limite alto, e recupera um degrau só depois de `ticks_para_recuperar`
@@ -42,8 +45,6 @@ class ControladorAdaptativo:
     n_base: int = 1
     n_max: int = 6
     pose_k_max: int = 1
-    imgsz_base: int = 416
-    imgsz_permitidos: list[int] = field(default_factory=list)
     telemetria_base_hz: float = 8.0
     limite_alto_ms: float = 1500.0
     limite_baixo_ms: float = 600.0
@@ -55,7 +56,7 @@ class ControladorAdaptativo:
     def degraus(self) -> list[dict[str, Any]]:
         """A escada de degradação, do nível 0 (nada reduzido) ao máximo."""
         escada: list[dict[str, Any]] = [
-            {"n": self.n_base, "pose_k": 1, "imgsz": self.imgsz_base, "telemetria_hz": self.telemetria_base_hz}
+            {"n": self.n_base, "pose_k": 1, "telemetria_hz": self.telemetria_base_hz}
         ]
         n = self.n_base
         while n < self.n_max:
@@ -63,8 +64,6 @@ class ControladorAdaptativo:
             escada.append(escada[-1] | {"n": n})
         for k in range(2, self.pose_k_max + 1):
             escada.append(escada[-1] | {"pose_k": k})
-        for imgsz in sorted((v for v in self.imgsz_permitidos if v < self.imgsz_base), reverse=True):
-            escada.append(escada[-1] | {"imgsz": imgsz})
         escada.append(escada[-1] | {"telemetria_hz": max(1.0, self.telemetria_base_hz / 2)})
         return escada
 
@@ -84,8 +83,6 @@ class ControladorAdaptativo:
             textos.append(f"detecção a cada {atual['n']} quadros (era {base['n']})")
         if atual["pose_k"] != base["pose_k"]:
             textos.append(f"pose a cada {atual['pose_k']} análises (era a cada análise)")
-        if atual["imgsz"] != base["imgsz"]:
-            textos.append(f"resolução do modelo {atual['imgsz']} px (era {base['imgsz']})")
         if atual["telemetria_hz"] != base["telemetria_hz"]:
             textos.append(f"painel atualiza {atual['telemetria_hz']:g}x/s (era {base['telemetria_hz']:g})")
         return textos

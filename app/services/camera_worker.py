@@ -209,6 +209,7 @@ class CameraWorker:
         self.captura: CapturaContinua | None = None
         self._analise_recente: FrameAnalysis | None = None
         self._versao_analise = 0
+        self._ts_analise_ms: float | None = None
         self._versao_consumida = 0
         # Estado do ÚLTIMO quadro publicado, guardado cru: o JPEG (cru ou
         # anotado) e o overlay em JSON só são produzidos se alguém pedir, uma
@@ -341,6 +342,7 @@ class CameraWorker:
             with self._cache_lock:
                 self._cache_saidas.clear()
             self._analise_recente = None
+            self._ts_analise_ms = None
             self._versao_analise = self._versao_consumida = 0
             self.stats.limpar()
             self._latest_analysis = None
@@ -887,6 +889,7 @@ class CameraWorker:
                         continue
                     ts_captura_ms = time.time() * 1000.0
                     self.stats.contar("frames_lidos")
+                    self.stats.quadro_lido(ts_captura_ms)
                     frame = self._ajustar_resolucao(frame)
                     if self.rotation:
                         frame = self._aplicar_rotacao(frame)
@@ -894,6 +897,8 @@ class CameraWorker:
 
                     analysis = self._analyze_frame(frame)
                     self._publicar(frame, analysis, self._analise_foi_nova, ts_captura_ms)
+                    if self._analise_foi_nova:
+                        self._registrar_analise_publicada(ts_captura_ms)
                     self._last_error = None
                 except Exception as exc:  # noqa: BLE001
                     self._last_error = redigir_segredos(str(exc))
@@ -958,12 +963,15 @@ class CameraWorker:
                         with self._thread_lock:
                             analise = self._analise_recente
                             versao = self._versao_analise
+                            ts_analise_ms = self._ts_analise_ms
                         nova = versao != self._versao_consumida
                         self._versao_consumida = versao
                         if analise is None:
                             analise = FrameAnalysis(detections=[], pose=None, risk_events=[], poses=[])
                         self._perf_marca("espera_da_analise")
                         self._publicar(frame, analise, nova, ts_captura_ms)
+                        if nova and ts_analise_ms is not None:
+                            self._registrar_analise_publicada(ts_analise_ms)
                         self._last_error = None
                     except Exception as exc:  # noqa: BLE001
                         self._last_error = redigir_segredos(str(exc))
@@ -978,7 +986,19 @@ class CameraWorker:
         with self._thread_lock:
             self._analise_recente = analise
             self._versao_analise += 1
+            self._ts_analise_ms = ts_ms
         self._cached_analysis = analise
+
+    def _registrar_analise_publicada(self, ts_captura_analisada_ms: float) -> None:
+        """Métricas principais do portão: FPS de análise e idade da análise.
+
+        Idade da análise = do instante de captura do quadro ANALISADO até o
+        resultado dele sair (regras, alertas e emissão feitos). É diferente de
+        `idade_publicacao`, que mede o quadro de VÍDEO: o vídeo pode estar
+        fresco enquanto as caixas e os alertas são de segundos atrás.
+        """
+        self.stats.contar("analises_publicadas")
+        self.stats.duracao("idade_analise", time.time() * 1000.0 - ts_captura_analisada_ms)
 
     def _publicar(self, frame, analysis: FrameAnalysis, nova: bool, ts_captura_ms: float) -> None:
         """Tudo que acontece depois da análise, igual nos dois loops."""

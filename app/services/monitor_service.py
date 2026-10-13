@@ -192,13 +192,10 @@ class MonitorService:
         self.espectadores: dict[int, int] = {}
 
         # ---- controlador adaptativo ("modo batata") -----------------------
-        permitidos = [int(v) for v in str(app.config.get("ADAPTATIVO_IMGSZ_PERMITIDOS", "")).split(",") if v.strip().isdigit()]
         self.controlador = ControladorAdaptativo(
             n_base=max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))),
             n_max=max(1, int(app.config.get("ADAPTATIVO_N_MAX", 6))),
             pose_k_max=3 if self.pose_detector is not None else 1,
-            imgsz_base=int(self.detector.imgsz) if hasattr(self.detector, "imgsz") else int(app.config.get("YOLO_IMGSZ", 640)),
-            imgsz_permitidos=permitidos,
             telemetria_base_hz=float(app.config.get("TELEMETRY_HZ", 8.0)),
             limite_alto_ms=float(app.config.get("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)),
             limite_baixo_ms=float(app.config.get("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)),
@@ -396,11 +393,6 @@ class MonitorService:
             worker.pose_a_cada_k = int(cfg.get("pose_k", 1))
             worker._intervalo_telemetria = 1.0 / float(cfg["telemetria_hz"]) if cfg["telemetria_hz"] else 0.0
             worker.modo_adaptativo = resumo
-        # imgsz só muda em runtime no PyTorch: ONNX/OpenVINO congelam a forma
-        # de entrada na exportação (ver YoloPPEDetector._validar_imgsz).
-        for det in (self.detector, self.person_detector):
-            if str(getattr(det, "model_path", "")).endswith(".pt"):
-                det.imgsz = int(cfg["imgsz"])
         self.socketio.emit("modo_adaptativo", resumo, to=SALA_PARQUE)
         for worker in workers:
             self.socketio.emit("modo_adaptativo", resumo | {"camera_id": worker.camera_id}, to=sala_da_camera(worker.camera_id))
@@ -417,7 +409,9 @@ class MonitorService:
         """O worker em si — para o gerador do MJPEG e o diagnóstico do pipeline."""
         return self._get_worker(camera_id)
 
-    def diagnostico_do_pipeline(self, camera_ids: list[int] | None = None, janela_s: float = 30.0) -> dict[str, Any]:
+    def diagnostico_do_pipeline(
+        self, camera_ids: list[int] | None = None, janela_s: float = 30.0, quadro: int | None = None
+    ) -> dict[str, Any]:
         """Percentis por etapa e taxas de cada câmera, mais o estado dos modelos."""
         with self._workers_lock:
             workers = dict(self._workers)
@@ -433,6 +427,8 @@ class MonitorService:
                 "espectadores": self.espectadores.get(camera_id, 0),
                 "stats": worker.stats.resumo(janela_s),
             }
+            if quadro is not None:
+                cameras[str(camera_id)]["ts_quadro_ms"] = worker.stats.ts_do_quadro(quadro)
         detectores = {"epi": self.detector, "pessoa": self.person_detector}
         if self.pose_detector is not None:
             detectores["pose"] = self.pose_detector

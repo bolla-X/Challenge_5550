@@ -58,7 +58,11 @@ PY = sys.executable
 DIR_RESULTADOS = RAIZ / "bench" / "results"
 DIR_RUNTIME = RAIZ / "bench" / "runtime"
 
-# Configuração de referência = a do `.env.example` (o que o README manda usar).
+# Configuração de referência, igual para toda árvore comparada. `YOLO_IMGSZ`
+# é 640 porque é a referência do guarda de qualidade (416 e 512 reprovados,
+# docs/NEXT2026/CHANGELOG.md §4.3). `DETECTION_EVERY_N_FRAMES` fica de FORA:
+# cada árvore usa o próprio default, e a baseline recebe o 3 do `.env.example`
+# dela por `--arvores base=...|DETECTION_EVERY_N_FRAMES=3`.
 CONFIG_BASE = {
     "VISIONEPI_DOTENV": "0",
     "HOST": "127.0.0.1",
@@ -72,8 +76,7 @@ CONFIG_BASE = {
     "YOLO_DEVICE": "",
     "PPE_CONF_MIN_BY_CLASS": "helmet:0.40,vest:0.40,gloves:0.30,mask:0.30,glasses:0.15,ear_protection:0.30",
     "MULTI_PERSON_DETECTION": "true",
-    "YOLO_IMGSZ": "416",
-    "DETECTION_EVERY_N_FRAMES": "3",
+    "YOLO_IMGSZ": "640",
     "TARGET_FPS": "12",
     "JPEG_QUALITY": "80",
     "POSE_PER_PERSON": "true",
@@ -87,8 +90,27 @@ CONFIG_BASE = {
     "PYTHONUNBUFFERED": "1",
 }
 
-FIXTURES_1CAM = ["bench"]
-FIXTURES_4CAM = ["bench", "multidao", "queda", "bench"]
+# A câmera 1 é sempre a `multidao`: pedestres, ninguém de capacete, violação
+# desde o quadro 0 (gabarito em bench/primeira_violacao.json). É nela que a
+# latência de alerta é medida. A `bench` (operários com capacete e colete) não
+# tem violação clara de capacete e não serve de âncora.
+FIXTURES_1CAM = ["multidao"]
+FIXTURES_4CAM = ["multidao", "bench", "queda", "bench"]
+GABARITO = RAIZ / "bench" / "primeira_violacao.json"
+SOCKETIO_CLIENTE = RAIZ / "frontend" / "node_modules" / "socket.io-client" / "dist" / "socket.io.min.js"
+
+# Ouvinte de alertas independente do frontend (vale para qualquer árvore):
+# cliente Socket.IO oficial, injetado na página, mesma origem e mesmo cookie.
+# `recebido_ms` é o relógio de parede do navegador, a mesma máquina do servidor.
+JS_OUVIR_ALERTAS = r"""
+() => new Promise((ok) => {
+  window.__alertas = [];
+  const s = io({transports: ['polling'], withCredentials: true});
+  s.on('alert_created', (a) => window.__alertas.push({recebido_ms: Date.now(), camera_id: a.camera_id, rule: a.rule, id: a.id}));
+  s.on('connect', () => ok(true));
+  setTimeout(() => ok(false), 15000);
+})
+"""
 
 # Sonda do navegador. Lê o MJPEG por fetch, decodifica e mede idade/decodificação.
 JS_INIT = r"""
@@ -343,6 +365,33 @@ class Servidor:
                 self.proc.kill()
 
 
+def latencias_de_alerta(sessao, base: str, ids: list[int], fixtures: list[str], alertas: list[dict[str, Any]],
+                        *, decorrido_s: float) -> dict[str, Any]:
+    """Do primeiro quadro com a violação (gabarito) até o `alert_created` chegar ao navegador.
+
+    Âncora: instante em que o SERVIDOR leu o quadro do gabarito
+    (`/api/diagnostics/pipeline?quadro=K`). Fim: `Date.now()` no navegador ao
+    receber o evento. Mesma máquina, mesmo relógio de parede. Sem alerta da
+    regra na rodada inteira → `latencia_ms` None e `sem_alerta_em_s` diz por
+    quanto tempo se esperou (é um limite inferior, não um número).
+    """
+    gabarito = json.loads(GABARITO.read_text(encoding="utf-8")) if GABARITO.exists() else {}
+    saida: dict[str, Any] = {}
+    for cid, fixture in zip(ids, fixtures, strict=True):
+        for regra, info in gabarito.get(fixture, {}).items():
+            quadro = int(info["quadro"])
+            d = sessao.get(f"{base}/api/diagnostics/pipeline?janela_s=5&quadro={quadro}", timeout=10).json()
+            ts = d["cameras"].get(str(cid), {}).get("ts_quadro_ms")
+            primeiro = next((a for a in alertas if a.get("camera_id") == cid and a.get("rule") == regra), None)
+            saida[f"{cid}:{regra}"] = {
+                "camera_id": cid, "fixture": fixture, "regra": regra, "quadro": quadro, "ts_quadro_ms": ts,
+                "recebido_ms": primeiro["recebido_ms"] if primeiro else None,
+                "latencia_ms": round(primeiro["recebido_ms"] - ts, 1) if primeiro and ts else None,
+                "sem_alerta_em_s": None if primeiro else round(decorrido_s, 1),
+            }
+    return saida
+
+
 # ------------------------------------------------------------------- uma rodada
 def rodar(
     *, rotulo: str, perfil: str, fixtures: list[str], caminhos: dict[str, Path], duracao: float, aquecimento: float,
@@ -376,56 +425,11 @@ def rodar(
             r = sessao.post(srv.base + "/api/cameras", json=corpo, timeout=10)
             r.raise_for_status()
             ids.append(r.json()["id"])
-        t_start = time.perf_counter()
-        for cid in ids:
-            sessao.post(f"{srv.base}/api/cameras/{cid}/start", timeout=60).raise_for_status()
-        # Primeiro frame publicado da câmera 1 = modelo carregado + 1ª inferência.
-        while time.perf_counter() - t_start < 120:
-            d = sessao.get(srv.base + "/api/diagnostics/pipeline?janela_s=5", timeout=10).json()
-            if d["cameras"].get(str(ids[0]), {}).get("stats", {}).get("totais", {}).get("frames_publicados"):
-                break
-            time.sleep(0.25)
-        resultado["primeiro_frame_s"] = round(time.perf_counter() - t_start, 2)
-        resultado["modelos"] = d.get("modelos")
 
-        # No Windows o python.exe do venv é um LANÇADOR que sobe o interpretador
-        # real como filho: medir só o pid do Popen daria ~0% de CPU e 3 MB.
         raiz_proc = psutil.Process(srv.proc.pid)
-        processos = [raiz_proc, *raiz_proc.children(recursive=True)]
-        # Prioridade alta no servidor (os dois lados de toda comparação recebem
-        # a mesma): a máquina de medição divide a CPU com outros processos que
-        # não são deste projeto (registrados em `carga_de_fundo_pct`). Sem isto,
-        # a baseline mediu a disputa por CPU, não o VisionEPI.
-        if prioridade_alta:
-            for p_ in processos:
-                try:
-                    p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
-                except (psutil.Error, OSError):
-                    resultado["prioridade_alta"] = False
-        for p_ in processos:
-            p_.cpu_percent(None)
-        psutil.cpu_percent(None)
         n_logicos = psutil.cpu_count(logical=True)
-
-        def amostrar(t: float) -> dict[str, float]:
-            cpu_srv = sum(p_.cpu_percent(None) for p_ in processos if p_.is_running())
-            rss = sum(p_.memory_info().rss for p_ in processos if p_.is_running())
-            total = psutil.cpu_percent(None) * n_logicos  # em "% de um núcleo", como o do servidor
-            return {"t": round(t, 1), "cpu_pct": round(cpu_srv, 1), "rss_mb": round(rss / 2**20, 1),
-                    "carga_de_fundo_pct": round(max(0.0, total - cpu_srv), 1)}
         with sync_playwright() as pw:
             navegador = pw.chromium.launch(headless=True)
-            # O navegador também é parte do sistema medido: com só o servidor em
-            # prioridade alta, o Chromium passava fome numa máquina carregada,
-            # não acompanhava o stream e a idade do quadro media o buffer TCP.
-            if prioridade_alta:
-                for p_ in psutil.Process().children(recursive=True):
-                    if p_.pid in {q.pid for q in processos}:
-                        continue
-                    try:
-                        p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
-                    except (psutil.Error, OSError):
-                        pass
             contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
             contexto.add_cookies([{"name": c.name, "value": c.value, "url": srv.base} for c in sessao.cookies])
             contexto.add_init_script(JS_INIT)
@@ -433,6 +437,55 @@ def rodar(
             console_erros: list[str] = []
             pagina.on("console", lambda m: console_erros.append(m.text) if m.type == "error" else None)
             pagina.goto(srv.base + "/", wait_until="load")
+            # O ouvinte de alertas conecta ANTES das câmeras ligarem: o primeiro
+            # alerta pode nascer durante o aquecimento e não pode ser perdido.
+            pagina.add_script_tag(path=str(SOCKETIO_CLIENTE))
+            resultado["ouvinte_de_alertas_conectado"] = bool(pagina.evaluate(JS_OUVIR_ALERTAS))
+
+            t_start = time.perf_counter()
+            for cid in ids:
+                sessao.post(f"{srv.base}/api/cameras/{cid}/start", timeout=60).raise_for_status()
+            # Primeiro frame publicado da câmera 1 = modelo carregado + 1ª inferência.
+            while time.perf_counter() - t_start < 120:
+                d = sessao.get(srv.base + "/api/diagnostics/pipeline?janela_s=5", timeout=10).json()
+                if d["cameras"].get(str(ids[0]), {}).get("stats", {}).get("totais", {}).get("frames_publicados"):
+                    break
+                time.sleep(0.25)
+            resultado["primeiro_frame_s"] = round(time.perf_counter() - t_start, 2)
+            resultado["modelos"] = d.get("modelos")
+
+            # No Windows o python.exe do venv é um LANÇADOR que sobe o interpretador
+            # real como filho: medir só o pid do Popen daria ~0% de CPU e 3 MB.
+            processos = [raiz_proc, *raiz_proc.children(recursive=True)]
+            # Prioridade alta no servidor E no navegador (os dois lados de toda
+            # comparação recebem a mesma): a máquina de medição divide a CPU com
+            # processos que não são deste projeto (`carga_de_fundo_pct`). Com só o
+            # servidor em prioridade alta, o Chromium passava fome e a idade do
+            # quadro media o buffer TCP.
+            if prioridade_alta:
+                for p_ in processos:
+                    try:
+                        p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
+                    except (psutil.Error, OSError):
+                        resultado["prioridade_alta"] = False
+                for p_ in psutil.Process().children(recursive=True):
+                    if p_.pid in {q.pid for q in processos}:
+                        continue
+                    try:
+                        p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
+                    except (psutil.Error, OSError):
+                        pass
+            for p_ in processos:
+                p_.cpu_percent(None)
+            psutil.cpu_percent(None)
+
+            def amostrar(t: float) -> dict[str, float]:
+                cpu_srv = sum(p_.cpu_percent(None) for p_ in processos if p_.is_running())
+                rss = sum(p_.memory_info().rss for p_ in processos if p_.is_running())
+                total = psutil.cpu_percent(None) * n_logicos  # em "% de um núcleo", como o do servidor
+                return {"t": round(t, 1), "cpu_pct": round(cpu_srv, 1), "rss_mb": round(rss / 2**20, 1),
+                        "carga_de_fundo_pct": round(max(0.0, total - cpu_srv), 1)}
+
             # Abre o foco da câmera 1, como o técnico faria.
             pagina.get_by_role("button", name=f"Configurar Fixture 1 ({fixtures[0]})").click(timeout=30000)
             pagina.wait_for_timeout(1000)
@@ -463,7 +516,10 @@ def rodar(
                 "() => { const r = (window.__visionepiVideo || {}); const k = Object.keys(r)[0]; if (!k) return null;"
                 " const x = r[k]; return {exibidos: x.exibidos, idades: x.idades.slice(), descartados: x.descartadosNoCliente}; }"
             )
+            alertas_recebidos = pagina.evaluate("() => window.__alertas || []")
             diag = sessao.get(f"{srv.base}/api/diagnostics/pipeline?janela_s={min(120, int(duracao))}", timeout=10).json()
+            resultado["latencia_alerta"] = latencias_de_alerta(sessao, srv.base, ids, fixtures, alertas_recebidos,
+                                                               decorrido_s=time.perf_counter() - t_start)
             navegador.close()
 
         dt_nav = (fim_navegador["t"] - marca["t"]) / 1000.0
@@ -513,8 +569,12 @@ def rodar(
             st = c.get("stats", {})
             taxas = st.get("taxas_por_s", {})
             fonte = c.get("fonte_fps")
+            idade_analise = (st.get("etapas") or {}).get("idade_analise") or {}
             resultado["cameras"][str(cid)] = {
                 "fixture": fixtures[i],
+                # Métricas principais do portão (ver docs/NEXT2026/MISSAO.md).
+                "fps_analise": taxas.get("analises_publicadas"),
+                "idade_analise_ms": {"p50": idade_analise.get("p50"), "p95": idade_analise.get("p95"), "n": idade_analise.get("n")},
                 "fonte_fps": fonte,
                 "fps_lido": taxas.get("frames_lidos"),
                 "fps_publicado": taxas.get("frames_publicados"),
@@ -533,13 +593,25 @@ def rodar(
 
 # ------------------------------------------------------------------- relatório
 ETAPAS_TABELA = ["captura", "espera_do_lock", "inferencia_epi", "inferencia_pessoa", "tracking", "pose", "regras", "alertas",
-                 "anotacao", "encode", "emissao", "loop_total", "idade_publicacao"]
+                 "anotacao", "encode", "emissao", "loop_total", "idade_publicacao", "idade_analise"]
+
+
+def latencia_da_camera_1(r: dict[str, Any]) -> dict[str, Any] | None:
+    """A latência de alerta da câmera 1 (a `multidao`), se o gabarito cobre a fixture dela."""
+    cameras = list(r.get("cameras", {}))
+    if not cameras:
+        return None
+    primeira = int(cameras[0])
+    return next((v for v in (r.get("latencia_alerta") or {}).values() if v.get("camera_id") == primeira), None)
 
 
 def tabela(resultados: list[dict[str, Any]]) -> str:
     linhas = []
-    cab = f"{'rodada':28s} {'fps_lido':>8s} {'fps_inf':>8s} {'fps_pub':>8s} {'tempo_real':>10s} {'idade_p95':>9s} " \
-          f"{'exib_fps':>8s} {'epi_p95':>8s} {'loop_p95':>8s} {'cpu%':>6s} {'rss_mb':>7s} {'fundo%':>7s}"
+    # As 4 primeiras colunas de número são as do portão (FPS de análise por
+    # câmera, idade da análise p50/p95, latência de alerta da câmera 1).
+    cab = f"{'rodada':28s} {'fps_anal':>8s} {'idAn_p50':>8s} {'idAn_p95':>8s} {'alerta_ms':>9s} " \
+          f"{'fps_lido':>8s} {'fps_pub':>8s} {'tempo_real':>10s} {'idade_p95':>9s} " \
+          f"{'exib_fps':>8s} {'epi_p95':>8s} {'cpu%':>6s} {'rss_mb':>7s} {'fundo%':>7s}"
     linhas.append(cab)
     linhas.append("-" * len(cab))
     for r in resultados:
@@ -556,10 +628,19 @@ def tabela(resultados: list[dict[str, Any]]) -> str:
             return round(statistics.mean(vals), 1) if vals else None
 
         nav = r.get("navegador", {})
+        lat = latencia_da_camera_1(r)
+        if lat is None:
+            alerta = f"{'-':>9s}"
+        elif lat["latencia_ms"] is None:
+            alerta = f"{'>' + str(int(lat['sem_alerta_em_s'])) + 's':>9s}"
+        else:
+            alerta = f"{lat['latencia_ms']:9.0f}"
         linhas.append(
-            f"{r['rotulo']:28s} {media('fps_lido') or 0:8.2f} {media('fps_inferencia') or 0:8.2f} {media('fps_publicado') or 0:8.2f} "
+            f"{r['rotulo']:28s} {media('fps_analise') or 0:8.2f} {etapa('idade_analise', 'p50') or 0:8.0f} "
+            f"{etapa('idade_analise') or 0:8.0f} {alerta} "
+            f"{media('fps_lido') or 0:8.2f} {media('fps_publicado') or 0:8.2f} "
             f"{media('fracao_do_tempo_real') or 0:10.2f} {nav.get('idade_quadro_ms', {}).get('p95') or 0:9.0f} "
-            f"{nav.get('fps_exibido_sonda') or 0:8.2f} {etapa('inferencia_epi') or 0:8.1f} {etapa('loop_total') or 0:8.1f} "
+            f"{nav.get('fps_exibido_sonda') or 0:8.2f} {etapa('inferencia_epi') or 0:8.1f} "
             f"{r['processo']['cpu_pct_media']:6.0f} {r['processo']['rss_mb_max'] or 0:7.0f} "
             f"{r['processo'].get('carga_de_fundo_pct_media') or 0:7.0f}"
         )

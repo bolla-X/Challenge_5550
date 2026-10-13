@@ -46,3 +46,7 @@ docs/pitch/*.webm
 # NEXT 2026: fontes baixadas e saidas efemeras do bench (os JSON de bench/results sao versionados)
 bench/_source/
 bench/runtime/
+# Instalação lateral do ultralytics 8.4 (teste do F8; a aplicação nunca a importa)
+bench/_ul84/
+# Saídas de treino/predict do ultralytics
+runs/

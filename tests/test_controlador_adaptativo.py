@@ -6,23 +6,36 @@ from app.services.controlador_adaptativo import ControladorAdaptativo
 
 
 def controlador(**kw):
-    base = dict(n_base=3, n_max=5, imgsz_base=416, imgsz_permitidos=[416, 320], telemetria_base_hz=8.0,
+    base = dict(n_base=3, n_max=5, telemetria_base_hz=8.0,
                 limite_alto_ms=1500, limite_baixo_ms=600, ticks_para_degradar=3, ticks_para_recuperar=5)
     return ControladorAdaptativo(**(base | kw))
 
 
-def test_escada_tem_a_ordem_prometida_e_respeita_o_guarda():
+def test_escada_tem_a_ordem_prometida():
     c = controlador()
     degraus = c.degraus()
     assert [d["n"] for d in degraus[:3]] == [3, 4, 5], "primeiro reduz a frequência de detecção"
-    assert degraus[3]["imgsz"] == 320, "depois a resolução, só para valor aprovado"
-    assert all(d["imgsz"] in (416, 320) for d in degraus), "nunca abaixo do que passou no guarda"
     assert degraus[-1]["telemetria_hz"] == 4.0, "por último, a telemetria do painel"
+    assert len(degraus) == 4, "nenhum degrau além de frequência e telemetria"
 
 
-def test_sem_imgsz_aprovado_abaixo_do_base_nao_mexe_na_resolucao():
-    c = controlador(imgsz_permitidos=[416])
-    assert {d["imgsz"] for d in c.degraus()} == {416}
+def test_nenhum_degrau_mexe_na_resolucao_do_modelo():
+    """640 é a referência do guarda; toda resolução menor foi reprovada nele."""
+    c = controlador(pose_k_max=3)
+    assert all(set(d) == {"n", "pose_k", "telemetria_hz"} for d in c.degraus())
+    for _ in range(100):
+        c.avaliar(99999)
+    assert not any("resolução" in r for r in c.reducoes())
+
+
+def test_monitor_no_nivel_maximo_mantem_imgsz_640(real_monitor_app):
+    monitor = real_monitor_app.extensions["monitor_service"]
+    for _ in range(100):
+        monitor.controlador.avaliar(99999)
+    monitor._aplicar_adaptativo([])
+    assert monitor.controlador.estado.nivel == monitor.controlador.nivel_max
+    assert monitor.detector.imgsz == 640
+    assert monitor.person_detector.imgsz == 640
 
 
 def test_degrada_so_depois_de_leituras_seguidas_acima_do_limite():
@@ -77,15 +90,16 @@ def test_resumo_diz_ao_operador_o_que_foi_reduzido():
         c.avaliar(5000)
     resumo = c.resumo()
     assert resumo["degradado"] is True
-    assert any("resolução do modelo 320" in r for r in resumo["reducoes"])
+    assert any("detecção a cada 5 quadros" in r for r in resumo["reducoes"])
+    assert any("painel atualiza 4x/s" in r for r in resumo["reducoes"])
     assert "análise atrasada" in resumo["motivo"]
 
 
-def test_com_pose_yolo_reduz_a_frequencia_da_pose_antes_da_resolucao():
+def test_com_pose_yolo_reduz_a_frequencia_da_pose_antes_da_telemetria():
     c = controlador(pose_k_max=3)
     degraus = c.degraus()
     ks = [d["pose_k"] for d in degraus]
-    assert ks.index(2) < [d["imgsz"] for d in degraus].index(320), "pose antes da resolução"
+    assert ks.index(2) < [d["telemetria_hz"] for d in degraus].index(4.0), "pose antes da telemetria"
     for _ in range(3 * 4):
         c.avaliar(5000)
     assert any("pose a cada" in r for r in c.reducoes())

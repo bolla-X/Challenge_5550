@@ -120,6 +120,7 @@ class CapturaContinua:
                 self._cond.notify_all()
             if self._stats is not None:
                 self._stats.contar("frames_lidos")
+                self._stats.quadro_lido(agora_ms)
 
             # Arquivo entrega tão rápido quanto se pede: sem ritmo, um vídeo de
             # 30 fps seria "capturado" a 300 fps. Agenda pelo relógio (e não

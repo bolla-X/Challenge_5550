@@ -118,6 +118,7 @@ class YoloPPEDetector:
         self._last_diagnostics: dict[str, Any] | None = None
         self.load_ms: float | None = None
         self._sessao_onnx_ajustada = False
+        self._openvino_dinamico_verificado = False
 
     @property
     def runtime(self) -> str:
@@ -159,6 +160,31 @@ class YoloPPEDetector:
             logger.info("sessao_onnx_ajustada", extra={"model_path": self.model_path, "threads": threads or "padrao"})
         except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com a sessão do ultralytics)
             logger.warning("sessao_onnx_nao_ajustada", extra={"error": str(exc)})
+
+    def _marcar_openvino_dinamico(self) -> bool:
+        """Liga o letterbox retangular quando o modelo OpenVINO tem entrada dinâmica.
+
+        O ultralytics 8.3.40 só preenche `AutoBackend.dynamic` para ONNX e
+        TensorRT (`ultralytics/nn/autobackend.py`); no OpenVINO fica False e o
+        predictor usa o letterbox QUADRADO (`engine/predictor.py`,
+        `auto=... getattr(self.model, "dynamic", False)`) mesmo num export com
+        `dynamic=True` (`shape="?,3,?,?"` no .xml). Resultado medido: o export
+        dinâmico dava a mesma concordância do estático (95,04 %). Devolve True
+        se mudou algo (a chamada que acabou de rodar deve ser refeita).
+        """
+        self._openvino_dinamico_verificado = True
+        backend = getattr(getattr(self.model, "predictor", None), "model", None)
+        compilado = getattr(backend, "ov_compiled_model", None)
+        if compilado is None or getattr(backend, "dynamic", False):
+            return False
+        try:
+            dinamico = compilado.input(0).get_partial_shape().is_dynamic
+        except Exception:  # noqa: BLE001
+            return False
+        if dinamico:
+            backend.dynamic = True
+            logger.info("openvino_entrada_dinamica", extra={"model_path": self.model_path})
+        return bool(dinamico)
 
     @property
     def is_openvino(self) -> bool:
@@ -282,6 +308,9 @@ class YoloPPEDetector:
             return [[] for _ in frames]
         if not self._sessao_onnx_ajustada and self.runtime == "onnx":
             self._ajustar_sessao_onnx()
+        if not self._openvino_dinamico_verificado and self.runtime == "openvino" and self._marcar_openvino_dinamico():
+            # A primeira chamada saiu com o letterbox quadrado; refaz com o certo.
+            return self.detect_lote(frames)
         results = list(results or [])
         if not results:
             return [[] for _ in frames]

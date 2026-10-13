@@ -1,0 +1,9 @@
+{
+ "multidao": {
+  "missing_helmet": {
+   "quadro": 0,
+   "referencia": "pytorch@640, conf 0,35, RuleEngine sem histerese",
+   "features": "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection"
+  }
+ }
+}

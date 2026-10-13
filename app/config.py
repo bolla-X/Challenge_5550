@@ -304,12 +304,10 @@ class Config:
     RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "onnx,pytorch")
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
-    # Controlador adaptativo (ver app/services/controlador_adaptativo.py).
-    # IMGSZ_PERMITIDOS: só resoluções que passaram no guarda de qualidade
-    # (scripts/concordancia.py); vazio = o controlador nunca mexe na resolução.
+    # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
+    # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
-    ADAPTATIVO_IMGSZ_PERMITIDOS = os.getenv("ADAPTATIVO_IMGSZ_PERMITIDOS", "")
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
     ADAPTATIVO_LIMITE_BAIXO_MS = env_float("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)
     # Segundos entre gravações de um alerta que continua ativo. Cada gravação

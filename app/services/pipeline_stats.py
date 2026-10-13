@@ -23,6 +23,10 @@ from typing import Any
 # 1.800 amostras = 2 min a 15 fps. Cobre a janela de 60 s do bench com folga.
 AMOSTRAS_POR_ETAPA = 1800
 EVENTOS_POR_CONTADOR = 20000
+# Instante de captura (relógio de parede, ms) dos primeiros quadros lidos desde
+# o start: é a âncora da latência de alerta ("do primeiro quadro com a violação
+# na fixture até o evento chegar ao navegador"). 1.500 quadros = 1 min a 25 fps.
+QUADROS_INICIAIS = 1500
 
 
 def percentil(valores: list[float], p: float) -> float | None:
@@ -44,6 +48,17 @@ class EstatisticasDoPipeline:
         self._duracoes: dict[str, deque[tuple[float, float]]] = {}
         self._contadores: dict[str, deque[tuple[float, int]]] = {}
         self._totais: dict[str, int] = {}
+        self._quadros_iniciais: list[float] = []
+
+    def quadro_lido(self, ts_ms: float) -> None:
+        """Guarda o instante de captura dos primeiros `QUADROS_INICIAIS` quadros."""
+        if len(self._quadros_iniciais) < QUADROS_INICIAIS:
+            self._quadros_iniciais.append(float(ts_ms))
+
+    def ts_do_quadro(self, indice: int) -> float | None:
+        """Instante de captura do quadro `indice` (0 = primeiro desde o start)."""
+        quadros = self._quadros_iniciais
+        return quadros[indice] if 0 <= indice < len(quadros) else None
 
     def duracao(self, etapa: str, ms: float, *, agora: float | None = None) -> None:
         fila = self._duracoes.get(etapa)
@@ -62,6 +77,7 @@ class EstatisticasDoPipeline:
         self._duracoes.clear()
         self._contadores.clear()
         self._totais.clear()
+        self._quadros_iniciais = []
 
     def resumo(self, janela_s: float = 30.0) -> dict[str, Any]:
         agora = time.monotonic()
