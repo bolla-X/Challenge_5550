@@ -521,6 +521,21 @@ def rodar(
                         p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
                     except (psutil.Error, OSError):
                         pass
+            # O navegador é o PC do operador, não o servidor. No perfil batata
+            # ele vai para os núcleos que o servidor NÃO usa: antes ele rodava
+            # em prioridade alta em qualquer núcleo, inclusive nos 2 do
+            # servidor, e o PR1 (que manda 6–10 fps de vídeo ao navegador,
+            # contra ~2 da base) pagava no servidor o decode do cliente.
+            if afinidade:
+                fora = [c for c in range(psutil.cpu_count(logical=True)) if c not in afinidade]
+                resultado["afinidade_cliente"] = fora
+                for p_ in [psutil.Process(), *psutil.Process().children(recursive=True)]:
+                    if p_.pid in {q.pid for q in processos}:
+                        continue
+                    try:
+                        p_.cpu_affinity(fora)
+                    except (psutil.Error, OSError):
+                        pass
             for p_ in processos:
                 p_.cpu_percent(None)
             psutil.cpu_percent(None)

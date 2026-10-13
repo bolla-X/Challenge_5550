@@ -36,12 +36,17 @@ def main() -> int:
     estado.parent.mkdir(parents=True, exist_ok=True)
     for rep in [r.strip() for r in args.reps.split(",") if r.strip()]:
         rotulo = f"{args.rotulo}-r{rep}"
+        # Ordem alternada entre repetições: a carga de fundo da máquina deriva
+        # ao longo da rodada, e quem roda sempre por último paga a deriva.
+        arvores = args.arvores.split(",")
+        if int(rep) % 2 == 0:
+            arvores = list(reversed(arvores))
         log = RAIZ / "bench" / "runtime" / f"{rotulo}.bench.log"
         estado.write_text(f"rodando {rotulo} desde {time.strftime('%H:%M:%S')}\n", encoding="utf-8")
         with log.open("w", encoding="utf-8") as saida:
             proc = subprocess.Popen(
                 [sys.executable, "-u", "scripts/bench.py", "--perfis", args.perfis, "--cameras", args.cameras,
-                 "--arvores", args.arvores, "--rotulo", rotulo],
+                 "--arvores", ",".join(arvores), "--rotulo", rotulo],
                 cwd=RAIZ, stdout=saida, stderr=subprocess.STDOUT,
             )
             try:
