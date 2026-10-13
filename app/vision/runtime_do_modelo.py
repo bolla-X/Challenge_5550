@@ -28,7 +28,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 ARQUIVO_APROVADOS = "models/export/aprovados.json"
-SUFIXOS = {"onnx": "onnx-dyn", "openvino": "openvino-dyn"}
+# Forma dinâmica primeiro (mesmo letterbox do PyTorch); a estática só se ela
+# mesma tiver sido aprovada — caso do yolov8n de pessoa (98,25 %).
+SUFIXOS = {"onnx": ("onnx-dyn", "onnx"), "openvino": ("openvino-dyn", "openvino")}
 
 
 def _aprovados(base_dir: Path, modelo: str) -> dict[str, Any]:
@@ -49,8 +51,9 @@ def resolver_caminho(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, p
     for runtime in candidatos:
         if runtime == "pytorch":
             return peso_pt, "PyTorch (primeiro da ordem)"
-        chave = f"{SUFIXOS.get(runtime, runtime)}:{imgsz}"
-        registro = aprovados.get(chave)
+        registro = next(
+            (aprovados[f"{v}:{imgsz}"] for v in SUFIXOS.get(runtime, (runtime,)) if f"{v}:{imgsz}" in aprovados), None
+        )
         if not registro:
             continue
         caminho = Path(registro.get("caminho", ""))

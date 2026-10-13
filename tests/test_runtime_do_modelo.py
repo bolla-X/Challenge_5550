@@ -68,3 +68,9 @@ def test_runtime_que_falha_no_teste_volta_ao_pt():
     ativo = garantir_runtime(det, "models/x.pt")
     assert ativo == "pytorch (fallback)"
     assert det.model_path == "models/x.pt"
+
+
+def test_estatico_aprovado_vale_quando_nao_ha_dinamico(tmp_path):
+    _aprovar(tmp_path, "pessoa", "onnx:640", "models/export/p/p.onnx", concordancia=0.98)
+    caminho, motivo = resolver_caminho(tmp_path, modelo="pessoa", peso_pt="models/y.pt", imgsz=640, pedido="onnx", ordem="onnx")
+    assert caminho.endswith("p.onnx")
