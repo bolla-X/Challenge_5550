@@ -205,6 +205,17 @@ class AlertStateService:
             self._emit_active(ativos)
             return {"active": ativos, "changed": [], "created": [], "updated": [], "resolved": encerrados_por_desligar}
 
+        # UMA transação por análise: create/touch/resolve fazem só flush e o
+        # commit é único no fim. Medido no bench (multidão, perfil batata): com
+        # dezenas de pessoas x 7 EPIs, um commit SQLite por alerta tocado deixava
+        # a análise nova até ~0,9 s parada aqui antes de sair (etapa `alertas`,
+        # p99 565 ms). Os eventos vão DEPOIS do commit: o navegador nunca recebe
+        # um alerta que ainda não está no banco.
+        pendentes: list[tuple[str, Any]] = []
+
+        def emitir(evento: str, payload: Any) -> None:
+            pendentes.append((evento, payload))
+
         current_by_key = {item.key: item for item in current_violations}
         # A soneca so vale enquanto a violacao continua: se sumiu de verdade
         # (mesma histerese de resolucao), uma violacao NOVA depois dispara.
@@ -238,6 +249,7 @@ class AlertStateService:
                 and not self._silenciado(key, item)
             ):
                 state.alert = self.repository.create(
+                    commit=False,
                     camera_id=self.camera_id,
                     rule=item.rule,
                     severity=item.severity,
@@ -253,8 +265,8 @@ class AlertStateService:
                 state.ocorrencias_pendentes = 0
                 created.append(payload)
                 created_or_updated.append(payload)
-                self._emitir("alert_created", payload)
-                self._emitir("alert", payload)  # compatibilidade com clientes antigos
+                emitir("alert_created", payload)
+                emitir("alert", payload)  # compatibilidade com clientes antigos
                 logger.warning("alert_created", extra={"alert": payload})
             elif state.snapshot is not None and state.snapshot.get("status") == "active":
                 # Alerta que continua ativo: acumula e só grava de tempos em
@@ -268,6 +280,7 @@ class AlertStateService:
                     state.alert,
                     metadata=item.metadata | {"confirmation_frames": state.violation_frames},
                     incremento=state.ocorrencias_pendentes,
+                    commit=False,
                 )
                 state.ocorrencias_pendentes = 0
                 state.ultimo_touch = agora
@@ -275,7 +288,7 @@ class AlertStateService:
                 state.snapshot = payload
                 updated.append(payload)
                 created_or_updated.append(payload)
-                self._emitir("alert_updated", payload)
+                emitir("alert_updated", payload)
 
         for key in list(self._states.keys()):
             if key in current_by_key:
@@ -292,14 +305,19 @@ class AlertStateService:
                     state.alert = self.repository.resolve(
                         state.alert,
                         metadata=(state.alert.metadata_json or {}) | {"resolution_frames": state.normal_frames},
+                        commit=False,
                     )
                     payload = state.alert.to_dict()
                     state.snapshot = payload
                     resolved.append(payload)
-                    self._emitir("alert_resolved", payload)
+                    emitir("alert_resolved", payload)
                     logger.info("alert_resolved", extra={"alert": payload})
                 del self._states[key]
 
+        if pendentes:
+            self.repository.salvar()
+        for evento, payload in pendentes:
+            self._emitir(evento, payload)
         active = self.active_alerts()
         self._emit_active(active)
         return {"active": active, "changed": created_or_updated, "created": created, "updated": updated, "resolved": resolved}

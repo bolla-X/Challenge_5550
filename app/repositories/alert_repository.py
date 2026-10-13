@@ -28,6 +28,7 @@ class AlertRepository:
         frame_ref: str | None = None,
         status: str = "active",
         camera_id: int | None = None,
+        commit: bool = True,
     ) -> Alert:
         now = utc_now()
         alert = Alert(
@@ -45,13 +46,15 @@ class AlertRepository:
             last_seen_at=now,
         )
         db.session.add(alert)
-        db.session.commit()
+        # `commit=False`: só `flush` (o id já existe para o payload) e quem
+        # chamou fecha a transação — ver AlertStateService.process.
+        db.session.commit() if commit else db.session.flush()
         return alert
 
     def get(self, alert_id: int) -> Alert | None:
         return db.session.get(Alert, int(alert_id))
 
-    def touch(self, alert: Alert, *, metadata: dict[str, Any] | None = None, incremento: int = 1) -> Alert:
+    def touch(self, alert: Alert, *, metadata: dict[str, Any] | None = None, incremento: int = 1, commit: bool = True) -> Alert:
         """Renova o alerta ativo. `incremento` permite gravar de uma vez as
         ocorrências acumuladas desde o último commit — ver
         AlertStateService.intervalo_touch, que espaça esta gravação."""
@@ -71,18 +74,24 @@ class AlertRepository:
         alert.occurrences = int(alert.occurrences or 0) + max(1, int(incremento))
         if metadata is not None:
             alert.metadata_json = {**metadata, **preservadas}
-        db.session.commit()
+        if commit:
+            db.session.commit()
         return alert
 
-    def resolve(self, alert: Alert, *, metadata: dict[str, Any] | None = None) -> Alert:
+    def resolve(self, alert: Alert, *, metadata: dict[str, Any] | None = None, commit: bool = True) -> Alert:
         now = utc_now()
         alert.status = "resolved"
         alert.last_seen_at = now
         alert.resolved_at = now
         if metadata is not None:
             alert.metadata_json = metadata
-        db.session.commit()
+        if commit:
+            db.session.commit()
         return alert
+
+    def salvar(self) -> None:
+        """Fecha a transação aberta por chamadas com `commit=False`."""
+        db.session.commit()
 
     def update_frame_ref(self, alert: Alert, frame_ref: str) -> Alert:
         alert.frame_ref = frame_ref

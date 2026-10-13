@@ -423,3 +423,44 @@ def test_sem_limiar_de_tempo_o_comportamento_e_o_de_antes(app, monkeypatch):
             relogio["t"] += 10.0
             assert service.process([missing_helmet()])["created"] == []
         assert len(service.process([missing_helmet()])["created"]) == 1
+
+
+def test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois(app, monkeypatch):
+    """Antes: um commit SQLite por alerta criado/tocado/resolvido, dentro do loop.
+
+    Medido na multidão (perfil batata): a análise nova esperava até ~0,9 s aqui.
+    """
+    from app.extensions import db
+
+    with app.app_context():
+        ordem: list[str] = []
+        commit_original = db.session.commit
+
+        def commit_contado():
+            ordem.append("commit")
+            commit_original()
+
+        monkeypatch.setattr(db.session, "commit", commit_contado)
+
+        class SocketQueAnota(DummySocket):
+            def emit(self, event, payload=None, *args, **kwargs):
+                ordem.append(f"emit:{event}")
+                super().emit(event, payload, *args, **kwargs)
+
+        service = AlertStateService(AlertRepository(), SocketQueAnota(), create_after_frames=1, resolve_after_frames=1)
+        violacoes = [
+            RuleAlert(rule="missing_helmet", severity="critical", message=f"Sem capacete {i}", feature="helmet",
+                      metadata={"person_id": f"person_{i}"})
+            for i in range(12)
+        ]
+        criados = service.process(violacoes)["created"]
+
+        assert len(criados) == 12
+        assert ordem.count("commit") == 1
+        primeiro_emit = next(i for i, x in enumerate(ordem) if x.startswith("emit:alert_created"))
+        assert ordem.index("commit") < primeiro_emit, "evento antes do commit"
+
+        ordem.clear()
+        resolvidos = service.process([])["resolved"]
+        assert len(resolvidos) == 12
+        assert ordem.count("commit") == 1

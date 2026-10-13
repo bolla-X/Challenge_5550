@@ -211,6 +211,7 @@ class CameraWorker:
         self._analise_recente: FrameAnalysis | None = None
         self._versao_analise = 0
         self._ts_analise_ms: float | None = None
+        self._analise_pronta_em: float | None = None
         self._versao_consumida = 0
         # Estado do ÚLTIMO quadro publicado, guardado cru: o JPEG (cru ou
         # anotado) e o overlay em JSON só são produzidos se alguém pedir, uma
@@ -992,6 +993,7 @@ class CameraWorker:
             self._analise_recente = analise
             self._versao_analise += 1
             self._ts_analise_ms = ts_ms
+            self._analise_pronta_em = time.perf_counter()
         self._cached_analysis = analise
 
     def _registrar_analise_publicada(self, ts_captura_analisada_ms: float) -> None:
@@ -1004,6 +1006,10 @@ class CameraWorker:
         """
         self.stats.contar("analises_publicadas")
         self.stats.duracao("idade_analise", time.time() * 1000.0 - ts_captura_analisada_ms)
+        if self._analise_pronta_em is not None:
+            # Da análise pronta (callback do agendador) até sair: fila do loop
+            # de publicação, regras, alertas e emissão.
+            self.stats.duracao("espera_publicacao", (time.perf_counter() - self._analise_pronta_em) * 1000.0)
 
     def _publicar(self, frame, analysis: FrameAnalysis, nova: bool, ts_captura_ms: float) -> None:
         """Tudo que acontece depois da análise, igual nos dois loops."""
