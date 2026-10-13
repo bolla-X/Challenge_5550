@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from functools import cached_property
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -177,14 +178,43 @@ class YoloPPEDetector:
         compilado = getattr(backend, "ov_compiled_model", None)
         if compilado is None or getattr(backend, "dynamic", False):
             return False
+        self._recompilar_openvino_na_cpu(backend)
         try:
-            dinamico = compilado.input(0).get_partial_shape().is_dynamic
+            dinamico = backend.ov_compiled_model.input(0).get_partial_shape().is_dynamic
         except Exception:  # noqa: BLE001
             return False
         if dinamico:
             backend.dynamic = True
             logger.info("openvino_entrada_dinamica", extra={"model_path": self.model_path})
         return bool(dinamico)
+
+    def _recompilar_openvino_na_cpu(self, backend) -> None:
+        """Recompila na CPU, hint LATENCY e teto de threads = VISIONEPI_THREADS.
+
+        O ultralytics 8.3.40 compila com `device_name="AUTO"` (nesta máquina
+        pode cair na iGPU) e sem teto de threads. Pela doc do plugin de CPU, no
+        hint LATENCY o padrão de `INFERENCE_NUM_THREADS` é "P-cores ou
+        P-cores+E-cores" (10 num i7-1355U) e, no Windows, não há pinning
+        (https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device/performance-hint-and-thread-scheduling.html).
+        Com o processo preso a 2 núcleos isso é oversubscription — é a
+        explicação mais provável do "ganha na bancada e perde no worker".
+        """
+        try:
+            import openvino as ov
+
+            xml = next(Path(self.model_path).glob("*.xml"))
+            core = ov.Core()
+            modelo = core.read_model(model=str(xml), weights=str(xml.with_suffix(".bin")))
+            if modelo.get_parameters()[0].get_layout().empty:
+                modelo.get_parameters()[0].set_layout(ov.Layout("NCHW"))
+            config: dict[str, Any] = {"PERFORMANCE_HINT": "LATENCY"}
+            threads = os.getenv("VISIONEPI_THREADS", "").strip()
+            if threads.isdigit() and int(threads) > 0:
+                config["INFERENCE_NUM_THREADS"] = int(threads)
+            backend.ov_compiled_model = core.compile_model(modelo, device_name="CPU", config=config)
+            logger.info("openvino_recompilado", extra={"model_path": self.model_path, "threads": threads or "padrao"})
+        except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com o compilado do ultralytics)
+            logger.warning("openvino_nao_recompilado", extra={"error": str(exc)})
 
     @property
     def is_openvino(self) -> bool:
