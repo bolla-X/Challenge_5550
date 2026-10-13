@@ -325,6 +325,33 @@ forte: rota nova passa a ser exercitada, não ignorada por 404).
    baixaria da internet se não achasse no diretório de trabalho) para
    `models/yolov8n.pt`.
 
+## Pose no mesmo `auto` (OpenVINO na iGPU) — consequência do detector de pessoa padrão
+
+Com `MULTI_PERSON_DETECTION=true` como padrão, cada análise passou a rodar
+também o yolov8n (~100 ms na iGPU) e o **YOLO-pose em PyTorch (236 ms por
+quadro, medido na fixture de queda)** — no modo antigo a pose não rodava, porque
+os esqueletos só são calculados no ramo multi-pessoa. A reexecução do E2E
+(`bench/runtime/e2e-pr2c.out`) caiu para 7/11: queda, replay, aproximação e
+privacidade estouraram o tempo; na janela do teste de queda não houve nenhum
+`fall_detected` na câmera Queda (houve depois, fora da janela).
+
+Correção: o YOLO-pose entra no resolvedor de runtime como modelo `esqueleto`
+(`POSE_RUNTIME=auto`, mesma `RUNTIME_ORDEM`). Guarda estendida para pose:
+concordância de caixas (≥ 97 %) **e** erro dos keypoints — distância ao da
+referência PyTorch@640 dividida pela diagonal da caixa, p95 ≤ 0,05
+(`scripts/concordancia.py --modelo esqueleto`, 120 quadros das 3 fixtures):
+
+| candidato | concordância | pares | erro kp p50 | erro kp p95 | bancada p50 |
+|---|---|---|---|---|---|
+| OpenVINO iGPU FP32 | 100 % | 459 | 0,0000 | 0,0000 | 63 ms |
+| OpenVINO iGPU FP16 | 99,25 % | 456 | 0,0008 | 0,0048 | 78 ms |
+| OpenVINO CPU FP32 | 100 % | 459 | 0,0000 | 0,0000 | 150 ms |
+| ONNX dinâmico | 100 % | 459 | 0,0000 | 0,0000 | 87 ms |
+| PyTorch (medição avulsa) | referência | — | — | — | 236 ms |
+
+Bancada é só pista (processo isolado); a decisão vale pelo E2E e pelo bench do
+portão. Fonte: `bench/results/concordancia-esqueleto-20261013-170752.json`.
+
 ## Alerta que ficava ativo depois de parar a câmera
 
 Achado no log do servidor do E2E (`alert_state_stop_resolution_failed`,

@@ -325,6 +325,7 @@ class Config:
     # PyTorch 3997. Exportar e aprovar: python scripts/concordancia.py.
     PPE_RUNTIME = os.getenv("PPE_RUNTIME", "auto")
     PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "auto")
+    POSE_RUNTIME = os.getenv("POSE_RUNTIME", "auto")
     # openvino-gpu primeiro (13/10, ADENDO 1 L1): na iGPU Intel o CPU-ms do
     # servidor por análise caiu 78 % contra o ONNX (batata 1 câm., 3 rodadas);
     # sem GPU visível ao OpenVINO, o resolvedor pula para o ONNX.
@@ -479,6 +480,7 @@ class TestConfig(Config):
     # MÁQUINA (fora do git). A suíte não pode depender de export local.
     PPE_RUNTIME = "pytorch"
     PERSON_RUNTIME = "pytorch"
+    POSE_RUNTIME = "pytorch"
     # Mesmo motivo: um .env com credencial RTSP de planta real configurada
     # (necessaria pra rodar contra camera de verdade) nao pode fazer
     # test_add_recusa_host_sem_credencial_configurada deixar de testar o

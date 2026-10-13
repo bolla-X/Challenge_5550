@@ -160,9 +160,17 @@ class MonitorService:
         # por IoU (ver yolo_pose_detector.associar_esqueletos). O detector de
         # pessoa NÃO é trocado: o yolo11n-pose concordou só 83,8% com o yolov8n
         # nas caixas de pessoa (scripts/concordancia.py, CHANGELOG).
+        # Mesmo `auto` dos outros dois (modelo "esqueleto" no aprovados.json): com
+        # o detector de pessoa ligado por padrão a pose passou a rodar em toda
+        # análise, e em PyTorch custava 236 ms por quadro (CHANGELOG, PR2).
+        peso_pose = str(app.config.get("POSE_MODEL_PATH", "models/yolo11n-pose.pt"))
+        escolha_pose = resolver(
+            BASE_DIR, modelo="esqueleto", peso_pt=peso_pose, imgsz=int(app.config.get("POSE_IMGSZ", 640)),
+            pedido=str(app.config.get("POSE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")),
+        )
         self.pose_detector = (
             YoloPoseDetector(
-                str(app.config.get("POSE_MODEL_PATH", "models/yolo11n-pose.pt")),
+                escolha_pose["caminho"],
                 confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
                 device=app.config.get("YOLO_DEVICE"),
                 max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
@@ -171,6 +179,8 @@ class MonitorService:
             if str(app.config.get("POSE_BACKEND", "mediapipe")).lower() == "yolo"
             else None
         )
+        if self.pose_detector is not None:
+            _aplicar_dispositivo(self.pose_detector, escolha_pose)
         self.pose_estimator = MediaPipePoseEstimator(
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
             min_tracking_confidence=app.config.get("POSE_MIN_TRACKING_CONFIDENCE", 0.5),
@@ -179,9 +189,13 @@ class MonitorService:
         # carga + 1 inferência (com volta ao .pt se falhar) só fora dos testes.
         self.runtimes = {"epi": {"pedido": app.config.get("PPE_RUNTIME"), "motivo": motivo_epi},
                          "pessoa": {"pedido": app.config.get("PERSON_RUNTIME"), "motivo": motivo_pessoa}}
+        if self.pose_detector is not None:
+            self.runtimes["pose"] = {"pedido": app.config.get("POSE_RUNTIME"), "motivo": escolha_pose["motivo"]}
         if not app.config.get("TESTING"):
             self.runtimes["epi"]["ativo"] = garantir_runtime(detector_principal, peso_epi)
             self.runtimes["pessoa"]["ativo"] = garantir_runtime(self.person_detector, peso_pessoa)
+            if self.pose_detector is not None:
+                self.runtimes["pose"]["ativo"] = garantir_runtime(self.pose_detector, peso_pose)
         self.aquecimento_ms: dict[str, float] = {}
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()

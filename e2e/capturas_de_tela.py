@@ -79,9 +79,23 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
             feitas.append(nome)
         except Exception as exc:  # noqa: BLE001  (registra e segue: é inventário visual)
             print(f"  aba {aba}: {exc}")
+    feitas += ["02-tecnico-grade", "03-tecnico-foco"]
+    for nome, abrir in [
+        ("13-tecnico-sobre", lambda: pg.get_by_role("button", name="Sobre", exact=True).click()),
+        ("14-tecnico-prova-de-escala", lambda: pg.get_by_role("button", name="Prova de escala").click()),
+    ]:
+        try:
+            if nome.endswith("escala"):
+                pg.goto(servidor.base + "/")
+                pg.get_by_role("button", name="Prova de escala").wait_for(timeout=30_000)
+            abrir()
+            _foto(pg, pasta, nome)
+            feitas.append(nome)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {nome}: {exc}")
     pg.goto(servidor.base + "/relatorio/turno")
     _foto(pg, pasta, "09-relatorio-turno")
-    feitas += ["02-tecnico-grade", "03-tecnico-foco", "09-relatorio-turno"]
+    feitas.append("09-relatorio-turno")
     ctx.close()
 
     # Supervisor: início e contas.
@@ -91,6 +105,16 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
     pg.wait_for_timeout(2000)
     _foto(pg, pasta, "10-supervisor-inicio")
     feitas.append("10-supervisor-inicio")
+    for nome, rotulo in [("15-supervisor-contas", "Contas"), ("16-supervisor-visao-geral", "Câmeras")]:
+        try:
+            pg.goto(servidor.base + "/")
+            pg.get_by_role("button", name=rotulo).first.click(timeout=30_000)
+            if rotulo == "Câmeras":
+                pg.get_by_role("button", name="Visão geral").click(timeout=30_000)
+            _foto(pg, pasta, nome)
+            feitas.append(nome)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {nome}: {exc}")
     ctx.close()
 
     # Operador: quiosque da câmera do setor.

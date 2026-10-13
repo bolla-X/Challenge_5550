@@ -3,6 +3,7 @@
     python scripts/concordancia.py                       # todos os candidatos
     python scripts/concordancia.py --candidatos pytorch:416,onnx:416
     python scripts/concordancia.py --modelo pessoa       # o detector de pessoa (yolov8n)
+    python scripts/concordancia.py --modelo esqueleto    # o YOLO-pose (caixa + keypoints)
 
 Referência: o MESMO peso em PyTorch, imgsz 640 (a resolução de treino), com os
 filtros que a aplicação usa (YOLO_CLASSES, confiança 0,35). Para cada candidato
@@ -51,7 +52,14 @@ DIR_CALIB = RAIZ / "bench" / "runtime" / "calib"
 MODELOS = {
     "epi": {"peso": RAIZ / "models" / "vyra_ppe.pt", "classes": [0, 1, 2, 3, 5, 11, 12, 13]},
     "pessoa": {"peso": RAIZ / "models" / "yolov8n.pt", "classes": [0]},
+    # Para o YOLO-pose a caixa não basta: os keypoints alimentam SOS, ergonomia e
+    # privacidade. Além da concordância de caixas, mede o erro dos keypoints
+    # (ver `erros_de_keypoints`) e só aprova com p95 ≤ ERRO_KEYPOINT_MAX.
+    "esqueleto": {"peso": RAIZ / "models" / "yolo11n-pose.pt", "classes": [0]},
 }
+# Erro de keypoint: distância ao da referência dividida pela diagonal da caixa
+# da pessoa. 0,05 numa pessoa de 400 px de altura são ~22 px.
+ERRO_KEYPOINT_MAX = 0.05
 FIXTURES = ["bench", "multidao", "queda"]
 CANDIDATOS_PADRAO = [
     "pytorch:512", "pytorch:416", "pytorch:320",
@@ -60,6 +68,7 @@ CANDIDATOS_PADRAO = [
     "openvino-int8:416",
 ]
 CANDIDATOS_PESSOA = ["pytorch:416", "onnx:640", "openvino:640", "pose:640", "pose:416"]
+CANDIDATOS_ESQUELETO = ["openvino-dyn@gpu-fp32:640", "openvino-dyn@gpu-fp16:640", "openvino-dyn@cpu-fp32:640", "onnx-dyn:640"]
 
 
 def amostrar_quadros(por_fixture: int) -> list[tuple[str, int, object]]:
@@ -172,7 +181,13 @@ def detector_para(modelo: str, candidato: str) -> YoloPPEDetector:
     else:
         raise SystemExit(f"runtime desconhecido: {runtime}")
     detector_para.caminhos[(modelo, candidato)] = caminho
-    detector = YoloPPEDetector(str(caminho), confidence=0.35, classes=MODELOS[modelo]["classes"], imgsz=imgsz)
+    if modelo == "esqueleto":
+        from app.vision.yolo_pose_detector import YoloPoseDetector
+
+        classe = YoloPoseDetector
+    else:
+        classe = YoloPPEDetector
+    detector = classe(str(caminho), confidence=0.35, classes=MODELOS[modelo]["classes"], imgsz=imgsz)
     detector_para.detectores[(modelo, candidato)] = detector
     if dispositivo:
         detector.dispositivo_openvino = dispositivo.upper()
@@ -208,6 +223,36 @@ def emparelhar(ref, cand) -> dict[str, list[int]]:
     return por_classe
 
 
+def erros_de_keypoints(ref, cand) -> list[float]:
+    """Erro médio dos keypoints de cada par de pessoas (IoU ≥ 0,5), normalizado.
+
+    Só entram os keypoints com confiança > 0,3 nos dois lados — os mesmos que a
+    aplicação usa (`VISIBILIDADE_MINIMA` é 0,4).
+    """
+    pares = sorted(
+        ((r.box.iou(c.box), i, j) for i, r in enumerate(ref) for j, c in enumerate(cand) if r.keypoints and c.keypoints),
+        reverse=True,
+    )
+    usados_r, usados_c, erros = set(), set(), []
+    for iou, i, j in pares:
+        if iou < 0.5:
+            break
+        if i in usados_r or j in usados_c:
+            continue
+        usados_r.add(i)
+        usados_c.add(j)
+        caixa = ref[i].box
+        diagonal = max(1.0, ((caixa.x2 - caixa.x1) ** 2 + (caixa.y2 - caixa.y1) ** 2) ** 0.5)
+        d = [
+            ((xr - xc) ** 2 + (yr - yc) ** 2) ** 0.5 / diagonal
+            for (xr, yr, cr), (xc, yc, cc) in zip(ref[i].keypoints, cand[j].keypoints, strict=False)
+            if cr > 0.3 and cc > 0.3
+        ]
+        if d:
+            erros.append(sum(d) / len(d))
+    return erros
+
+
 def resumir(contagens: dict[str, list[int]]) -> dict[str, dict[str, float | int]]:
     saida = {}
     total = [0, 0, 0]
@@ -230,7 +275,9 @@ def main() -> int:
     args = ap.parse_args()
 
     if not args.candidatos:
-        args.candidatos = ",".join(CANDIDATOS_PESSOA if args.modelo == "pessoa" else CANDIDATOS_PADRAO)
+        args.candidatos = ",".join(
+            {"pessoa": CANDIDATOS_PESSOA, "esqueleto": CANDIDATOS_ESQUELETO}.get(args.modelo, CANDIDATOS_PADRAO)
+        )
     quadros = amostrar_quadros(args.quadros_por_fixture)
     print(f"[concordancia] {len(quadros)} quadros de {', '.join(FIXTURES)}; modelo {args.modelo}")
     referencia = detector_para(args.modelo, "pytorch:640")
@@ -243,11 +290,13 @@ def main() -> int:
             det = detector_para(args.modelo, candidato)
             for _ in range(3):
                 det.detect(quadros[0][2])
-            tempos, contagens = [], {}
+            tempos, contagens, erros_kp = [], {}, []
             for (_, _, frame), r in zip(quadros, ref, strict=True):
                 inicio = time.perf_counter()
                 cand = det.detect(frame)
                 tempos.append((time.perf_counter() - inicio) * 1000)
+                if args.modelo == "esqueleto":
+                    erros_kp += erros_de_keypoints(r, cand)
                 for classe, (m, nr, nc) in emparelhar(r, cand).items():
                     acumulado = contagens.setdefault(classe, [0, 0, 0])
                     contagens[classe] = [acumulado[0] + m, acumulado[1] + nr, acumulado[2] + nc]
@@ -259,6 +308,14 @@ def main() -> int:
                 "bancada_ms_p95": round(tempos[int(len(tempos) * 0.95) - 1], 1),
                 "erro": erro,
             }
+            if args.modelo == "esqueleto":
+                erros_kp.sort()
+                resultados[candidato]["keypoints"] = {
+                    "pares": len(erros_kp),
+                    "erro_p50": round(erros_kp[len(erros_kp) // 2], 4) if erros_kp else None,
+                    "erro_p95": round(erros_kp[max(0, int(len(erros_kp) * 0.95) - 1)], 4) if erros_kp else None,
+                }
+                print(f"  {candidato:18s} keypoints {resultados[candidato]['keypoints']}")
             tot = resultados[candidato]["por_classe"]["_total"]
             print(f"  {candidato:18s} concordancia {tot['concordancia']}  recall {tot['recall_ref']}  "
                   f"bancada p50 {resultados[candidato]['bancada_ms_p50']} ms" + (f"  ERRO {erro}" if erro else ""))
@@ -280,12 +337,17 @@ def main() -> int:
         runtime, imgsz = candidato.split(":")
         limiar = 0.97 if imgsz == "640" else 0.95
         r["dispositivo_ativo"] = getattr(detector_para.detectores.get((args.modelo, candidato)), "dispositivo_ativo", None)
+        kp = r.get("keypoints")
+        if kp is not None and (kp["erro_p95"] is None or kp["erro_p95"] > ERRO_KEYPOINT_MAX):
+            print(f"  {candidato}: reprovado pelos keypoints ({kp})")
+            continue
         if total >= limiar:
             caminho = detector_para.caminhos.get((args.modelo, candidato))
             aprovados.setdefault(args.modelo, {})[candidato] = {
                 "concordancia": total, "limiar": limiar,
                 "caminho": str(Path(caminho).relative_to(RAIZ)).replace("\\", "/") if caminho else None,
                 "dispositivo_ativo": r.get("dispositivo_ativo"),
+                **({"keypoints": kp} if kp is not None else {}),
                 "data": f"{datetime.now():%Y-%m-%d}",
             }
     arquivo.parent.mkdir(parents=True, exist_ok=True)
