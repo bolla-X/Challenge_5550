@@ -325,6 +325,17 @@ forte: rota nova passa a ser exercitada, não ignorada por 404).
    baixaria da internet se não achasse no diretório de trabalho) para
    `models/yolov8n.pt`.
 
+## Alerta que ficava ativo depois de parar a câmera
+
+Achado no log do servidor do E2E (`alert_state_stop_resolution_failed`,
+"Instance <Alert> is not bound to a Session"). `CameraWorker.stop()` roda na
+thread da requisição e resolve alertas criados na sessão da thread do worker; o
+objeto chegava desanexado e expirado pelo commit. Resultado: exceção (lendo
+`status`) ou commit vazio — o alerta continuava `active` no banco com a câmera
+parada. Correção: `AlertRepository.na_sessao()` traz o alerta para a sessão da
+thread atual antes de ler/alterar. Teste que reproduz (falhava com `'active' ==
+'resolved'`): `tests/test_alert_repository.py::test_resolve_de_outra_thread_nao_perde_o_alerta`.
+
 ## F6 — celular como câmera via QR
 
 - Docs: getUserMedia só em contexto seguro, e em contexto inseguro

@@ -382,6 +382,10 @@ class AlertStateService:
                 }
         for key in list(self._states.keys()):
             state = self._states[key]
+            if state.alert is not None:
+                # Chamado também do `stop()`, na thread da requisição: o alerta
+                # foi criado na sessão da thread do worker.
+                state.alert = self.repository.na_sessao(state.alert)
             if state.alert is not None and state.alert.status == "active":
                 state.alert = self.repository.resolve(
                     state.alert,
