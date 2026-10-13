@@ -163,8 +163,14 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
 // O antigo <VideoCard/> (câmera padrão legada) saiu como código morto no rebrand.
 
 export function RiskAreaEditorPanel() {
-  const { riskArea, riskEditorActive, riskEditorPoints, toggleRiskEditor, clearRiskEditorPoints, resetRiskEditorFromServer, updateRiskArea, showMessage } =
-    useDashboardStore();
+  const riskArea = useDashboardStore((s) => s.riskArea);
+  const riskEditorActive = useDashboardStore((s) => s.riskEditorActive);
+  const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
+  const toggleRiskEditor = useDashboardStore((s) => s.toggleRiskEditor);
+  const clearRiskEditorPoints = useDashboardStore((s) => s.clearRiskEditorPoints);
+  const resetRiskEditorFromServer = useDashboardStore((s) => s.resetRiskEditorFromServer);
+  const updateRiskArea = useDashboardStore((s) => s.updateRiskArea);
+  const showMessage = useDashboardStore((s) => s.showMessage);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {

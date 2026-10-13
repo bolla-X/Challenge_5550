@@ -163,7 +163,11 @@ def detector_para(modelo: str, candidato: str) -> YoloPPEDetector:
         return YoloPoseDetector(str(RAIZ / "models" / "yolo11n-pose.pt"), confidence=0.35, imgsz=imgsz)
     else:
         raise SystemExit(f"runtime desconhecido: {runtime}")
+    detector_para.caminhos[(modelo, candidato)] = caminho
     return YoloPPEDetector(str(caminho), confidence=0.35, classes=MODELOS[modelo]["classes"], imgsz=imgsz)
+
+
+detector_para.caminhos = {}
 
 
 def emparelhar(ref, cand) -> dict[str, list[int]]:
@@ -246,6 +250,29 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001  (um candidato quebrado não para os outros)
             resultados[candidato] = {"erro": f"{type(exc).__name__}: {exc}"}
             print(f"  {candidato:18s} FALHOU: {type(exc).__name__}: {exc}")
+
+    # Aprovados no guarda: troca de runtime ≥ 97 %; redução de resolução ≥ 95 %.
+    # É desta lista que o PPE_RUNTIME=auto escolhe (app/vision/runtime_do_modelo.py).
+    arquivo = RAIZ / "models" / "export" / "aprovados.json"
+    try:
+        aprovados = json.loads(arquivo.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        aprovados = {}
+    for candidato, r in resultados.items():
+        total = (r.get("por_classe") or {}).get("_total", {}).get("concordancia")
+        if total is None or candidato.startswith(("pytorch:", "pose:")):
+            continue
+        runtime, imgsz = candidato.split(":")
+        limiar = 0.97 if imgsz == "640" else 0.95
+        if total >= limiar:
+            caminho = detector_para.caminhos.get((args.modelo, candidato))
+            aprovados.setdefault(args.modelo, {})[candidato] = {
+                "concordancia": total, "limiar": limiar,
+                "caminho": str(Path(caminho).relative_to(RAIZ)).replace("\\", "/") if caminho else None,
+                "data": f"{datetime.now():%Y-%m-%d}",
+            }
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    arquivo.write_text(json.dumps(aprovados, ensure_ascii=False, indent=1), encoding="utf-8")
 
     destino = RAIZ / "bench" / "results" / f"concordancia-{args.modelo}-{datetime.now():%Y%m%d-%H%M%S}.json"
     destino.parent.mkdir(parents=True, exist_ok=True)

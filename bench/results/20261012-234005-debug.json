@@ -1,0 +1,306 @@
+{
+ "carimbo": "20261012-234005",
+ "maquina": {
+  "cpu": "13th Gen Intel(R) Core(TM) i7-1355U",
+  "nucleos_fisicos": 10,
+  "nucleos_logicos": 12,
+  "ram_gb": 15.7,
+  "gpu_cuda": null,
+  "so": "Windows 10 (10.0.26200)",
+  "versoes": {
+   "python": "3.11.9",
+   "torch": "2.13.0+cpu",
+   "ultralytics": "8.3.40",
+   "cv2": "4.11.0",
+   "onnxruntime": "1.29.0",
+   "openvino": "2026.3.0-22451-8a17657b995-releases/2026/3",
+   "mediapipe": "0.10.14",
+   "numpy": "1.26.4",
+   "flask_socketio": null
+  }
+ },
+ "afinidade_batata": [],
+ "config_base": {
+  "VISIONEPI_DOTENV": "0",
+  "HOST": "127.0.0.1",
+  "AUTH_REQUIRED": "true",
+  "AUTO_CREATE_TABLES": "true",
+  "FLASK_DEBUG": "false",
+  "PPE_MODEL_PATH": "models/vyra_ppe.pt",
+  "PERSON_MODEL_PATH": "models/yolov8n.pt",
+  "YOLO_CLASSES": "0,1,2,3,5,11,12,13",
+  "YOLO_CONFIDENCE": "0.35",
+  "YOLO_DEVICE": "",
+  "PPE_CONF_MIN_BY_CLASS": "helmet:0.40,vest:0.40,gloves:0.30,mask:0.30,glasses:0.15,ear_protection:0.30",
+  "MULTI_PERSON_DETECTION": "true",
+  "YOLO_IMGSZ": "416",
+  "DETECTION_EVERY_N_FRAMES": "3",
+  "TARGET_FPS": "12",
+  "JPEG_QUALITY": "80",
+  "POSE_PER_PERSON": "true",
+  "POSE_MAX_PEOPLE": "4",
+  "ALERT_CREATE_AFTER_FRAMES": "8",
+  "ALERT_RESOLVE_AFTER_FRAMES": "20",
+  "TELEMETRY_HZ": "8",
+  "LLM_ENABLED": "false",
+  "DEFAULT_FEATURES": "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area",
+  "CLEANUP_ON_MONITOR_START": "true",
+  "PYTHONUNBUFFERED": "1"
+ },
+ "resultados": [
+  {
+   "rotulo": "atual-1cam-debug",
+   "perfil": "atual",
+   "fixtures": [
+    "bench"
+   ],
+   "afinidade": null,
+   "env_extra": {},
+   "duracao_s": 10.0,
+   "aquecimento_s": 3.0,
+   "startup_s": 11.0,
+   "primeiro_frame_s": 52.68,
+   "modelos": {
+    "epi": {
+     "caminho": "models/vyra_ppe.pt",
+     "carga_ms": 711.9,
+     "imgsz": 416
+    },
+    "pessoa": {
+     "caminho": "models/yolov8n.pt",
+     "carga_ms": 1459.2,
+     "imgsz": 416
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 1.5,
+    "quadros_repetidos": 8,
+    "idade_quadro_ms": {
+     "p50": 2132.4,
+     "p95": 5270.98,
+     "p99": 5533.4
+    },
+    "decode_ms": {
+     "p50": 30.2,
+     "p95": 42.84
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 959.1,
+     "p95": 1021.42,
+     "p99": 1022.92
+    },
+    "video_bytes_por_s": 342445,
+    "socketio_bytes_por_s": 1364,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 1.57,
+    "raf_fps": 59.9,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null
+   },
+   "processo": {
+    "cpu_pct_media": 0.0,
+    "cpu_pct_p95": 0.0,
+    "rss_mb_inicio": 3.4,
+    "rss_mb_fim": 3.4,
+    "rss_mb_max": 3.4,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 4.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 5.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 6.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 7.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 8.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     },
+     {
+      "t": 9.0,
+      "cpu_pct": 0.0,
+      "rss_mb": 3.4
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "bench",
+     "fonte_fps": 29.97,
+     "fps_lido": 0.744,
+     "fps_publicado": 0.743,
+     "fps_inferencia": 0.246,
+     "fps_enviado": 3.072,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.025,
+     "bytes_video_por_s": 687789.657,
+     "etapas": {
+      "alertas": {
+       "max": 0.537,
+       "media": 0.448,
+       "n": 6,
+       "p50": 0.444,
+       "p95": 0.53,
+       "p99": 0.535
+      },
+      "analise": {
+       "max": 0.412,
+       "media": 0.172,
+       "n": 6,
+       "p50": 0.061,
+       "p95": 0.407,
+       "p99": 0.411
+      },
+      "anotacao": {
+       "max": 50.007,
+       "media": 41.72,
+       "n": 6,
+       "p50": 40.966,
+       "p95": 49.437,
+       "p99": 49.893
+      },
+      "captura": {
+       "max": 19.275,
+       "media": 16.918,
+       "n": 6,
+       "p50": 16.996,
+       "p95": 18.819,
+       "p99": 19.184
+      },
+      "emissao": {
+       "max": 8.808,
+       "media": 6.318,
+       "n": 6,
+       "p50": 8.106,
+       "p95": 8.767,
+       "p99": 8.8
+      },
+      "encode": {
+       "max": 17.706,
+       "media": 14.839,
+       "n": 6,
+       "p50": 16.413,
+       "p95": 17.675,
+       "p99": 17.699
+      },
+      "espera_do_lock": {
+       "max": 0.014,
+       "media": 0.013,
+       "n": 2,
+       "p50": 0.013,
+       "p95": 0.014,
+       "p99": 0.014
+      },
+      "espera_do_lock_pre": {
+       "max": 0.044,
+       "media": 0.042,
+       "n": 2,
+       "p50": 0.042,
+       "p95": 0.044,
+       "p99": 0.044
+      },
+      "filtro_epi": {
+       "max": 0.077,
+       "media": 0.074,
+       "n": 2,
+       "p50": 0.074,
+       "p95": 0.076,
+       "p99": 0.076
+      },
+      "idade_publicacao": {
+       "max": 5531.82,
+       "media": 1576.927,
+       "n": 6,
+       "p50": 65.358,
+       "p95": 5068.559,
+       "p99": 5439.168
+      },
+      "inferencia_epi": {
+       "max": 4382.934,
+       "media": 3773.333,
+       "n": 2,
+       "p50": 3773.333,
+       "p95": 4321.974,
+       "p99": 4370.742
+      },
+      "inferencia_pessoa": {
+       "max": 921.637,
+       "media": 607.793,
+       "n": 2,
+       "p50": 607.793,
+       "p95": 890.253,
+       "p99": 915.361
+      },
+      "loop_total": {
+       "max": 5555.421,
+       "media": 1598.394,
+       "n": 6,
+       "p50": 86.525,
+       "p95": 5092.346,
+       "p99": 5462.806
+      },
+      "pose": {
+       "max": 171.873,
+       "media": 170.996,
+       "n": 2,
+       "p50": 170.996,
+       "p95": 171.786,
+       "p99": 171.856
+      },
+      "regras": {
+       "max": 0.461,
+       "media": 0.425,
+       "n": 6,
+       "p50": 0.437,
+       "p95": 0.456,
+       "p99": 0.46
+      },
+      "tracking": {
+       "max": 0.035,
+       "media": 0.032,
+       "n": 2,
+       "p50": 0.032,
+       "p95": 0.034,
+       "p99": 0.035
+      }
+     }
+    }
+   }
+  }
+ ]
+}

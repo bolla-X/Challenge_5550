@@ -6,7 +6,7 @@ from typing import Any
 from flask import Flask
 from flask_socketio import SocketIO
 
-from app.config import Config
+from app.config import BASE_DIR, Config
 from app.extensions import db
 from app.models import Camera
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
@@ -18,6 +18,7 @@ from app.services.llm_risk_service import ServicoDeRiscoLLM
 from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.vision.runtime_do_modelo import garantir_runtime, resolver_caminho
 from app.vision.yolo_pose_detector import YoloPoseDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
@@ -52,8 +53,14 @@ class MonitorService:
         self.feature_manager = feature_manager  # segue controlando a câmera padrão via /features, como sempre
 
         # ---- modelos compartilhados: criados 1x, injetados em cada worker ----
+        # Runtime: só export aprovado no guarda de qualidade; senão o .pt.
+        peso_epi = str(app.config.get("PPE_MODEL_PATH", "yolov8n.pt"))
+        caminho_epi, motivo_epi = resolver_caminho(
+            BASE_DIR, modelo="epi", peso_pt=peso_epi, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
+            pedido=str(app.config.get("PPE_RUNTIME", "pytorch")), ordem=str(app.config.get("RUNTIME_ORDEM", "pytorch")),
+        )
         detector_principal = YoloPPEDetector(
-            model_path=app.config.get("PPE_MODEL_PATH", "yolov8n.pt"),
+            model_path=caminho_epi,
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
             device=app.config.get("YOLO_DEVICE"),
             classes=CameraWorker._parse_yolo_classes(app.config.get("YOLO_CLASSES", "")),
@@ -117,8 +124,13 @@ class MonitorService:
         confianca_pessoa = 0.1 if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack" else app.config.get(
             "YOLO_CONFIDENCE", 0.35
         )
+        peso_pessoa = str(app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"))
+        caminho_pessoa, motivo_pessoa = resolver_caminho(
+            BASE_DIR, modelo="pessoa", peso_pt=peso_pessoa, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
+            pedido=str(app.config.get("PERSON_RUNTIME", "pytorch")), ordem=str(app.config.get("RUNTIME_ORDEM", "pytorch")),
+        )
         self.person_detector = YoloPPEDetector(
-            model_path=app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"),
+            model_path=caminho_pessoa,
             confidence=confianca_pessoa,
             device=app.config.get("YOLO_DEVICE"),
             classes=[0],
@@ -146,6 +158,13 @@ class MonitorService:
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
             min_tracking_confidence=app.config.get("POSE_MIN_TRACKING_CONFIDENCE", 0.5),
         )
+        # Escolha do runtime registrada para o painel de diagnóstico; o teste de
+        # carga + 1 inferência (com volta ao .pt se falhar) só fora dos testes.
+        self.runtimes = {"epi": {"pedido": app.config.get("PPE_RUNTIME"), "motivo": motivo_epi},
+                         "pessoa": {"pedido": app.config.get("PERSON_RUNTIME"), "motivo": motivo_pessoa}}
+        if not app.config.get("TESTING"):
+            self.runtimes["epi"]["ativo"] = garantir_runtime(detector_principal, peso_epi)
+            self.runtimes["pessoa"]["ativo"] = garantir_runtime(self.person_detector, peso_pessoa)
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
         # Um thread de inferência para todas as câmeras (ver
@@ -413,11 +432,15 @@ class MonitorService:
                 "stats": worker.stats.resumo(janela_s),
             }
         detectores = {"epi": self.detector, "pessoa": self.person_detector}
+        if self.pose_detector is not None:
+            detectores["pose"] = self.pose_detector
         modelos = {
             nome: {
                 "caminho": getattr(det, "model_path", None),
                 "imgsz": getattr(det, "imgsz", None),
                 "carga_ms": getattr(det, "load_ms", None),
+                "runtime": getattr(det, "runtime", None),
+                "escolha": self.runtimes.get(nome),
             }
             for nome, det in detectores.items()
         }

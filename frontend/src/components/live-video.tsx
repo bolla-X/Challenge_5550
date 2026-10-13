@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LeitorMultipart } from "../socket/multipart";
 
 /**
  * Player de vídeo ao vivo em <canvas>, com o overlay desenhado NO NAVEGADOR.
@@ -43,7 +44,14 @@ export type EstatisticasDoVideo = {
 
 // Registro global, lido pelo painel de diagnóstico e pelo bench (Playwright).
 // Fora do React de propósito: escrever aqui a cada quadro não custa render.
-type Registro = { chegadas: number[]; idades: number[]; exibidos: number; estado: EstadoDoStream; ultimo: number };
+type Registro = {
+  chegadas: number[];
+  idades: number[];
+  exibidos: number;
+  descartadosNoCliente: number;
+  estado: EstadoDoStream;
+  ultimo: number;
+};
 const REGISTRO: Record<string, Registro> = {};
 (window as unknown as { __visionepiVideo: typeof REGISTRO }).__visionepiVideo = REGISTRO;
 
@@ -78,15 +86,6 @@ const FUNDO_ROTULO = "rgba(18,19,22,0.75)";
 const TEXTO_ROTULO = "rgb(245,245,247)";
 
 const SEM_SINAL_MS = 3000;
-const SEP = [13, 10, 13, 10];
-
-function acha(buf: Uint8Array, de: number): number {
-  for (let i = de; i <= buf.length - 4; i++) {
-    if (buf[i] === SEP[0] && buf[i + 1] === SEP[1] && buf[i + 2] === SEP[2] && buf[i + 3] === SEP[3]) return i;
-  }
-  return -1;
-}
-
 function retangulo(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   const rr = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
@@ -179,7 +178,7 @@ export function LiveVideo({
     const ctx = canvas.getContext("2d");
     if (!ctx) return undefined;
     const chave = String(cameraId);
-    const reg: Registro = (REGISTRO[chave] = { chegadas: [], idades: [], exibidos: 0, estado: "conectando", ultimo: 0 });
+    const reg: Registro = (REGISTRO[chave] = { chegadas: [], idades: [], exibidos: 0, descartadosNoCliente: 0, estado: "conectando", ultimo: 0 });
     let vivo = true;
     let controlador: AbortController | null = null;
     let overlay: Overlay | null = null;
@@ -239,6 +238,37 @@ export function LiveVideo({
       if (estadoAtual === "ao_vivo" && performance.now() - reg.ultimo > SEM_SINAL_MS) mudarEstado("sem_sinal");
     }, 1000);
 
+    // Um decode por vez; o que chegar durante ele substitui o "próximo" (não
+    // enfileira). O laço de leitura nunca espera o decode.
+    let decodificando = false;
+    let proximo: { corpo: Uint8Array; ov: Overlay | null; ts: number | null } | null = null;
+    const decodificar = (item: { corpo: Uint8Array; ov: Overlay | null; ts: number | null }) => {
+      if (decodificando) {
+        if (proximo) reg.descartadosNoCliente += 1;
+        proximo = item;
+        return;
+      }
+      decodificando = true;
+      createImageBitmap(new Blob([item.corpo as BlobPart], { type: "image/jpeg" }))
+        .then((bmp) => {
+          if (!vivo) {
+            bmp.close();
+            return;
+          }
+          // Último quadro vence também no desenho: o anterior não desenhado sai.
+          pendente?.bmp.close();
+          pendente = { bmp, ov: item.ov, ts: item.ts };
+          if (!raf) raf = requestAnimationFrame(desenhar);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          decodificando = false;
+          const seguinte = proximo;
+          proximo = null;
+          if (seguinte && vivo) decodificar(seguinte);
+        });
+    };
+
     const conectar = async () => {
       while (vivo) {
         controlador = new AbortController();
@@ -251,45 +281,30 @@ export function LiveVideo({
           if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
           tentativa = 0;
           const leitor = resp.body.getReader();
-          let buf = new Uint8Array(0);
+          const multipart = new LeitorMultipart();
           while (vivo) {
             const { value, done } = await leitor.read();
             if (done) break;
-            const novo = new Uint8Array(buf.length + value.length);
-            novo.set(buf);
-            novo.set(value, buf.length);
-            buf = novo;
-            for (;;) {
-              const fimCab = acha(buf, 0);
-              if (fimCab < 0) break;
-              const cab = new TextDecoder().decode(buf.subarray(0, fimCab));
-              const m = /Content-Length:\s*(\d+)/i.exec(cab);
-              if (!m) {
-                buf = buf.slice(fimCab + 4);
-                continue;
-              }
-              const len = parseInt(m[1], 10);
-              if (buf.length < fimCab + 4 + len) break;
-              const corpo = buf.slice(fimCab + 4, fimCab + 4 + len);
-              buf = buf.slice(fimCab + 4 + len);
-              if (/application\/json/i.test(cab)) {
+            multipart.empurrar(value);
+            // Lê TUDO o que chegou e fica só com o quadro mais novo: decodificar
+            // quadro velho só aumentaria a idade do que aparece na tela.
+            let maisNovo: { corpo: Uint8Array; ov: Overlay | null; ts: number | null } | null = null;
+            for (const parte of multipart.partes()) {
+              if (/application\/json/i.test(parte.cabecalho)) {
                 try {
-                  overlay = JSON.parse(new TextDecoder().decode(corpo)) as Overlay;
+                  overlay = JSON.parse(new TextDecoder().decode(parte.corpo)) as Overlay;
                 } catch {
                   overlay = null;
                 }
                 continue;
               }
-              const ts = /X-Capture-Ts:\s*([\d.]+)/i.exec(cab);
+              const ts = /X-Capture-Ts:\s*([\d.]+)/i.exec(parte.cabecalho);
               // Quadro sem X-Frame-Id é o placeholder do servidor (câmera parada).
-              const temQuadro = /X-Frame-Id:/i.test(cab);
-              const bmp = await createImageBitmap(new Blob([corpo], { type: "image/jpeg" }));
-              // Último quadro vence também aqui: se o anterior não chegou a ser
-              // desenhado, é descartado em vez de enfileirado.
-              pendente?.bmp.close();
-              pendente = { bmp, ov: temQuadro ? overlay : null, ts: ts ? parseFloat(ts[1]) : null };
-              if (!raf) raf = requestAnimationFrame(desenhar);
+              const temQuadro = /X-Frame-Id:/i.test(parte.cabecalho);
+              if (maisNovo) reg.descartadosNoCliente += 1;
+              maisNovo = { corpo: parte.corpo, ov: temQuadro ? overlay : null, ts: ts ? parseFloat(ts[1]) : null };
             }
+            if (maisNovo) decodificar(maisNovo);
           }
         } catch (err) {
           if ((err as Error)?.name === "AbortError" || !vivo) return;

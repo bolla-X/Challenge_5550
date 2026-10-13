@@ -109,51 +109,69 @@ window.addEventListener('error', (e) => window.__bench.erros.push(String(e.messa
 
 JS_SONDA = r"""
 async ([url, durMs]) => {
-  const st = {frames: 0, bytes: 0, idades: [], decode: [], chegadas: [], dup: 0, erro: null};
+  // Mesmo leitor do player (frontend/src/socket/multipart.ts): buffer com
+  // deslocamento (sem cópia quadrática) e "último quadro vence" no decode.
+  const st = {frames: 0, bytes: 0, idades: [], decode: [], chegadas: [], dup: 0, descartados: 0, erro: null};
   window.__sonda = st;
   const ctrl = new AbortController();
   let ultimoId = null;
+  let buf = new Uint8Array(1 << 20), ini = 0, fim = 0;
+  const empurrar = (p) => {
+    if (p.length > buf.length - fim) {
+      const usado = fim - ini;
+      if (usado + p.length <= buf.length) buf.copyWithin(0, ini, fim);
+      else { const n = new Uint8Array(Math.max(buf.length * 2, (usado + p.length) * 2)); n.set(buf.subarray(ini, fim)); buf = n; }
+      ini = 0; fim = usado;
+    }
+    buf.set(p, fim); fim += p.length;
+  };
+  const sep = () => {
+    for (let i = ini; i + 3 < fim; i++) if (buf[i] === 13 && buf[i+1] === 10 && buf[i+2] === 13 && buf[i+3] === 10) return i;
+    return -1;
+  };
+  const td = new TextDecoder();
+  const canvas = new OffscreenCanvas(32, 32); const ctx = canvas.getContext('2d');
+  let decodificando = false, proximo = null;
+  const decodificar = (item) => {
+    if (decodificando) { if (proximo) st.descartados++; proximo = item; return; }
+    decodificando = true;
+    const t0 = performance.now();
+    createImageBitmap(new Blob([item.jpeg], {type: 'image/jpeg'})).then((bmp) => {
+      ctx.drawImage(bmp, 0, 0, 32, 32); bmp.close();
+      st.decode.push(performance.now() - t0);
+      st.chegadas.push(performance.now());
+      if (item.ts) st.idades.push(Date.now() - item.ts);
+      st.frames++;
+    }).catch(() => {}).finally(() => { decodificando = false; const s2 = proximo; proximo = null; if (s2) decodificar(s2); });
+  };
   try {
     const resp = await fetch(url, {signal: ctrl.signal, credentials: 'same-origin'});
     const reader = resp.body.getReader();
-    let buf = new Uint8Array(0);
-    const fim = performance.now() + durMs;
-    const canvas = new OffscreenCanvas(32, 32); const ctx = canvas.getContext('2d');
-    const acha = (a, seq, de) => {
-      outer: for (let i = de; i <= a.length - seq.length; i++) {
-        for (let j = 0; j < seq.length; j++) if (a[i + j] !== seq[j]) continue outer;
-        return i;
-      }
-      return -1;
-    };
-    const SEP = new TextEncoder().encode('\r\n\r\n');
-    while (performance.now() < fim) {
+    const limite = performance.now() + durMs;
+    while (performance.now() < limite) {
       const {value, done} = await reader.read();
       if (done) break;
-      const novo = new Uint8Array(buf.length + value.length); novo.set(buf); novo.set(value, buf.length); buf = novo;
       st.bytes += value.length;
-      while (true) {
-        const h = acha(buf, SEP, 0);
-        if (h < 0) break;
-        const cab = new TextDecoder().decode(buf.slice(0, h));
+      empurrar(value);
+      let maisNovo = null;
+      for (;;) {
+        const h = sep(); if (h < 0) break;
+        const cab = td.decode(buf.subarray(ini, h));
         const m = /Content-Length:\s*(\d+)/i.exec(cab);
-        if (!m) { buf = buf.slice(h + 4); continue; }
-        const len = parseInt(m[1], 10);
-        if (buf.length < h + 4 + len) break;
-        const jpeg = buf.slice(h + 4, h + 4 + len);
-        buf = buf.slice(h + 4 + len);
+        if (!m) { ini = h + 4; continue; }
+        const corpoIni = h + 4, corpoFim = corpoIni + parseInt(m[1], 10);
+        if (fim < corpoFim) break;
+        const jpeg = buf.slice(corpoIni, corpoFim);
+        ini = corpoFim;
+        if (/application\/json/i.test(cab)) continue;
         const ts = /X-Capture-Ts:\s*([\d.]+)/i.exec(cab);
         const id = /X-Frame-Id:\s*(-?\d+)/i.exec(cab);
         if (id && id[1] === ultimoId) st.dup++;
         ultimoId = id ? id[1] : null;
-        const t0 = performance.now();
-        const bmp = await createImageBitmap(new Blob([jpeg], {type: 'image/jpeg'}));
-        ctx.drawImage(bmp, 0, 0, 32, 32); bmp.close();
-        st.decode.push(performance.now() - t0);
-        st.chegadas.push(performance.now());
-        if (ts) st.idades.push(Date.now() - parseFloat(ts[1]));
-        st.frames++;
+        if (maisNovo) st.descartados++;
+        maisNovo = {jpeg, ts: ts ? parseFloat(ts[1]) : null};
       }
+      if (maisNovo) decodificar(maisNovo);
     }
   } catch (e) { if (e.name !== 'AbortError') st.erro = String(e); }
   ctrl.abort();
@@ -439,6 +457,12 @@ def rodar(
                 " sio: performance.getEntriesByType('resource').filter(e => e.name.includes('/socket.io/'))"
                 "   .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0)})"
             )
+            # O player da UI (LiveVideo) publica o que EXIBIU em window.__visionepiVideo.
+            # Na baseline a UI usa <img> e não há registro: fica None.
+            ui_video = pagina.evaluate(
+                "() => { const r = (window.__visionepiVideo || {}); const k = Object.keys(r)[0]; if (!k) return null;"
+                " const x = r[k]; return {exibidos: x.exibidos, idades: x.idades.slice(), descartados: x.descartadosNoCliente}; }"
+            )
             diag = sessao.get(f"{srv.base}/api/diagnostics/pipeline?janela_s={min(120, int(duracao))}", timeout=10).json()
             navegador.close()
 
@@ -462,6 +486,12 @@ def rodar(
             "erros_console": console_erros[:20],
             "erros_js": fim_navegador["erros"][:20],
             "erro_sonda": estado_sonda.get("erro"),
+            "descartados_no_cliente": estado_sonda.get("descartados"),
+            "ui_player": None if not ui_video else {
+                "exibidos_total": ui_video["exibidos"],
+                "idade_quadro_ms": {"p50": pct(ui_video["idades"], 50), "p95": pct(ui_video["idades"], 95)},
+                "descartados_no_cliente": ui_video["descartados"],
+            },
         }
         cpus = [a["cpu_pct"] for a in amostras[1:]] or [0.0]
         fundo = [a["carga_de_fundo_pct"] for a in amostras[1:]] or [0.0]

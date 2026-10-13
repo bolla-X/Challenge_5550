@@ -297,6 +297,11 @@ class Config:
     # agendador de inferência em rodízio entre câmeras. false = loop síncrono
     # antigo, sob inference_lock (mantido para comparação no bench).
     INFERENCIA_ASSINCRONA = env_bool("INFERENCIA_ASSINCRONA", True)
+    # Runtime dos modelos (ver app/vision/runtime_do_modelo.py): pytorch | onnx |
+    # openvino | auto. Só entra export APROVADO no guarda de qualidade.
+    PPE_RUNTIME = os.getenv("PPE_RUNTIME", "pytorch")
+    PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "pytorch")
+    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "onnx,pytorch")
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
     # Controlador adaptativo (ver app/services/controlador_adaptativo.py).

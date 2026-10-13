@@ -117,6 +117,48 @@ class YoloPPEDetector:
         self.require_person = require_person
         self._last_diagnostics: dict[str, Any] | None = None
         self.load_ms: float | None = None
+        self._sessao_onnx_ajustada = False
+
+    @property
+    def runtime(self) -> str:
+        """pytorch | onnx | openvino — o que está de fato executando o modelo."""
+        if self.is_openvino:
+            return "openvino"
+        return "onnx" if str(self.model_path).lower().endswith(".onnx") else "pytorch"
+
+    def _ajustar_sessao_onnx(self) -> None:
+        """Recria a sessão do ONNX Runtime com provider e threads explícitos.
+
+        O ultralytics 8.3.40 cria `InferenceSession(w, providers=...)` com o
+        PRIMEIRO provider disponível e sem `SessionOptions`
+        (`ultralytics/nn/autobackend.py`). No onnxruntime 1.29 desta máquina o
+        primeiro é o `AzureExecutionProvider` ("Preferring ONNX Runtime
+        AzureExecutionProvider" no log). E sem opções cada sessão abre um pool
+        de threads do tamanho dos núcleos físicos, com *spinning* ligado — que,
+        segundo a doc, "consumes more CPU cycles"
+        (https://onnxruntime.ai/docs/performance/tune-performance/threading.html).
+        Com três sessões (EPI, pessoa, pose) no perfil de 2 núcleos isso é
+        oversubscription. Aqui: CPU explícita, `intra_op_num_threads` =
+        VISIONEPI_THREADS quando definido, e spinning desligado.
+        """
+        if self._sessao_onnx_ajustada or self.runtime != "onnx":
+            return
+        self._sessao_onnx_ajustada = True
+        backend = getattr(getattr(self.model, "predictor", None), "model", None)
+        if backend is None or not hasattr(backend, "session"):
+            return
+        try:
+            import onnxruntime as ort
+
+            opcoes = ort.SessionOptions()
+            threads = os.getenv("VISIONEPI_THREADS", "").strip()
+            if threads.isdigit() and int(threads) > 0:
+                opcoes.intra_op_num_threads = int(threads)
+            opcoes.add_session_config_entry("session.intra_op.allow_spinning", "0")
+            backend.session = ort.InferenceSession(str(self.model_path), sess_options=opcoes, providers=["CPUExecutionProvider"])
+            logger.info("sessao_onnx_ajustada", extra={"model_path": self.model_path, "threads": threads or "padrao"})
+        except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com a sessão do ultralytics)
+            logger.warning("sessao_onnx_nao_ajustada", extra={"error": str(exc)})
 
     @property
     def is_openvino(self) -> bool:
@@ -238,6 +280,8 @@ class YoloPPEDetector:
             self._last_diagnostics = self._build_diagnostics(names={}, error=str(exc))
             self._log_model_warning_once(self._last_diagnostics)
             return [[] for _ in frames]
+        if not self._sessao_onnx_ajustada and self.runtime == "onnx":
+            self._ajustar_sessao_onnx()
         results = list(results or [])
         if not results:
             return [[] for _ in frames]
@@ -331,6 +375,7 @@ class YoloPPEDetector:
 
         return {
             "model_path": self.model_path,
+            "runtime": self.runtime,
             "confidence": self.confidence,
             "device": self.device,
             "class_filter": self.classes,

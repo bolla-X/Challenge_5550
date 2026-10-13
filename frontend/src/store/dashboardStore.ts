@@ -838,8 +838,10 @@ export function subscribeToServerEvents(): () => void {
           if (fpsSamples.length > FPS_SAMPLE_WINDOW) fpsSamples.shift();
         }
         const fps = fpsSamples.length ? fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length : state.fps;
+        // `compliance` NÃO entra aqui: o servidor manda `compliance_state` no
+        // mesmo tique (camera_worker._publicar), e escrever duas vezes o mesmo
+        // dado re-renderizava os cartões de conformidade em dobro.
         return {
-          compliance: payload.compliance,
           model: payload.model,
           activeAlerts: payload.alerts,
           lastAnalysisAt: now,

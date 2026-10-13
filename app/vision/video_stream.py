@@ -379,7 +379,11 @@ class VideoStream:
     def _on_success(self, frame) -> None:
         if self._state != LIVE:
             logger.info("video_stream_live", extra={"source": redigir_segredos(str(self.source))})
-        self._latest_frame = frame.copy()
+        # Referência, não cópia: `VideoCapture.read()` aloca um array novo a cada
+        # chamada e nenhuma etapa do pipeline altera o quadro no lugar (rotação,
+        # redução e anotação produzem arrays novos). A cópia (2,7 MB a 720p, a
+        # cada quadro) só acontece em `latest_frame()`, quando alguém pede.
+        self._latest_frame = frame
         self._state = LIVE
         self._rebobinando = False
         self._consecutive_failures = 0

@@ -1,0 +1,180 @@
+# CHANGELOG — NEXT 2026
+
+Cada entrada: **o que mudou · por quê · evidência (comando + número) · o que
+foi rejeitado**. Números de desempenho sempre com a ressalva de que a máquina
+de medição (i7-1355U, 12 lógicos, 15,7 GB, sem GPU, Windows 11) estava
+compartilhada com processos de fora do projeto; o bench registra essa carga
+(`carga_de_fundo_pct`) e as comparações foram rodadas **intercaladas**.
+
+## Git
+
+- Base: `feat/completo-com-rebrand` @ `1bf191a`. `main` tem 15 commits que a
+  base não tem (Sprint 4) e a base tem 37 que a `main` não tem; o merge de teste
+  (`git merge-tree --write-tree origin/feat/completo-com-rebrand origin/main`)
+  deu **conflito** em `.env.example`, `app/config.py`, `risk_rules.py`,
+  `person_compliance_matcher.py`, `yolo_ppe_detector.py`, `global.css`,
+  `app/static/dist/*`, `docs/SPRINT4.md`. Pela regra pré-decidida, **mantida a
+  base, sem merge**.
+- Trabalho local preservado: branch `wip-preservado-2026-10-12` (aponta para a
+  `sprint4` local, com 2 commits não publicados); arquivos não rastreados
+  (`Claude outputs/`, `Sprint4_IA_entrega/`, `.pptx`) intocados.
+- Ponto de rollback total: tag **`pre-next-2026`** (publicada) em `1bf191a`.
+
+## Baseline verde (pré-requisito do portão)
+
+- **`VISIONEPI_DOTENV=0`** desliga a leitura do `.env`; `tests/conftest.py` liga
+  isso antes do import. Motivo: `test_default_features_liga_todos_os_epis`
+  falhava na baseline porque o `.env` da máquina tinha outro `DEFAULT_FEATURES`
+  — o teste dependia de quem roda. Evidência: `pytest -x` → `1 failed, 336
+  passed` antes; `4 passed` em `tests/test_ppe_defaults.py` depois.
+- `ruff check .`: 10 erros → 0 (6 de ordem de import corrigidos com `--fix`, 4
+  linhas longas quebradas à mão). Nenhum teste desligado, nenhum assert afrouxado.
+
+## Instrumentação e benchmark
+
+- `app/services/pipeline_stats.py`: p50/p95/p99 por etapa e taxas, sempre
+  ligados (custo: `perf_counter` + `deque.append`), expostos em
+  `GET /api/diagnostics/pipeline` (respeita o escopo do operador).
+- MJPEG com `Content-Length`, `X-Frame-Id` e `X-Capture-Ts` por parte.
+- `scripts/bench.py`: servidor real, fixtures, Playwright, psutil; perfis
+  `atual` e `batata` (2 threads + afinidade nos 2 núcleos lógicos mais lentos,
+  medidos — num híbrido Intel são E-cores); cenários 1 e 4 câmeras; `--arvores`
+  para comparar código/configuração intercalados; `--soak`.
+- **Erro de método encontrado e corrigido no caminho:** (1) no Windows o
+  `python.exe` do venv é um lançador e o interpretador real é processo filho —
+  medir só o PID do `Popen` dava 0 % de CPU e 3 MB; (2) com só o servidor em
+  prioridade alta, o Chromium passava fome numa máquina carregada; (3) a sonda
+  e o player copiavam o buffer inteiro a cada pedaço recebido (cópia
+  quadrática) e, uma vez atrasados, nunca recuperavam — a idade do quadro media
+  o leitor, não o sistema. As rodadas afetadas estão marcadas em BENCHMARKS.md.
+
+## 4.1 Pipeline
+
+| Mudança | Motivo | Evidência |
+|---|---|---|
+| Captura em thread por câmera, último quadro vence (`app/vision/captura_continua.py`) | arquivo tocava em câmera lenta; fonte não era lida durante a inferência | `fracao_do_tempo_real` 0,11 → 0,83–0,88 (bench `pr1`, atual, 1 e 4 câm.) |
+| Agendador único de inferência em rodízio (`app/services/agendador_de_inferencia.py`) | lock global sem ordem; vídeo acoplado à fila | espera do lock p50 **37 s** (4 câm., baseline sob carga) eliminada; vídeo publicado 0,84 → 10,7 fps com 4 câmeras |
+| Lote de N câmeras numa chamada `predict` | — | implementado (`INFERENCIA_LOTE`), **desligado**: ver seção "Medido e rejeitado" |
+| Encode uma vez por versão, só sob demanda; anotação só sob demanda | anotação 34–48 ms + JPEG 16–29 ms por quadro sem espectador | `test_encode_so_sob_demanda_e_no_maximo_um_por_quadro` (contrato novo, asserts exatos) |
+| Overlay no navegador (`LiveVideo` em canvas, `video_feed?meta=1`) | caixas desenhadas no pixel custavam cópias do quadro inteiro | — |
+| Quadro reduzido para a resolução da câmera | fixture 1280×720 numa câmera de 960×540 | bytes de vídeo por quadro ~220 KB → ~100 KB |
+| `active_alerts` só quando muda (+ pulsação de 2 s) | saía a cada quadro de cada câmera | testes de escopo do socket seguem verdes |
+| Sala `foco:<id>` para `analysis`/`compliance_state` | telemetria de 8 Hz ia para o parque inteiro | 3 testes novos em `tests/test_escopo_socket.py` (inclui operador tentando focar outra câmera) |
+| Snapshot de alerta fora do loop (`GravadorAssincrono`, fila limitada) | `imwrite` no quadro em que o alerta nasce | `tests/test_gravador_assincrono.py` |
+| Config do caminho do frame lida uma vez (`recarregar_config`) | `app.config.get` e parse de pisos por classe a cada quadro | — |
+| Cópia do quadro em `VideoStream._on_success` removida | 2,7 MB copiados por quadro para um campo que ninguém lê no app | `tests/test_video_stream.py` 25 passed |
+| Backoff com jitter no player do navegador; estado RECONECTANDO/SEM SINAL na tela | requisito 4.1 / 7 | E2E `test_queda_da_fonte_mostra_reconectando_e_volta` |
+
+**Socket.IO binário — não adotado como transporte de vídeo, com motivo:** o
+cliente força long-polling (`frontend/src/socket/client.ts`) e, no Engine.IO,
+binário em polling vai em base64 (ver PESQUISA.md §9, protocolo Engine.IO). O
+vídeo já é binário por HTTP multipart; movê-lo para o socket pioraria.
+
+## 4.2 Runtime
+
+Guarda: `python scripts/concordancia.py` (referência PyTorch@640, IoU ≥ 0,5,
+mesma classe; 126 quadros das 3 fixtures). Resultados em
+`bench/results/concordancia-*.json`.
+
+| Candidato (EPI) | Concordância | Veredito |
+|---|---|---|
+| ONNX estático 640 | 95,04 % | **reprovado** (< 97 %): o letterbox quadrado 640×640 difere do retângulo do PyTorch |
+| ONNX dinâmico 640 | **100,0 %** | aprovado no guarda; decisão de uso pelo bench do worker |
+| OpenVINO estático 640 | 94,65 % | reprovado |
+| OpenVINO INT8 | — | exige `nncf`; instalado como opcional (`pip install nncf==3.4.0`, `pip check` limpo, numpy/torch intactos) — resultado em BENCHMARKS.md |
+
+Pessoa (yolov8n): ONNX estático 640 = **98,25 %** (aprovado).
+
+- `app/vision/runtime_do_modelo.py`: `PPE_RUNTIME`/`PERSON_RUNTIME` = pytorch |
+  onnx | openvino | auto; só export **aprovado** entra; teste de carga + 1
+  inferência no boot com **volta ao `.pt`** se falhar (`tests/test_runtime_do_modelo.py`).
+- Sessão ONNX recriada com `CPUExecutionProvider` explícito, teto de threads e
+  `session.intra_op.allow_spinning=0`: o ultralytics 8.3.40 escolhia o
+  `AzureExecutionProvider` (primeiro da lista no onnxruntime 1.29). Doc:
+  https://onnxruntime.ai/docs/performance/tune-performance/threading.html
+- INT8 OpenVINO segue a doc de export da Ultralytics
+  (https://docs.ultralytics.com/modes/export/ — argumentos `int8`/`data`) e a de
+  integração OpenVINO (https://docs.ultralytics.com/integrations/openvino/).
+
+## 4.3 Resolução
+
+| imgsz (EPI) | Concordância | Capacete | Colete |
+|---|---|---|---|
+| 512 | 72,0 % | 17 % | 86 % |
+| 416 (o `.env.example` de antes) | **63,6 %** | **8 %** | 78 % |
+| 320 | 51,1 % | 0 % | 64 % |
+
+Nenhum passa os 95 % → **mantido 640** (regra pré-decidida). Pessoa a 416:
+86,0 % → também 640. Consequência registrada: o `.env.example` anterior (416)
+perdia quase todo capacete que a referência vê.
+
+## 4.4 Pose por pessoa
+
+- `app/vision/yolo_pose_detector.py`: yolo11n-pose (Ultralytics, AGPL-3.0)
+  numa passada para todas as pessoas; cada esqueleto associado ao track do
+  detector de pessoa por IoU; pose a cada K inferências com reaproveitamento
+  do último esqueleto por track; `POSE_BACKEND=yolo|mediapipe`.
+- **Rejeitado:** usar o yolo11n-pose COMO detector de pessoa (economizaria uma
+  chamada de modelo): concordância de caixas de pessoa com o yolov8n de **83,8 %**
+  (`scripts/concordancia.py --modelo pessoa`). Sem rótulo não dá para saber
+  qual dos dois erra — então não se troca.
+- Testes de queda: `tests/test_pose_yolo.py` (esqueleto vai para o track certo;
+  queda sai com o `person_id` da pessoa caída). Nas fixtures reais, nem o
+  YOLO-pose nem o MediaPipe acham a pessoa deitada do filme antigo; em pé, o
+  YOLO-pose achou torso em 3 de 8 quadros e o MediaPipe em 1 de 8 (sonda
+  `fall_probe`). Upgrade para YOLO26 (Ultralytics ≥ 8.4): ver "Bloqueado".
+
+## 4.5 Tracker
+
+`python scripts/comparar_trackers.py` (mesmas detecções, ~5 Hz; pessoas reais
+contadas a olho em folhas de contato):
+
+| Fixture | Pessoas reais | IDs IoU | IDs ByteTrack | p95 IoU | p95 ByteTrack |
+|---|---|---|---|---|---|
+| bench | 3 | 5 | **3** | 0,29 ms | 5,39 ms |
+| queda | 9 (7 + 2 após corte) | 7 | 6 | 0,73 ms | 11,69 ms |
+| multidão | > 30 (não contadas) | 18 | 26 | 2,84 ms | 16,79 ms |
+
+ByteTrack reduz fragmentação mas custa **+5 a +14 ms p95**, acima do teto de
+1 ms → **não adotado como padrão**. Vendorizado (MIT) em `app/vision/bytetrack/`
+e disponível como laboratório (`TRACKER=bytetrack`).
+
+## 4.6 Controlador adaptativo
+
+`app/services/controlador_adaptativo.py` + `MonitorService.tique_adaptativo`:
+mede o p95 da idade do quadro **no momento da inferência**; degraus: N
+(frequência de detecção) → K (frequência de pose) → imgsz (só valores
+aprovados; hoje nenhum) → Hz de telemetria; histerese (3 leituras para
+degradar, 5 para recuperar, banda morta). Aviso **DEGRADADO** na tela com o
+que foi reduzido. `tests/test_controlador_adaptativo.py` (9 testes).
+
+## 4.7 Frontend
+
+- Vídeo e overlay fora do React (refs/canvas); seletores finos em `MessageBar`
+  (presente em toda tela) e no editor de zona; `compliance` não é mais escrito
+  duas vezes por tique.
+- Leitor multipart sem cópia quadrática e "último quadro vence" no decode
+  (`frontend/src/socket/multipart.ts`).
+- `ObjectURL`: o único uso (`export.tsx`) já revoga; sockets limpos no unmount.
+- Linha do tempo: já limitada a 80 itens (`MAX_TIMELINE`); virtualização não
+  se justifica nesse tamanho.
+
+## Medido e rejeitado
+
+- ByteTrack como padrão (4.5), yolo11n-pose como detector de pessoa (4.4),
+  ONNX/OpenVINO estáticos (4.2), qualquer imgsz < 640 (4.3).
+
+## Bloqueado / não feito
+
+- **Pexels**: HTTP 403 (Cloudflare) para cliente automatizado; API exige chave
+  → fixtures do Wikimedia Commons (ATRIBUICOES.md).
+
+## URLs de documentação citadas
+
+- https://onnxruntime.ai/docs/performance/tune-performance/threading.html
+- https://docs.ultralytics.com/modes/export/
+- https://docs.ultralytics.com/integrations/openvino/
+- https://docs.ultralytics.com/guides/yolo-thread-safe-inference/
+- https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+- https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts
+- https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html
