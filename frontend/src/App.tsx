@@ -11,6 +11,7 @@ import { Panel } from "./components/common";
 import { LoginScreen } from "./components/login";
 import { ScaleProof } from "./components/scale-proof";
 import { AboutScreen } from "./components/about";
+import { PortalScreen } from "./components/portal";
 
 // Placeholder do dashboard agregado do Supervisor. O conteúdo de verdade
 // (risco consolidado, ranking por criticidade, feed combinado, auditoria de
@@ -120,6 +121,11 @@ export default function App() {
   // Roteamento por papel: Operador sempre kiosk (trava aplicada em setMode
   // no store, screen já chega como "kiosk"); Técnico/Supervisor navegam
   // entre grid/foco/overview livremente dentro do próprio `screen`.
+  // Telas de tela cheia por endereço (PR3): sem barra superior, para TV/totem.
+  if (window.location.pathname.startsWith("/portal")) {
+    return camerasLoading ? <p className="centered-empty">Carregando câmeras…</p> : <PortalScreen />;
+  }
+
   let content;
   if (camerasLoading) {
     content = <p className="centered-empty">Carregando câmeras…</p>;

@@ -600,3 +600,29 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 
 /* Modo privacidade (F4) no painel da câmera. */
 .privacidade-linha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); margin-top: var(--s3); }
+
+/* Portal de Entrada (G1): tela cheia, legível de pé a 1-2 m. Cor só no estado. */
+.portal { min-height: 100vh; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s5); background: var(--bg, var(--sunken)); }
+.portal-cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); color: var(--text-2); font-size: 15px; }
+.portal-corpo { flex: 1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: var(--s5); align-items: start; }
+.portal-video { position: relative; overflow: hidden; }
+.portal-iniciar { position: absolute; right: var(--s3); bottom: var(--s3); }
+.portal-titulo { font-size: clamp(36px, 5vw, 64px); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; margin: 0 0 var(--s5); }
+.portal.approved .portal-titulo { color: var(--ok); }
+.portal-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
+.portal-item { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: auto auto; column-gap: var(--s3); align-items: center; padding: var(--s4); border-radius: 14px; border: 1px solid var(--border); background: var(--surface, var(--sunken));
+  animation: portal-entra .32s cubic-bezier(.2, .8, .2, 1) both; transition: border-color .2s ease, background-color .2s ease; }
+.portal-nome { font-size: 26px; font-weight: 650; letter-spacing: -.01em; }
+.portal-estado { grid-column: 2; font-size: 16px; color: var(--text-2); }
+.portal-marca { grid-row: 1 / span 2; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--text-3, var(--text-2)); transition: background-color .2s ease, border-color .2s ease, transform .2s ease; }
+.portal-item.confirmado { border-color: var(--ok); }
+.portal-item.confirmado .portal-marca { background: var(--ok); border-color: var(--ok); transform: scale(1.08); }
+.portal-item.confirmado .portal-estado { color: var(--ok); }
+.portal-item.faltando { border-color: var(--danger); }
+.portal-item.faltando .portal-marca { border-color: var(--danger); }
+.portal-item.faltando .portal-estado { color: var(--danger); }
+.portal-item.nao_verificavel .portal-marca { border-style: dashed; }
+.portal-nota { margin-top: var(--s5); font-size: 14px; }
+@keyframes portal-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 900px) { .portal-corpo { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .portal-item, .portal-marca { animation: none; transition: none; } }

@@ -577,6 +577,9 @@ class MonitorService:
     def gate_state(self, camera_id: int) -> dict[str, Any]:
         return self._get_worker(camera_id).gate_state()
 
+    def portal_state(self, camera_id: int) -> dict[str, Any]:
+        return self._get_worker(camera_id).portal_state()
+
     def update_gate(self, camera_id: int, required: list[str] | None) -> dict[str, Any]:
         """Liga/desliga a portaria e persiste (funciona com a câmera parada)."""
         camera = db.session.get(Camera, camera_id)

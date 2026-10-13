@@ -12,6 +12,7 @@ status_bp = Blueprint("status", __name__)
 @status_bp.get("/")
 @status_bp.get("/dashboard")
 @status_bp.get("/dashboard/")
+@status_bp.get("/portal")
 def index():
     # Serve o shell do build React (frontend/vite.config.ts emite aqui).
     # O caminho Jinja antigo (app/templates/ + app/static/app.js|styles.css)

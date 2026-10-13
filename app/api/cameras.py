@@ -514,6 +514,23 @@ def get_camera_gate(camera_id: int):
         )
 
 
+@cameras_bp.get("/api/cameras/<int:camera_id>/portal")
+@login_required
+def get_camera_portal(camera_id: int):
+    """Portal de Entrada (G1): cada EPI exigido como confirmado, faltando ou não verificável."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    try:
+        return jsonify(current_app.extensions["monitor_service"].portal_state(camera_id))
+    except LookupError:
+        exigidos = camera.gate_required or []
+        return jsonify({"camera_id": camera_id, "enabled": bool(exigidos), "required": exigidos,
+                        "verdict": "waiting" if exigidos else "off", "itens": [], "people": 0, "checkins": 0})
+
+
 @cameras_bp.put("/api/cameras/<int:camera_id>/gate")
 @require_role(ROLE_TECHNICAL)
 def put_camera_gate(camera_id: int):

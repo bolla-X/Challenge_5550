@@ -23,7 +23,7 @@ from app.services.alert_state_service import AlertStateService
 from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
-from app.services.gate_service import GateState, avaliar_quadro
+from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
 from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
 from app.services.pipeline_stats import EstatisticasDoPipeline
@@ -376,6 +376,8 @@ class CameraWorker:
         self._ler_config()
         self.gate_required: list[str] | None = list(gate_required) if gate_required else None
         self._gate = GateState()
+        # Portal de Entrada (G1): mesmos EPIs exigidos da portaria, contado em análises.
+        self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -1291,6 +1293,14 @@ class CameraWorker:
 
         if self.gate_required:
             self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
+            if nova:
+                portal = self._portal.atualizar(
+                    avaliar_portal(compliance_state, self.gate_required, frame.shape, analysis.poses)
+                )
+                if portal.get("checkin_novo"):
+                    # Conta para a meta do SETOR (G8); sem foto, sem nome, sem ID salvo.
+                    self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
+                                              metadata={"exigidos": list(self.gate_required)})
         if nova:
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
             self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
@@ -2024,9 +2034,17 @@ class CameraWorker:
             return base | {"verdict": "off", "missing": [], "people": 0}
         return base | self._gate.atual
 
+    def portal_state(self) -> dict[str, Any]:
+        base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}
+        if not self.gate_required:
+            return base | {"verdict": "off", "itens": [], "people": 0, "checkins": 0}
+        estado = {k: v for k, v in self._portal.atual.items() if k not in ("checkin_novo", "track_id")}
+        return base | estado | {"checkins": self._portal.checkins}
+
     def set_gate(self, required: list[str] | None) -> None:
         self.gate_required = list(required) if required else None
         self._gate.reset()
+        self._portal.reset()
 
     def get_overlay(self) -> dict[str, Any]:
         return {"camera_id": self.camera_id, **self.overlay_options}

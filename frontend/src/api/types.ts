@@ -507,3 +507,19 @@ export interface GateState {
   missing: string[];
   people: number;
 }
+
+/** Portal de Entrada (G1): um estado por EPI exigido. */
+export interface PortalItem {
+  key: string;
+  estado: "confirmado" | "faltando" | "nao_verificavel";
+  motivo: string | null;
+}
+export interface PortalState {
+  camera_id: number;
+  enabled: boolean;
+  required: string[];
+  verdict: "off" | "waiting" | "approved" | "denied";
+  itens: PortalItem[];
+  people: number;
+  checkins: number;
+}

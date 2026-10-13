@@ -318,3 +318,32 @@ def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor
         assert pagina.evaluate("window.__falas.length") == antes
     finally:
         contexto.close()
+
+
+def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
+    """G1: `/portal` mostra só os EPIs exigidos, item a item, e libera quando confirma."""
+    tecnico = servidor.sessao("technical")
+    cid = servidor.cameras["Canteiro"]
+    assert tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": ["helmet", "vest"]},
+                       timeout=10).status_code == 200
+    contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "technical")
+        pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+        pagina.goto(f"{servidor.base}/portal?camera={cid}")
+        portal = pagina.locator("[data-testid=portal]")
+        portal.wait_for(timeout=30_000)
+        # Só os exigidos aparecem.
+        pagina.locator("[data-testid=portal-item-helmet]").wait_for(timeout=30_000)
+        assert pagina.locator("[data-testid=portal-item-gloves]").count() == 0
+        # Algum item chega a "confirmado" e, com tudo confirmado, "Liberado".
+        pagina.locator("[data-testid^=portal-item-][data-estado=confirmado]").first.wait_for(timeout=180_000)
+        pagina.wait_for_function(
+            "document.querySelector('[data-testid=portal]')?.dataset.veredito === 'approved'", timeout=240_000
+        )
+        assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
+        assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
+    finally:
+        contexto.close()
+        tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=10)

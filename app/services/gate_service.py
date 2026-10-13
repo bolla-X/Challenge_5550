@@ -73,3 +73,106 @@ class GateState:
             self.atual = dict(bruto)
             self._candidato, self._streak = None, 0
         return self.atual
+
+
+# --- Portal de Entrada (G1) -------------------------------------------------
+#
+# A portaria acima é controle de acesso: na dúvida, NEGA. O portal é o
+# check-in de EPI diante da câmera, e diz a verdade item a item: confirmado,
+# faltando, ou "não verificável neste enquadramento" (pés ou mãos fora do
+# quadro, EPI que o modelo não detecta). Não detectado não é ausente — e não
+# verificável não é confirmado: só libera com TODO item verificável confirmado
+# e pelo menos um item verificado.
+
+CONFIRMADO, FALTANDO, NAO_VERIFICAVEL = "confirmado", "faltando", "nao_verificavel"
+# Que parte do corpo cada EPI precisa ver, e por quais keypoints COCO.
+REGIAO_DO_EPI = {
+    "helmet": "cabeca", "glasses": "cabeca", "mask": "cabeca", "ear_protection": "cabeca",
+    "vest": "tronco", "gloves": "maos", "safety_shoe": "pes",
+}
+KEYPOINTS_DA_REGIAO = {
+    "cabeca": ("nose", "left_eye", "right_eye"),
+    "tronco": ("left_shoulder", "right_shoulder", "left_hip", "right_hip"),
+    "maos": ("left_wrist", "right_wrist"),
+    "pes": ("left_ankle", "right_ankle"),
+}
+MOTIVO_DA_REGIAO = {
+    "cabeca": "cabeça fora do quadro",
+    "tronco": "tronco fora do quadro",
+    "maos": "mãos fora do quadro",
+    "pes": "pés fora do quadro",
+}
+# Caixa encostada na borda (fração do quadro): a região naquela borda pode
+# estar cortada.
+MARGEM_DA_BORDA = 0.02
+
+
+def _regiao_visivel(regiao: str, caixa: dict[str, Any], frame_shape, pose) -> bool:
+    altura, largura = frame_shape[:2]
+    if regiao == "pes" and caixa.get("y2", 0) >= altura * (1 - MARGEM_DA_BORDA):
+        return False
+    if regiao == "cabeca" and caixa.get("y1", 0) <= altura * MARGEM_DA_BORDA:
+        return False
+    if pose is None or not getattr(pose, "found", False):
+        # Sem esqueleto, só a borda decide; mãos ficam por conta do detector.
+        return True
+    nomes = KEYPOINTS_DA_REGIAO[regiao]
+    vistos = [lm for lm in (pose.by_name(n) for n in nomes) if lm is not None and lm.visibility >= 0.4]
+    # Mãos e pés: as duas; cabeça e tronco: basta metade dos pontos.
+    return len(vistos) == len(nomes) if regiao in ("maos", "pes") else len(vistos) * 2 >= len(nomes)
+
+
+def avaliar_portal(compliance: dict[str, Any] | None, exigidos: list[str], frame_shape, poses=()) -> dict[str, Any]:
+    """Estado bruto do portal num quadro, para a pessoa mais próxima (maior caixa)."""
+    pessoas = (compliance or {}).get("people") or []
+    if not pessoas:
+        return {"verdict": "waiting", "itens": [], "people": 0, "track_id": None}
+
+    def area(p):
+        c = p.get("box") or {}
+        return max(0, c.get("x2", 0) - c.get("x1", 0)) * max(0, c.get("y2", 0) - c.get("y1", 0))
+
+    pessoa = max(pessoas, key=area)
+    pose = next((p for p in poses or () if getattr(p, "person_id", None) == pessoa.get("id")), None)
+    itens = []
+    for chave in exigidos:
+        estado = (pessoa.get("ppe") or {}).get(chave) or {}
+        status = estado.get("status")
+        regiao = REGIAO_DO_EPI.get(chave, "tronco")
+        if status == "ok":
+            itens.append({"key": chave, "estado": CONFIRMADO, "motivo": None})
+        elif status in ("disabled", "unsupported"):
+            itens.append({"key": chave, "estado": NAO_VERIFICAVEL, "motivo": "o modelo não verifica este EPI"})
+        elif not _regiao_visivel(regiao, pessoa.get("box") or {}, frame_shape, pose):
+            itens.append({"key": chave, "estado": NAO_VERIFICAVEL, "motivo": MOTIVO_DA_REGIAO[regiao]})
+        else:
+            motivo = "fora da posição esperada" if status == "incorrect" else None
+            itens.append({"key": chave, "estado": FALTANDO, "motivo": motivo})
+    verificaveis = [i for i in itens if i["estado"] != NAO_VERIFICAVEL]
+    liberado = bool(verificaveis) and all(i["estado"] == CONFIRMADO for i in verificaveis)
+    return {"verdict": "approved" if liberado else "denied", "itens": itens, "people": len(pessoas),
+            "track_id": pessoa.get("track_id")}
+
+
+class PortalState(GateState):
+    """Mesmo debounce da portaria, contado em ANÁLISES novas (não em quadros
+    publicados, que repetem a mesma análise). Conta os check-ins liberados."""
+
+    def __init__(self, confirmacoes: int = 3) -> None:
+        self.CONFIRMACAO = {"approved": confirmacoes, "denied": 2, "waiting": 3}
+        self.checkins = 0
+        super().__init__()
+
+    def reset(self) -> None:
+        super().reset()
+        self.atual = {"verdict": "waiting", "itens": [], "people": 0, "track_id": None}
+
+    def atualizar(self, bruto: dict[str, Any]) -> dict[str, Any]:
+        antes = self.atual["verdict"]
+        atual = super().atualizar(bruto)
+        if atual["verdict"] == "approved" and antes != "approved":
+            self.checkins += 1
+            atual["checkin_novo"] = True
+        else:
+            atual.pop("checkin_novo", None)
+        return atual

@@ -10,6 +10,7 @@ import type {
   EventsResponse,
   FeaturesResponse,
   GateState,
+  PortalState,
   ModelDiagnostics,
   MonitorStatus,
   OverlayOptions,
@@ -163,6 +164,7 @@ export const listEvents = (params: { limit?: number; eventType?: string; severit
 
 // ---- modo portaria (ver app/services/gate_service.py) ---------------------
 export const getGate = (camId: number) => apiFetch<GateState>(`/api/cameras/${camId}/gate`);
+export const getPortal = (camId: number) => apiFetch<PortalState>(`/api/cameras/${camId}/portal`);
 export const putGate = (camId: number, required: string[] | null) =>
   apiFetch<{ camera_id: number; required: string[]; enabled: boolean }>(`/api/cameras/${camId}/gate`, {
     method: "PUT",
