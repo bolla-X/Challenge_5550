@@ -286,11 +286,14 @@ class Config:
     # fundo. So aplica quando ha pessoa no frame.
     PPE_REQUIRE_PERSON_OVERLAP = env_bool("PPE_REQUIRE_PERSON_OVERLAP", True)
     PPE_PERSON_OVERLAP_MIN = env_float("PPE_PERSON_OVERLAP_MIN", 0.35)
-    # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
-    # PPE_MODEL_PATH aponta pra um modelo de EPI sem classe "person" própria
-    # (ex: epi_pretrained.pt). O Vyra já traz "Person" (classe 11), então roda
-    # desligado por padrão — ver MULTI_PERSON_DETECTION abaixo.
-    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "yolov8n.pt")
+    # Modelo dedicado a detectar "person" (classe 0 COCO). O Vyra tem a classe
+    # "Person" (11), mas medido nas fixtures (13/10, docs/NEXT2026/CHANGELOG.md)
+    # ela quase não dispara: pessoas por quadro Vyra 0,1 / 0,0 / 0,0 contra
+    # yolov8n 7,1 / 1,0 / 2,0 (multidão, canteiro, queda). Por isso o detector
+    # dedicado é LIGADO por padrão — ver MULTI_PERSON_DETECTION abaixo.
+    # Caminho dentro de models/: "yolov8n.pt" solto faria o ultralytics baixar
+    # o peso da internet quando não o achasse no diretório de trabalho.
+    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "models/yolov8n.pt")
     YOLO_CONFIDENCE = env_float("YOLO_CONFIDENCE", 0.35)
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
     # FP16 na GPU: quase metade do tempo de inferencia na mesma RTX, sem perda
@@ -368,7 +371,7 @@ class Config:
     # 0 = desligado (padrao). Use quando o video estiver travado pra ver ONDE
     # o tempo vai, em vez de adivinhar pelo FPS medio.
     PROFILE_FRAMES = env_int("PROFILE_FRAMES", 0)
-    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", False)
+    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", True)
 
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
     # frame. E o que permite atribuir queda/postura a um individuo. Custa N
