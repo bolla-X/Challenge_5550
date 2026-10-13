@@ -438,6 +438,39 @@ def latencias_de_alerta(sessao, base: str, ids: list[int], fixtures: list[str], 
     return saida
 
 
+def carga_de_terceiros(segundos: float = 30.0) -> dict[str, Any]:
+    """CPU dos processos que NÃO são deste bench, medida por `segundos` (ADENDO 1, item 1).
+
+    Em "% de um núcleo" (1200 % = os 12 lógicos cheios), com os 8 maiores.
+    Medido ANTES de subir o servidor da rodada: é o retrato da máquina que o
+    VisionEPI vai disputar.
+    """
+    import psutil
+
+    meus = {psutil.Process().pid, *(p.pid for p in psutil.Process().children(recursive=True))}
+    processos = []
+    for proc in psutil.process_iter(["name"]):
+        if proc.pid in meus or proc.pid == 0:
+            continue
+        try:
+            proc.cpu_percent(None)
+            processos.append(proc)
+        except (psutil.Error, OSError):
+            pass
+    time.sleep(segundos)
+    por_processo = []
+    for proc in processos:
+        try:
+            por_processo.append((proc.cpu_percent(None), proc.info.get("name") or "?", proc.pid))
+        except (psutil.Error, OSError):
+            pass
+    por_processo.sort(reverse=True)
+    total = round(sum(c for c, _, _ in por_processo), 1)
+    return {"segundos": segundos, "total_pct": total,
+            "total_pct_da_maquina": round(total / psutil.cpu_count(logical=True), 1),
+            "maiores": [{"nome": n, "pid": pid, "pct": round(c, 1)} for c, n, pid in por_processo[:8]]}
+
+
 # ------------------------------------------------------------------- uma rodada
 def rodar(
     *, rotulo: str, perfil: str, fixtures: list[str], caminhos: dict[str, Path], duracao: float, aquecimento: float,
@@ -456,7 +489,10 @@ def rodar(
         afinidade = afinidade_batata
     srv = Servidor(env, rotulo, afinidade=afinidade, arvore=arvore)
     srv.criar_usuario()
-    resultado: dict[str, Any] = {"rotulo": rotulo, "perfil": perfil, "fixtures": fixtures, "afinidade": afinidade,
+    terceiros = carga_de_terceiros(float(os.getenv("BENCH_SEGUNDOS_TERCEIROS", "30")))
+    print(f"[bench] CPU de terceiros antes da rodada: {terceiros['total_pct_da_maquina']} % da máquina", flush=True)
+    resultado: dict[str, Any] = {"carga_terceiros_pre": terceiros,
+                                 "rotulo": rotulo, "perfil": perfil, "fixtures": fixtures, "afinidade": afinidade,
                                  "env_extra": env_extra, "duracao_s": duracao, "aquecimento_s": aquecimento,
                                  "arvore": str(arvore), "prioridade_alta": prioridade_alta}
     try:
@@ -558,12 +594,25 @@ def rodar(
             pagina.evaluate("() => performance.clearResourceTimings()")
             pagina.evaluate("() => performance.setResourceTimingBufferSize(100000)")
             janela = soak_s or duracao
+
+            def cpu_ms_do_servidor() -> float:
+                total = 0.0
+                for p_ in processos:
+                    try:
+                        t = p_.cpu_times()
+                        total += t.user + t.system
+                    except (psutil.Error, OSError):
+                        pass
+                return total * 1000.0
+
+            cpu_ms_inicio = cpu_ms_do_servidor()
             # Dispara a sonda SEM esperar: a promessa fica em window e é colhida no fim.
             pagina.evaluate(f"() => {{ window.__sondaP = ({JS_SONDA})(['/api/cameras/{ids[0]}/video_feed', {int(janela * 1000)}]); }}")
             inicio = time.perf_counter()
             while time.perf_counter() - inicio < janela:
                 amostras.append(amostrar(time.perf_counter() - inicio))
                 time.sleep(1.0 if not soak_s else 10.0)
+            resultado["cpu_ms_servidor_janela"] = round(cpu_ms_do_servidor() - cpu_ms_inicio, 1)
             estado_sonda = pagina.evaluate("() => window.__sondaP")
             fim_navegador = pagina.evaluate(
                 "() => ({lt: window.__bench.longtasks, c: window.__bench.commits, raf: window.__bench.raf, t: performance.now(),"

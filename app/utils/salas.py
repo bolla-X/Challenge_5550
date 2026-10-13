@@ -15,8 +15,11 @@ O desenho é o mais simples que funciona:
   REST: conta incompleta não vira acesso amplo.
 
 Evento de câmera sai em **duas** emissões (uma para `parque`, uma para
-`camera:<id>`) em vez de uma. Emitir para sala vazia é praticamente de graça, e
-a alternativa — privilegiado entrar em todas as salas de câmera — exigiria
+`camera:<id>`) em vez de uma. Emitir para sala vazia NÃO é de graça: o
+python-socketio 5.16.4 serializa o pacote antes de procurar quem está na sala
+(`socketio/manager.py`, `Manager.emit`: `pkt.encode()` vem antes de
+`get_participants`) — por isso `_tem_alguem` pula a emissão quando a sala está
+vazia (correção de 13/10; este comentário dizia o contrário). E a alternativa — privilegiado entrar em todas as salas de câmera — exigiria
 rastrear sids e sincronizar quando uma câmera nova é cadastrada. Não vale a
 complexidade.
 """
@@ -51,6 +54,19 @@ def salas_do_usuario(usuario: User | None) -> list[str]:
     return [SALA_PARQUE]
 
 
+def _tem_alguem(socketio: Any, sala: str, namespace: str = "/") -> bool:
+    """False só quando dá para AFIRMAR que a sala está vazia.
+
+    Lê `server.manager.rooms` do python-socketio. Sem essa estrutura (dublê de
+    teste, outra implementação), emite como antes.
+    """
+    gerente = getattr(getattr(socketio, "server", None), "manager", None)
+    salas = getattr(gerente, "rooms", None)
+    if not isinstance(salas, dict):
+        return True
+    return bool((salas.get(namespace) or {}).get(sala))
+
+
 def sala_de_foco(camera_id: int | None) -> str:
     """Sala de quem está com a câmera ABERTA na tela (telemetria de alta frequência)."""
     return f"foco:{camera_id}"
@@ -64,7 +80,7 @@ def emitir_para_foco(socketio: Any, evento: str, payload: Any, camera_id: int | 
     O escopo continua garantido: só entra em `foco:<id>` quem tem permissão
     sobre a câmera (ver `app/__init__.py::_focar`).
     """
-    if camera_id is not None:
+    if camera_id is not None and _tem_alguem(socketio, sala_de_foco(camera_id)):
         socketio.emit(evento, payload, to=sala_de_foco(camera_id))
 
 
@@ -74,6 +90,7 @@ def emitir_para_camera(socketio: Any, evento: str, payload: Any, camera_id: int 
     Sem `camera_id` o evento alcanca apenas o parque: um evento que nao sabe de
     qual camera e nao pode ser entregue a um operador restrito a uma.
     """
-    socketio.emit(evento, payload, to=SALA_PARQUE)
-    if camera_id is not None:
+    if _tem_alguem(socketio, SALA_PARQUE):
+        socketio.emit(evento, payload, to=SALA_PARQUE)
+    if camera_id is not None and _tem_alguem(socketio, sala_da_camera(camera_id)):
         socketio.emit(evento, payload, to=sala_da_camera(camera_id))

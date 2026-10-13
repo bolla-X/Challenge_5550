@@ -22,6 +22,21 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 
 
+DOCKER_DESKTOP = Path(r"C:\Program Files\Docker\Docker\Docker Desktop.exe")
+
+
+def liberar_docker() -> None:
+    """Autorizado no ADENDO 1 (item 2): só WSL e Docker Desktop, nada mais."""
+    subprocess.run(["wsl", "--shutdown"], capture_output=True, check=False)
+    subprocess.run(["taskkill", "/IM", "Docker Desktop.exe", "/F"], capture_output=True, check=False)
+    time.sleep(5)
+
+
+def religar_docker() -> None:
+    if DOCKER_DESKTOP.exists():
+        subprocess.Popen([str(DOCKER_DESKTOP)], creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rotulo", required=True)
@@ -30,6 +45,8 @@ def main() -> int:
     ap.add_argument("--cameras", default="1,4")
     ap.add_argument("--arvores", required=True)
     ap.add_argument("--limite-por-rep-s", type=float, default=1800.0)
+    ap.add_argument("--liberar-docker", action="store_true",
+                    help="antes de cada repetição: wsl --shutdown e fecha o Docker Desktop; religa no fim (ADENDO 1, item 2)")
     args = ap.parse_args()
 
     estado = RAIZ / "bench" / "runtime" / f"{args.rotulo}.estado"
@@ -41,6 +58,8 @@ def main() -> int:
         arvores = args.arvores.split(",")
         if int(rep) % 2 == 0:
             arvores = list(reversed(arvores))
+        if args.liberar_docker:
+            liberar_docker()
         log = RAIZ / "bench" / "runtime" / f"{rotulo}.bench.log"
         estado.write_text(f"rodando {rotulo} desde {time.strftime('%H:%M:%S')}\n", encoding="utf-8")
         with log.open("w", encoding="utf-8") as saida:
@@ -58,6 +77,8 @@ def main() -> int:
                 codigo = "timeout"
         with estado.open("a", encoding="utf-8") as f:
             f.write(f"{rotulo}: {codigo} às {time.strftime('%H:%M:%S')}\n")
+    if args.liberar_docker:
+        religar_docker()
     with estado.open("a", encoding="utf-8") as f:
         f.write("FIM\n")
     return 0

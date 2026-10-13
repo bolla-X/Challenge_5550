@@ -212,6 +212,9 @@ class CameraWorker:
         self._versao_analise = 0
         self._ts_analise_ms: float | None = None
         self._analise_pronta_em: float | None = None
+        # Resultado da última publicação reaproveitável (ver `_publicar`).
+        self._cache_publicacao: dict[str, Any] | None = None
+        self._opiniao_publicada: Any = None
         self._versao_consumida = 0
         # Estado do ÚLTIMO quadro publicado, guardado cru: o JPEG (cru ou
         # anotado) e o overlay em JSON só são produzidos se alguém pedir, uma
@@ -1062,15 +1065,29 @@ class CameraWorker:
         """Tudo que acontece depois da análise, igual nos dois loops."""
         self._registrar_diagnostico(frame, analysis, nova)
         self._perf_marca("analise")
-        # UMA passada de regras por frame. O resultado (alertas + estado por
+        enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
+        # Regras, matcher e conformidade são função pura de (análise, quadro,
+        # zona, recursos ligados) — sem relógio, sem estado. Entre duas análises
+        # novas o loop publica o MESMO resultado a cada quadro de vídeo (~95 %
+        # dos quadros); refazer tudo, mais o `to_dict()` com as poses da
+        # multidão, era trabalho idêntico jogado fora (batata 4 câm.: CPU-ms por
+        # análise +12 % sobre a base, docs/NEXT2026/BENCHMARKS.md).
+        chave = (id(analysis), frame.shape[:2], repr(self.rule_engine.risk_polygon), tuple(sorted(enabled_map.items())))
+        cache = self._cache_publicacao
+        reaproveitavel = not nova and cache is not None and cache["chave"] == chave
+        # UMA passada de regras por análise. O resultado (alertas + estado por
         # pessoa) alimenta tanto o AlertStateService quanto o ComplianceService
         # — que antes refazia todo o trabalho por conta própria.
-        evaluation = self.rule_engine.analyze(
-            analysis.detections,
-            analysis.pose,
-            frame.shape,
-            poses=analysis.poses,
-        )
+        if reaproveitavel:
+            evaluation = cache["evaluation"]
+            self.stats.contar("publicacoes_reaproveitadas")
+        else:
+            evaluation = self.rule_engine.analyze(
+                analysis.detections,
+                analysis.pose,
+                frame.shape,
+                poses=analysis.poses,
+            )
         self._perf_marca("regras")
         # `deteccao_nova` impede que uma inferência reaproveitada conte como
         # confirmação nova na histerese.
@@ -1080,20 +1097,30 @@ class CameraWorker:
             features_desligadas=self._features_desligadas(),
         )
         self._perf_marca("alertas")
-        model_diagnostics = self._safe_model_diagnostics()
-        compliance_state = self.compliance_service.build_state(
-            detections=analysis.detections,
-            pose=analysis.pose,
-            frame_shape=frame.shape,
-            model_diagnostics=model_diagnostics,
-            active_alerts=alert_state["active"],
-            evaluation=evaluation,
-        )
+        mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"] or alert_state.get("created"))
+        # Lista de ativos também muda por fora (limpeza manual pela API).
+        assinatura = tuple((a.get("id"), a.get("status"), a.get("occurrences")) for a in alert_state["active"])
+        if reaproveitavel and cache.get("assinatura") != assinatura:
+            mudou_alerta = True
+        recalculado = not (reaproveitavel and not mudou_alerta)
+        if recalculado:
+            model_diagnostics = self._safe_model_diagnostics()
+            compliance_state = self.compliance_service.build_state(
+                detections=analysis.detections,
+                pose=analysis.pose,
+                frame_shape=frame.shape,
+                model_diagnostics=model_diagnostics,
+                active_alerts=alert_state["active"],
+                evaluation=evaluation,
+            )
+            self._cache_publicacao = {"chave": chave, "evaluation": evaluation, "compliance": compliance_state,
+                                      "model": model_diagnostics, "assinatura": assinatura}
+        else:
+            model_diagnostics, compliance_state = cache["model"], cache["compliance"]
 
         if self.gate_required:
             self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
 
-        enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
         with self._thread_lock:
             self._quadro_bruto = frame
             self._quadro_estado = (analysis, compliance_state, enabled_map)
@@ -1108,6 +1135,17 @@ class CameraWorker:
         anotado = self.quadro_anotado() if alert_state.get("created") else None
         self._attach_snapshots_and_log_events(alert_state, anotado)
         alert_state["active"] = self.alert_state_service.active_alerts()
+        if not recalculado and self._latest_analysis is not None and self._opiniao_publicada is self._segunda_opiniao:
+            # Mesmo resultado: só zera as mudanças de alerta, que já saíram.
+            if self._latest_analysis.get("alert_changes") or self._latest_analysis.get("alert_resolved"):
+                with self._thread_lock:
+                    self._latest_analysis = self._latest_analysis | {"alert_changes": [], "alert_resolved": []}
+        else:
+            self._opiniao_publicada = self._segunda_opiniao
+            self._atualizar_latest_analysis(analysis, alert_state, compliance_state, model_diagnostics)
+        self._depois_de_publicar(alert_state, compliance_state, model_diagnostics)
+
+    def _atualizar_latest_analysis(self, analysis, alert_state, compliance_state, model_diagnostics) -> None:
         with self._thread_lock:
             self._latest_analysis = analysis.to_dict() | {
                 "alerts": alert_state["active"],
@@ -1120,6 +1158,7 @@ class CameraWorker:
                 "segunda_opiniao": self._segunda_opiniao,
             }
 
+    def _depois_de_publicar(self, alert_state, compliance_state, model_diagnostics) -> None:
         # O LLM recebe o MESMO JPEG anotado que o stream usaria (cache por
         # versão): nunca há um segundo encode do mesmo quadro.
         jpeg = self.jpeg_do_quadro(anotado=True) if self.servico_llm is not None and alert_state.get("created") else None
