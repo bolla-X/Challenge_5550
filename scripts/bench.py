@@ -242,8 +242,54 @@ def versoes() -> dict[str, str | None]:
     return saida
 
 
+def nucleos_eficientes(n: int = 2) -> list[int] | None:
+    """Os `n` últimos núcleos da classe de eficiência mais baixa (E-cores), pela topologia.
+
+    `GetSystemCpuSetInformation` (Windows 10+): "CPU Sets with higher numerical
+    values of [EfficiencyClass] have home processors that are faster but less
+    power-efficient" (https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_cpu_set_information).
+    Determinístico, ao contrário de cronometrar sob carga de fundo — que numa
+    rodada escolheu um P-core com HT e um E-core juntos. Um núcleo lógico por
+    núcleo físico (sem irmão de HT). None fora do Windows ou sem a API.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        import struct
+        from ctypes import wintypes
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        tamanho = wintypes.ULONG(0)
+        k32.GetSystemCpuSetInformation(None, 0, ctypes.byref(tamanho), None, 0)
+        buf = ctypes.create_string_buffer(tamanho.value)
+        if not k32.GetSystemCpuSetInformation(buf, tamanho.value, ctypes.byref(tamanho), None, 0):
+            return None
+        conjuntos, desloc = [], 0
+        while desloc < tamanho.value:
+            tam, tipo = struct.unpack_from("<II", buf, desloc)
+            if tipo == 0:  # CpuSetInformation
+                _id, _grupo, logico, nucleo, _llc, _numa, eficiencia, _flags = struct.unpack_from("<IHBBBBBB", buf, desloc + 8)
+                conjuntos.append((eficiencia, nucleo, logico))
+            desloc += tam
+    except (OSError, AttributeError, struct.error):
+        return None
+    if not conjuntos:
+        return None
+    menor = min(e for e, _, _ in conjuntos)
+    por_nucleo: dict[int, int] = {}
+    for e, nucleo, logico in conjuntos:
+        if e == menor:
+            por_nucleo.setdefault(nucleo, logico)
+    logicos = sorted(por_nucleo.values())
+    return logicos[-n:] if len(logicos) >= n else None
+
+
 def nucleos_mais_lentos(n: int = 2) -> list[int]:
     """Os `n` núcleos lógicos mais lentos, por um laço de Python preso em cada um.
+
+    Só como reserva de `nucleos_eficientes` (sem a API do Windows): sob carga de
+    fundo a cronometragem muda de rodada para rodada.
 
     Num i7 híbrido (P + E cores) isso acha os E-cores sem depender de API de
     topologia — e é o que torna o perfil "batata" honesto: 2 núcleos fracos, não
@@ -673,10 +719,10 @@ def main() -> int:
     caminhos = garantir_fixtures(nomes)
 
     maquina = info_da_maquina()
-    afinidade_batata = nucleos_mais_lentos(2) if "batata" in perfis else []
+    afinidade_batata = (nucleos_eficientes(2) or nucleos_mais_lentos(2)) if "batata" in perfis else []
     print(f"[bench] {maquina['cpu']} | {maquina['nucleos_logicos']} lógicos | {maquina['ram_gb']} GB | GPU: {maquina['gpu_cuda']}")
     if afinidade_batata:
-        print(f"[bench] perfil batata: núcleos lógicos {afinidade_batata} (os 2 mais lentos medidos)")
+        print(f"[bench] perfil batata: núcleos lógicos {afinidade_batata} (2 E-cores pela topologia, ou os 2 mais lentos medidos)")
 
     resultados = []
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")

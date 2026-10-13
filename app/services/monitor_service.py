@@ -194,7 +194,13 @@ class MonitorService:
         # ---- controlador adaptativo ("modo batata") -----------------------
         self.controlador = ControladorAdaptativo(
             n_base=max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))),
-            n_max=max(1, int(app.config.get("ADAPTATIVO_N_MAX", 6))),
+            # Com o agendador assíncrono, detectar a cada N quadros não alivia
+            # nada quando a inferência é o gargalo: o slot de cada câmera já
+            # guarda só o quadro mais novo e é servido assim que a anterior
+            # acaba. Os degraus de N só atrasariam os úteis (6 s cada: 3
+            # leituras de 2 s) — por isso, no assíncrono, a escada começa na pose.
+            n_max=(max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))) if self.agendador is not None
+                   else max(1, int(app.config.get("ADAPTATIVO_N_MAX", 6)))),
             pose_k_max=3 if self.pose_detector is not None else 1,
             telemetria_base_hz=float(app.config.get("TELEMETRY_HZ", 8.0)),
             limite_alto_ms=float(app.config.get("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)),

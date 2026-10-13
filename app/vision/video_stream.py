@@ -46,7 +46,15 @@ def capture_api(source: Any) -> int:
     return cv2.CAP_ANY
 
 
-def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
+# Threads do decoder FFmpeg por captura. O padrão do OpenCV é "as many threads
+# as CPU cores" (videoio.hpp, CAP_PROP_N_THREADS, **open-only**): medido, 12
+# threads POR CÂMERA neste i7 de 12 lógicos, mesmo com o processo preso a 2
+# núcleos — 48 threads de decode disputando 2 núcleos com 4 câmeras, e a
+# inferência pagando a conta. 2 sobram para 960x540 a 25 fps.
+THREADS_DECODE_PADRAO = 2
+
+
+def abrir_captura(source: Any, *, open_timeout_ms: int = 5000, threads_decode: int = THREADS_DECODE_PADRAO):
     """Constrói o `VideoCapture` como a produção constrói.
 
     O teto NÃO pode ir por `capture.set()`: a documentação do OpenCV marca a
@@ -66,6 +74,11 @@ def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
     Arquivo local e webcam não recebem teto: não há rede para esperar, e a
     fonte do modo fixture é justamente um arquivo local.
 
+    Arquivo e rede recebem `CAP_PROP_N_THREADS` (também open-only, só FFmpeg):
+    "Set the maximum number of threads to use. Use 0 to use as many threads
+    as CPU cores" (mesmo `videoio.hpp`, OpenCV 4.x). Webcam (DSHOW) não decodifica
+    por FFmpeg e fica sem.
+
     É função de módulo, e não método, porque a sondagem de campo
     (`scripts/sondar_cameras.py`) e o bench (`scripts/bench_pipeline.py`)
     precisam abrir a fonte EXATAMENTE como o worker abre. Cada um com a sua
@@ -73,17 +86,15 @@ def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
     custou 34 s por tentativa antes (docs/BENCH.md, Fase 2).
     """
     api = capture_api(source)
-    if api != cv2.CAP_FFMPEG or not isinstance(source, str):
+    if not isinstance(source, str) or source.isdigit():
         return cv2.VideoCapture(source, api)
-    teto = max(500, int(open_timeout_ms))
-    return cv2.VideoCapture(
-        source,
-        api,
-        [
-            int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), teto,
-            int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), teto,
-        ],
-    )
+    params: list[int] = []
+    if threads_decode and threads_decode > 0:
+        params += [int(cv2.CAP_PROP_N_THREADS), int(threads_decode)]
+    if api == cv2.CAP_FFMPEG:
+        teto = max(500, int(open_timeout_ms))
+        params += [int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), teto, int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), teto]
+    return cv2.VideoCapture(source, api, params) if params else cv2.VideoCapture(source, api)
 
 
 class VideoStreamError(RuntimeError):
@@ -149,6 +160,7 @@ class VideoStream:
         max_backoff_seconds: float = 30.0,
         em_loop: bool = False,
         open_timeout_ms: int = 5000,
+        threads_decode: int = THREADS_DECODE_PADRAO,
         max_grabs_por_leitura: int = 8,
         limiar_grab_ms: float = 5.0,
     ) -> None:
@@ -183,6 +195,7 @@ class VideoStream:
         # do modo fixture isso são ~150 s de câmera parada antes de o demo ter
         # imagem. Medido: 3.037 ms com o teto contra 34.319 ms sem.
         self.open_timeout_ms = max(500, int(open_timeout_ms))
+        self.threads_decode = max(0, int(threads_decode))
         # A ~12 FPS, 15 frames ruins ≈ 1,2 s — tolera engasgo de rede sem
         # derrubar a conexão, mas não deixa a câmera morta indefinidamente.
         self.failures_before_reconnect = max(1, int(failures_before_reconnect))
@@ -232,7 +245,7 @@ class VideoStream:
                 raise VideoStreamError(f"Não foi possível abrir a fonte de vídeo: {redigir_segredos(str(self.source))}")
 
     def _abrir_capture(self):
-        return abrir_captura(self.source, open_timeout_ms=self.open_timeout_ms)
+        return abrir_captura(self.source, open_timeout_ms=self.open_timeout_ms, threads_decode=self.threads_decode)
 
     def _open_locked(self) -> bool:
         if self._capture and self._capture.isOpened():

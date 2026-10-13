@@ -103,3 +103,13 @@ def test_com_pose_yolo_reduz_a_frequencia_da_pose_antes_da_telemetria():
     for _ in range(3 * 4):
         c.avaliar(5000)
     assert any("pose a cada" in r for r in c.reducoes())
+
+
+def test_no_modo_assincrono_a_escada_comeca_pela_pose(real_monitor_app):
+    """Detectar a cada N quadros não reduz carga quando a inferência é o gargalo."""
+    monitor = real_monitor_app.extensions["monitor_service"]
+    assert monitor.agendador is not None
+    degraus = monitor.controlador.degraus()
+    assert {d["n"] for d in degraus} == {monitor.controlador.n_base}
+    if monitor.pose_detector is not None:
+        assert degraus[1]["pose_k"] == 2, "o primeiro degrau já é a pose"

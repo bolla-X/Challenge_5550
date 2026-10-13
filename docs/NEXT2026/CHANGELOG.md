@@ -81,6 +81,29 @@ mesma classe; 126 quadros das 3 fixtures). Resultados em
 | ONNX estático 640 | 95,04 % | **reprovado** (< 97 %): o letterbox quadrado 640×640 difere do retângulo do PyTorch |
 | ONNX dinâmico 640 | **100,0 %** | aprovado no guarda; decisão de uso pelo bench do worker |
 | OpenVINO estático 640 | 94,65 % | reprovado |
+| OpenVINO dinâmico 640 (antes da correção) | 95,04 % | reprovado — mesmo número do ONNX estático |
+| OpenVINO dinâmico 640 (letterbox retangular) | **99,17 %** (capacete 97,6 %, colete 100 %, pessoa 100 %, queda 90,9 % = 5 de 6) | **aprovado** |
+
+**OpenVINO "dinâmico" que rodava como estático.** O `.xml` exportado tem
+`shape="?,3,?,?"` (dinâmico de verdade). O problema estava no consumo: o
+ultralytics 8.3.40 só preenche `AutoBackend.dynamic` para ONNX e TensorRT
+(`ultralytics/nn/autobackend.py`, linhas 221 e 306–319); no OpenVINO fica
+False, e o predictor usa letterbox QUADRADO
+(`engine/predictor.py:158`, `auto=same_shapes and (self.model.pt or getattr(self.model, "dynamic", False))`).
+`YoloPPEDetector._marcar_openvino_dinamico` lê a forma parcial da entrada do
+modelo compilado e liga `dynamic`; a primeira chamada é refeita. Testes:
+`tests/test_yolo_ppe_detector.py` (dinâmico refaz e vira retangular; estático
+continua quadrado). Pessoa (yolov8n) OpenVINO dinâmico: **100 %**
+(`concordancia-pessoa-20261013-055740.json`).
+
+**OpenVINO recompilado na CPU com teto de threads.** O mesmo backend compila
+com `device_name="AUTO"` e só `PERFORMANCE_HINT`. Pela doc do plugin de CPU
+(https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device/performance-hint-and-thread-scheduling.html),
+no hint LATENCY o padrão de `INFERENCE_NUM_THREADS` é "P-cores ou
+P-cores+E-cores" (10 neste i7-1355U) e o pinning de CPU fica desligado no
+Windows. Com o processo preso a 2 núcleos, isso é oversubscription. O detector
+agora recompila em `CPU`, LATENCY, `INFERENCE_NUM_THREADS = VISIONEPI_THREADS`
+quando definido.
 | OpenVINO INT8 | — | exige `nncf`; instalado como opcional (`pip install nncf==3.4.0`, `pip check` limpo, numpy/torch intactos) — resultado em BENCHMARKS.md |
 
 Pessoa (yolov8n): ONNX estático 640 = **98,25 %** (aprovado).
@@ -100,9 +123,17 @@ Pessoa (yolov8n): ONNX estático 640 = **98,25 %** (aprovado).
 
 | imgsz (EPI) | Concordância | Capacete | Colete |
 |---|---|---|---|
+| 640 (a própria referência, controle de sanidade) | **100,0 %** | 100 % | 100 % |
 | 512 | 72,0 % | 17 % | 86 % |
 | 416 (o `.env.example` de antes) | **63,6 %** | **8 %** | 78 % |
 | 320 | 51,1 % | 0 % | 64 % |
+
+**Correção de registro (13/10):** uma anotação da sessão anterior dizia "640
+fica em 72 % de concordância", o que é impossível com 640 como referência. Re-
+executado (`python scripts/concordancia.py --candidatos pytorch:640,pytorch:512,openvino-dyn:640`
+→ `bench/results/concordancia-epi-20261013-055538.json`): **pytorch:640 = 100,0 %**
+(121 de 121 caixas) e **pytorch:512 = 72,03 %**. O 72 % era do 512, com o
+rótulo trocado na anotação; a tabela acima sempre esteve certa.
 
 Nenhum passa os 95 % → **mantido 640** (regra pré-decidida). Pessoa a 416:
 86,0 % → também 640. Consequência registrada: o `.env.example` anterior (416)
@@ -143,10 +174,19 @@ e disponível como laboratório (`TRACKER=bytetrack`).
 
 `app/services/controlador_adaptativo.py` + `MonitorService.tique_adaptativo`:
 mede o p95 da idade do quadro **no momento da inferência**; degraus: N
-(frequência de detecção) → K (frequência de pose) → imgsz (só valores
-aprovados; hoje nenhum) → Hz de telemetria; histerese (3 leituras para
-degradar, 5 para recuperar, banda morta). Aviso **DEGRADADO** na tela com o
-que foi reduzido. `tests/test_controlador_adaptativo.py` (9 testes).
+(frequência de detecção) → K (frequência de pose) → Hz de telemetria;
+histerese (3 leituras para degradar, 5 para recuperar, banda morta). Aviso
+**DEGRADADO** na tela com o que foi reduzido.
+
+**13/10 — o degrau de resolução saiu.** Existia um degrau "imgsz para o próximo
+valor aprovado" (vazio por config, mas presente no código e ligável por
+`ADAPTATIVO_IMGSZ_PERMITIDOS`). Regra da missão: o controlador só mexe em
+frequência de inferência, de pose e de UI. Removidos o degrau, a config e a
+escrita de `det.imgsz` em `MonitorService._aplicar_adaptativo`. Os testes que
+afirmavam a descida para 320 foram trocados por afirmações mais estritas do
+contrato novo: nenhum degrau tem chave de resolução, nenhuma redução cita
+resolução, e o `MonitorService` real no nível máximo mantém EPI e pessoa em
+640 (`tests/test_controlador_adaptativo.py`, 10 testes).
 
 ## 4.7 Frontend
 

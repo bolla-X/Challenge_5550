@@ -324,3 +324,102 @@ def test_soneca_segue_a_pessoa_quando_ela_anda(app):
             for _ in range(3):
                 resultado = service.process([_com_caixa(pid, 100 + deslocamento, 100, 300 + deslocamento, 500)])
             assert resultado["active"] == [], pid
+
+
+def _servico_por_tempo(**kw):
+    return AlertStateService(AlertRepository(), DummySocket(), create_after_frames=8, resolve_after_frames=20,
+                             create_after_seconds=2.0, min_confirmacoes=2, resolve_after_seconds=6.0,
+                             min_confirmacoes_resolver=3, **kw)
+
+
+def test_maquina_lenta_cria_por_tempo_com_duas_confirmacoes(app, monkeypatch):
+    """0,3 análise/s: 8 quadros seriam ~27 s. Duas inferências novas a 3 s bastam."""
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 100.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico_por_tempo()
+        assert service.process([missing_helmet()])["created"] == []
+        relogio["t"] += 3.0
+        criado = service.process([missing_helmet()])["created"]
+        assert len(criado) == 1
+        assert criado[0]["metadata"]["confirmation_frames"] == 2
+
+
+def test_uma_confirmacao_so_nunca_cria_mesmo_depois_de_muito_tempo(app, monkeypatch):
+    """O mínimo de confirmações é a proteção contra o falso positivo de um quadro."""
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 100.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = AlertStateService(AlertRepository(), DummySocket(), create_after_frames=8,
+                                    create_after_seconds=2.0, min_confirmacoes=3)
+        service.process([missing_helmet()])
+        relogio["t"] += 60.0
+        assert service.process([missing_helmet()])["created"] == [], "2 confirmações < mínimo de 3"
+        relogio["t"] += 1.0
+        assert len(service.process([missing_helmet()])["created"]) == 1
+
+
+def test_maquina_rapida_continua_pelo_limiar_em_quadros(app, monkeypatch):
+    """A 12 análises/s, 2 s de violação teriam ~24 quadros: quem decide é o 8."""
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 100.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico_por_tempo()
+        criados = []
+        for _ in range(8):
+            criados.append(len(service.process([missing_helmet()])["created"]))
+            relogio["t"] += 1 / 12
+        assert criados == [0, 0, 0, 0, 0, 0, 0, 1], "cria no 8º quadro (0,58 s), antes dos 2 s"
+
+
+def test_interrupcao_reinicia_o_relogio_da_violacao(app, monkeypatch):
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 100.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico_por_tempo()
+        service.process([missing_helmet()])
+        relogio["t"] += 1.5
+        service.process([])  # uma análise sem a violação: zera a sequência
+        relogio["t"] += 1.5
+        assert service.process([missing_helmet()])["created"] == [], "a sequência recomeçou; 1 confirmação"
+        relogio["t"] += 2.5
+        assert len(service.process([missing_helmet()])["created"]) == 1
+
+
+def test_resolve_por_tempo_com_tres_analises_normais(app, monkeypatch):
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 100.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = _servico_por_tempo()
+        service.process([missing_helmet()])
+        relogio["t"] += 3.0
+        service.process([missing_helmet()])
+        assert len(service.active_alerts()) == 1
+        for _ in range(2):
+            relogio["t"] += 3.0
+            assert service.process([])["resolved"] == []
+        relogio["t"] += 3.0
+        assert len(service.process([])["resolved"]) == 1, "3 análises normais ao longo de 6 s"
+
+
+def test_sem_limiar_de_tempo_o_comportamento_e_o_de_antes(app, monkeypatch):
+    import app.services.alert_state_service as modulo
+
+    with app.app_context():
+        relogio = {"t": 100.0}
+        monkeypatch.setattr(modulo, "monotonic", lambda: relogio["t"])
+        service = AlertStateService(AlertRepository(), DummySocket(), create_after_frames=8)
+        for _ in range(7):
+            relogio["t"] += 10.0
+            assert service.process([missing_helmet()])["created"] == []
+        assert len(service.process([missing_helmet()])["created"]) == 1

@@ -159,6 +159,7 @@ class CameraWorker:
             height=height,
             # So tem efeito em fonte de rede (ver VideoStream._ler_do_capture).
             limiar_grab_ms=float(app.config.get("RTSP_LIMIAR_GRAB_MS", 5.0)),
+            threads_decode=int(app.config.get("CAPTURA_THREADS_DECODE", 2)),
         )
         # ---- modo fixture: estado de PRIMEIRA CLASSE, não degradação muda --
         # A fonte configurada da câmera, guardada separada de
@@ -286,6 +287,10 @@ class CameraWorker:
             camera_id=camera_id,
             intervalo_touch=app.config.get("ALERT_TOUCH_INTERVAL_SECONDS", 2.0),
             silencio_apos_limpar=app.config.get("ALERT_SNOOZE_AFTER_CLEAR_S", 60.0),
+            create_after_seconds=float(app.config.get("ALERT_CREATE_AFTER_SECONDS", 0)) or None,
+            min_confirmacoes=app.config.get("ALERT_MIN_CONFIRMATIONS", 2),
+            resolve_after_seconds=float(app.config.get("ALERT_RESOLVE_AFTER_SECONDS", 0)) or None,
+            min_confirmacoes_resolver=app.config.get("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -1356,6 +1361,7 @@ class CameraWorker:
             width=self.video_stream.width,
             height=self.video_stream.height,
             em_loop=True,
+            threads_decode=int(self.app.config.get("CAPTURA_THREADS_DECODE", 2)),
         )
         self._modo_fixture = True
         self._last_stream_state = None  # força reemitir o estado novo

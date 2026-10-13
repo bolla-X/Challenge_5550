@@ -166,3 +166,50 @@ para dentro do Socket.IO *pioraria* (base64). O vídeo já sai binário por HTTP
 
 **Não aberto/verificado pelo subagente:** LICENSE do ONNX Runtime, OpenVINO, Flask-SocketIO e
 python-socketio; compatibilidade dos pesos 8.3 no 8.4; ficha técnica do i7-1355U.
+
+## Fontes lidas em 13/10/2026 (missão NEXT 2026)
+
+### OpenVINO — plugin de CPU, hint e threads
+https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device/performance-hint-and-thread-scheduling.html
+- `INFERENCE_NUM_THREADS` "limits the number of logical processors used for
+  CPU inference"; no hint LATENCY o padrão é P-cores ou P-cores+E-cores de um
+  soquete. No i7-1355U (2 P + 8 E, razão 4) o FP32 usa os dois tipos.
+- `ENABLE_CPU_PINNING`: desligado por padrão no Windows.
+- Uso: `YoloPPEDetector._recompilar_openvino_na_cpu`.
+
+### Câmera do celular (F6)
+- getUserMedia: https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+  — só em contexto seguro; em contexto inseguro `navigator.mediaDevices` é
+  `undefined`. Câmera traseira: `facingMode: { exact: "environment" }`.
+- Contextos seguros: https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts
+  — confiáveis: `https`, `127.0.0.0/8`, `::1`, `localhost`. Um IP de LAN em
+  `http://` NÃO é contexto seguro → o celular precisa de HTTPS.
+
+### Alerta falado (G6)
+- https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis — `speak()`
+  "Adds an utterance to the utterance queue"; `cancel()` esvazia a fila;
+  `getVoices()` + evento `voiceschanged` (lista chega assíncrona).
+- https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisVoice/localService
+  — `localService` true = sintetizador local (funciona offline).
+
+### NR-6 (G10)
+Página oficial: https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/norma-regulamentadora-no-6-nr-6
+(última modificação: Portaria MTE nº 57, de 16/01/2025). Texto:
+https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/nr-06-atualizada-2025-ii.pdf
+(extraído com `pdftotext -layout`; o PDF diz "Este texto não substitui o publicado no DOU").
+
+Itens que EXISTEM no texto e podem ser citados:
+- 6.5.1 "Cabe à organização, quanto ao EPI:" … "e) exigir seu uso;"
+  e "b) orientar e treinar o empregado;"
+- 6.6.1 "Cabe ao trabalhador, quanto ao EPI:" … "a) usar o fornecido pela
+  organização, observado o disposto no item 6.5.2;"
+- Anexo I: "A.1 - Capacete"; "B.1 - Óculos"; "C.1 - Protetor auditivo";
+  "D - EPI PARA PROTEÇÃO RESPIRATÓRIA" (respiradores, PFF); "F.1 - Luvas";
+  "G.1 - Calçado".
+
+Mapeamentos NÃO sustentados pelo texto (ficam de fora no G10):
+- Colete de alta visibilidade: o Anexo I não o lista (E.1 são vestimentas
+  contra agentes térmicos/mecânicos/químicos/radiação/umidade; E.2 é "Colete à
+  prova de balas" para vigilantes).
+- "Máscara" do modelo Vyra (classe `Mask`) não distingue respirador (D) de
+  máscara comum; ligar a detecção ao Anexo D afirmaria mais do que o modelo vê.

@@ -45,6 +45,10 @@ class AlertRuntimeState:
     # gravação. Ver AlertStateService.intervalo_touch.
     ocorrencias_pendentes: int = 0
     ultimo_touch: float = 0.0
+    # Instante (monotonic) da 1ª confirmação da sequência atual de violação
+    # e da 1ª da sequência atual de normalidade (histerese por tempo).
+    violacao_desde: float | None = None
+    normal_desde: float | None = None
 
 
 class AlertStateService:
@@ -63,6 +67,10 @@ class AlertStateService:
         camera_id: int | None = None,
         intervalo_touch: float = 2.0,
         silencio_apos_limpar: float = 60.0,
+        create_after_seconds: float | None = None,
+        min_confirmacoes: int = 2,
+        resolve_after_seconds: float | None = None,
+        min_confirmacoes_resolver: int = 3,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
@@ -72,6 +80,21 @@ class AlertStateService:
         self.camera_id = camera_id
         self.create_after_frames = max(1, int(create_after_frames))
         self.resolve_after_frames = max(1, int(resolve_after_frames))
+        # Histerese também por TEMPO. Os limiares em quadros (8 para criar, 20
+        # para resolver) foram calibrados para o loop antigo a ~12 inferências/s,
+        # onde 8 confirmações eram ~0,7 s. Numa máquina que faz 0,3 análise/s
+        # as mesmas 8 viram ~27 s — medido no bench (docs/NEXT2026/BENCHMARKS.md:
+        # 60–84 s de latência de alerta no perfil batata). Agora cria quando
+        # bate o limiar em quadros OU quando a violação se sustenta por
+        # `create_after_seconds` com pelo menos `min_confirmacoes` inferências
+        # NOVAS e seguidas. O mínimo de confirmações é o que protege contra o
+        # falso positivo de um quadro só; o tempo é o que a pessoa no chão de
+        # fábrica entende. Resolver segue a mesma lógica, com mínimos maiores.
+        # None desliga (só quadros, como antes).
+        self.create_after_seconds = create_after_seconds
+        self.min_confirmacoes = max(1, int(min_confirmacoes))
+        self.resolve_after_seconds = resolve_after_seconds
+        self.min_confirmacoes_resolver = max(1, int(min_confirmacoes_resolver))
         # Segundos entre gravações de um alerta que CONTINUA ativo.
         #
         # Antes o `touch` (last_seen_at + occurrences) fazia um commit por
@@ -202,12 +225,16 @@ class AlertStateService:
                 state = AlertRuntimeState(key=key, rule_alert=item)
                 self._states[key] = state
             state.rule_alert = item
+            if state.violation_frames == 0:
+                state.violacao_desde = agora
             state.violation_frames += 1
             state.normal_frames = 0
+            state.normal_desde = None
 
             if (
                 state.alert is None
-                and state.violation_frames >= self.create_after_frames
+                and self._confirmou(state.violation_frames, state.violacao_desde, agora,
+                                    self.create_after_frames, self.create_after_seconds, self.min_confirmacoes)
                 and not self._silenciado(key, item)
             ):
                 state.alert = self.repository.create(
@@ -235,7 +262,6 @@ class AlertStateService:
                 # snapshot, não `state.alert.status`, para não tocar no ORM
                 # a cada frame — mesmo motivo de active_alerts().
                 state.ocorrencias_pendentes += 1
-                agora = monotonic()
                 if agora - state.ultimo_touch < self.intervalo_touch:
                     continue
                 state.alert = self.repository.touch(
@@ -255,9 +281,13 @@ class AlertStateService:
             if key in current_by_key:
                 continue
             state = self._states[key]
+            if state.normal_frames == 0:
+                state.normal_desde = agora
             state.normal_frames += 1
             state.violation_frames = 0
-            if state.normal_frames >= self.resolve_after_frames:
+            state.violacao_desde = None
+            if self._confirmou(state.normal_frames, state.normal_desde, agora, self.resolve_after_frames,
+                               self.resolve_after_seconds, self.min_confirmacoes_resolver):
                 if state.alert is not None and state.alert.status == "active":
                     state.alert = self.repository.resolve(
                         state.alert,
@@ -273,6 +303,13 @@ class AlertStateService:
         active = self.active_alerts()
         self._emit_active(active)
         return {"active": active, "changed": created_or_updated, "created": created, "updated": updated, "resolved": resolved}
+
+    @staticmethod
+    def _confirmou(confirmacoes: int, desde: float | None, agora: float, limiar_quadros: int,
+                   limiar_s: float | None, minimo: int) -> bool:
+        if confirmacoes >= limiar_quadros:
+            return True
+        return limiar_s is not None and desde is not None and confirmacoes >= minimo and agora - desde >= limiar_s
 
     def _emitir(self, evento: str, payload) -> None:
         """Emite respeitando o escopo de camera do Operador.

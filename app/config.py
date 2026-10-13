@@ -189,6 +189,9 @@ class Config:
     # industrial tem jitter, e ali a separacao entre os dois pode ser outra.
     # Ver docs/DEMO.md para o sintoma de errar para cada lado.
     RTSP_LIMIAR_GRAB_MS = env_float("RTSP_LIMIAR_GRAB_MS", 5.0)
+    # Threads do decoder FFmpeg por câmera (arquivo e rede). 0 = padrão do
+    # OpenCV, um por núcleo lógico — ver app/vision/video_stream.py.
+    CAPTURA_THREADS_DECODE = env_int("CAPTURA_THREADS_DECODE", 2)
 
     # --- fonte CEGA: o frame chega, a imagem nao --------------------------
     # Brilho medio abaixo do qual o frame conta como "sem imagem". MEDIDO: uma
@@ -353,6 +356,13 @@ class Config:
     ALERT_COOLDOWN_SECONDS = env_int("ALERT_COOLDOWN_SECONDS", 0)
     ALERT_CREATE_AFTER_FRAMES = env_int("ALERT_CREATE_AFTER_FRAMES", 8)
     ALERT_RESOLVE_AFTER_FRAMES = env_int("ALERT_RESOLVE_AFTER_FRAMES", 20)
+    # Histerese também por tempo (ver AlertStateService): cria quando a violação
+    # se sustenta por N s com pelo menos M inferências novas seguidas, mesmo
+    # que a máquina não chegue aos 8 quadros. 0 desliga (só quadros).
+    ALERT_CREATE_AFTER_SECONDS = env_float("ALERT_CREATE_AFTER_SECONDS", 2.0)
+    ALERT_MIN_CONFIRMATIONS = env_int("ALERT_MIN_CONFIRMATIONS", 2)
+    ALERT_RESOLVE_AFTER_SECONDS = env_float("ALERT_RESOLVE_AFTER_SECONDS", 6.0)
+    ALERT_MIN_RESOLVE_CONFIRMATIONS = env_int("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3)
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
