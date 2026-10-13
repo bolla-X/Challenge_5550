@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.services.pergunte_a_planta import PerguntaRecusada, interpretar_plano, responder
 
 DADOS = {"alertas": {"total": 7, "criticos": 3, "por_regra": {"Sem capacete": 5, "Sem colete": 2}, "por_camera": {"Doca": 7},

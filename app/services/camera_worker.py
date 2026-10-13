@@ -20,10 +20,10 @@ from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.alert_state_service import AlertStateService
+from app.services.andon import ContadorDeMinutos
 from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
-from app.services.andon import ContadorDeMinutos
 from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
 from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
@@ -39,11 +39,11 @@ from app.vision.captura_continua import CapturaContinua
 from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
+from app.vision.planta import pes_na_planta
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
-from app.vision.planta import pes_na_planta
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao

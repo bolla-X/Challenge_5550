@@ -8,7 +8,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 import pytest
-
 from app.vision.schemas import PoseLandmark, PoseResult
 from app.vision.sinais_por_id import (
     ConfigSinais,

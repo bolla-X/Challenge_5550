@@ -409,7 +409,7 @@ def camera_linha_do_tempo_do_id(camera_id: int, pessoa_id: str):
 @login_required
 def camera_planta(camera_id: int):
     """Planta baixa ao vivo (G5): calibração, pés projetados, zona e calor na planta."""
-    from app.vision.planta import poligono_na_planta, projetar, homografia
+    from app.vision.planta import homografia, poligono_na_planta, projetar
 
     if not camera_permitida(camera_id):
         return erro_fora_do_escopo()

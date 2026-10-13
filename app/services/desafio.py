@@ -85,7 +85,11 @@ def pontuar(pessoas: list[dict[str, Any]], pontos: list[tuple[float, float]]) ->
         if not candidatas:
             erros += 1
             continue
-        i = min(candidatas, key=lambda k: (pessoas[k]["caixa"][2] - pessoas[k]["caixa"][0]) * (pessoas[k]["caixa"][3] - pessoas[k]["caixa"][1]))
+        def area(k: int) -> float:
+            x1, y1, x2, y2 = pessoas[k]["caixa"]
+            return (x2 - x1) * (y2 - y1)
+
+        i = min(candidatas, key=area)
         if pessoas[i]["sem_capacete"] is None:
             continue  # neutra
         if pessoas[i]["sem_capacete"]:

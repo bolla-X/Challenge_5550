@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.vision.planta import homografia, pes_na_planta, poligono_na_planta, projetar, validar_pontos
 
 QUAD_CAMERA = [(0.2, 0.5), (0.8, 0.5), (1.0, 1.0), (0.0, 1.0)]  # trapézio do chão em perspectiva

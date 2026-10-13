@@ -489,7 +489,9 @@ class TestConfig(Config):
     # sobe com AUTH_REQUIRED=True e verifica rota por rota — inclusive uma
     # varredura que falha se aparecer rota nova desprotegida.
     AUTH_REQUIRED = False
-    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area,sos,ergonomia,imobilidade"
+    DEFAULT_FEATURES = (
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area,sos,ergonomia,imobilidade"
+    )
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False

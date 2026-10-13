@@ -7,7 +7,6 @@ import zipfile
 
 import numpy as np
 import pytest
-
 from app.services.aprendizado_ativo import FilaDeRotulos
 from app.vision.schemas import BoundingBox, Detection
 

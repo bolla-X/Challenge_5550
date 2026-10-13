@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.services.desafio import RODADAS, Desafio, pontuar
 
 PESSOAS = [
@@ -48,9 +47,8 @@ class _Detector:
 
 
 def test_ia_responde_pelo_mesmo_casamento_dos_alertas(monkeypatch):
-    import numpy as np
-
     import app.services.desafio as mod
+    import numpy as np
 
     class _Cap:
         def set(self, *_):

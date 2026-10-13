@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import threading
+from pathlib import Path
 from typing import Any
 
 from flask import Flask
@@ -12,9 +11,9 @@ from app.config import BASE_DIR, Config
 from app.extensions import db
 from app.models import Camera
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
+from app.services.aprendizado_ativo import FilaDeRotulos
 from app.services.camera_worker import CameraWorker
 from app.services.controlador_adaptativo import ControladorAdaptativo
-from app.services.aprendizado_ativo import FilaDeRotulos
 from app.services.feature_manager import FeatureManager
 from app.services.gravador_assincrono import GravadorAssincrono
 from app.services.llm_risk_service import ServicoDeRiscoLLM

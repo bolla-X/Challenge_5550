@@ -12,17 +12,17 @@ from app.api.auth import auth_bp
 from app.api.cameras import cameras_bp
 from app.api.celular import celular_bp
 from app.api.desafio import desafio_bp
-from app.api.lab import lab_bp
-from app.api.rotulos import rotulos_bp
-from app.api.tv import tv_bp
 from app.api.diagnostics import runtime_bp
 from app.api.escala import escala_bp
 from app.api.features import features_bp
+from app.api.lab import lab_bp
 from app.api.monitor import monitor_bp
 from app.api.relatorio import relatorio_bp
 from app.api.risk import risk_bp
+from app.api.rotulos import rotulos_bp
 from app.api.status import status_bp
 from app.api.stream import stream_bp
+from app.api.tv import tv_bp
 from app.cli import register_cli
 from app.config import Config
 from app.extensions import db, migrate, socketio

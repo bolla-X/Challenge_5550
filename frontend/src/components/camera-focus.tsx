@@ -505,7 +505,7 @@ export function CameraFocus() {
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
     if (tab.key === "pipeline") return { ...tab, content: <PipelinePanel cameraId={camera.id} /> };
     if (tab.key === "heatmap") return { ...tab, content: <HeatmapPanel cameraId={camera.id} /> };
-    if (tab.key === "planta") return { ...tab, content: <PlantaPanel cameraId={camera.id} podeEditar={mode !== "operator"} /> };
+    if (tab.key === "planta") return { ...tab, content: <PlantaPanel cameraId={camera.id} podeEditar /> };
     return tab;
   });
 
