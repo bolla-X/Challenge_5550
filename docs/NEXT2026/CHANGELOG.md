@@ -177,6 +177,64 @@ falhas e reabre do início (log do E2E: `video_stream_reconnecting`,
 `consecutive_failures: 15`, a cada volta da fixture). Comportamento anterior
 a esta missão; é um engasgo visível a cada loop.
 
+## L1 — OpenVINO na iGPU Intel (ADENDO 1): aprovado, vira o padrão
+
+Docs lidas: export OpenVINO da Ultralytics
+(https://docs.ultralytics.com/integrations/openvino/ — `dynamic`, dispositivo
+`intel:gpu`, `quantize=16` no lugar do `half` deprecado) e plugin de GPU do
+OpenVINO
+(https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/gpu-device.html
+— shape dinâmico é "preview" e rende menos que estático; cada shape novo
+compila kernel em tempo de execução; precisão segue a IR; `ov::cache_dir`
+cobre totalmente só modelo estático).
+
+- `openvino.Core().available_devices` = `['CPU', 'GPU']`; GPU = "Intel(R)
+  Iris(R) Xe Graphics (iGPU)".
+- Export: o `vyra_ppe_640_dyn_openvino_model` já era dinâmico de verdade
+  (`shape="?,3,?,?"` no `.xml`); o letterbox retangular vem da correção de
+  `dynamic` no AutoBackend (§4.2).
+- `YoloPPEDetector`: dispositivo (CPU|GPU) e dica de precisão
+  (`INFERENCE_PRECISION_HINT` f32|f16); GPU com `CACHE_DIR`; falhou na GPU →
+  compila na CPU e o diagnóstico mostra "CPU (fallback da GPU)"
+  (`tests/test_runtime_do_modelo.py::test_gpu_que_nao_compila_cai_para_cpu`).
+  O dispositivo ativo sai em `/api/diagnostics/pipeline` (`modelos.*.dispositivo`).
+- Guarda (`concordancia-epi-20261013-140531.json`,
+  `concordancia-pessoa-20261013-140747.json`), dispositivo conferido no JSON:
+
+| candidato | EPI | pessoa | bancada EPI p50 |
+|---|---|---|---|
+| openvino-dyn@cpu-fp32 | 100 % | — | 705 ms |
+| openvino-dyn@cpu-fp16 | 100 % | — | 675 ms |
+| **openvino-dyn@gpu-fp32** | **100 %** | **100 %** | **125 ms** |
+| openvino-dyn@gpu-fp16 | 99,17 % | 99,88 % | 105 ms |
+
+  Hipótese registrada (não verificada): o 99,17 % do "OpenVINO dinâmico"
+  anterior vinha do `device_name="AUTO"` do ultralytics caindo na GPU em f16;
+  forçado na CPU, deu 100 %.
+- CPU do servidor (batata 1 câm., 3 repetições, `*-l1-r*.json`):
+
+| perfil | câm. | árvore | análises/rodada | CPU-ms por análise | CPU-ms por quadro | encodes por quadro |
+|---|---|---|---|---|---|---|
+| batata | 1 | onnx | 40, 16, 17 | **6,431.8** [2,836.9, 6,818.4, 6,431.8] | **249.9** [241.4, 249.9, 258.2] | **1.0** [1.0, 1.0, 1.0] |
+| batata | 1 | ovgpu16 | 103, 77, 80 | **1,349.6** [1,023.1, 1,403.7, 1,349.6] | **239.7** [215.9, 239.7, 247.8] | **1.0** [1.0, 1.0, 1.0] |
+| batata | 1 | ovgpu32 | 90, 76, 52 | **1,400.7** [1,167.1, 1,400.7, 2,034.4] | **226.0** [213.5, 226.0, 278.4] | **1.0** [1.0, 1.0, 1.0] |
+
+  Relógio, sob saturação — indicativo:
+
+| perfil | câm. | árvore | n | FPS de análise/câm. | idade da análise p50 (ms) | idade p95 (ms) | latência de alerta (s) | fundo (% de 1 núcleo) |
+|---|---|---|---|---|---|---|---|---|
+| batata | 1 | onnx | 3 | **0,28** [0,67, 0,27, 0,28] | **4.310** [1.846, 4.541, 4.310] | **5.674** [2.757, 5.674, 5.674] | **5,7** [5,4, 8,8, 5,7] | 845 |
+| batata | 1 | ovgpu16 | 3 | **1,33** [1,72, 1,28, 1,33] | **943** [741, 943, 1.010] | **2.165** [1.184, 2.194, 2.165] | **3,0** [3,0, 2,7, 4,4] | 722 |
+| batata | 1 | ovgpu32 | 3 | **1,27** [1,50, 1,27, 0,87] | **966** [826, 966, 1.511] | **1.959** [1.205, 1.959, 3.056] | **3,4** [3,1, 3,4, 4,4] | 640 |
+
+- Decisão: GPU FP32 e FP16 empatam em CPU-ms (dentro de 10 %) → **FP32**
+  (100 % no guarda). `RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`; sem GPU visível
+  ao OpenVINO, o resolvedor pula para o ONNX
+  (`test_sem_gpu_o_auto_pula_o_openvino_gpu`).
+- Ressalva para a banca: o perfil "batata" limita a CPU do servidor a 2
+  E-cores, mas a iGPU é a da máquina inteira. Uma máquina fraca de verdade com
+  gráfico Intel integrado tem esse caminho; sem iGPU, vale o ONNX.
+
 ## L2 — modelo de EPI leve para o modo batata (ADENDO 1): sem candidato
 
 Restrição de segurança declarada: peso `.pt` do Ultralytics é *pickle* —

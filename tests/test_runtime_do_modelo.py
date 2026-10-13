@@ -97,8 +97,11 @@ def test_aquecer_modelos_infere_uma_vez_em_cada_e_tolera_falha():
     assert set(tempos) == {"epi.onnx", "pessoa.onnx"}, "falha não derruba o boot nem entra nos tempos"
 
 
-def test_openvino_gpu_aprovado_devolve_dispositivo_e_precisao(tmp_path):
+def test_openvino_gpu_aprovado_devolve_dispositivo_e_precisao(tmp_path, monkeypatch):
+    import app.vision.runtime_do_modelo as rt
     from app.vision.runtime_do_modelo import resolver
+
+    monkeypatch.setattr(rt, "gpu_disponivel", lambda: True)
 
     pasta = tmp_path / "models" / "export" / "vyra_ppe_640_dyn" / "vyra_ppe_640_dyn_openvino_model"
     pasta.mkdir(parents=True)
@@ -153,3 +156,18 @@ def test_gpu_que_nao_compila_cai_para_cpu(tmp_path, monkeypatch):
     assert backend.ov_compiled_model == "compilado-cpu"
     assert compilados[0][0] == "CPU"
     assert detector.dispositivo_ativo == "CPU (fallback da GPU)"
+
+
+def test_sem_gpu_o_auto_pula_o_openvino_gpu(tmp_path, monkeypatch):
+    import app.vision.runtime_do_modelo as rt
+
+    (tmp_path / "models" / "export" / "ov_model").mkdir(parents=True)
+    (tmp_path / "x.onnx").write_text("", encoding="utf-8")
+    (tmp_path / "models" / "export" / "aprovados.json").write_text(json.dumps({"epi": {
+        "openvino-dyn@gpu-fp32:640": {"concordancia": 1.0, "caminho": "models/export/ov_model"},
+        "onnx-dyn:640": {"concordancia": 1.0, "caminho": str(tmp_path / "x.onnx")},
+    }}), encoding="utf-8")
+    monkeypatch.setattr(rt, "gpu_disponivel", lambda: False)
+    escolha = rt.resolver(tmp_path, modelo="epi", peso_pt="vyra.pt", imgsz=640, pedido="auto", ordem="openvino-gpu,onnx,pytorch")
+    assert escolha["caminho"] == str(tmp_path / "x.onnx")
+    assert escolha["dispositivo"] is None

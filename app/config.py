@@ -322,7 +322,10 @@ class Config:
     # PyTorch 3997. Exportar e aprovar: python scripts/concordancia.py.
     PPE_RUNTIME = os.getenv("PPE_RUNTIME", "auto")
     PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "auto")
-    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "onnx,pytorch")
+    # openvino-gpu primeiro (13/10, ADENDO 1 L1): na iGPU Intel o CPU-ms do
+    # servidor por análise caiu 78 % contra o ONNX (batata 1 câm., 3 rodadas);
+    # sem GPU visível ao OpenVINO, o resolvedor pula para o ONNX.
+    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
     # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe

@@ -132,6 +132,12 @@ Padrão `PPE_RUNTIME=auto` / `PERSON_RUNTIME=auto` (o primeiro aprovado de
 `RUNTIME_ORDEM=onnx,pytorch` que exista no disco; sem export, PyTorch).
 O OpenVINO usa 1,1 GB de RSS contra 0,7 GB do ONNX.
 
+## OpenVINO na iGPU (L1 do ADENDO 1)
+
+Batata 1 câm., 3 repetições, `*-l1-r*.json` — CPU-ms do servidor por análise
+ONNX → OpenVINO GPU FP32: **6.432 → 1.401 (−78 %)**. Detalhes e guarda no
+CHANGELOG ("L1"). Padrão a partir do PR2: `RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`.
+
 ## Tracker
 
 ByteTrack não reduziu fragmentação de forma consistente e custou até 4,2 % da

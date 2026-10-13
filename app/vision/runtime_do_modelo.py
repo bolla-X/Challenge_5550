@@ -55,6 +55,16 @@ def resolver_caminho(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, p
     return escolha["caminho"], escolha["motivo"]
 
 
+def gpu_disponivel() -> bool:
+    """Se o OpenVINO enxerga uma GPU (`openvino.Core().available_devices`)."""
+    try:
+        import openvino as ov
+
+        return any(d.startswith("GPU") for d in ov.Core().available_devices)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _dispositivo_da_aprovacao(chave: str) -> tuple[str | None, str | None]:
     """`openvino-dyn@gpu-fp32:640` → ("GPU", "fp32"); sem `@` → (None, None)."""
     _, _, sufixo = chave.split(":")[0].partition("@")
@@ -81,6 +91,10 @@ def _resolver(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, pedido: 
     for runtime in candidatos:
         if runtime == "pytorch":
             return peso_pt, "PyTorch (primeiro da ordem)", None
+        if runtime == "openvino-gpu" and not gpu_disponivel():
+            # Sem iGPU, o OpenVINO cairia na CPU — mais lento que o ONNX ali
+            # (CPU-ms por análise 3.373 vs 2.926, docs/NEXT2026/BENCHMARKS.md).
+            continue
         chave = next((f"{v}:{imgsz}" for v in SUFIXOS.get(runtime, (runtime,)) if f"{v}:{imgsz}" in aprovados), None)
         if not chave:
             continue
