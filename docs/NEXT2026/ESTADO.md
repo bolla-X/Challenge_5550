@@ -21,7 +21,9 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 - F8 **descartado**: licença do MobileCLIP (só pesquisa); ultralytics fica 8.3.40.
 - Controle de privacidade só para supervisor; dispositivo ativo no Diagnóstico.
 - E2E novos: replay, pílula de aproximação, privacidade, diagnóstico, relatório,
-  queda, celular — rodando (`bench/runtime/e2e-pr2.out`).
+  queda, celular. Rodada `e2e-pr2b`: 10/11 (falhou a pílula de aproximação →
+  causa: classe Person do Vyra quase não vê pessoas; `MULTI_PERSON_DETECTION`
+  passou a ser padrão, commit `ef81e3b`). Reexecução em `bench/runtime/e2e-pr2c.out`.
 - `e2e/capturas_de_tela.py`: capturas em `bench/runtime/capturas/` (fora do git).
 
 ## Decisões em vigor
@@ -46,7 +48,7 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ## Próximo passo exato
 
-1. Ler `bench/runtime/e2e-pr2.out`; corrigir o que falhar.
+1. Ler `bench/runtime/e2e-pr2c.out`; corrigir o que falhar.
 2. `python e2e/capturas_de_tela.py`; revisar as imagens (cor só para status,
    tema claro padrão da demo, 1366x768 sem quebra); iterar.
 3. Portão do PR2: pytest, ruff, build, E2E, CPU-ms (3 repetições, base = PR1 `3891aaa`) → PR → squash.

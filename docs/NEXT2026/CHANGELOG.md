@@ -304,6 +304,27 @@ forte: rota nova passa a ser exercitada, não ignorada por 404).
   registrada para a BANCA: num pátio com muitas câmeras numa máquina fraca,
   uma queda que o modelo só enxerga por < 1 s pode não virar alerta.
 
+## F3 — a pílula de aproximação nunca aparecia (E2E) — duas causas
+
+1. No modo de um modelo só (`MULTI_PERSON_DETECTION=false`), as pessoas vinham
+   da classe `Person` do Vyra SEM passar pelo rastreador; a projeção só usa
+   pessoas com ID de rastreio → nunca havia trilha. Corrigido: essas pessoas
+   também passam pelo rastreador (`tests/test_rastreio_modelo_unico.py`, que
+   falha no código anterior).
+2. Mesmo rastreadas, quase não havia pessoas: medido (1 quadro/s, Vyra@640 e
+   yolov8n@640), pessoas por quadro — multidão **0,1 vs 7,1**, canteiro **0,0
+   vs 1,0**, queda **0,0 vs 2,0** (classe `Person` do Vyra vs yolov8n). No
+   padrão antigo o sistema estava praticamente cego para pessoas — quedas por
+   ID, aproximação, linha do tempo e EPI por pessoa dependiam disso. Diagnóstico
+   no servidor do E2E: 18 leituras de status em 90 s, 0 pré-alertas.
+   **Mudança: `MULTI_PERSON_DETECTION=true` é o padrão** (o `.env.example` já
+   dizia `true` e o teste de onboarding conferia isso; o default do código
+   divergia). Os portões do PR1 já foram medidos com ele ligado. Simulação com
+   yolov8n e a mesma zona: 5 de 15 análises com pré-alerta a 1 análise/s.
+   Também: `PERSON_MODEL_PATH` padrão passou de `yolov8n.pt` (que o ultralytics
+   baixaria da internet se não achasse no diretório de trabalho) para
+   `models/yolov8n.pt`.
+
 ## F6 — celular como câmera via QR
 
 - Docs: getUserMedia só em contexto seguro, e em contexto inseguro
