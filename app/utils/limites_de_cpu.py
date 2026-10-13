@@ -53,3 +53,28 @@ def aplicar_limites_de_cpu() -> dict[str, object]:
     if aplicado:
         logger.info("limites_de_cpu", extra=aplicado)
     return aplicado
+
+
+def manter_afinidade() -> bool:
+    """Reaplica VISIONEPI_CPUS se algo a tiver alterado. True se precisou.
+
+    Chamado periodicamente pelo thread do controlador adaptativo: bibliotecas
+    nativas podem trocar a máscara do processo depois do boot (medido com o
+    OpenCV + Concurrency Runtime no Windows), e o perfil "batata" deixaria de
+    ser batata em silêncio.
+    """
+    cpus = [int(c) for c in os.getenv("VISIONEPI_CPUS", "").split(",") if c.strip().isdigit()]
+    if not cpus:
+        return False
+    try:
+        import psutil
+
+        processo = psutil.Process()
+        if sorted(processo.cpu_affinity()) == sorted(cpus):
+            return False
+        processo.cpu_affinity(cpus)
+        logger.warning("afinidade_reaplicada", extra={"afinidade": cpus})
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("afinidade_falhou", extra={"error": str(exc)})
+        return False

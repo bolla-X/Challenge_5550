@@ -15,6 +15,7 @@ from app.services.controlador_adaptativo import ControladorAdaptativo
 from app.services.feature_manager import FeatureManager
 from app.services.gravador_assincrono import GravadorAssincrono
 from app.services.llm_risk_service import ServicoDeRiscoLLM
+from app.utils.limites_de_cpu import manter_afinidade
 from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
@@ -368,6 +369,7 @@ class MonitorService:
     def _laco_adaptativo(self) -> None:
         while not self._parar_adaptativo.wait(2.0):
             try:
+                manter_afinidade()
                 self.tique_adaptativo()
             except Exception:  # noqa: BLE001  (o controlador nunca derruba o monitor)
                 pass
