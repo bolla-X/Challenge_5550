@@ -42,11 +42,24 @@ de alerta — base 83,9 s, PyTorch 59,7 s, ONNX sem alerta em 122 s.
 - Carga de fundo de terceiros variável e alta (ffmpeg `veryslow`, 2 JVMs, outro
   python): 600–1190 % de 1200 % possíveis. Nada foi encerrado.
 
+## Como rodar bench longo (lição de 13/10)
+
+Sessão que reinicia mata o driver do Playwright e deixa o `bench.py` preso.
+Rodar SEMPRE destacado e acompanhar pelo arquivo de estado:
+
+    Start-Process .venv\Scripts\python.exe -ArgumentList scripts/rodar_portao.py,--rotulo,<r>,--reps,1,2,3,--perfis,batata,--cameras,"4,1",--arvores,"<arv>" -WindowStyle Hidden
+    Get-Content benchuntime\<r>.estado        # "FIM" quando acabou
+    python scripts/resumo_bench.py bench/results/*-<r>-r*.json
+
+Árvores do portão do PR1 em `bench/runtime/arvores_gate.txt` (base
+instrumentada × PR1 com ONNX).
+
 ## Próximo passo exato
 
-1. Ler `scratchpad`/`bench/results/*-b1cam-r{1,2,3}.json` (3 repetições
-   intercaladas, batata 1 câm.: base/pytorch/onnx/openvino) e decidir o
-   runtime (menor idade da análise p95; empate ≤5 % → PyTorch).
-2. Rodar `comparar_trackers.py` no perfil batata (VISIONEPI_CPUS=10,11) e decidir o tracker.
-3. Batata 4 câm. e perfil atual 1/4 câm.; escrever `docs/NEXT2026/BENCHMARKS.md`.
-4. Portão completo (pytest, ruff, build do frontend, E2E) → PR1 → squash.
+1. Esperar `bench/runtime/gate3.estado` = FIM (repetições 2 e 3; a 1 está em
+   `bench/results/20261013-090428-gate3-r1.json`: batata 4 câm. FPS de análise
+   PR1 0,14 vs base 0,15; 1 câm. 0,69 vs 0,48).
+2. Se FPS 4 câm. ≤ 5 % pior na mediana → escrever BENCHMARKS.md, build do
+   frontend, E2E, PR1 → squash. Senão, seguir reduzindo a disputa de CPU do
+   vídeo (próximo candidato: prioridade + decoder 1 thread junto com o grab,
+   micro-bench: 926 vs 981 ms).
