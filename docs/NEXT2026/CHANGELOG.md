@@ -177,6 +177,36 @@ falhas e reabre do início (log do E2E: `video_stream_reconnecting`,
 `consecutive_failures: 15`, a cada volta da fixture). Comportamento anterior
 a esta missão; é um engasgo visível a cada loop.
 
+## L2 — modelo de EPI leve para o modo batata (ADENDO 1): sem candidato
+
+Restrição de segurança declarada: peso `.pt` do Ultralytics é *pickle* —
+carregá-lo (inclusive para converter em ONNX) executa código do arquivo. Peso
+de terceiros só entra aqui em formato que carrega sem executar código (ONNX,
+safetensors).
+
+Buscas (13/10):
+
+- Hugging Face, API pública `api/models?search=` com `ppe`, `helmet`,
+  `hardhat`, `safety vest`, `personal protective`, filtrando quem publica
+  `.onnx`: só modelos de **capacete apenas** (`vivekvar/helmet-v5` Apache-2.0,
+  `goyalsamarth/helmetCPT` MIT, `HudatersU/Safety_helmet` GPL-3.0,
+  `raghavendra24/helmet-yolov8s` sem licença…) ou fora do tema; o único com
+  capacete E colete em ONNX é o próprio Vyra (`Hexmon/vyra-yolo-ppe-detection`,
+  YOLOv8**m**, CC BY 4.0, treinado no "PPE Combined Model v4" da Roboflow).
+- Busca web: candidatos YOLOv8n de EPI (`Tanishjain9/yolov8n-ppe-detection-6classes`
+  MIT, `Hansung-Cho/yolov8-ppe-detection`, `ayushgupta7777/safetyvision-yolov8`)
+  só em `.pt` — descartados pela restrição acima.
+- GitHub (`gh search repos "ppe detection yolov8"`): dos 20 primeiros, só
+  `Kanon14/PPE-Detection-YOLOv8` e `Venta02/ppe-detection-yolov8` declaram
+  licença (MIT), e nenhum dos dois publica pesos (árvore sem `.onnx/.pt/.safetensors`).
+
+Conjuntos rotulados públicos com capacete e colete e licença compatível
+existem (ex.: "Dataset of Personal Protective Equipment", Data in Brief 2025,
+CC BY 4.0, 2.286 imagens, YOLO; "Construction Site Safety" da Roboflow, CC BY
+4.0, com split de teste). Sem candidato aprovado, a avaliação comparativa não
+foi feita. **Resultado: L2 não entra; o Vyra segue como único modelo de EPI.**
+Sem treino nem fine-tune nesta máquina, como manda o adendo.
+
 ## 4.1 Pipeline
 
 | Mudança | Motivo | Evidência |

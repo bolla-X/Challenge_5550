@@ -142,7 +142,15 @@ def preparar_calibracao(modelo: str) -> Path:
 
 
 def detector_para(modelo: str, candidato: str) -> YoloPPEDetector:
+    """`runtime[@dispositivo-precisao]:imgsz`, ex.: `openvino-dyn@gpu-fp16:640`.
+
+    O sufixo só vale para OpenVINO: dispositivo (cpu|gpu) e dica de precisão
+    (fp32|fp16), passados ao detector como `dispositivo_openvino` e
+    `precisao_openvino`. Cada combinação é aprovada (ou não) com o próprio nome.
+    """
     runtime, imgsz = candidato.split(":")
+    runtime, _, sufixo = runtime.partition("@")
+    dispositivo, _, precisao = sufixo.partition("-")
     imgsz = int(imgsz)
     if runtime == "pytorch":
         caminho = MODELOS[modelo]["peso"]
@@ -164,10 +172,17 @@ def detector_para(modelo: str, candidato: str) -> YoloPPEDetector:
     else:
         raise SystemExit(f"runtime desconhecido: {runtime}")
     detector_para.caminhos[(modelo, candidato)] = caminho
-    return YoloPPEDetector(str(caminho), confidence=0.35, classes=MODELOS[modelo]["classes"], imgsz=imgsz)
+    detector = YoloPPEDetector(str(caminho), confidence=0.35, classes=MODELOS[modelo]["classes"], imgsz=imgsz)
+    detector_para.detectores[(modelo, candidato)] = detector
+    if dispositivo:
+        detector.dispositivo_openvino = dispositivo.upper()
+    if precisao:
+        detector.precisao_openvino = precisao.lower()
+    return detector
 
 
 detector_para.caminhos = {}
+detector_para.detectores = {}
 
 
 def emparelhar(ref, cand) -> dict[str, list[int]]:
@@ -264,11 +279,13 @@ def main() -> int:
             continue
         runtime, imgsz = candidato.split(":")
         limiar = 0.97 if imgsz == "640" else 0.95
+        r["dispositivo_ativo"] = getattr(detector_para.detectores.get((args.modelo, candidato)), "dispositivo_ativo", None)
         if total >= limiar:
             caminho = detector_para.caminhos.get((args.modelo, candidato))
             aprovados.setdefault(args.modelo, {})[candidato] = {
                 "concordancia": total, "limiar": limiar,
                 "caminho": str(Path(caminho).relative_to(RAIZ)).replace("\\", "/") if caminho else None,
+                "dispositivo_ativo": r.get("dispositivo_ativo"),
                 "data": f"{datetime.now():%Y-%m-%d}",
             }
     arquivo.parent.mkdir(parents=True, exist_ok=True)

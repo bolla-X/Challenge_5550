@@ -1,0 +1,51 @@
+{
+ "modelo": "pessoa",
+ "quadros": 126,
+ "referencia": "pytorch:640",
+ "resultados": {
+  "openvino-dyn@gpu-fp32:640": {
+   "por_classe": {
+    "person": {
+     "batidas": 428,
+     "n_ref": 428,
+     "n_cand": 428,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 428,
+     "n_ref": 428,
+     "n_cand": 428,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    }
+   },
+   "bancada_ms_p50": 40.4,
+   "bancada_ms_p95": 56.5,
+   "erro": null,
+   "dispositivo_ativo": "GPU"
+  },
+  "openvino-dyn@gpu-fp16:640": {
+   "por_classe": {
+    "person": {
+     "batidas": 428,
+     "n_ref": 428,
+     "n_cand": 429,
+     "recall_ref": 1.0,
+     "concordancia": 0.9988
+    },
+    "_total": {
+     "batidas": 428,
+     "n_ref": 428,
+     "n_cand": 429,
+     "recall_ref": 1.0,
+     "concordancia": 0.9988
+    }
+   },
+   "bancada_ms_p50": 48.0,
+   "bancada_ms_p95": 65.5,
+   "erro": null,
+   "dispositivo_ativo": "GPU"
+  }
+ }
+}

@@ -455,6 +455,9 @@ class MonitorService:
                 "imgsz": getattr(det, "imgsz", None),
                 "carga_ms": getattr(det, "load_ms", None),
                 "runtime": getattr(det, "runtime", None),
+                # O que de fato executa (OpenVINO: CPU, GPU ou fallback).
+                "dispositivo": getattr(det, "dispositivo_ativo", None)
+                or ("CPU" if getattr(det, "runtime", None) in ("pytorch", "onnx", "openvino") else None),
                 "escolha": self.runtimes.get(nome),
                 "aquecimento_ms": self.aquecimento_ms.get(str(getattr(det, "model_path", ""))),
             }

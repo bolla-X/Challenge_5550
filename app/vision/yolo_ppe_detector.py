@@ -120,6 +120,13 @@ class YoloPPEDetector:
         self.load_ms: float | None = None
         self._sessao_onnx_ajustada = False
         self._openvino_dinamico_verificado = False
+        # Dispositivo e precisão do OpenVINO (CPU | GPU; fp32 | fp16). O
+        # resolvedor de runtime ajusta por modelo; as variáveis de ambiente
+        # servem ao guarda de qualidade e ao bench. `dispositivo_ativo` é o que
+        # de fato compilou (aparece no diagnóstico), inclusive o fallback.
+        self.dispositivo_openvino = os.getenv("OPENVINO_DEVICE", "CPU").strip().upper() or "CPU"
+        self.precisao_openvino = os.getenv("OPENVINO_PRECISAO", "").strip().lower()
+        self.dispositivo_ativo: str | None = None
 
     @property
     def runtime(self) -> str:
@@ -180,7 +187,7 @@ class YoloPPEDetector:
         compilado = getattr(backend, "ov_compiled_model", None)
         if compilado is None or getattr(backend, "dynamic", False):
             return False
-        self._recompilar_openvino_na_cpu(backend)
+        self._recompilar_openvino(backend)
         try:
             dinamico = backend.ov_compiled_model.input(0).get_partial_shape().is_dynamic
         except Exception:  # noqa: BLE001
@@ -190,16 +197,22 @@ class YoloPPEDetector:
             logger.info("openvino_entrada_dinamica", extra={"model_path": self.model_path})
         return bool(dinamico)
 
-    def _recompilar_openvino_na_cpu(self, backend) -> None:
-        """Recompila na CPU, hint LATENCY e teto de threads = VISIONEPI_THREADS.
+    def _recompilar_openvino(self, backend) -> None:
+        """Recompila no dispositivo pedido (CPU por padrão), com fallback para CPU.
 
-        O ultralytics 8.3.40 compila com `device_name="AUTO"` (nesta máquina
-        pode cair na iGPU) e sem teto de threads. Pela doc do plugin de CPU, no
-        hint LATENCY o padrão de `INFERENCE_NUM_THREADS` é "P-cores ou
-        P-cores+E-cores" (10 num i7-1355U) e, no Windows, não há pinning
+        CPU: hint LATENCY e teto de threads = VISIONEPI_THREADS. O ultralytics
+        8.3.40 compila com `device_name="AUTO"` e sem teto; pela doc do plugin de
+        CPU, no LATENCY o padrão de `INFERENCE_NUM_THREADS` é "P-cores ou
+        P-cores+E-cores" (10 num i7-1355U) e não há pinning no Windows
         (https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device/performance-hint-and-thread-scheduling.html).
-        Com o processo preso a 2 núcleos isso é oversubscription — é a
-        explicação mais provável do "ganha na bancada e perde no worker".
+
+        GPU (iGPU Intel): shape dinâmico é "preview" no plugin de GPU e cada
+        shape novo compila kernel na primeira vez
+        (https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/gpu-device.html);
+        aqui cada câmera tem UM shape (a resolução cadastrada), então isso é
+        pago uma vez por câmera — e o aquecimento no boot paga o 960x540.
+        `CACHE_DIR` guarda kernels entre execuções. Falhou na GPU → CPU, e o
+        diagnóstico mostra "CPU (fallback da GPU)".
         """
         try:
             import openvino as ov
@@ -209,14 +222,30 @@ class YoloPPEDetector:
             modelo = core.read_model(model=str(xml), weights=str(xml.with_suffix(".bin")))
             if modelo.get_parameters()[0].get_layout().empty:
                 modelo.get_parameters()[0].set_layout(ov.Layout("NCHW"))
-            config: dict[str, Any] = {"PERFORMANCE_HINT": "LATENCY"}
-            threads = os.getenv("VISIONEPI_THREADS", "").strip()
-            if threads.isdigit() and int(threads) > 0:
-                config["INFERENCE_NUM_THREADS"] = int(threads)
-            backend.ov_compiled_model = core.compile_model(modelo, device_name="CPU", config=config)
-            logger.info("openvino_recompilado", extra={"model_path": self.model_path, "threads": threads or "padrao"})
         except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com o compilado do ultralytics)
             logger.warning("openvino_nao_recompilado", extra={"error": str(exc)})
+            return
+        pedido = self.dispositivo_openvino
+        tentativas = [pedido] if pedido == "CPU" else [pedido, "CPU"]
+        for dispositivo in tentativas:
+            config: dict[str, Any] = {"PERFORMANCE_HINT": "LATENCY"}
+            if dispositivo == "CPU":
+                threads = os.getenv("VISIONEPI_THREADS", "").strip()
+                if threads.isdigit() and int(threads) > 0:
+                    config["INFERENCE_NUM_THREADS"] = int(threads)
+            else:
+                config["CACHE_DIR"] = str(Path(self.model_path).parent / "ov_cache")
+            if self.precisao_openvino in ("fp16", "fp32") and dispositivo == pedido:
+                config["INFERENCE_PRECISION_HINT"] = "f16" if self.precisao_openvino == "fp16" else "f32"
+            try:
+                backend.ov_compiled_model = core.compile_model(modelo, device_name=dispositivo, config=config)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("openvino_dispositivo_falhou", extra={"dispositivo": dispositivo, "error": str(exc)})
+                continue
+            self.dispositivo_ativo = dispositivo if dispositivo == pedido else f"{dispositivo} (fallback da {pedido})"
+            logger.info("openvino_recompilado", extra={"model_path": self.model_path, "dispositivo": self.dispositivo_ativo,
+                                                       "precisao": self.precisao_openvino or "da IR"})
+            return
 
     @property
     def is_openvino(self) -> bool:
