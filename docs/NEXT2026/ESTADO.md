@@ -13,18 +13,26 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ### PR2 — o que já está na `next-2026`
 
-- WIP `b344f5e` (F1, F3, F4, F5, F7, F9, F10, Sobre, iniciar-todas) trazido por
-  cherry-pick; `dist` recompilado; varredura de rotas corrigida.
-- F2 queda do modelo atribuída a ID + linha do tempo por ID — E2E passou (com as
-  outras câmeras pausadas durante o teste; ver CHANGELOG F2).
-- F6 celular como câmera (`/cam`, token, `run.py --https`, QR vendorizado MIT).
-- F8 **descartado**: licença do MobileCLIP (só pesquisa); ultralytics fica 8.3.40.
-- Controle de privacidade só para supervisor; dispositivo ativo no Diagnóstico.
-- E2E novos: replay, pílula de aproximação, privacidade, diagnóstico, relatório,
-  queda, celular. Rodada `e2e-pr2b`: 10/11 (falhou a pílula de aproximação →
-  causa: classe Person do Vyra quase não vê pessoas; `MULTI_PERSON_DETECTION`
-  passou a ser padrão, commit `ef81e3b`). Reexecução em `bench/runtime/e2e-pr2c.out`.
-- `e2e/capturas_de_tela.py`: capturas em `bench/runtime/capturas/` (fora do git).
+- WIP `b344f5e` (F1, F3, F4, F5, F7, F9, F10, Sobre, iniciar-todas) por cherry-pick.
+- F2 queda do modelo por ID + linha do tempo; F6 celular como câmera; F8 descartado (licença).
+- Detector de pessoa padrão (`ef81e3b`) → pose passou a rodar em toda análise →
+  pose no `auto` (OpenVINO iGPU aprovado: caixas 100 %, keypoints p95 0,0) (`289d382`).
+- Bug do `stop()` (alerta ficava ativo no banco) corrigido (`9d439b3`).
+- Pílula de aproximação cede só a emergência/EPI crítico; E2E do replay abre o grupo.
+- Revisão visual 1366x768 feita e corrigida (`5953fcf`).
+- E2E: `e2e-pr2d` 9/11 → os 2 restantes passaram isolados (`e2e-pr2e`, 2/2).
+  Falta a rodada completa única do portão.
+- Bench de CPU do portão rodando: `scripts/rodar_portao.py --rotulo pr2gate`
+  (base = worktree `../VisionEPI-pr1` em `3891aaa`, com `models/export` por junção).
+
+### PR3 — adiantado em worktree `../VisionEPI-pr3` (branch local `pr3-wip`)
+
+- `71192a1`: G3 SOS, G4 imóvel, G7 ergonomia (`app/vision/sinais_por_id.py`),
+  G6 fala pt-BR (`frontend/src/audio/fala.ts` + E2E com Web Speech falsa),
+  G10 NR-6 no relatório (`app/services/nr6.py`).
+- Não commitado ainda: G1 Portal (`gate_service.avaliar_portal`, `PortalState`,
+  `/api/cameras/<id>/portal`, tela `/portal`, `tests/test_portal.py` 9/9).
+- Depois do squash do PR2: recriar `next-2026` da base e trazer o `pr3-wip` por cherry-pick.
 
 ## Decisões em vigor
 
@@ -48,7 +56,6 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ## Próximo passo exato
 
-1. Ler `bench/runtime/e2e-pr2c.out`; corrigir o que falhar.
-2. `python e2e/capturas_de_tela.py`; revisar as imagens (cor só para status,
-   tema claro padrão da demo, 1366x768 sem quebra); iterar.
-3. Portão do PR2: pytest, ruff, build, E2E, CPU-ms (3 repetições, base = PR1 `3891aaa`) → PR → squash.
+1. `bench/runtime/pr2gate.estado` = FIM → `python scripts/resumo_cpu.py bench/results/*-pr2gate-r*.json --base pr1 --novo pr2`.
+2. E2E completo numa rodada única (11/11).
+3. Push, PR2 contra `feat/completo-com-rebrand`, squash, recriar `next-2026`, cherry-pick do `pr3-wip`.

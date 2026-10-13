@@ -352,6 +352,25 @@ referência PyTorch@640 dividida pela diagonal da caixa, p95 ≤ 0,05
 Bancada é só pista (processo isolado); a decisão vale pelo E2E e pelo bench do
 portão. Fonte: `bench/results/concordancia-esqueleto-20261013-170752.json`.
 
+## Revisão visual do PR2 (capturas 1920x1080 e 1366x768, claro e escuro)
+
+`python e2e/capturas_de_tela.py` (16 telas × 4 combinações, fora do git em
+`bench/runtime/capturas/`). Critérios: cor só para status, tema claro como
+padrão da demo, nada quebrando em 1366x768. Corrigido:
+
+| tela | problema | correção |
+|---|---|---|
+| foco da câmera | barra de abas quebrava em 2 linhas ("Mais" caía) | sem quebra; abas mais justas abaixo de 1440 px |
+| foco da câmera | pílula do alerta vazava pela direita do vídeo | largura máxima com reticências |
+| Diagnóstico | KPIs (4 colunas fixas) e barras estouravam o painel | grade `auto-fit` e colunas com mínimo |
+| foco da câmera | cabeçalho mostrava o caminho inteiro do arquivo (com a pasta do usuário) | só o nome do arquivo |
+| Prova de escala | modal sem respiro (texto colado na borda) | padding |
+| Pessoas | descrição antiga ("quando o modelo PPE completo estiver disponível") | "o número é do rastreio, não uma identidade" |
+
+Não corrigido (anotado): na grade, o primeiro cartão fica ~15 px mais alto que
+os vizinhos — causa não isolada; "Visão geral" do supervisor ainda é um
+marcador "em construção" (vira o painel agregado/Modo TV no PR3, G8).
+
 ## E2E com pessoas de verdade na cena: dois testes e uma regra de tela
 
 Com o detector de pessoa padrão, a câmera Multidão passou a ter ~8 pessoas com
