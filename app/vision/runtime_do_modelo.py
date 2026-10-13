@@ -31,7 +31,14 @@ logger = logging.getLogger(__name__)
 ARQUIVO_APROVADOS = "models/export/aprovados.json"
 # Forma dinâmica primeiro (mesmo letterbox do PyTorch); a estática só se ela
 # mesma tiver sido aprovada — caso do yolov8n de pessoa (98,25 %).
-SUFIXOS = {"onnx": ("onnx-dyn", "onnx"), "openvino": ("openvino-dyn", "openvino")}
+SUFIXOS = {
+    "onnx": ("onnx-dyn", "onnx"),
+    "openvino": ("openvino-dyn", "openvino"),
+    # iGPU Intel pelo OpenVINO: FP32 primeiro (100 % no guarda), FP16 se só ele
+    # estiver aprovado. O nome da aprovação carrega dispositivo e precisão
+    # (`scripts/concordancia.py`, candidato `openvino-dyn@gpu-fp32:640`).
+    "openvino-gpu": ("openvino-dyn@gpu-fp32", "openvino-dyn@gpu-fp16"),
+}
 
 
 def _aprovados(base_dir: Path, modelo: str) -> dict[str, Any]:
@@ -44,25 +51,46 @@ def _aprovados(base_dir: Path, modelo: str) -> dict[str, Any]:
 
 def resolver_caminho(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, pedido: str, ordem: str) -> tuple[str, str]:
     """(caminho a carregar, motivo) para o runtime pedido."""
+    escolha = resolver(base_dir, modelo=modelo, peso_pt=peso_pt, imgsz=imgsz, pedido=pedido, ordem=ordem)
+    return escolha["caminho"], escolha["motivo"]
+
+
+def _dispositivo_da_aprovacao(chave: str) -> tuple[str | None, str | None]:
+    """`openvino-dyn@gpu-fp32:640` → ("GPU", "fp32"); sem `@` → (None, None)."""
+    _, _, sufixo = chave.split(":")[0].partition("@")
+    if not sufixo:
+        return None, None
+    dispositivo, _, precisao = sufixo.partition("-")
+    return dispositivo.upper(), (precisao or None)
+
+
+def resolver(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, pedido: str, ordem: str) -> dict[str, Any]:
+    """{caminho, motivo, dispositivo, precisao} para o runtime pedido."""
+    escolha = _resolver(base_dir, modelo=modelo, peso_pt=peso_pt, imgsz=imgsz, pedido=pedido, ordem=ordem)
+    caminho, motivo, chave = escolha
+    dispositivo, precisao = _dispositivo_da_aprovacao(chave) if chave else (None, None)
+    return {"caminho": caminho, "motivo": motivo, "dispositivo": dispositivo, "precisao": precisao}
+
+
+def _resolver(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, pedido: str, ordem: str) -> tuple[str, str, str | None]:
     pedido = (pedido or "pytorch").strip().lower()
     if pedido == "pytorch":
-        return peso_pt, "PyTorch (pedido)"
+        return peso_pt, "PyTorch (pedido)", None
     candidatos = [c.strip() for c in ordem.split(",") if c.strip()] if pedido == "auto" else [pedido]
     aprovados = _aprovados(base_dir, modelo)
     for runtime in candidatos:
         if runtime == "pytorch":
-            return peso_pt, "PyTorch (primeiro da ordem)"
-        registro = next(
-            (aprovados[f"{v}:{imgsz}"] for v in SUFIXOS.get(runtime, (runtime,)) if f"{v}:{imgsz}" in aprovados), None
-        )
-        if not registro:
+            return peso_pt, "PyTorch (primeiro da ordem)", None
+        chave = next((f"{v}:{imgsz}" for v in SUFIXOS.get(runtime, (runtime,)) if f"{v}:{imgsz}" in aprovados), None)
+        if not chave:
             continue
+        registro = aprovados[chave]
         caminho = Path(registro.get("caminho", ""))
         if not caminho.is_absolute():
             caminho = base_dir / caminho
         if caminho.exists():
-            return str(caminho), f"{runtime} aprovado (concordância {registro.get('concordancia')})"
-    return peso_pt, f"PyTorch (nenhum de {candidatos} aprovado para imgsz={imgsz})"
+            return str(caminho), f"{runtime} aprovado (concordância {registro.get('concordancia')})", chave
+    return peso_pt, f"PyTorch (nenhum de {candidatos} aprovado para imgsz={imgsz})", None
 
 
 def garantir_runtime(detector: Any, peso_pt: str) -> str:

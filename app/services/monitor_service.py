@@ -19,13 +19,25 @@ from app.utils.limites_de_cpu import manter_afinidade
 from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
-from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver_caminho
+from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver
 from app.vision.yolo_pose_detector import YoloPoseDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 
 class CameraNotFoundError(LookupError):
     pass
+
+
+def _aplicar_dispositivo(detector: Any, escolha: dict[str, Any]) -> None:
+    """Dispositivo/precisão da aprovação escolhida (ex.: OpenVINO na GPU, FP32).
+
+    O detector já cai para a CPU sozinho se a GPU não compilar
+    (`YoloPPEDetector._recompilar_openvino`), e o diagnóstico mostra o fallback.
+    """
+    if escolha.get("dispositivo"):
+        detector.dispositivo_openvino = escolha["dispositivo"]
+    if escolha.get("precisao"):
+        detector.precisao_openvino = escolha["precisao"]
 
 
 class MonitorService:
@@ -56,10 +68,11 @@ class MonitorService:
         # ---- modelos compartilhados: criados 1x, injetados em cada worker ----
         # Runtime: só export aprovado no guarda de qualidade; senão o .pt.
         peso_epi = str(app.config.get("PPE_MODEL_PATH", "yolov8n.pt"))
-        caminho_epi, motivo_epi = resolver_caminho(
+        escolha_epi = resolver(
             BASE_DIR, modelo="epi", peso_pt=peso_epi, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
             pedido=str(app.config.get("PPE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
         )
+        caminho_epi, motivo_epi = escolha_epi["caminho"], escolha_epi["motivo"]
         detector_principal = YoloPPEDetector(
             model_path=caminho_epi,
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
@@ -70,6 +83,7 @@ class MonitorService:
             imgsz=app.config.get("YOLO_IMGSZ", 640),
             half=app.config.get("YOLO_HALF", True),
         )
+        _aplicar_dispositivo(detector_principal, escolha_epi)
         # PPE_EXTRA_MODELS vazio => self.detector e o detector unico de sempre.
         # Com um ou mais caminhos, envelopa tudo num ensemble que roda todos no
         # mesmo frame e funde o resultado (ver EnsemblePPEDetector). Cada extra
@@ -126,10 +140,11 @@ class MonitorService:
             "YOLO_CONFIDENCE", 0.35
         )
         peso_pessoa = str(app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"))
-        caminho_pessoa, motivo_pessoa = resolver_caminho(
+        escolha_pessoa = resolver(
             BASE_DIR, modelo="pessoa", peso_pt=peso_pessoa, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
             pedido=str(app.config.get("PERSON_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
         )
+        caminho_pessoa, motivo_pessoa = escolha_pessoa["caminho"], escolha_pessoa["motivo"]
         self.person_detector = YoloPPEDetector(
             model_path=caminho_pessoa,
             confidence=confianca_pessoa,
@@ -139,6 +154,7 @@ class MonitorService:
             imgsz=app.config.get("YOLO_IMGSZ", 640),
             half=app.config.get("YOLO_HALF", True),
         )
+        _aplicar_dispositivo(self.person_detector, escolha_pessoa)
         # POSE_BACKEND=yolo: UMA passada de YOLO-pose por inferência para todas
         # as pessoas; cada esqueleto é associado ao track do detector de pessoa
         # por IoU (ver yolo_pose_detector.associar_esqueletos). O detector de
