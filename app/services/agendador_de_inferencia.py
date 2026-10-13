@@ -41,6 +41,10 @@ class _Slot:
     stats: Any | None = None
     detectar_lote: Callable[[list[Any]], list[Any]] | None = None
     pos_lote: Callable[[Any, Any, Callable[[str], None]], Any] | None = None
+    # Aplicado só ao quadro que vai de fato ser inferido (resize/rotação): o
+    # worker submete a cada quadro que chega, e a maioria é sobrescrita no slot
+    # sem nunca ser analisada — preparar todos era trabalho jogado fora.
+    preparar: Callable[[Any], Any] | None = None
     frame: Any = None
     ts_ms: float = 0.0
     pendente: bool = False
@@ -81,9 +85,10 @@ class AgendadorDeInferencia:
         self.ultimo_erro: str | None = None
 
     # ----------------------------------------------------------- registro
-    def registrar(self, camera_id: int, analisar, entregar, *, stats=None, detectar_lote=None, pos_lote=None) -> None:
+    def registrar(self, camera_id: int, analisar, entregar, *, stats=None, detectar_lote=None, pos_lote=None,
+                  preparar=None) -> None:
         with self._cond:
-            self._slots[camera_id] = _Slot(camera_id, analisar, entregar, stats, detectar_lote, pos_lote)
+            self._slots[camera_id] = _Slot(camera_id, analisar, entregar, stats, detectar_lote, pos_lote, preparar)
             if camera_id not in self._ordem:
                 self._ordem.append(camera_id)
         self._garantir_thread()
@@ -172,6 +177,7 @@ class AgendadorDeInferencia:
                     continue
                 trabalho = [(s, s.frame, s.ts_ms) for s in escolhidos]
             try:
+                trabalho = [(s, s.preparar(f) if s.preparar else f, ts) for s, f, ts in trabalho]
                 if len(trabalho) > 1 and all(s.detectar_lote and s.pos_lote for s, _, _ in trabalho):
                     self._servir_lote(trabalho)
                 else:

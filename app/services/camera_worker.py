@@ -377,6 +377,7 @@ class CameraWorker:
                     stats=self.stats,
                     detectar_lote=self._detectar_lote,
                     pos_lote=self._pos_inferencia,
+                    preparar=self._preparar_quadro,
                 )
             self._running.set()
             self._task = self.socketio.start_background_task(self._loop)
@@ -827,6 +828,11 @@ class CameraWorker:
             saida.append(det)
         return saida
 
+    def _preparar_quadro(self, frame):
+        """Resolução da câmera e rotação: o mesmo para o quadro publicado e o inferido."""
+        frame = self._ajustar_resolucao(frame)
+        return self._aplicar_rotacao(frame) if self.rotation else frame
+
     def _ajustar_resolucao(self, frame):
         """Reduz o quadro para a resolução cadastrada da câmera, se vier maior.
 
@@ -936,6 +942,12 @@ class CameraWorker:
         self.captura = CapturaContinua(lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}")
         self.captura.iniciar()
         intervalo_minimo = 1.0 / max(1, self.target_fps)
+        # Sem ninguém no MJPEG, o vídeo só alimenta a miniatura (1 quadro/s por
+        # cartão, camera-grid.tsx) e o snapshot de alerta: publicar a 12 fps
+        # custava resize + regras + emissão a cada quadro de cada câmera.
+        # Medido no batata 4 câm.: a análise ficava ~2x mais lenta disputando
+        # os 2 núcleos com esse vídeo que ninguém via.
+        intervalo_sem_espectador = 1.0 / max(0.5, float(self.app.config.get("VIDEO_FPS_SEM_ESPECTADOR", 2.0)))
         ultimo_seq = 0
         proxima_publicacao = 0.0
         contador = 0
@@ -949,23 +961,29 @@ class CameraWorker:
                             self._handle_capture_failure()
                         continue
                     frame, ts_captura_ms, ultimo_seq = item
+                    # Cada quadro que chega vai ao slot do agendador (só troca a
+                    # referência; o resize é feito por ele, e só no quadro que
+                    # for de fato inferido). Assim a análise pega o quadro mais
+                    # novo mesmo quando o vídeo publica devagar.
+                    contador += 1
+                    if self.detect_every_n <= 1 or contador % self.detect_every_n == 1 or self._analise_recente is None:
+                        self.agendador.submeter(self.camera_id, frame, ts_captura_ms)
                     agora = time.monotonic()
+                    # Análise nova fura a cadência do vídeo: o alerta não espera
+                    # a próxima vaga de publicação.
+                    nova_pendente = self._versao_analise != self._versao_consumida
+                    intervalo = intervalo_minimo if self.espectadores > 0 else intervalo_sem_espectador
                     # Fonte mais rápida que o `fps` da câmera: publica no teto
                     # pedido e conta o excedente (não é falha, é escolha).
-                    if agora < proxima_publicacao:
+                    if agora < proxima_publicacao and not nova_pendente:
                         self.stats.contar("frames_acima_do_alvo")
                         continue
-                    proxima_publicacao = max(proxima_publicacao + intervalo_minimo, agora) if proxima_publicacao else agora
+                    proxima_publicacao = max(proxima_publicacao + intervalo, agora) if proxima_publicacao else agora
                     inicio = time.perf_counter()
                     self._perf_inicio()
                     try:
-                        frame = self._ajustar_resolucao(frame)
-                        if self.rotation:
-                            frame = self._aplicar_rotacao(frame)
+                        frame = self._preparar_quadro(frame)
                         self._perf_marca("preprocessamento")
-                        contador += 1
-                        if self.detect_every_n <= 1 or contador % self.detect_every_n == 1 or self._analise_recente is None:
-                            self.agendador.submeter(self.camera_id, frame, ts_captura_ms)
                         with self._thread_lock:
                             analise = self._analise_recente
                             versao = self._versao_analise

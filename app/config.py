@@ -192,6 +192,9 @@ class Config:
     # Threads do decoder FFmpeg por câmera (arquivo e rede). 0 = padrão do
     # OpenCV, um por núcleo lógico — ver app/vision/video_stream.py.
     CAPTURA_THREADS_DECODE = env_int("CAPTURA_THREADS_DECODE", 2)
+    # Publicação de vídeo de câmera SEM espectador no MJPEG (só miniatura e
+    # snapshot). Análise nova sai na hora, independente disto.
+    VIDEO_FPS_SEM_ESPECTADOR = env_float("VIDEO_FPS_SEM_ESPECTADOR", 2.0)
     # Uma inferência em cada modelo antes de servir (run.py). Ver
     # app/vision/runtime_do_modelo.py:aquecer_modelos.
     AQUECER_MODELOS_NO_BOOT = env_bool("AQUECER_MODELOS_NO_BOOT", True)
@@ -444,6 +447,10 @@ class TestConfig(Config):
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
+    # Mesmo motivo: o runtime "auto" leria models/export/aprovados.json DA
+    # MÁQUINA (fora do git). A suíte não pode depender de export local.
+    PPE_RUNTIME = "pytorch"
+    PERSON_RUNTIME = "pytorch"
     # Mesmo motivo: um .env com credencial RTSP de planta real configurada
     # (necessaria pra rodar contra camera de verdade) nao pode fazer
     # test_add_recusa_host_sem_credencial_configurada deixar de testar o
