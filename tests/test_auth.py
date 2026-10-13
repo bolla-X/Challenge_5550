@@ -6,6 +6,8 @@ Roda com `AUTH_REQUIRED=True` (ver AuthTestConfig) — o resto da suíte usa
 """
 from __future__ import annotations
 
+import re
+
 import pytest
 from app import create_app
 from app.config import AuthTestConfig
@@ -223,8 +225,12 @@ def test_toda_rota_exige_sessao(app, client):
         if regra.endpoint in PUBLICAS:
             continue
         metodo = "GET" if "GET" in regra.methods else sorted(regra.methods - {"HEAD", "OPTIONS"})[0]
-        caminho = regra.rule.replace("<int:alert_id>", "1").replace("<int:camera_id>", "1")
-        caminho = caminho.replace("<int:user_id>", "1").replace("<path:filename>", "x.jpg")
+        # Qualquer parâmetro de rota, não só os conhecidos: com `<int:indice>`
+        # literal na URL o Flask devolvia 404 ANTES da autenticação, e a rota
+        # passava sem ser exercitada (o clipe de replay do F1 foi o caso).
+        caminho = re.sub(r"<int:[^>]+>", "1", regra.rule)
+        caminho = re.sub(r"<path:[^>]+>", "x.jpg", caminho)
+        caminho = re.sub(r"<[^>]+>", "x", caminho)
         resposta = client.open(caminho, method=metodo)
         if resposta.status_code != 401:
             desprotegidas.append(f"{metodo} {regra.rule} -> {resposta.status_code}")
