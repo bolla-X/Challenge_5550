@@ -156,7 +156,9 @@ class YoloPPEDetector:
             threads = os.getenv("VISIONEPI_THREADS", "").strip()
             if threads.isdigit() and int(threads) > 0:
                 opcoes.intra_op_num_threads = int(threads)
-            opcoes.add_session_config_entry("session.intra_op.allow_spinning", "0")
+            # ONNX_SPINNING=1 religa a espera ativa (padrão 0; ver BENCHMARKS.md).
+            spinning = "1" if os.getenv("ONNX_SPINNING", "0").strip() == "1" else "0"
+            opcoes.add_session_config_entry("session.intra_op.allow_spinning", spinning)
             backend.session = ort.InferenceSession(str(self.model_path), sess_options=opcoes, providers=["CPUExecutionProvider"])
             logger.info("sessao_onnx_ajustada", extra={"model_path": self.model_path, "threads": threads or "padrao"})
         except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com a sessão do ultralytics)

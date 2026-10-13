@@ -89,6 +89,31 @@ fundo variável; `[1,7]` mistura P-core com HT e E-core). Agora:
 | Primeira análise depois de ligar a câmera levava ~30 s (pose carregada preguiçosamente, predictor e sessão ONNX criados na 1ª inferência) e isso entrava inteiro na latência do 1º alerta | log da rodada ONNX: câmera ligada 10:31:23, `sessao_onnx_ajustada` 10:31:53, alerta 10:31:59 | `MonitorService.aquecer()` chamado pelo `run.py` antes de servir (não no construtor: o `wsgi.py` também é importado pelos comandos `flask users`) |
 | No batata 4 câm., FPS de análise do PR1 0,10–0,11/câm. contra 0,14–0,15 da base: cada análise custava ~2x disputando os 2 núcleos com o vídeo das 4 fontes em tempo real (a base toca o arquivo em câmera lenta, no ritmo da inferência) | custo por análise: EPI 1837 vs 1379 ms, pessoa 358 vs 241 ms (`*-gate2-b4-*.json`) | (1) câmera sem espectador publica vídeo a `VIDEO_FPS_SEM_ESPECTADOR=2` (miniatura = 1 quadro/s por cartão), análise nova fura a cadência; (2) o agendador faz o resize só do quadro que vai inferir; (3) acima da taxa útil a captura só AVANÇA a fonte (`VideoStream.pular`: grab sem retrieve), mantendo o tempo real. Micro-bench (2 E-cores, 4 fontes): inferência EPI ONNX 791 ms sem vídeo, 1178 ms com as 4 convertendo todo quadro, 981 ms convertendo ~2,5 quadros/s cada; prioridade de thread mais baixa sozinha: 1186 ms (não adotada) |
 
+**Política de gravação sem espectador (decisão de produto, 13/10).** Mesmo
+com as três mudanças acima, no batata 4 câm. sob saturação o FPS de análise
+do PR1 ficou 0,05 contra 0,08 da base (`*-gate4-r*.json`, fundo ~1000 %).
+Causa: manter um arquivo H.264 no relógio exige decodificar TODO quadro
+(25–30/s por gravação); a base não paga isso porque toca o arquivo em câmera
+lenta (fração do tempo real 0,01–0,04). Alternativas medidas e rejeitadas:
+
+- decode por hardware: `CAP_PROP_HW_ACCELERATION=VIDEO_ACCELERATION_ANY`
+  devolve aceleração 0 neste build do OpenCV (indisponível);
+- busca por keyframe: o modo bruto (`CAP_PROP_FORMAT=-1` +
+  `CAP_PROP_LRF_HAS_KEY_FRAME`) indexa os keyframes barato (31 ms para 375
+  quadros; GOP = 12), mas `set(CAP_PROP_POS_FRAMES)` + `read()` custou 64 ms
+  (960x540) e 164 ms (1280x720) POR QUADRO — pior que decodificar em sequência;
+- lote de 4 câmeras numa chamada (`INFERENCIA_LOTE`): reprova no guarda sem
+  precisar de bench — com quadros de formatos diferentes (960x540 e 720x576)
+  o ultralytics usa letterbox QUADRADO (`same_shapes` falso em
+  `engine/predictor.py`), o mesmo caso medido em 95,04 % (< 97 %).
+
+Adotado: **gravação (arquivo) sem ninguém no MJPEG avança a
+`CAPTURA_FPS_SEM_ESPECTADOR=4` quadros/s** em vez de no relógio
+(`GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL=true`); ao abrir o foco, volta ao tempo
+real de onde está. Câmera AO VIVO (webcam, RTSP) não muda. A tela já rotula
+arquivo como GRAVAÇÃO. Testes: `test_gravacao_sem_espectador_desacelera_em_vez_de_decodificar_tudo`,
+`test_gravacao_com_espectador_segue_o_relogio`.
+
 **Documentação no código que estava errada:** o comentário de
 `VideoStream._ler_do_capture` dizia que descartar N quadros com `grab()` custa
 "N demux e UM decode". Medido num E-core (1 thread de decode): `grab()` 1,17 ms
