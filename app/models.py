@@ -124,6 +124,23 @@ DEFAULT_CAMERA_FEATURES = {
 }
 
 
+class MetaDoSetor(db.Model):
+    """Metas do Modo TV (G8), só no nível de SETOR — nunca por pessoa.
+
+    `setor` é o `location` da câmera (ou o nome, quando não há local).
+    """
+
+    __tablename__ = "metas_setor"
+
+    setor = db.Column(db.String(160), primary_key=True)
+    minutos_conformes = db.Column(db.Integer, nullable=True)
+    checkins_portal = db.Column(db.Integer, nullable=True)
+    atualizado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    def to_dict(self) -> dict:
+        return {"setor": self.setor, "minutos_conformes": self.minutos_conformes, "checkins_portal": self.checkins_portal}
+
+
 class Camera(db.Model):
     __tablename__ = "cameras"
 

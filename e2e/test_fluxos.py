@@ -347,3 +347,25 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
     finally:
         contexto.close()
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=10)
+
+
+def test_modo_tv_mostra_setores_e_metas_do_supervisor(navegador, servidor):
+    """G8: `/tv` mostra um bloco por setor; meta só o supervisor define (técnico: 403)."""
+    assert servidor.sessao("technical").put(f"{servidor.base}/api/tv/metas/Canteiro",
+                                            json={"minutos_conformes": 5}, timeout=10).status_code == 403
+    r = servidor.sessao("supervisor").put(f"{servidor.base}/api/tv/metas/Canteiro",
+                                          json={"minutos_conformes": 120, "checkins_portal": 10}, timeout=10)
+    assert r.status_code == 200, r.text
+    contexto = navegador.new_context(viewport={"width": 1920, "height": 1080})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "supervisor")
+        pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.wait_for(timeout=30_000)
+        pagina.goto(f"{servidor.base}/tv")
+        bloco = pagina.locator('[data-testid="tv-setor-Canteiro"]')
+        bloco.wait_for(timeout=30_000)
+        assert "/ 120" in bloco.inner_text()
+        texto = pagina.locator("[data-testid=tv]").inner_text()
+        assert "Pessoa " not in texto, "o Modo TV não mostra nada por pessoa"
+    finally:
+        contexto.close()

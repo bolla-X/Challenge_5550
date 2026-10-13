@@ -626,3 +626,26 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 @keyframes portal-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (max-width: 900px) { .portal-corpo { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .portal-item, .portal-marca { animation: none; transition: none; } }
+
+/* Modo TV / Andon (G8): legível a 5 m. Cor só no estado (pontos, barra de meta); números grandes e neutros. */
+.tv { min-height: 100vh; display: flex; flex-direction: column; gap: var(--s5); padding: var(--s6); background: var(--bg, var(--sunken)); }
+.tv-cabeca { display: flex; justify-content: space-between; align-items: baseline; }
+.tv-cabeca h1 { margin: 0; font-size: clamp(32px, 3.2vw, 56px); letter-spacing: -.02em; }
+.tv-cabeca .t-data { font-size: clamp(28px, 2.8vw, 48px); color: var(--text-2); }
+.tv-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: var(--s5); }
+.tv-setor { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s5); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-1); }
+.tv-setor header { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); }
+.tv-setor h2 { margin: 0; font-size: clamp(28px, 2.4vw, 44px); letter-spacing: -.02em; }
+.tv-cameras { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; color: var(--text-2); }
+.tv-numeros { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
+.tv-numeros > div { display: flex; flex-direction: column; gap: 4px; }
+.tv-grande { font-size: clamp(56px, 6vw, 112px); font-weight: 700; line-height: 1; letter-spacing: -.03em; }
+.tv-numeros span { font-size: 20px; color: var(--text-2); }
+.tv-meta { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--s3); font-size: 22px; align-items: baseline; }
+.tv-meta strong { font-size: 26px; }
+.tv-barra { grid-column: 1 / -1; height: 10px; border-radius: 5px; background: var(--sunken); overflow: hidden; }
+.tv-barra span { display: block; height: 100%; background: var(--ok); transform-origin: left; transition: transform .6s cubic-bezier(.2, .8, .2, 1); }
+.tv-conquistas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.tv-conquistas li { font-size: 18px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--ok); color: var(--ok); animation: portal-entra .4s cubic-bezier(.2, .8, .2, 1) both; }
+.tv-rodape { font-size: 16px; }
+@media (prefers-reduced-motion: reduce) { .tv-barra span, .tv-conquistas li { transition: none; animation: none; } }

@@ -11,6 +11,8 @@ import type {
   FeaturesResponse,
   GateState,
   PortalState,
+  TvEstado,
+  TvSetor,
   ModelDiagnostics,
   MonitorStatus,
   OverlayOptions,
@@ -165,6 +167,9 @@ export const listEvents = (params: { limit?: number; eventType?: string; severit
 // ---- modo portaria (ver app/services/gate_service.py) ---------------------
 export const getGate = (camId: number) => apiFetch<GateState>(`/api/cameras/${camId}/gate`);
 export const getPortal = (camId: number) => apiFetch<PortalState>(`/api/cameras/${camId}/portal`);
+export const getTv = () => apiFetch<TvEstado>("/api/tv");
+export const putMetaDoSetor = (setor: string, meta: { minutos_conformes?: number | null; checkins_portal?: number | null }) =>
+  apiFetch<TvSetor["metas"]>(`/api/tv/metas/${encodeURIComponent(setor)}`, { method: "PUT", body: JSON.stringify(meta) });
 export const putGate = (camId: number, required: string[] | null) =>
   apiFetch<{ camera_id: number; required: string[]; enabled: boolean }>(`/api/cameras/${camId}/gate`, {
     method: "PUT",

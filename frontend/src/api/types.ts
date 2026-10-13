@@ -523,3 +523,29 @@ export interface PortalState {
   people: number;
   checkins: number;
 }
+
+/** Modo TV / Andon (G8): tudo por setor, nada por pessoa. */
+export interface TvCamera {
+  camera_id: number;
+  nome: string;
+  running: boolean;
+  conformidade_atual: number | null;
+  sequencia_min: number;
+}
+export interface TvSetor {
+  setor: string;
+  cameras: TvCamera[];
+  conformidade_atual: number | null;
+  sequencia_min: number;
+  minutos_com_pessoas: number;
+  minutos_conformes: number;
+  checkins_portal: number;
+  alertas_criticos: number;
+  alertas_reconhecidos: number;
+  metas: { setor: string; minutos_conformes: number | null; checkins_portal: number | null };
+  conquistas: { id: string; texto: string }[];
+}
+export interface TvEstado {
+  setores: TvSetor[];
+  janela_h: number;
+}

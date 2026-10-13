@@ -23,6 +23,7 @@ from app.services.alert_state_service import AlertStateService
 from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
+from app.services.andon import ContadorDeMinutos
 from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
 from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
@@ -378,6 +379,8 @@ class CameraWorker:
         self._gate = GateState()
         # Portal de Entrada (G1): mesmos EPIs exigidos da portaria, contado em análises.
         self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
+        # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
+        self.andon = ContadorDeMinutos()
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -1302,6 +1305,7 @@ class CameraWorker:
                     self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
                                               metadata={"exigidos": list(self.gate_required)})
         if nova:
+            self.andon.registrar(compliance_state.get("people") or [], self.epis_exigidos(), time.time())
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
             self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
 
@@ -2033,6 +2037,19 @@ class CameraWorker:
         if not self.gate_required:
             return base | {"verdict": "off", "missing": [], "people": 0}
         return base | self._gate.atual
+
+    def epis_exigidos(self) -> list[str]:
+        """O que o setor exige: os da portaria, se houver; senão os EPIs ligados que o modelo verifica."""
+        if self.gate_required:
+            return list(self.gate_required)
+        suportados = self.rule_engine.supported_ppe()
+        return [k for k in PPE_KEYS if k in suportados and self.feature_manager.is_enabled("ppe")
+                and self.feature_manager.is_enabled(k)]
+
+    def andon_resumo(self) -> dict[str, Any]:
+        resumo = self.andon.resumo()
+        return {"camera_id": self.camera_id, "running": self._running.is_set(), **resumo,
+                "checkins_portal": self._portal.checkins, "_ok": self.andon.ultimo_ok, "_total": self.andon.ultimo_total}
 
     def portal_state(self) -> dict[str, Any]:
         base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}
