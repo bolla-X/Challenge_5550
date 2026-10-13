@@ -289,6 +289,36 @@ class MonitorService:
     def latest_jpeg_versionado(self, camera_id: int | None = None) -> tuple[bytes | None, int]:
         return self._get_worker(camera_id).latest_jpeg_versionado()
 
+    def worker_da_camera(self, camera_id: int | None = None) -> CameraWorker:
+        """O worker em si — para o gerador do MJPEG e o diagnóstico do pipeline."""
+        return self._get_worker(camera_id)
+
+    def diagnostico_do_pipeline(self, camera_ids: list[int] | None = None, janela_s: float = 30.0) -> dict[str, Any]:
+        """Percentis por etapa e taxas de cada câmera, mais o estado dos modelos."""
+        with self._workers_lock:
+            workers = dict(self._workers)
+        cameras = {}
+        for camera_id, worker in workers.items():
+            if camera_ids is not None and camera_id not in camera_ids:
+                continue
+            cameras[str(camera_id)] = {
+                "running": worker._running.is_set(),
+                "fonte_fps": worker.video_stream.fps_da_fonte,
+                "alvo_fps": worker.target_fps,
+                "detectar_a_cada_n": worker.detect_every_n,
+                "stats": worker.stats.resumo(janela_s),
+            }
+        detectores = {"epi": self.detector, "pessoa": self.person_detector}
+        modelos = {
+            nome: {
+                "caminho": getattr(det, "model_path", None),
+                "imgsz": getattr(det, "imgsz", None),
+                "carga_ms": getattr(det, "load_ms", None),
+            }
+            for nome, det in detectores.items()
+        }
+        return {"cameras": cameras, "modelos": modelos}
+
     def latest_analysis(self, camera_id: int | None = None) -> dict[str, Any] | None:
         return self._get_worker(camera_id).latest_analysis()
 

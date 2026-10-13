@@ -42,3 +42,7 @@ auto.key
 runtime_server.log
 docs/pitch/*.mp4
 docs/pitch/*.webm
+
+# NEXT 2026: fontes baixadas e saidas efemeras do bench (os JSON de bench/results sao versionados)
+bench/_source/
+bench/runtime/

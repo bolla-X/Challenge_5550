@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from functools import cached_property
 from typing import Any
 
@@ -115,6 +116,7 @@ class YoloPPEDetector:
         # é outro YoloPPEDetector (ver MonitorService.person_detector).
         self.require_person = require_person
         self._last_diagnostics: dict[str, Any] | None = None
+        self.load_ms: float | None = None
 
     @property
     def is_openvino(self) -> bool:
@@ -171,9 +173,13 @@ class YoloPPEDetector:
         logger.info("loading_yolo_model", extra={"model_path": self.model_path, "openvino": self.is_openvino})
         # task="detect" só é obrigatório no OpenVINO, mas informar sempre é
         # correto (este projeto só faz detecção) e evita um ramo a mais.
+        inicio = time.perf_counter()
         modelo = YOLO(self.model_path, task="detect")
         if self.is_openvino:
             self._validar_imgsz(modelo)
+        # Tempo de carga do peso (sem a primeira inferencia, que tem warmup
+        # proprio). Sai no diagnostico e no bench.
+        self.load_ms = round((time.perf_counter() - inicio) * 1000.0, 1)
         return modelo
 
     def _validar_imgsz(self, modelo) -> None:

@@ -190,6 +190,7 @@ class VideoStream:
         self.max_backoff_seconds = max(self.initial_backoff_seconds, float(max_backoff_seconds))
 
         self._capture: cv2.VideoCapture | None = None
+        self.fps_da_fonte: float | None = None
         self._lock = threading.RLock()
         self._latest_frame = None
 
@@ -276,6 +277,13 @@ class VideoStream:
         # implementam. Quem resolve o caso da rede é o descarte explícito em
         # `_ler_do_capture`.
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # FPS declarado pela fonte. Em arquivo, e o ritmo "de verdade" do video:
+        # comparar com os frames lidos por segundo diz se o pipeline toca o
+        # video em tempo real ou em camera lenta (ver scripts/bench.py).
+        try:
+            self.fps_da_fonte = float(capture.get(cv2.CAP_PROP_FPS) or 0.0) or None
+        except Exception:  # noqa: BLE001
+            self.fps_da_fonte = None
         self._capture = capture
         self._last_error = None
         logger.info("video_stream_opened", extra={"source": redigir_segredos(str(self.source))})

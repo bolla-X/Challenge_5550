@@ -23,6 +23,7 @@ from app.models import Alert, User  # noqa: F401  (registra os modelos no metada
 from app.services.feature_manager import FeatureManager
 from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.auth import current_user
+from app.utils.limites_de_cpu import aplicar_limites_de_cpu
 from app.utils.logging_config import configure_logging
 from app.utils.salas import salas_do_usuario
 
@@ -88,6 +89,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         engineio_logger=False,
     )
 
+    app.config["LIMITES_DE_CPU"] = aplicar_limites_de_cpu()
     feature_manager = FeatureManager.from_config(app.config)
     monitor_service = MonitorService(app, socketio, feature_manager)
 

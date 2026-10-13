@@ -21,6 +21,7 @@ from app.services.alert_state_service import AlertStateService
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
 from app.services.gate_service import GateState, avaliar_quadro
+from app.services.pipeline_stats import EstatisticasDoPipeline
 from app.services.risk_rules import RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
@@ -124,6 +125,12 @@ class CameraWorker:
         self._thread_lock = threading.RLock()
         self._task = None
         self._latest_jpeg: bytes | None = None
+        # Instante (epoch, ms) em que o frame do `_latest_jpeg` saiu da captura.
+        # Vai no cabecalho de cada parte do MJPEG para o navegador medir a
+        # idade do quadro na tela (ver `scripts/bench.py`).
+        self._latest_capture_ts_ms: float | None = None
+        # Percentis por etapa e taxas, sempre ligados (ver pipeline_stats.py).
+        self.stats = EstatisticasDoPipeline()
         self._latest_analysis: dict[str, Any] | None = None
         self._last_error: str | None = None
         # Ultimo estado de captura JA comunicado — so emite evento na transicao,
@@ -282,6 +289,8 @@ class CameraWorker:
             self.alert_state_service.reset()
             self._emitir("active_alerts", {"camera_id": self.camera_id, "items": [], "count": 0})
             self._latest_jpeg = None
+            self._latest_capture_ts_ms = None
+            self.stats.limpar()
             self._latest_analysis = None
             self._last_error = None
             self._frame_counter = 0
@@ -445,6 +454,16 @@ class CameraWorker:
         """
         with self._thread_lock:
             return self._latest_jpeg, self._frame_counter
+
+    def latest_jpeg_com_carimbo(self) -> tuple[bytes | None, int, float | None]:
+        """Como `latest_jpeg_versionado`, mais o instante de captura (epoch ms)."""
+        with self._thread_lock:
+            return self._latest_jpeg, self._frame_counter, self._latest_capture_ts_ms
+
+    def registrar_envio_de_video(self, nbytes: int) -> None:
+        """Chamado pelo gerador do MJPEG a cada parte enviada a um cliente."""
+        self.stats.contar("frames_enviados")
+        self.stats.contar("bytes_video", nbytes)
 
     def latest_analysis(self) -> dict[str, Any] | None:
         with self._thread_lock:
@@ -633,11 +652,15 @@ class CameraWorker:
                     if not ok or frame is None:
                         self._handle_capture_failure()
                         continue
+                    ts_captura_ms = time.time() * 1000.0
+                    self.stats.contar("frames_lidos")
                     if self.rotation:
                         frame = self._aplicar_rotacao(frame)
 
                     analysis = self._analyze_frame(frame)
                     self._registrar_diagnostico(frame, analysis, self._analise_foi_nova)
+                    if self._analise_foi_nova:
+                        self.stats.contar("inferencias")
                     self._perf_marca("analise")
                     # UMA passada de regras por frame. O resultado (alertas +
                     # estado por pessoa) alimenta tanto o AlertStateService
@@ -690,6 +713,7 @@ class CameraWorker:
                         jpeg = buffer.tobytes()
                         with self._thread_lock:
                             self._latest_jpeg = jpeg
+                            self._latest_capture_ts_ms = ts_captura_ms
                             self._latest_analysis = analysis.to_dict() | {
                                 "alerts": alert_state["active"],
                                 "alert_changes": alert_state["changed"],
@@ -701,6 +725,8 @@ class CameraWorker:
                                 "segunda_opiniao": self._segunda_opiniao,
                             }
                             self._frame_counter += 1
+                        self.stats.contar("frames_publicados")
+                        self.stats.duracao("idade_publicacao", time.time() * 1000.0 - ts_captura_ms)
 
                     # Fora da thread do loop: `submeter()` só marca o slot e
                     # entrega ao executor (11 microssegundos, docs/SPRINT3.md).
@@ -747,6 +773,7 @@ class CameraWorker:
                     time.sleep(1.0)
 
                 elapsed = time.perf_counter() - start_time
+                self.stats.duracao("loop_total", elapsed * 1000.0)
                 time.sleep(max(0.0, frame_interval - elapsed))
 
     # ------------------------------------------------------- perfil do loop -
@@ -762,17 +789,19 @@ class CameraWorker:
         emitir_para_camera(self.socketio, evento, payload, self.camera_id)
 
     def _perf_inicio(self) -> None:
-        if not self._perf_ativo:
-            return
         self._perf_t = time.perf_counter()
-        self._perf_atual = {}
+        if self._perf_ativo:
+            self._perf_atual = {}
 
     def _perf_marca(self, etapa: str) -> None:
-        if not self._perf_ativo:
-            return
+        # Sempre alimenta `self.stats` (custo: um perf_counter e um append);
+        # o log agregado continua so com PROFILE_FRAMES.
         agora = time.perf_counter()
-        self._perf_atual[etapa] = (agora - self._perf_t) * 1000.0
+        ms = (agora - self._perf_t) * 1000.0
         self._perf_t = agora
+        self.stats.duracao(etapa, ms)
+        if self._perf_ativo:
+            self._perf_atual[etapa] = ms
 
     def _perf_fim(self) -> None:
         if not self._perf_ativo:
@@ -1092,14 +1121,18 @@ class CameraWorker:
             self._perf_marca("espera_do_lock")
             if self._needs_yolo_detection():
                 ppe_detections = self.detector.detect(frame)
-                self._perf_marca("yolo")
+                self._perf_marca("inferencia_epi")
                 people = []
                 if self.app.config.get("MULTI_PERSON_DETECTION", True):
                     # Só as pessoas passam pelo tracker — EPIs são associados
                     # geometricamente a elas (PersonComplianceMatcher), não
                     # rastreados por conta própria.
-                    people = self.person_tracker.update(self.person_detector.detect(frame))
+                    pessoas_detectadas = self.person_detector.detect(frame)
+                    self._perf_marca("inferencia_pessoa")
+                    people = self.person_tracker.update(pessoas_detectadas)
+                    self._perf_marca("tracking")
                 ppe_detections = self._gate_ppe_to_people(ppe_detections, people)
+                self._perf_marca("filtro_epi")
                 detections = ppe_detections + people
             if self.feature_manager.is_enabled("pose"):
                 poses = self._estimate_poses(frame, detections)

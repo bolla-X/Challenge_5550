@@ -315,9 +315,10 @@ def camera_video_feed(camera_id: int):
         ultimo_envio = time.monotonic()
         while True:
             try:
-                jpeg, versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
+                worker = monitor.worker_da_camera(camera_id)
+                jpeg, versao, capturado_em = worker.latest_jpeg_com_carimbo()
             except LookupError:
-                jpeg, versao = None, -1
+                worker, jpeg, versao, capturado_em = None, None, -1, None
 
             agora = time.monotonic()
             novo = versao != ultima_versao
@@ -328,7 +329,16 @@ def camera_video_feed(camera_id: int):
             ultima_versao = versao
             ultimo_envio = agora
             body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + body + b"\r\n"
+            # X-Capture-Ts: instante de captura (epoch ms). Quem le o stream por
+            # fetch (bench, player em canvas) mede a idade do quadro na tela.
+            carimbo = f"X-Frame-Id: {versao}\r\nX-Capture-Ts: {capturado_em:.1f}\r\n" if jpeg and capturado_em else ""
+            parte = (
+                b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(body)).encode()
+                + b"\r\n" + carimbo.encode() + b"\r\n" + body + b"\r\n"
+            )
+            if worker is not None:
+                worker.registrar_envio_de_video(len(parte))
+            yield parte
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
