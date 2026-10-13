@@ -2,37 +2,25 @@
 
 Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a cada marco.
 
-## Marco atual: PR2 em construção (Fase 2)
+## Marco atual: PR3 em validação (Fase 3)
 
 | PR | Situação | Evidência |
 |---|---|---|
 | PR1 performance + benchmark | **mergeado** (squash `3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
-| Alavancas L1/L2 (entram no PR2) | L1 **aprovada** (OpenVINO iGPU FP32 padrão do `auto`; CPU-ms/análise −78 %); L2 **sem candidato** | CHANGELOG "L1", "L2"; `bench/results/*-l1-r*.json` |
-| PR2 diferenciais | em andamento na branch local `next-2026` | ver abaixo |
-| PR3, PR4 | não iniciados | — |
+| PR2 diferenciais + L1 | **mergeado** (squash `753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 — portão: pytest 488, E2E 11/11, CPU-ms/análise −69 a −71 % |
+| PR3 funções criativas | `next-2026` recriada de `753daa0` + cherry-pick do `pr3-wip` | ver abaixo |
+| PR4 | não iniciado | — |
 
-### PR2 — o que já está na `next-2026`
+### PR3 — na `next-2026`
 
-- WIP `b344f5e` (F1, F3, F4, F5, F7, F9, F10, Sobre, iniciar-todas) por cherry-pick.
-- F2 queda do modelo por ID + linha do tempo; F6 celular como câmera; F8 descartado (licença).
-- Detector de pessoa padrão (`ef81e3b`) → pose passou a rodar em toda análise →
-  pose no `auto` (OpenVINO iGPU aprovado: caixas 100 %, keypoints p95 0,0) (`289d382`).
-- Bug do `stop()` (alerta ficava ativo no banco) corrigido (`9d439b3`).
-- Pílula de aproximação cede só a emergência/EPI crítico; E2E do replay abre o grupo.
-- Revisão visual 1366x768 feita e corrigida (`5953fcf`).
-- E2E: `e2e-pr2d` 9/11 → os 2 restantes passaram isolados (`e2e-pr2e`, 2/2).
-  Falta a rodada completa única do portão.
-- Bench de CPU do portão rodando: `scripts/rodar_portao.py --rotulo pr2gate`
-  (base = worktree `../VisionEPI-pr1` em `3891aaa`, com `models/export` por junção).
-
-### PR3 — adiantado em worktree `../VisionEPI-pr3` (branch local `pr3-wip`)
-
-- `71192a1`: G3 SOS, G4 imóvel, G7 ergonomia (`app/vision/sinais_por_id.py`),
-  G6 fala pt-BR (`frontend/src/audio/fala.ts` + E2E com Web Speech falsa),
-  G10 NR-6 no relatório (`app/services/nr6.py`).
-- Não commitado ainda: G1 Portal (`gate_service.avaliar_portal`, `PortalState`,
-  `/api/cameras/<id>/portal`, tela `/portal`, `tests/test_portal.py` 9/9).
-- Depois do squash do PR2: recriar `next-2026` da base e trazer o `pr3-wip` por cherry-pick.
+- G1 Portal (`/portal`), G2 Você vs. a IA (`/desafio`, GABARITO.md), G3 SOS,
+  G4 imóvel, G5 planta (aba Planta), G6 fala pt-BR, G7 ergonomia, G8 Modo TV
+  (`/tv`, metas por setor, migração `e7f8a9b0c1d2`), G9 rotular (`/rotular`),
+  G10 NR-6 no relatório; laboratório "Pergunte à planta" (desligado).
+- Migrações novas: `e7f8a9b0c1d2` (metas_setor), `f9a0b1c2d3e4` (cameras.planta).
+- pytest 554; ruff ok; build ok. E2E (17 fluxos) rodando: `bench/runtime/e2e-pr3a.out`.
+- Custo por protótipo medido em `pipeline_stats` (etapas `g1_portal`,
+  `g3_g4_g7_sinais`, `g5_planta`, `g8_andon`, `g9_rotulos`).
 
 ## Decisões em vigor
 
@@ -56,6 +44,8 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ## Próximo passo exato
 
-1. `bench/runtime/pr2gate.estado` = FIM → `python scripts/resumo_cpu.py bench/results/*-pr2gate-r*.json --base pr1 --novo pr2`.
-2. E2E completo numa rodada única (11/11).
-3. Push, PR2 contra `feat/completo-com-rebrand`, squash, recriar `next-2026`, cherry-pick do `pr3-wip`.
+1. E2E do PR3 (`e2e-pr3a.out`) 17/17; corrigir o que falhar.
+2. Custo por protótipo (≤ 10 % do orçamento do quadro) lendo `/api/diagnostics/pipeline`
+   com as câmeras rodando; bench CPU-ms PR2 (`753daa0`) × PR3, 3 repetições.
+3. Capturas das telas novas; CHANGELOG do PR3; PR3 → squash; recriar `next-2026`.
+4. PR4 (demo, confiabilidade, docs), incluindo o ruído de alertas (5 por pessoa).

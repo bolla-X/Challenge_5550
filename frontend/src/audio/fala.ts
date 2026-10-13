@@ -56,10 +56,8 @@ function falarAgora(frase: string, voz: SpeechSynthesisVoice) {
   u.rate = 1.05;
   faladas.set(frase, Date.now());
   falandoAte = Date.now() + INTERVALO_MIN_MS;
-  u.onend = () => {
-    falandoAte = Math.min(falandoAte, Date.now() + 800);
-    agendar();
-  };
+  // O intervalo mínimo conta do INÍCIO da frase; terminar antes não o encurta.
+  u.onend = () => agendar();
   s.speak(u);
 }
 

@@ -166,6 +166,9 @@ def pagina(navegador, servidor):
 
 def entrar(pagina, servidor, papel: str) -> None:
     pagina.goto(servidor.base + "/")
+    # 60 s: com 4 câmeras e alertas acumulados, o primeiro carregamento depois
+    # de limpar os cookies já passou de 30 s numa rodada completa.
+    pagina.get_by_label("E-mail").wait_for(timeout=60_000)
     pagina.get_by_label("E-mail").fill(servidor.emails[papel])
     pagina.get_by_label("Senha").fill(servidor.senhas[papel])
     pagina.get_by_role("button", name="Entrar").click()
