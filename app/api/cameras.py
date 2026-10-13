@@ -405,6 +405,72 @@ def camera_linha_do_tempo_do_id(camera_id: int, pessoa_id: str):
     return jsonify(linha | {"camera_id": camera_id})
 
 
+@cameras_bp.get("/api/cameras/<int:camera_id>/planta")
+@login_required
+def camera_planta(camera_id: int):
+    """Planta baixa ao vivo (G5): calibração, pés projetados, zona e calor na planta."""
+    from app.vision.planta import poligono_na_planta, projetar, homografia
+
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    calibracao = camera.planta
+    resposta = {"camera_id": camera_id, "calibracao": calibracao, "pes": [], "zona": [], "calor": []}
+    if not calibracao:
+        return jsonify(resposta)
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        worker = monitor.worker_da_camera(camera_id)
+    except LookupError:
+        return jsonify(resposta)
+    resposta["pes"] = worker.pes_na_planta
+    try:
+        resposta["zona"] = poligono_na_planta(list(worker.rule_engine.risk_polygon or []), calibracao)
+        calor = worker.mapa_de_calor.exportar()
+        celulas = [((c + 0.5) / calor["colunas"], (lin + 0.5) / calor["linhas"], v)
+                   for lin, linha in enumerate(calor["grade"]) for c, v in enumerate(linha) if v >= 0.05]
+        if celulas:
+            matriz = homografia(calibracao["pontos_camera"], calibracao["pontos_planta"])
+            projetados = projetar(matriz, [(x, y) for x, y, _ in celulas])
+            resposta["calor"] = [[round(x, 4), round(y, 4), v] for (x, y), (_, _, v) in zip(projetados, celulas, strict=True)
+                                 if -0.1 <= x <= 1.1 and -0.1 <= y <= 1.1]
+    except (ValueError, KeyError):
+        pass
+    return jsonify(resposta)
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/planta")
+@require_role(ROLE_TECHNICAL)
+def definir_planta(camera_id: int):
+    """Body: {"pontos_camera": 4x[x,y], "pontos_planta": 4x[x,y]} (0–1); {"pontos_camera": null} apaga."""
+    from app.vision.planta import homografia, validar_pontos
+
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    corpo = request.get_json(silent=True) or {}
+    if corpo.get("pontos_camera") is None:
+        camera.planta = None
+    else:
+        try:
+            calibracao = {"pontos_camera": validar_pontos(corpo.get("pontos_camera")),
+                          "pontos_planta": validar_pontos(corpo.get("pontos_planta"))}
+            homografia(calibracao["pontos_camera"], calibracao["pontos_planta"])
+        except ValueError as exc:
+            return _validation_error(str(exc))
+        camera.planta = {k: [list(p) for p in v] for k, v in calibracao.items()}
+    db.session.commit()
+    try:
+        worker = current_app.extensions["monitor_service"].worker_da_camera(camera_id)
+        worker.planta = camera.planta
+        worker.pes_na_planta = []
+    except LookupError:
+        pass
+    return jsonify({"camera_id": camera_id, "calibracao": camera.planta})
+
+
 @cameras_bp.get("/api/cameras/<int:camera_id>/mapa-de-calor")
 @login_required
 def camera_mapa_de_calor(camera_id: int):

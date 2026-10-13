@@ -175,6 +175,8 @@ class Camera(db.Model):
     risk_polygon = db.Column(db.JSON, nullable=True)
     # Modo portaria: EPIs obrigatórios. NULL = câmera fora do modo portaria.
     gate_required = db.Column(db.JSON, nullable=True)
+    # Planta baixa (G5): {pontos_camera: 4x[x,y], pontos_planta: 4x[x,y]}, normalizados.
+    planta = db.Column(db.JSON, nullable=True)
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     features_json = db.Column(db.JSON, nullable=False, default=lambda: dict(DEFAULT_CAMERA_FEATURES))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
@@ -193,6 +195,7 @@ class Camera(db.Model):
             "rotation": self.rotation,
             "risk_polygon": self.risk_polygon,
             "gate_required": self.gate_required,
+            "planta": self.planta,
             "enabled": self.enabled,
             # Merge com os defaults, não substituição: uma câmera cadastrada
             # ANTES de uma feature nova existir tem o JSON sem aquela chave, e

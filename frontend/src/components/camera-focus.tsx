@@ -15,6 +15,7 @@ import { EASE, ScreenHead } from "./layout";
 import { cobrePreAlerta, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
 import { PipelinePanel } from "./pipeline-panel";
+import { PlantaPanel } from "./planta-panel";
 import { HeatmapPanel } from "./heatmap-panel";
 import { CelularQr } from "./celular-qr";
 import { AvisoDegradado, FeedBadge } from "./feed-status";
@@ -425,6 +426,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
     { key: "heatmap", label: "Mapa de calor", content: <></> },
+    { key: "planta", label: "Planta", content: <></> },
     { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
@@ -445,6 +447,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
     { key: "heatmap", label: "Mapa de calor", content: <></> },
+    { key: "planta", label: "Planta", content: <></> },
     { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
@@ -502,6 +505,7 @@ export function CameraFocus() {
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
     if (tab.key === "pipeline") return { ...tab, content: <PipelinePanel cameraId={camera.id} /> };
     if (tab.key === "heatmap") return { ...tab, content: <HeatmapPanel cameraId={camera.id} /> };
+    if (tab.key === "planta") return { ...tab, content: <PlantaPanel cameraId={camera.id} podeEditar={mode !== "operator"} /> };
     return tab;
   });
 

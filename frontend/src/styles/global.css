@@ -660,3 +660,10 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 .rotular-acoes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); width: 100%; }
 .rotular-acoes button { height: 52px; font-size: 17px; }
 .rotular-rodape { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+
+/* Planta baixa (G5). */
+.planta-svg { width: 100%; height: auto; display: block; border-radius: 12px; cursor: crosshair; background: var(--sunken); }
+.planta-calibracao { display: grid; gap: var(--s3); }
+.planta-calibracao figure { margin: 0; display: grid; gap: 4px; }
+.planta-pe circle { transition: cx .4s ease, cy .4s ease; }
+@media (prefers-reduced-motion: reduce) { .planta-pe circle { transition: none; } }

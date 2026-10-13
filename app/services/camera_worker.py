@@ -43,6 +43,7 @@ from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
+from app.vision.planta import pes_na_planta
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
@@ -383,6 +384,9 @@ class CameraWorker:
         self.andon = ContadorDeMinutos()
         # Aprendizado ativo (G9): fila compartilhada, injetada pelo MonitorService.
         self.fila_de_rotulos = None
+        # Planta baixa (G5): calibração (do banco) e os pés da última análise.
+        self.planta: dict[str, Any] | None = None
+        self.pes_na_planta: list[dict[str, Any]] = []
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -1308,6 +1312,11 @@ class CameraWorker:
                                               metadata={"exigidos": list(self.gate_required)})
         if nova:
             self.andon.registrar(compliance_state.get("people") or [], self.epis_exigidos(), time.time())
+            if self.planta:
+                try:
+                    self.pes_na_planta = pes_na_planta(compliance_state.get("people") or [], frame.shape, self.planta)
+                except (ValueError, KeyError):
+                    self.pes_na_planta = []
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
             self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
 

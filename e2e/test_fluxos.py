@@ -392,3 +392,25 @@ def test_rotular_recorte_com_teclado_e_exportar_zip(pagina, servidor):
         assert f"labels/train/{ident}.txt" in z.namelist()
         assert "data.yaml" in z.namelist()
     assert servidor.sessao("operator").get(f"{servidor.base}/api/rotulos/proximo", timeout=10).status_code == 403
+
+
+def test_planta_baixa_calibra_com_8_cliques_e_mostra_pes(pagina, servidor):
+    """G5: 4 cliques no chão do vídeo + 4 na planta → pés das pessoas ao vivo na planta."""
+    cid = servidor.cameras["Multidão"]
+    try:
+        _abrir_camera_como(pagina, servidor, "technical", "Multidão")
+        _abrir_aba(pagina, "Planta")
+        video = pagina.locator("[data-testid=planta-video]")
+        mapa = pagina.locator("[data-testid=planta-mapa-calibracao]")
+        video.wait_for(timeout=30_000)
+        for alvo, pontos in ((video, [(0.05, 0.55), (0.95, 0.55), (0.98, 0.98), (0.02, 0.98)]),
+                             (mapa, [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)])):
+            caixa = alvo.bounding_box()
+            for x, y in pontos:
+                pagina.mouse.click(caixa["x"] + x * caixa["width"], caixa["y"] + y * caixa["height"])
+        pagina.get_by_role("button", name="Salvar calibração").click()
+        pagina.locator("[data-testid=planta-ao-vivo]").wait_for(timeout=30_000)
+        pagina.locator("[data-testid=planta-pe]").first.wait_for(timeout=120_000)
+    finally:
+        servidor.sessao("technical").put(f"{servidor.base}/api/cameras/{cid}/planta",
+                                         json={"pontos_camera": None}, timeout=10)

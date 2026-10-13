@@ -358,6 +358,7 @@ class MonitorService:
             gravador=self.gravador,
         )
         worker.fila_de_rotulos = self.fila_de_rotulos
+        worker.planta = camera.planta
         return worker
 
     def _criar_servico_llm(self):
