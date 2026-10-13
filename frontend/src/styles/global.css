@@ -205,6 +205,8 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 .video-card { overflow: hidden; }
 .video-frame { position: relative; aspect-ratio: 16 / 9; background: var(--sunken); overflow: hidden; }
 .video-frame img { width: 100%; height: 100%; object-fit: contain; display: block; position: relative; z-index: 1; }
+/* Player em canvas (components/live-video.tsx): o letterbox é calculado no desenho. */
+.video-frame canvas.live-video { width: 100%; height: 100%; display: block; position: relative; z-index: 1; }
 .video-frame.editing-risk { outline: 2px solid var(--danger); outline-offset: -2px; }
 .video-empty {
   position: absolute; inset: 0; z-index: 1;
@@ -392,6 +394,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .kiosk-banner p { font-size: 14px; letter-spacing: 0; color: var(--text-2); margin-top: 2px; }
 .kiosk-video { position: relative; overflow: hidden; background: var(--sunken); }
 .kiosk-video img { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+.kiosk-video canvas.live-video { width: 100%; display: block; aspect-ratio: 16 / 9; }
 .kiosk-video.critical { box-shadow: var(--shadow-1), inset 0 0 0 2px var(--danger); }
 .kiosk-video-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3); aspect-ratio: 16 / 9; color: var(--text-2); }
 .kiosk-video-empty p { font-size: 14px; letter-spacing: 0; max-width: 34ch; text-align: center; }

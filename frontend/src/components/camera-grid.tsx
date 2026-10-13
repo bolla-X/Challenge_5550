@@ -76,7 +76,7 @@ function ChevronIcon() {
 /** Miniatura do painel: um quadro por segundo, cada pedido abre e fecha. Video
  * contínuo por cartão prende as 6 conexões do navegador com 6 câmeras ligadas
  * e trava os cliques. O atraso inicial varia por câmera pra não pedir todas juntas. */
-function Miniatura({ cameraId }: { cameraId: number }) {
+export function Miniatura({ cameraId }: { cameraId: number }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let intervalo: number | undefined;

@@ -206,9 +206,19 @@ class YoloPPEDetector:
             )
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
+        return self.detect_lote([frame])[0]
+
+    def detect_lote(self, frames: list[np.ndarray]) -> list[list[Detection]]:
+        """Uma chamada `predict` para N frames (lista vira lote no ultralytics).
+
+        `detect(frame)` é o caso N=1, para que os dois caminhos não possam
+        divergir no tratamento de erro nem na conversão das caixas.
+        """
+        if not frames:
+            return []
         try:
             results = self.model.predict(
-                source=frame,
+                source=frames if len(frames) > 1 else frames[0],
                 conf=self.confidence,
                 device=self.device,
                 classes=self.classes,
@@ -227,16 +237,18 @@ class YoloPPEDetector:
             # aqui só evita propagar e travar o restante do pipeline.
             self._last_diagnostics = self._build_diagnostics(names={}, error=str(exc))
             self._log_model_warning_once(self._last_diagnostics)
-            return []
-        detections: list[Detection] = []
+            return [[] for _ in frames]
+        results = list(results or [])
         if not results:
-            return detections
-
-        result = results[0]
-        names = getattr(result, "names", {}) or getattr(self.model, "names", {}) or {}
+            return [[] for _ in frames]
+        names = getattr(results[0], "names", {}) or getattr(self.model, "names", {}) or {}
         self._last_diagnostics = self._build_diagnostics(names=names, error=None)
         self._log_model_warning_once(self._last_diagnostics)
+        saida = [self._converter(result, names) for result in results]
+        return saida + [[] for _ in range(len(frames) - len(saida))]
 
+    def _converter(self, result, names) -> list[Detection]:
+        detections: list[Detection] = []
         boxes = getattr(result, "boxes", None)
         if boxes is None:
             return detections

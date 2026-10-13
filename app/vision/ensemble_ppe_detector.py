@@ -66,6 +66,13 @@ class EnsemblePPEDetector:
             todas.extend(d.detect(frame))
         return self._fundir(todas)
 
+    def detect_lote(self, frames: list[np.ndarray]) -> list[list[Detection]]:
+        por_frame: list[list[Detection]] = [[] for _ in frames]
+        for d in self._detectors:
+            for indice, deteccoes in enumerate(d.detect_lote(frames)):
+                por_frame[indice].extend(deteccoes)
+        return [self._fundir(todas) for todas in por_frame]
+
     def supported_ppe_classes(self) -> set[str]:
         uniao: set[str] = set()
         for d in self._detectors:

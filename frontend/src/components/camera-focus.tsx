@@ -12,7 +12,8 @@ import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
-import { temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { LiveVideo } from "./live-video";
 import { deleteCamera, discoverCameras, getCameraStatus, startCamera, stopCamera, updateCamera } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
 import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
@@ -99,7 +100,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 )}
               </AnimatePresence>
             </div>
-            <img src={`/api/cameras/${camera.id}/video_feed`} alt={`Vídeo de ${camera.name}`} />
+            <LiveVideo cameraId={camera.id} label={`Vídeo de ${camera.name}`} />
             <RiskEditorCanvas wrapRef={wrapRef} />
           </>
         ) : (
@@ -173,7 +174,9 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
       {error && <p className="status-text error">{error}</p>}
       <div className="video-frame">
         {running ? (
-          <img src={`/api/cameras/${camera.id}/video_feed`} alt={`Feed da câmera ${camera.id}`} />
+          // Prévia a 1 quadro/s: o vídeo ao vivo já está no topo desta tela, e um
+          // segundo stream da mesma câmera dobraria banda e conexões.
+          <Miniatura cameraId={camera.id} />
         ) : (
           <div className="video-empty">
             <p>Câmera parada. Clique em Iniciar para ver o feed.</p>

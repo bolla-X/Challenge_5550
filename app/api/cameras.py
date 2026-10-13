@@ -301,6 +301,13 @@ def camera_video_feed(camera_id: int):
         return jsonify({"error": "câmera não encontrada"}), 404
     monitor = current_app.extensions["monitor_service"]
     target_fps = max(1, int(camera.fps or 12))
+    # ?meta=1: quadro CRU + uma parte JSON com o overlay antes de cada quadro.
+    # É o que o player em canvas do dashboard usa (desenha caixas, pose e zona
+    # no navegador). Um <img> comum não pode receber parte JSON, por isso o
+    # default continua sendo só imagem.
+    # ?anotado=1: overlay desenhado no próprio pixel (para <img>, VLC, legado).
+    com_meta = request.args.get("meta") == "1"
+    anotado = request.args.get("anotado") == "1"
 
     def generate():
         # Manda cada frame UMA vez, esperando aparecer um novo em vez de
@@ -313,32 +320,51 @@ def camera_video_feed(camera_id: int):
         limite_ocioso = max(1.0, 2 / target_fps)  # sem frame novo? reenvia pra manter a conexão viva
         ultima_versao = -1
         ultimo_envio = time.monotonic()
-        while True:
-            try:
-                worker = monitor.worker_da_camera(camera_id)
-                jpeg, versao, capturado_em = worker.latest_jpeg_com_carimbo()
-            except LookupError:
-                worker, jpeg, versao, capturado_em = None, None, -1, None
+        monitor.registrar_espectador(camera_id, +1)
+        try:
+            while True:
+                try:
+                    worker = monitor.worker_da_camera(camera_id)
+                    with worker._thread_lock:
+                        versao = worker._frame_counter
+                except LookupError:
+                    worker, versao = None, -1
 
-            agora = time.monotonic()
-            novo = versao != ultima_versao
-            if not novo and agora - ultimo_envio < limite_ocioso:
-                time.sleep(espera)
-                continue
+                agora = time.monotonic()
+                novo = versao != ultima_versao
+                if not novo and agora - ultimo_envio < limite_ocioso:
+                    time.sleep(espera)
+                    continue
 
-            ultima_versao = versao
-            ultimo_envio = agora
-            body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
-            # X-Capture-Ts: instante de captura (epoch ms). Quem le o stream por
-            # fetch (bench, player em canvas) mede a idade do quadro na tela.
-            carimbo = f"X-Frame-Id: {versao}\r\nX-Capture-Ts: {capturado_em:.1f}\r\n" if jpeg and capturado_em else ""
-            parte = (
-                b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(body)).encode()
-                + b"\r\n" + carimbo.encode() + b"\r\n" + body + b"\r\n"
-            )
-            if worker is not None:
-                worker.registrar_envio_de_video(len(parte))
-            yield parte
+                # Encode SÓ aqui, e uma vez por versão para todos os espectadores
+                # (cache no worker): sem ninguém assistindo, não há encode.
+                jpeg, capturado_em, overlay = None, None, None
+                if worker is not None:
+                    jpeg, versao, capturado_em = worker.latest_jpeg_com_carimbo(anotado=anotado)
+                    if com_meta and jpeg:
+                        overlay = worker.overlay_do_quadro()
+                ultima_versao = versao
+                ultimo_envio = agora
+                body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
+                # X-Capture-Ts: instante de captura (epoch ms). Quem le o stream
+                # por fetch (bench, player em canvas) mede a idade do quadro na tela.
+                carimbo = f"X-Frame-Id: {versao}\r\nX-Capture-Ts: {capturado_em:.1f}\r\n" if jpeg and capturado_em else ""
+                parte = b""
+                if overlay:
+                    parte += (
+                        b"--frame\r\nContent-Type: application/json\r\nContent-Length: " + str(len(overlay)).encode()
+                        + b"\r\n\r\n" + overlay + b"\r\n"
+                    )
+                parte += (
+                    b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(body)).encode()
+                    + b"\r\n" + carimbo.encode() + b"\r\n" + body + b"\r\n"
+                )
+                if worker is not None:
+                    worker.registrar_envio_de_video(len(parte))
+                yield parte
+        finally:
+            # Cliente fechou a aba: o Werkzeug fecha o gerador (GeneratorExit).
+            monitor.registrar_espectador(camera_id, -1)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
@@ -357,6 +383,8 @@ def camera_frame(camera_id: int):
         return jsonify({"error": "câmera não encontrada"}), 404
     monitor = current_app.extensions["monitor_service"]
     try:
+        # Miniatura com as caixas desenhadas: a anotação e o encode só rodam
+        # porque alguém pediu (1 por segundo por cartão), não a cada quadro.
         jpeg, _versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
     except LookupError:
         jpeg = None

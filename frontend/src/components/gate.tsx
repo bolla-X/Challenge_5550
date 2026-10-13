@@ -3,6 +3,7 @@ import { useDashboardStore } from "../store/dashboardStore";
 import { playGateApprovedChime, playGateDeniedChime } from "../audio/chime";
 import { MuteToggle } from "./layout";
 import { Panel } from "./common";
+import { LiveVideo } from "./live-video";
 import { getGate, putGate, startCamera } from "../api/endpoints";
 import type { CameraRecord, GateState } from "../api/types";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
@@ -99,10 +100,7 @@ export function GateKiosk({ camId }: { camId: number }) {
         <div className="over-video">
           <span className="over-pill">{camera.name} · Portaria</span>
         </div>
-        <img
-          src={`/api/cameras/${camId}/video_feed`}
-          alt={`Vídeo de ${camera.name}`}
-        />
+        <LiveVideo cameraId={camId} label={`Vídeo de ${camera.name}`} />
         <div className="kiosk-actions">
           <button
             type="button"

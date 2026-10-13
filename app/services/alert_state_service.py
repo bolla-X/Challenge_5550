@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # pessoas perde e reencontra a mesma pessoa a cada poucos frames; se a soneca
 # caisse junto, o "resolver todos" nao segurava nada.
 SONECA_AUSENCIA_S = 10.0
+# Reenvio da lista de ativos mesmo sem mudança (ver _emit_active).
+PULSACAO_ATIVOS_S = 2.0
 # IoU minimo entre a caixa da pessoa silenciada e a de um alerta novo da mesma
 # regra pra considerar que e a MESMA pessoa com id novo.
 SONECA_IOU_MESMA_PESSOA = 0.25
@@ -89,6 +91,8 @@ class AlertStateService:
         # fica quieto e quantos frames seguidos a violacao ja esta ausente.
         self.silencio_apos_limpar = max(0.0, float(silencio_apos_limpar))
         self._silenciados: dict[str, dict[str, Any]] = {}
+        self._ultima_assinatura_ativos: tuple | None = None
+        self._ultimo_emit_ativos = 0.0
 
     @staticmethod
     def _caixa_da_pessoa(metadata: dict[str, Any] | None) -> BoundingBox | None:
@@ -279,6 +283,19 @@ class AlertStateService:
         emitir_para_camera(self.socketio, evento, payload, self.camera_id)
 
     def _emit_active(self, active: list[dict[str, Any]]) -> None:
+        """Emite a lista de ativos quando ela MUDA (ou a cada 2 s, de pulsação).
+
+        Antes saía a cada chamada de `process` — ou seja, a cada frame de cada
+        câmera, ~12 vezes por segundo, com a mesma lista. Com o Socket.IO em
+        long-polling, cada emit é serializado e enfileirado por cliente. A
+        pulsação garante que um painel que perdeu um evento se acerte sozinho.
+        """
+        assinatura = tuple((a.get("id"), a.get("status"), a.get("occurrences"), a.get("last_seen_at")) for a in active)
+        agora = monotonic()
+        if assinatura == self._ultima_assinatura_ativos and agora - self._ultimo_emit_ativos < PULSACAO_ATIVOS_S:
+            return
+        self._ultima_assinatura_ativos = assinatura
+        self._ultimo_emit_ativos = agora
         self._emitir("active_alerts", {"camera_id": self.camera_id, "items": active, "count": len(active)})
 
     def active_alerts(self) -> list[dict[str, Any]]:
@@ -326,3 +343,4 @@ class AlertStateService:
     def reset(self) -> None:
         self._states.clear()
         self._silenciados.clear()
+        self._ultima_assinatura_ativos = None

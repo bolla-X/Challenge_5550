@@ -293,6 +293,12 @@ class Config:
     # últimas caixas. Serve para desacoplar a fluidez do vídeo da velocidade da
     # inferência — com N=1 o comportamento é exatamente o de antes.
     DETECTION_EVERY_N_FRAMES = env_int("DETECTION_EVERY_N_FRAMES", 1)
+    # Pipeline assíncrono (NEXT 2026): captura em thread por câmera e UM
+    # agendador de inferência em rodízio entre câmeras. false = loop síncrono
+    # antigo, sob inference_lock (mantido para comparação no bench).
+    INFERENCIA_ASSINCRONA = env_bool("INFERENCIA_ASSINCRONA", True)
+    # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
+    INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
     # Segundos entre gravações de um alerta que continua ativo. Cada gravação
     # é um commit (9,2 ms aqui) feito DENTRO do loop de captura, e antes
     # acontecia por alerta a cada frame — o vídeo travava justamente quando

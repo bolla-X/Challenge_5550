@@ -25,9 +25,12 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
     const wrap = wrapRef.current;
     if (!wrap) return null;
     const box = wrap.getBoundingClientRect();
+    // O vídeo agora é o <canvas class="live-video">, que publica o tamanho do
+    // quadro em data-w/data-h; <img> fica como fallback.
+    const live = wrap.querySelector<HTMLCanvasElement>("canvas.live-video");
     const img = wrap.querySelector("img");
-    const nw = img?.naturalWidth || 0;
-    const nh = img?.naturalHeight || 0;
+    const nw = Number(live?.dataset.w) || img?.naturalWidth || 0;
+    const nh = Number(live?.dataset.h) || img?.naturalHeight || 0;
     if (!nw || !nh) return { x: 0, y: 0, w: box.width, h: box.height, box };
     const scale = Math.min(box.width / nw, box.height / nh);
     const w = nw * scale;

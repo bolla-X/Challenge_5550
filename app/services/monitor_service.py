@@ -9,6 +9,7 @@ from flask_socketio import SocketIO
 from app.config import Config
 from app.extensions import db
 from app.models import Camera
+from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.camera_worker import CameraWorker
 from app.services.feature_manager import FeatureManager
 from app.services.llm_risk_service import ServicoDeRiscoLLM
@@ -122,6 +123,13 @@ class MonitorService:
         )
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
+        # Um thread de inferência para todas as câmeras (ver
+        # agendador_de_inferencia.py). None = loop síncrono de antes.
+        self.agendador = (
+            AgendadorDeInferencia(lote=bool(app.config.get("INFERENCIA_LOTE", False)))
+            if app.config.get("INFERENCIA_ASSINCRONA", True)
+            else None
+        )
 
         # ---- camada LLM: um servico POR camera ---------------------------
         # Um por camera, e nao um compartilhado, porque `ao_concluir` e um
@@ -136,6 +144,7 @@ class MonitorService:
         self._llm_habilitado = bool(app.config.get("LLM_ENABLED", False))
 
         self._workers: dict[int, CameraWorker] = {}
+        self.espectadores: dict[int, int] = {}
         self._workers_lock = threading.RLock()
         self._default_camera_id: int | None = None
 
@@ -220,6 +229,7 @@ class MonitorService:
             pose_estimator=self.pose_estimator,
             inference_lock=self._inference_lock,
             servico_llm=self._criar_servico_llm(),
+            agendador=self.agendador,
         )
 
     def _criar_servico_llm(self):
@@ -289,6 +299,14 @@ class MonitorService:
     def latest_jpeg_versionado(self, camera_id: int | None = None) -> tuple[bytes | None, int]:
         return self._get_worker(camera_id).latest_jpeg_versionado()
 
+    def registrar_espectador(self, camera_id: int, delta: int) -> None:
+        """Quantos streams abertos por câmera (diagnóstico; o encode já é sob demanda)."""
+        with self._workers_lock:
+            self.espectadores[camera_id] = max(0, self.espectadores.get(camera_id, 0) + delta)
+            worker = self._workers.get(camera_id)
+            if worker is not None:
+                worker.espectadores = self.espectadores[camera_id]
+
     def worker_da_camera(self, camera_id: int | None = None) -> CameraWorker:
         """O worker em si — para o gerador do MJPEG e o diagnóstico do pipeline."""
         return self._get_worker(camera_id)
@@ -306,6 +324,7 @@ class MonitorService:
                 "fonte_fps": worker.video_stream.fps_da_fonte,
                 "alvo_fps": worker.target_fps,
                 "detectar_a_cada_n": worker.detect_every_n,
+                "espectadores": self.espectadores.get(camera_id, 0),
                 "stats": worker.stats.resumo(janela_s),
             }
         detectores = {"epi": self.detector, "pessoa": self.person_detector}
@@ -317,7 +336,11 @@ class MonitorService:
             }
             for nome, det in detectores.items()
         }
-        return {"cameras": cameras, "modelos": modelos}
+        return {
+            "cameras": cameras,
+            "modelos": modelos,
+            "agendador": self.agendador.estado() if self.agendador is not None else None,
+        }
 
     def latest_analysis(self, camera_id: int | None = None) -> dict[str, Any] | None:
         return self._get_worker(camera_id).latest_analysis()

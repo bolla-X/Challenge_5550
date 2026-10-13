@@ -269,7 +269,8 @@ def garantir_fixtures(nomes: list[str]) -> dict[str, Path]:
 
 # ------------------------------------------------------------------- servidor
 class Servidor:
-    def __init__(self, env: dict[str, str], rotulo: str, *, afinidade: list[int] | None) -> None:
+    def __init__(self, env: dict[str, str], rotulo: str, *, afinidade: list[int] | None, arvore: Path = RAIZ) -> None:
+        self.arvore = arvore
         self.porta = porta_livre()
         self.base = f"http://127.0.0.1:{self.porta}"
         DIR_RUNTIME.mkdir(parents=True, exist_ok=True)
@@ -294,13 +295,13 @@ class Servidor:
         subprocess.run(
             [PY, "-m", "flask", "--app", "wsgi", "users", "create", "--email", self.email, "--name", "Bench",
              "--role", "technical", "--password", self.senha],
-            cwd=RAIZ, env=self.env, check=True, capture_output=True,
+            cwd=self.arvore, env=self.env, check=True, capture_output=True,
         )
 
     def subir(self) -> float:
         inicio = time.perf_counter()
         self.proc = subprocess.Popen(
-            [PY, "run.py"], cwd=RAIZ, env=self.env, stdout=self.log.open("w", encoding="utf-8"), stderr=subprocess.STDOUT
+            [PY, "run.py"], cwd=self.arvore, env=self.env, stdout=self.log.open("w", encoding="utf-8"), stderr=subprocess.STDOUT
         )
         import requests
 
@@ -327,7 +328,8 @@ class Servidor:
 # ------------------------------------------------------------------- uma rodada
 def rodar(
     *, rotulo: str, perfil: str, fixtures: list[str], caminhos: dict[str, Path], duracao: float, aquecimento: float,
-    env_extra: dict[str, str], afinidade_batata: list[int], soak_s: float = 0.0,
+    env_extra: dict[str, str], afinidade_batata: list[int], soak_s: float = 0.0, arvore: Path = RAIZ,
+    prioridade_alta: bool = True,
 ) -> dict[str, Any]:
     import psutil
     import requests
@@ -339,10 +341,11 @@ def rodar(
         env |= {"OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2", "VISIONEPI_THREADS": "2",
                 "CUDA_VISIBLE_DEVICES": ""}
         afinidade = afinidade_batata
-    srv = Servidor(env, rotulo, afinidade=afinidade)
+    srv = Servidor(env, rotulo, afinidade=afinidade, arvore=arvore)
     srv.criar_usuario()
     resultado: dict[str, Any] = {"rotulo": rotulo, "perfil": perfil, "fixtures": fixtures, "afinidade": afinidade,
-                                 "env_extra": env_extra, "duracao_s": duracao, "aquecimento_s": aquecimento}
+                                 "env_extra": env_extra, "duracao_s": duracao, "aquecimento_s": aquecimento,
+                                 "arvore": str(arvore), "prioridade_alta": prioridade_alta}
     try:
         resultado["startup_s"] = srv.subir()
         sessao = requests.Session()
@@ -371,6 +374,16 @@ def rodar(
         # real como filho: medir só o pid do Popen daria ~0% de CPU e 3 MB.
         raiz_proc = psutil.Process(srv.proc.pid)
         processos = [raiz_proc, *raiz_proc.children(recursive=True)]
+        # Prioridade alta no servidor (os dois lados de toda comparação recebem
+        # a mesma): a máquina de medição divide a CPU com outros processos que
+        # não são deste projeto (registrados em `carga_de_fundo_pct`). Sem isto,
+        # a baseline mediu a disputa por CPU, não o VisionEPI.
+        if prioridade_alta:
+            for p_ in processos:
+                try:
+                    p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
+                except (psutil.Error, OSError):
+                    resultado["prioridade_alta"] = False
         for p_ in processos:
             p_.cpu_percent(None)
         psutil.cpu_percent(None)
@@ -384,6 +397,17 @@ def rodar(
                     "carga_de_fundo_pct": round(max(0.0, total - cpu_srv), 1)}
         with sync_playwright() as pw:
             navegador = pw.chromium.launch(headless=True)
+            # O navegador também é parte do sistema medido: com só o servidor em
+            # prioridade alta, o Chromium passava fome numa máquina carregada,
+            # não acompanhava o stream e a idade do quadro media o buffer TCP.
+            if prioridade_alta:
+                for p_ in psutil.Process().children(recursive=True):
+                    if p_.pid in {q.pid for q in processos}:
+                        continue
+                    try:
+                        p_.nice(psutil.HIGH_PRIORITY_CLASS if sys.platform == "win32" else -5)
+                    except (psutil.Error, OSError):
+                        pass
             contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
             contexto.add_cookies([{"name": c.name, "value": c.value, "url": srv.base} for c in sessao.cookies])
             contexto.add_init_script(JS_INIT)
@@ -521,6 +545,8 @@ def main() -> int:
     ap.add_argument("--soak", type=float, default=0.0, help="segundos de soak (4 câmeras, perfil atual)")
     ap.add_argument("--env", action="append", default=[], help="KEY=VAL extra para o servidor")
     ap.add_argument("--rotulo", default="", help="sufixo do nome da rodada/arquivo")
+    ap.add_argument("--arvores", default="", help="rotulo=caminho,... : compara árvores de código INTERCALADAS")
+    ap.add_argument("--sem-prioridade", action="store_true", help="não eleva a prioridade do servidor")
     args = ap.parse_args()
 
     if args.duracao < 60 and not os.getenv("BENCH_PERMITE_CURTO"):
@@ -542,15 +568,22 @@ def main() -> int:
 
     resultados = []
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
+    arvores = [(item.split("=", 1)[0], Path(item.split("=", 1)[1]).resolve()) for item in args.arvores.split(",") if "=" in item]
+    arvores = arvores or [("", RAIZ)]
     for perfil in perfis:
         for n in cenarios:
-            fixtures = FIXTURES_1CAM if n == 1 else FIXTURES_4CAM
-            rotulo = f"{perfil}-{n}cam" + (f"-{args.rotulo}" if args.rotulo else "") + ("-soak" if args.soak else "")
-            print(f"[bench] rodada {rotulo}: aquecimento {args.aquecimento:.0f} s + medição {args.soak or args.duracao:.0f} s")
-            r = rodar(rotulo=rotulo, perfil=perfil, fixtures=fixtures, caminhos=caminhos, duracao=args.duracao,
-                      aquecimento=args.aquecimento, env_extra=env_extra, afinidade_batata=afinidade_batata, soak_s=args.soak)
-            resultados.append(r)
-            print(tabela([r]).splitlines()[-1])
+            # Árvores no laço de DENTRO: baseline e candidata rodam uma logo após
+            # a outra, sob a mesma carga de fundo.
+            for nome_arvore, arvore in arvores:
+                fixtures = FIXTURES_1CAM if n == 1 else FIXTURES_4CAM
+                rotulo = f"{perfil}-{n}cam" + (f"-{nome_arvore}" if nome_arvore else "") + (f"-{args.rotulo}" if args.rotulo else "")
+                rotulo += "-soak" if args.soak else ""
+                print(f"[bench] rodada {rotulo}: aquecimento {args.aquecimento:.0f} s + medição {args.soak or args.duracao:.0f} s")
+                r = rodar(rotulo=rotulo, perfil=perfil, fixtures=fixtures, caminhos=caminhos, duracao=args.duracao,
+                          aquecimento=args.aquecimento, env_extra=env_extra, afinidade_batata=afinidade_batata,
+                          soak_s=args.soak, arvore=arvore, prioridade_alta=not args.sem_prioridade)
+                resultados.append(r)
+                print(tabela([r]).splitlines()[-1], flush=True)
 
     DIR_RESULTADOS.mkdir(parents=True, exist_ok=True)
     nome = f"{carimbo}" + (f"-{args.rotulo}" if args.rotulo else "") + ("-soak" if args.soak else "")
