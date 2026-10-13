@@ -506,7 +506,13 @@ export function CameraFocus() {
   });
 
   // Celular: a fonte é o token de pareamento — não vai para o cabeçalho.
-  const fonte = camera.source_type === "Celular" ? "Celular (via QR code)" : `${camera.source_type} ${camera.source}`;
+  // Arquivo: só o nome; o caminho inteiro poluía e expunha a pasta do usuário.
+  const fonte =
+    camera.source_type === "Celular"
+      ? "Celular (via QR code)"
+      : camera.source_type === "Arquivo"
+        ? `Arquivo ${String(camera.source).split(/[\\/]/).pop()}`
+        : `${camera.source_type} ${camera.source}`;
   const sub = [camera.location, fonte].filter(Boolean).join(", ");
 
   return (

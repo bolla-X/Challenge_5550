@@ -133,7 +133,7 @@ export function PersonCard() {
 
   if (bootstrapping) {
     return (
-      <Panel id="panel-people" title="Pessoas e detecções" description="Cards por pessoa quando o modelo PPE completo estiver disponível.">
+      <Panel id="panel-people" title="Pessoas e detecções" description="Uma ficha por pessoa rastreada. O número é do rastreio, não uma identidade.">
         <PanelSkeleton lines={2} />
       </Panel>
     );
@@ -143,7 +143,7 @@ export function PersonCard() {
     <Panel
       id="panel-people"
       title="Pessoas e detecções"
-      description="Cards por pessoa quando o modelo PPE completo estiver disponível."
+      description="Uma ficha por pessoa rastreada. O número é do rastreio, não uma identidade."
       action={<Badge>{`${detectionCount} ${detectionCount === 1 ? "detecção" : "detecções"}`}</Badge>}
     >
       <div className="row-list">
