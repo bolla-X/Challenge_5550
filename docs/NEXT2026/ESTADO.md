@@ -48,7 +48,7 @@ Sessão que reinicia mata o driver do Playwright e deixa o `bench.py` preso.
 Rodar SEMPRE destacado e acompanhar pelo arquivo de estado:
 
     Start-Process .venv\Scripts\python.exe -ArgumentList scripts/rodar_portao.py,--rotulo,<r>,--reps,1,2,3,--perfis,batata,--cameras,"4,1",--arvores,"<arv>" -WindowStyle Hidden
-    Get-Content benchuntime\<r>.estado        # "FIM" quando acabou
+    Get-Content bench/runtime/<r>.estado        # "FIM" quando acabou
     python scripts/resumo_bench.py bench/results/*-<r>-r*.json
 
 Árvores do portão do PR1 em `bench/runtime/arvores_gate.txt` (base
