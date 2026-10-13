@@ -330,6 +330,21 @@ class Config:
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
     # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
     # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
+    # Modo privacidade (F4): desfoque de rosto em tudo que sai do worker.
+    # Ligado por padrão; só o supervisor desliga, e cada troca é auditada.
+    PRIVACIDADE_PADRAO = env_bool("PRIVACIDADE_PADRAO", True)
+    # Mapa de calor (F7): meia-vida do decaimento.
+    MAPA_DE_CALOR_MEIA_VIDA_S = env_float("MAPA_DE_CALOR_MEIA_VIDA_S", 900.0)
+    # Replay de incidente (F1): buffer circular em memória por câmera e clipe
+    # de REPLAY_ANTES_S antes a REPLAY_DEPOIS_S depois do alerta.
+    REPLAY_ATIVO = env_bool("REPLAY_ATIVO", True)
+    REPLAY_DIR = os.getenv("REPLAY_DIR", "runtime/clips")
+    REPLAY_ANTES_S = env_float("REPLAY_ANTES_S", 5.0)
+    REPLAY_DEPOIS_S = env_float("REPLAY_DEPOIS_S", 3.0)
+    REPLAY_FPS = env_float("REPLAY_FPS", 10.0)
+    # Pré-alerta de aproximação da zona de risco (projeção cinemática, F3).
+    APROXIMACAO_ATIVA = env_bool("APROXIMACAO_ATIVA", True)
+    APROXIMACAO_LIMITE_S = env_float("APROXIMACAO_LIMITE_S", 3.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)

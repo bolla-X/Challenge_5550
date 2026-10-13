@@ -309,6 +309,14 @@ export interface CameraDiagnostico {
   brilho_minimo?: number;
 }
 
+/** app/services/aproximacao.py: aviso de aproximação (projeção cinemática). */
+export interface PreAlerta {
+  track_id: number;
+  segundos_ate_entrar: number;
+  velocidade: number;
+  metodo: "projecao_cinematica";
+}
+
 /** app/services/controlador_adaptativo.py: resumo(). */
 export interface ModoAdaptativo {
   nivel: number;

@@ -9,6 +9,8 @@ import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
 import { Panel } from "./components/common";
 import { LoginScreen } from "./components/login";
+import { ScaleProof } from "./components/scale-proof";
+import { AboutScreen } from "./components/about";
 
 // Placeholder do dashboard agregado do Supervisor. O conteúdo de verdade
 // (risco consolidado, ranking por criticidade, feed combinado, auditoria de
@@ -38,6 +40,7 @@ function GridScreen() {
   const mode = useDashboardStore((s) => s.mode);
   const setScreen = useDashboardStore((s) => s.setScreen);
   const access = ROLE_ACCESS[mode];
+  const [escala, setEscala] = useState(false);
 
   // Cada cartão consulta o status da própria câmera; a linha embaixo do
   // título só agrega o que os cartões já sabem.
@@ -57,14 +60,22 @@ function GridScreen() {
         title="Câmeras"
         sub={sub}
         actions={
-          access.hasOverview ? (
-            <button type="button" className="ghost" onClick={() => setScreen("overview")}>
-              Visão geral
-            </button>
-          ) : undefined
+          <>
+            {access.canConfigure && (
+              <button type="button" className="ghost" onClick={() => setEscala(true)}>
+                Prova de escala
+              </button>
+            )}
+            {access.hasOverview && (
+              <button type="button" className="ghost" onClick={() => setScreen("overview")}>
+                Visão geral
+              </button>
+            )}
+          </>
         }
       />
       <CameraGrid onEstado={onEstado} />
+      {escala && <ScaleProof onClose={() => setEscala(false)} />}
     </div>
   );
 }
@@ -121,6 +132,8 @@ export default function App() {
           Nenhuma câmera cadastrada ainda. Peça ao Técnico ou ao Supervisor para cadastrar a câmera do seu setor.
         </p>
       );
+  } else if (screen === "sobre") {
+    content = <AboutScreen />;
   } else if (mode === "supervisor" && screen === "home") {
     content = <SupervisorHome />;
   } else if (mode === "supervisor" && screen === "accounts") {

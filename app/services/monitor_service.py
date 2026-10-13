@@ -430,6 +430,29 @@ class MonitorService:
         for worker in workers:
             self.socketio.emit("modo_adaptativo", resumo | {"camera_id": worker.camera_id}, to=sala_da_camera(worker.camera_id))
 
+    def definir_privacidade(self, camera_id: int, ativa: bool, *, usuario, motivo: str = "") -> dict[str, Any]:
+        """Liga/desliga o desfoque de rosto de UMA câmera e registra quem fez.
+
+        A auditoria vai para a linha do tempo (EventLog), que é persistida e
+        consultável: desligar privacidade é exatamente o tipo de ação que
+        alguém vai precisar justificar depois.
+        """
+        from app.repositories.event_repository import EventRepository
+
+        worker = self._get_worker(camera_id)
+        worker.definir_privacidade(ativa)
+        evento = EventRepository().create(
+            camera_id=camera_id,
+            event_type="privacy_toggled",
+            message=("Privacidade LIGADA" if ativa else "Privacidade DESLIGADA") + f" por {usuario.email}",
+            severity="info" if ativa else "warning",
+            subject=usuario.email,
+            metadata={"ativa": bool(ativa), "motivo": motivo[:200], "usuario_id": usuario.id, "papel": usuario.role},
+        )
+        payload = evento.to_dict()
+        self.socketio.emit("timeline_event", payload, to=SALA_PARQUE)
+        return {"camera_id": camera_id, "ativa": bool(ativa), "evento": payload}
+
     def registrar_espectador(self, camera_id: int, delta: int) -> None:
         """Quantos streams abertos por câmera (diagnóstico; o encode já é sob demanda)."""
         with self._workers_lock:

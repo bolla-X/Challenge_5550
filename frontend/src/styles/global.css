@@ -509,3 +509,72 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
   pointer-events: none;
 }
 .aviso-degradado strong { text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+
+/* Pré-alerta de aproximação (F3): amarelo, à parte do alerta crítico. */
+.over-pill.pre-alerta { margin-left: auto; background: rgba(255, 214, 10, .94); color: #1A1A1C; }
+.over-pill.pre-alerta .dot { color: #1A1A1C; }
+.over-pill.pre-alerta .t-data { opacity: .75; }
+
+/* ---- Replay do incidente (components/replay.tsx) --------------------- */
+.replay-modal { max-width: 880px; display: grid; gap: var(--s4); }
+.replay-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); }
+.replay-cab h2 { margin: 0; font-size: 22px; }
+.replay-video { position: relative; aspect-ratio: 16 / 9; background: #0C0D0F; border-radius: var(--r-control); overflow: hidden; }
+.replay-video canvas { width: 100%; height: 100%; display: block; }
+.replay-tempo { position: absolute; left: var(--s3); bottom: var(--s3); padding: 6px 12px; border-radius: var(--r-chip);
+  background: var(--overlay); color: var(--on-overlay); font: 600 15px var(--font-mono); }
+.replay-tempo.agora { background: rgba(255, 158, 94, .95); color: #1A1A1C; }
+.replay-controles { display: flex; align-items: center; gap: var(--s3); }
+.replay-controles input[type="range"] { flex: 1; }
+.replay-evidencias h3 { font-size: 15px; margin: 0 0 var(--s2); }
+.replay-evidencias dl { display: grid; gap: var(--s2); margin: 0 0 var(--s3); }
+.replay-evidencias dl > div { display: grid; grid-template-columns: 240px 1fr; gap: var(--s3); }
+.replay-evidencias dt { color: var(--text-2); }
+.replay-evidencias dd { margin: 0; }
+
+/* ---- Diagnóstico do pipeline (components/pipeline-panel.tsx) ---------- */
+.pipe { display: grid; gap: var(--s4); }
+.pipe-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3); }
+.pipe-kpi { display: grid; gap: 2px; padding: var(--s3); border-radius: var(--r-control); background: var(--sunken); }
+.pipe-kpi-valor { font-size: 24px; font-weight: 650; }
+.pipe-kpi-rotulo { font-size: 13px; color: var(--text-2); }
+.pipe-grupo h4 { margin: 0 0 var(--s2); font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
+.pipe-linha { display: grid; grid-template-columns: 190px 1fr 190px; gap: var(--s3); align-items: center; min-height: 28px; }
+.pipe-rotulo { font-size: 14px; }
+.pipe-barra { position: relative; height: 8px; border-radius: 4px; background: var(--sunken); }
+.pipe-p50 { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); }
+.pipe-p95 { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--text); }
+.pipe-num { font-size: 13px; text-align: right; color: var(--text-2); }
+.pipe-grupo .pipe-linha:has(> .pipe-num:only-of-type) { grid-template-columns: 190px 1fr; }
+@media (max-width: 1100px) { .pipe-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- Mapa de calor (components/heatmap-panel.tsx) --------------------- */
+.heatmap-frame { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-control); overflow: hidden; background: var(--sunken); }
+.heatmap-frame img, .heatmap-frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+
+/* ---- Prova de escala (components/scale-proof.tsx) --------------------- */
+.escala-modal { max-width: 720px; display: grid; gap: var(--s4); }
+.escala-n { display: inline-flex; align-items: center; gap: var(--s2); }
+.escala-n input { width: 72px; }
+.escala-tabela { width: 100%; border-collapse: collapse; font-size: 15px; }
+.escala-tabela th, .escala-tabela td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--hairline); }
+.escala-media td { font-weight: 650; }
+
+/* ---- Sobre / Licenças (components/about.tsx) -------------------------- */
+.sobre { max-width: 960px; }
+.sobre-secao { margin-top: var(--s6); }
+.sobre-secao h2 { font-size: 20px; margin: 0 0 var(--s3); }
+.sobre-secao ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--hairline); }
+.sobre-secao li { display: flex; justify-content: space-between; gap: var(--s4); align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.sobre-secao li > div { display: grid; gap: 2px; }
+.sobre-secao a { color: var(--text); font-weight: 600; text-decoration: none; }
+.sobre-secao a:hover { text-decoration: underline; }
+.sobre-licenca { font-size: 14px; color: var(--text-2); text-align: right; white-space: nowrap; }
+.sobre-nota { margin-top: var(--s6); }
+/* Link com cara de botão fantasma (Relatório do turno, abre em nova aba). */
+a.button.ghost {
+  display: inline-flex; align-items: center; height: var(--h-control); padding: 0 var(--s4);
+  border-radius: var(--r-control); color: var(--text-2); font-size: 14px; font-weight: 500;
+  text-decoration: none; white-space: nowrap; transition: background-color var(--d-state) var(--ease-out);
+}
+a.button.ghost:hover { background: var(--sunken); color: var(--text); }

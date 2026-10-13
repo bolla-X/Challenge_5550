@@ -14,6 +14,8 @@ import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
 import { Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
+import { PipelinePanel } from "./pipeline-panel";
+import { HeatmapPanel } from "./heatmap-panel";
 import { AvisoDegradado, FeedBadge } from "./feed-status";
 import { deleteCamera, discoverCameras, getCameraStatus, startCamera, stopCamera, updateCamera } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
@@ -46,6 +48,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const [agora, setAgora] = useState(() => Date.now());
   const [stream, setStream] = useState<EstadoDoStream>("conectando");
   const critico = temAlertaCritico(estado);
+  const preAlertas = useDashboardStore((s) => s.preAlertas);
 
   // O relógio do alerta anda sozinho; sem isso o "decorrido" congelava entre
   // dois pollings.
@@ -85,6 +88,13 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 <span className={`dot ${connected ? "ok" : "off"}`} />
                 {connected ? "Conectado" : "Sem conexão"}
               </span>
+              {preAlertas.length > 0 && !critico && (
+                <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
+                  <span className="dot" />
+                  Aproximação · Pessoa {preAlertas[0].track_id} · ~{preAlertas[0].segundos_ate_entrar.toFixed(1)} s
+                  <span className="t-data">projeção cinemática</span>
+                </span>
+              )}
               <AnimatePresence initial={false}>
                 {critico && (
                   <motion.span
@@ -363,6 +373,8 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
+    { key: "heatmap", label: "Mapa de calor", content: <></> },
+    { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
@@ -381,6 +393,8 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
+    { key: "heatmap", label: "Mapa de calor", content: <></> },
+    { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
@@ -426,6 +440,8 @@ export function CameraFocus() {
     if (tab.key === "gate") return { ...tab, content: <GateConfigPanel camera={camera} /> };
     if (tab.key === "camconfig") return { ...tab, content: <CameraConfigPanel camera={camera} /> };
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
+    if (tab.key === "pipeline") return { ...tab, content: <PipelinePanel cameraId={camera.id} /> };
+    if (tab.key === "heatmap") return { ...tab, content: <HeatmapPanel cameraId={camera.id} /> };
     return tab;
   });
 
