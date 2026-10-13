@@ -1,0 +1,63 @@
+{
+ "passo": 50,
+ "detector": "yolov8n",
+ "imgsz": 640,
+ "limites_de_cpu": {
+  "torch_threads": 2,
+  "opencv_threads": 2,
+  "afinidade": [
+   10,
+   11
+  ]
+ },
+ "resultados": {
+  "bench": {
+   "quadros_inferidos": 5,
+   "inferencia_ms_p95": 189.939,
+   "pessoas_reais": 3,
+   "iou": {
+    "ids_unicos": 5,
+    "fragmentacoes": 2,
+    "ms_p95": 0.118
+   },
+   "bytetrack": {
+    "ids_unicos": 0,
+    "fragmentacoes": -3,
+    "ms_p95": 0.984,
+    "fracao_da_inferencia_p95": 0.0052
+   }
+  },
+  "queda": {
+   "quadros_inferidos": 10,
+   "inferencia_ms_p95": 254.271,
+   "pessoas_reais": 9,
+   "iou": {
+    "ids_unicos": 4,
+    "fragmentacoes": -5,
+    "ms_p95": 0.132
+   },
+   "bytetrack": {
+    "ids_unicos": 4,
+    "fragmentacoes": -5,
+    "ms_p95": 2.481,
+    "fracao_da_inferencia_p95": 0.0098
+   }
+  },
+  "multidao": {
+   "quadros_inferidos": 8,
+   "inferencia_ms_p95": 190.013,
+   "pessoas_reais": null,
+   "iou": {
+    "ids_unicos": 14,
+    "fragmentacoes": null,
+    "ms_p95": 0.754
+   },
+   "bytetrack": {
+    "ids_unicos": 11,
+    "fragmentacoes": null,
+    "ms_p95": 5.557,
+    "fracao_da_inferencia_p95": 0.0292
+   }
+  }
+ }
+}

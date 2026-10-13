@@ -6,6 +6,9 @@ import type { ServerEvents } from "./events";
 // socket — sem isso, um socket aberto sobreviveria à revogação do acesso.
 type ClientEvents = {
   revalidate: () => void;
+  // Câmera aberta na tela: o servidor só manda a telemetria de alta
+  // frequência (analysis, compliance_state) para quem a está vendo.
+  focar: (payload: { camera_id: number }) => void;
 };
 
 // Same-origin socket: Vite proxies /socket.io to Flask in dev (vite.config.ts),

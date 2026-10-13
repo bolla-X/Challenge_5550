@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { MuteToggle } from "./layout";
+import { LiveVideo } from "./live-video";
 import { getCameraStatus, startCamera } from "../api/endpoints";
 import type { Alert, MonitorStatus } from "../api/types";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
@@ -96,7 +97,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
           <span className="over-pill">{camera.name}</span>
         </div>
         {running ? (
-          <img src={`/api/cameras/${camId}/video_feed`} alt={`Vídeo de ${camera.name}`} />
+          <LiveVideo cameraId={camId} label={`Vídeo de ${camera.name}`} />
         ) : (
           <div className="kiosk-video-empty">
             <p>{status === null ? "Carregando…" : "Sem sinal, monitoramento parado."}</p>

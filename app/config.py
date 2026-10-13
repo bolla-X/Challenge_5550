@@ -9,7 +9,13 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# VISIONEPI_DOTENV=0 ignora o arquivo de ambiente local. Dois consumidores
+# precisam disso: a suite de testes (o arquivo de quem desenvolve vazava para
+# `Config` e derrubava `test_default_features_liga_todos_os_epis` quando a
+# maquina tinha outro DEFAULT_FEATURES) e o `scripts/bench.py`/modo demo, que
+# precisam de configuracao reproduzivel, igual em qualquer maquina.
+if os.getenv("VISIONEPI_DOTENV", "1").strip() != "0":
+    load_dotenv(BASE_DIR / ".env")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -183,6 +189,22 @@ class Config:
     # industrial tem jitter, e ali a separacao entre os dois pode ser outra.
     # Ver docs/DEMO.md para o sintoma de errar para cada lado.
     RTSP_LIMIAR_GRAB_MS = env_float("RTSP_LIMIAR_GRAB_MS", 5.0)
+    # Threads do decoder FFmpeg por câmera (arquivo e rede). 0 = padrão do
+    # OpenCV, um por núcleo lógico — ver app/vision/video_stream.py.
+    CAPTURA_THREADS_DECODE = env_int("CAPTURA_THREADS_DECODE", 2)
+    # Publicação de vídeo de câmera SEM espectador no MJPEG (só miniatura e
+    # snapshot). Análise nova sai na hora, independente disto.
+    VIDEO_FPS_SEM_ESPECTADOR = env_float("VIDEO_FPS_SEM_ESPECTADOR", 2.0)
+    # Quadros/s CONVERTIDOS pela captura de câmera sem espectador (miniatura +
+    # inferência); os demais só avançam a fonte (grab sem retrieve).
+    CAPTURA_FPS_SEM_ESPECTADOR = env_float("CAPTURA_FPS_SEM_ESPECTADOR", 4.0)
+    # Gravação (arquivo) sem espectador avança a CAPTURA_FPS_SEM_ESPECTADOR em
+    # vez de no relógio (ver CameraWorker._ritmo_de_gravacao). false = sempre
+    # tempo real. Câmera ao vivo não é afetada.
+    GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL = env_bool("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True)
+    # Uma inferência em cada modelo antes de servir (run.py). Ver
+    # app/vision/runtime_do_modelo.py:aquecer_modelos.
+    AQUECER_MODELOS_NO_BOOT = env_bool("AQUECER_MODELOS_NO_BOOT", True)
 
     # --- fonte CEGA: o frame chega, a imagem nao --------------------------
     # Brilho medio abaixo do qual o frame conta como "sem imagem". MEDIDO: uma
@@ -287,6 +309,28 @@ class Config:
     # últimas caixas. Serve para desacoplar a fluidez do vídeo da velocidade da
     # inferência — com N=1 o comportamento é exatamente o de antes.
     DETECTION_EVERY_N_FRAMES = env_int("DETECTION_EVERY_N_FRAMES", 1)
+    # Pipeline assíncrono (NEXT 2026): captura em thread por câmera e UM
+    # agendador de inferência em rodízio entre câmeras. false = loop síncrono
+    # antigo, sob inference_lock (mantido para comparação no bench).
+    INFERENCIA_ASSINCRONA = env_bool("INFERENCIA_ASSINCRONA", True)
+    # Runtime dos modelos (ver app/vision/runtime_do_modelo.py): pytorch | onnx |
+    # openvino | auto. Só entra export APROVADO no guarda de qualidade.
+    # Padrão "auto" (13/10): o primeiro APROVADO de RUNTIME_ORDEM que exista em
+    # models/export/aprovados.json; sem export aprovado no disco, PyTorch.
+    # Decisão medida (docs/NEXT2026/BENCHMARKS.md, batata 1 câm., mediana de 3
+    # rodadas intercaladas): idade da análise p95 ONNX 2571 ms, OpenVINO 2891,
+    # PyTorch 3997. Exportar e aprovar: python scripts/concordancia.py.
+    PPE_RUNTIME = os.getenv("PPE_RUNTIME", "auto")
+    PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "auto")
+    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "onnx,pytorch")
+    # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
+    INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
+    # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
+    # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
+    ADAPTATIVO = env_bool("ADAPTATIVO", True)
+    ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
+    ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
+    ADAPTATIVO_LIMITE_BAIXO_MS = env_float("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)
     # Segundos entre gravações de um alerta que continua ativo. Cada gravação
     # é um commit (9,2 ms aqui) feito DENTRO do loop de captura, e antes
     # acontecia por alerta a cada frame — o vídeo travava justamente quando
@@ -311,6 +355,17 @@ class Config:
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
     # frame. E o que permite atribuir queda/postura a um individuo. Custa N
     # inferencias por frame, entao POSE_MAX_PEOPLE limita o pior caso.
+    # Pose (NEXT 2026): "yolo" = um YOLO-pose é o detector de pessoa e devolve o
+    # esqueleto de todos numa passada (substitui yolov8n + MediaPipe por
+    # recorte); "mediapipe" = caminho anterior. Decisão e números no CHANGELOG.
+    POSE_BACKEND = os.getenv("POSE_BACKEND", "yolo").strip().lower()
+    POSE_MODEL_PATH = os.getenv("POSE_MODEL_PATH", "models/yolo11n-pose.pt")
+    POSE_IMGSZ = env_int("POSE_IMGSZ", 640)
+    # Pose a cada N inferências (1 = sempre). O controlador adaptativo sobe.
+    POSE_A_CADA_N = env_int("POSE_A_CADA_N", 1)
+    # "iou" (padrão) ou "bytetrack" (laboratório; o detector de pessoa passa a
+    # entregar a partir de 0,1 para a segunda associação). Ver CHANGELOG.
+    TRACKER = os.getenv("TRACKER", "iou").strip().lower()
     POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)
     POSE_MAX_PEOPLE = env_int("POSE_MAX_PEOPLE", 4)
     POSE_MIN_DETECTION_CONFIDENCE = env_float("POSE_MIN_DETECTION_CONFIDENCE", 0.5)
@@ -319,6 +374,13 @@ class Config:
     ALERT_COOLDOWN_SECONDS = env_int("ALERT_COOLDOWN_SECONDS", 0)
     ALERT_CREATE_AFTER_FRAMES = env_int("ALERT_CREATE_AFTER_FRAMES", 8)
     ALERT_RESOLVE_AFTER_FRAMES = env_int("ALERT_RESOLVE_AFTER_FRAMES", 20)
+    # Histerese também por tempo (ver AlertStateService): cria quando a violação
+    # se sustenta por N s com pelo menos M inferências novas seguidas, mesmo
+    # que a máquina não chegue aos 8 quadros. 0 desliga (só quadros).
+    ALERT_CREATE_AFTER_SECONDS = env_float("ALERT_CREATE_AFTER_SECONDS", 2.0)
+    ALERT_MIN_CONFIRMATIONS = env_int("ALERT_MIN_CONFIRMATIONS", 2)
+    ALERT_RESOLVE_AFTER_SECONDS = env_float("ALERT_RESOLVE_AFTER_SECONDS", 6.0)
+    ALERT_MIN_RESOLVE_CONFIRMATIONS = env_int("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3)
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
@@ -392,6 +454,10 @@ class TestConfig(Config):
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
+    # Mesmo motivo: o runtime "auto" leria models/export/aprovados.json DA
+    # MÁQUINA (fora do git). A suíte não pode depender de export local.
+    PPE_RUNTIME = "pytorch"
+    PERSON_RUNTIME = "pytorch"
     # Mesmo motivo: um .env com credencial RTSP de planta real configurada
     # (necessaria pra rodar contra camera de verdade) nao pode fazer
     # test_add_recusa_host_sem_credencial_configurada deixar de testar o

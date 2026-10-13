@@ -205,6 +205,8 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 .video-card { overflow: hidden; }
 .video-frame { position: relative; aspect-ratio: 16 / 9; background: var(--sunken); overflow: hidden; }
 .video-frame img { width: 100%; height: 100%; object-fit: contain; display: block; position: relative; z-index: 1; }
+/* Player em canvas (components/live-video.tsx): o letterbox é calculado no desenho. */
+.video-frame canvas.live-video { width: 100%; height: 100%; display: block; position: relative; z-index: 1; }
 .video-frame.editing-risk { outline: 2px solid var(--danger); outline-offset: -2px; }
 .video-empty {
   position: absolute; inset: 0; z-index: 1;
@@ -392,6 +394,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .kiosk-banner p { font-size: 14px; letter-spacing: 0; color: var(--text-2); margin-top: 2px; }
 .kiosk-video { position: relative; overflow: hidden; background: var(--sunken); }
 .kiosk-video img { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+.kiosk-video canvas.live-video { width: 100%; display: block; aspect-ratio: 16 / 9; }
 .kiosk-video.critical { box-shadow: var(--shadow-1), inset 0 0 0 2px var(--danger); }
 .kiosk-video-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3); aspect-ratio: 16 / 9; color: var(--text-2); }
 .kiosk-video-empty p { font-size: 14px; letter-spacing: 0; max-width: 34ch; text-align: center; }
@@ -475,3 +478,34 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .tabs-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px; display: flex; flex-direction: column; padding: 6px; border-radius: 10px; background: var(--surface, var(--sunken)); border: 1px solid var(--border); box-shadow: var(--shadow-2, 0 8px 24px rgba(0,0,0,.35)); }
 .tabs-more-menu button { text-align: left; background: transparent; border: 0; padding: 9px 12px; border-radius: 8px; color: var(--text); cursor: pointer; }
 .tabs-more-menu button:hover, .tabs-more-menu button.active { background: var(--sunken); }
+
+/* ---- Estado do feed (components/feed-status.tsx) ----------------------
+   Legível a 5 m no projetor: texto de 15 px em caixa alta, peso 650, ponto
+   colorido. Cor só para status — é o único lugar do vídeo com cor de estado. */
+.feed-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: var(--r-chip);
+  background: var(--overlay); color: var(--on-overlay);
+  font-size: 15px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase;
+  line-height: 1;
+}
+.feed-badge-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+.feed-badge[data-estado="ao_vivo"] .feed-badge-dot { background: #34C77E; }
+.feed-badge[data-estado="gravacao"] .feed-badge-dot { background: #4C9DFF; }
+.feed-badge[data-estado="reconectando"] .feed-badge-dot { background: #FFB020; }
+.feed-badge[data-estado="sem_sinal"] { background: #C9241B; color: #fff; }
+.feed-badge[data-estado="sem_sinal"] .feed-badge-dot { background: #fff; }
+.feed-badge[data-estado="parado"] .feed-badge-dot { background: #8C8C95; }
+@media (prefers-reduced-motion: no-preference) {
+  .feed-badge[data-estado="reconectando"] .feed-badge-dot { animation: feed-pulso 1.2s ease-in-out infinite; }
+}
+@keyframes feed-pulso { 50% { opacity: .35; } }
+
+.aviso-degradado {
+  position: absolute; left: var(--s3); right: var(--s3); bottom: var(--s3); z-index: 2;
+  display: flex; gap: var(--s2); align-items: baseline; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: var(--r-control);
+  background: rgba(255, 176, 32, .94); color: #1A1A1C; font-size: 15px; line-height: 1.35;
+  pointer-events: none;
+}
+.aviso-degradado strong { text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }

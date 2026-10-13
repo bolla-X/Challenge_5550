@@ -195,7 +195,10 @@ export function ScreenHead({ title, sub, actions }: { title: string; sub?: strin
 }
 
 export function MessageBar() {
-  const { message, hideMessage } = useDashboardStore();
+  // Seletores finos: assinar o store inteiro re-renderizava esta barra (que
+  // está em TODA tela) a cada evento de telemetria, várias vezes por segundo.
+  const message = useDashboardStore((s) => s.message);
+  const hideMessage = useDashboardStore((s) => s.hideMessage);
   const shouldReduceMotion = useReducedMotion();
   return (
     <AnimatePresence initial={false}>

@@ -1,3 +1,14 @@
+import os
+
+# Afinidade de CPU ANTES de qualquer import pesado (ver app/utils/limites_de_cpu.py).
+# Medido: aplicada só dentro do create_app, ela se perdia assim que a primeira
+# câmera rodava um `cv2.resize` (o OpenCV desta máquina usa o Concurrency
+# Runtime do Windows, inicializado nos imports com a máscara antiga).
+if os.getenv("VISIONEPI_CPUS", "").strip():
+    import psutil
+
+    psutil.Process().cpu_affinity([int(c) for c in os.environ["VISIONEPI_CPUS"].split(",") if c.strip().isdigit()])
+
 from app import create_app
 from app.config import Config
 from app.extensions import socketio
@@ -17,6 +28,10 @@ if __name__ == "__main__":
     #   - debug liga o console interativo do Werkzeug, que executa código
     #     arbitrário de quem alcançar a porta. Esse fica atrás de FLASK_DEBUG,
     #     desligado por padrão.
+    # Modelos aquecidos ANTES de servir: sem isto a 1ª análise depois de ligar
+    # a câmera levava ~30 s no perfil batata (ver aquecer_modelos).
+    if Config.AQUECER_MODELOS_NO_BOOT:
+        app.extensions["monitor_service"].aquecer()
     socketio.run(
         app,
         host=Config.HOST,

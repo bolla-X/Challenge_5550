@@ -1,0 +1,94 @@
+{
+ "modelo": "pessoa",
+ "quadros": 126,
+ "referencia": "pytorch:640",
+ "resultados": {
+  "pytorch:416": {
+   "por_classe": {
+    "person": {
+     "batidas": 355,
+     "n_ref": 428,
+     "n_cand": 398,
+     "recall_ref": 0.8294,
+     "concordancia": 0.8596
+    },
+    "_total": {
+     "batidas": 355,
+     "n_ref": 428,
+     "n_cand": 398,
+     "recall_ref": 0.8294,
+     "concordancia": 0.8596
+    }
+   },
+   "bancada_ms_p50": 236.2,
+   "bancada_ms_p95": 1058.5,
+   "erro": null
+  },
+  "onnx:640": {
+   "por_classe": {
+    "person": {
+     "batidas": 421,
+     "n_ref": 428,
+     "n_cand": 429,
+     "recall_ref": 0.9836,
+     "concordancia": 0.9825
+    },
+    "_total": {
+     "batidas": 421,
+     "n_ref": 428,
+     "n_cand": 429,
+     "recall_ref": 0.9836,
+     "concordancia": 0.9825
+    }
+   },
+   "bancada_ms_p50": 338.4,
+   "bancada_ms_p95": 585.5,
+   "erro": null
+  },
+  "openvino:640": {
+   "erro": "AttributeError: module 'openvino' has no attribute 'runtime'"
+  },
+  "pose:640": {
+   "por_classe": {
+    "person": {
+     "batidas": 375,
+     "n_ref": 428,
+     "n_cand": 467,
+     "recall_ref": 0.8762,
+     "concordancia": 0.838
+    },
+    "_total": {
+     "batidas": 375,
+     "n_ref": 428,
+     "n_cand": 467,
+     "recall_ref": 0.8762,
+     "concordancia": 0.838
+    }
+   },
+   "bancada_ms_p50": 457.1,
+   "bancada_ms_p95": 6747.4,
+   "erro": null
+  },
+  "pose:416": {
+   "por_classe": {
+    "person": {
+     "batidas": 337,
+     "n_ref": 428,
+     "n_cand": 401,
+     "recall_ref": 0.7874,
+     "concordancia": 0.813
+    },
+    "_total": {
+     "batidas": 337,
+     "n_ref": 428,
+     "n_cand": 401,
+     "recall_ref": 0.7874,
+     "concordancia": 0.813
+    }
+   },
+   "bancada_ms_p50": 185.3,
+   "bancada_ms_p95": 547.6,
+   "erro": null
+  }
+ }
+}

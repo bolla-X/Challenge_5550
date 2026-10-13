@@ -1,0 +1,49 @@
+{
+ "passo": 6,
+ "detector": "pose",
+ "imgsz": 416,
+ "resultados": {
+  "bench": {
+   "quadros_inferidos": 35,
+   "pessoas_reais": 3,
+   "iou": {
+    "ids_unicos": 5,
+    "fragmentacoes": 2,
+    "ms_p95": 0.293
+   },
+   "bytetrack": {
+    "ids_unicos": 3,
+    "fragmentacoes": 0,
+    "ms_p95": 5.388
+   }
+  },
+  "queda": {
+   "quadros_inferidos": 84,
+   "pessoas_reais": 9,
+   "iou": {
+    "ids_unicos": 7,
+    "fragmentacoes": -2,
+    "ms_p95": 0.725
+   },
+   "bytetrack": {
+    "ids_unicos": 6,
+    "fragmentacoes": -3,
+    "ms_p95": 11.688
+   }
+  },
+  "multidao": {
+   "quadros_inferidos": 63,
+   "pessoas_reais": null,
+   "iou": {
+    "ids_unicos": 18,
+    "fragmentacoes": null,
+    "ms_p95": 2.841
+   },
+   "bytetrack": {
+    "ids_unicos": 26,
+    "fragmentacoes": null,
+    "ms_p95": 16.792
+   }
+  }
+ }
+}

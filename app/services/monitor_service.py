@@ -6,14 +6,21 @@ from typing import Any
 from flask import Flask
 from flask_socketio import SocketIO
 
-from app.config import Config
+from app.config import BASE_DIR, Config
 from app.extensions import db
 from app.models import Camera
+from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.camera_worker import CameraWorker
+from app.services.controlador_adaptativo import ControladorAdaptativo
 from app.services.feature_manager import FeatureManager
+from app.services.gravador_assincrono import GravadorAssincrono
 from app.services.llm_risk_service import ServicoDeRiscoLLM
-from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.utils.limites_de_cpu import manter_afinidade
+from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
+from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver_caminho
+from app.vision.yolo_pose_detector import YoloPoseDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 
@@ -47,8 +54,14 @@ class MonitorService:
         self.feature_manager = feature_manager  # segue controlando a câmera padrão via /features, como sempre
 
         # ---- modelos compartilhados: criados 1x, injetados em cada worker ----
+        # Runtime: só export aprovado no guarda de qualidade; senão o .pt.
+        peso_epi = str(app.config.get("PPE_MODEL_PATH", "yolov8n.pt"))
+        caminho_epi, motivo_epi = resolver_caminho(
+            BASE_DIR, modelo="epi", peso_pt=peso_epi, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
+            pedido=str(app.config.get("PPE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
+        )
         detector_principal = YoloPPEDetector(
-            model_path=app.config.get("PPE_MODEL_PATH", "yolov8n.pt"),
+            model_path=caminho_epi,
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
             device=app.config.get("YOLO_DEVICE"),
             classes=CameraWorker._parse_yolo_classes(app.config.get("YOLO_CLASSES", "")),
@@ -107,21 +120,62 @@ class MonitorService:
         # um modelo de EPI sem classe "person" propria (ex: epi_pretrained.pt).
         # Com o Vyra, que ja detecta "Person", fica ocioso.
         # Mesmo par de modelos, compartilhado por todas as cameras.
+        # Com ByteTrack o detector entrega a partir de 0,1: a caixa fraca só
+        # continua um track existente, nunca cria pessoa (ByteTrackPessoas).
+        confianca_pessoa = 0.1 if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack" else app.config.get(
+            "YOLO_CONFIDENCE", 0.35
+        )
+        peso_pessoa = str(app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"))
+        caminho_pessoa, motivo_pessoa = resolver_caminho(
+            BASE_DIR, modelo="pessoa", peso_pt=peso_pessoa, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
+            pedido=str(app.config.get("PERSON_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
+        )
         self.person_detector = YoloPPEDetector(
-            model_path=app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"),
-            confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
+            model_path=caminho_pessoa,
+            confidence=confianca_pessoa,
             device=app.config.get("YOLO_DEVICE"),
             classes=[0],
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
             imgsz=app.config.get("YOLO_IMGSZ", 640),
             half=app.config.get("YOLO_HALF", True),
         )
+        # POSE_BACKEND=yolo: UMA passada de YOLO-pose por inferência para todas
+        # as pessoas; cada esqueleto é associado ao track do detector de pessoa
+        # por IoU (ver yolo_pose_detector.associar_esqueletos). O detector de
+        # pessoa NÃO é trocado: o yolo11n-pose concordou só 83,8% com o yolov8n
+        # nas caixas de pessoa (scripts/concordancia.py, CHANGELOG).
+        self.pose_detector = (
+            YoloPoseDetector(
+                str(app.config.get("POSE_MODEL_PATH", "models/yolo11n-pose.pt")),
+                confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
+                device=app.config.get("YOLO_DEVICE"),
+                max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
+                imgsz=app.config.get("POSE_IMGSZ", 640),
+            )
+            if str(app.config.get("POSE_BACKEND", "mediapipe")).lower() == "yolo"
+            else None
+        )
         self.pose_estimator = MediaPipePoseEstimator(
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
             min_tracking_confidence=app.config.get("POSE_MIN_TRACKING_CONFIDENCE", 0.5),
         )
+        # Escolha do runtime registrada para o painel de diagnóstico; o teste de
+        # carga + 1 inferência (com volta ao .pt se falhar) só fora dos testes.
+        self.runtimes = {"epi": {"pedido": app.config.get("PPE_RUNTIME"), "motivo": motivo_epi},
+                         "pessoa": {"pedido": app.config.get("PERSON_RUNTIME"), "motivo": motivo_pessoa}}
+        if not app.config.get("TESTING"):
+            self.runtimes["epi"]["ativo"] = garantir_runtime(detector_principal, peso_epi)
+            self.runtimes["pessoa"]["ativo"] = garantir_runtime(self.person_detector, peso_pessoa)
+        self.aquecimento_ms: dict[str, float] = {}
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
+        # Um thread de inferência para todas as câmeras (ver
+        # agendador_de_inferencia.py). None = loop síncrono de antes.
+        self.agendador = (
+            AgendadorDeInferencia(lote=bool(app.config.get("INFERENCIA_LOTE", False)))
+            if app.config.get("INFERENCIA_ASSINCRONA", True)
+            else None
+        )
 
         # ---- camada LLM: um servico POR camera ---------------------------
         # Um por camera, e nao um compartilhado, porque `ao_concluir` e um
@@ -136,10 +190,44 @@ class MonitorService:
         self._llm_habilitado = bool(app.config.get("LLM_ENABLED", False))
 
         self._workers: dict[int, CameraWorker] = {}
+        self.espectadores: dict[int, int] = {}
+
+        # ---- controlador adaptativo ("modo batata") -----------------------
+        self.controlador = ControladorAdaptativo(
+            n_base=max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))),
+            # Com o agendador assíncrono, detectar a cada N quadros não alivia
+            # nada quando a inferência é o gargalo: o slot de cada câmera já
+            # guarda só o quadro mais novo e é servido assim que a anterior
+            # acaba. Os degraus de N só atrasariam os úteis (6 s cada: 3
+            # leituras de 2 s) — por isso, no assíncrono, a escada começa na pose.
+            n_max=(max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))) if self.agendador is not None
+                   else max(1, int(app.config.get("ADAPTATIVO_N_MAX", 6)))),
+            pose_k_max=3 if self.pose_detector is not None else 1,
+            telemetria_base_hz=float(app.config.get("TELEMETRY_HZ", 8.0)),
+            limite_alto_ms=float(app.config.get("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)),
+            limite_baixo_ms=float(app.config.get("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)),
+        )
+        # Snapshot de alerta gravado fora do loop da câmera (um thread para todas).
+        self.gravador = GravadorAssincrono(app) if self.agendador is not None and not app.config.get("TESTING") else None
+        self._parar_adaptativo = threading.Event()
+        self._thread_adaptativo: threading.Thread | None = None
+        if app.config.get("ADAPTATIVO", True) and self.agendador is not None and not app.config.get("TESTING"):
+            self._thread_adaptativo = threading.Thread(target=self._laco_adaptativo, name="controlador-adaptativo", daemon=True)
+            self._thread_adaptativo.start()
         self._workers_lock = threading.RLock()
         self._default_camera_id: int | None = None
 
     # ---- ciclo de vida dos workers -----------------------------------------
+    def aquecer(self) -> dict[str, float]:
+        """Uma inferência em cada modelo (EPI, pessoa, pose) antes de servir.
+
+        Chamado pelo `run.py`, não pelo construtor: o `wsgi.py` também é
+        importado pelos comandos `flask users ...`, que não precisam de modelo.
+        Ver `aquecer_modelos` para o número que motivou isto.
+        """
+        self.aquecimento_ms = aquecer_modelos([self.detector, self.person_detector, self.pose_detector])
+        return self.aquecimento_ms
+
     def load_cameras_from_db(self) -> None:
         """Sincroniza self._workers com a tabela `cameras`. Chamado no boot
         (app/__init__.py, dentro do app_context) e de novo sempre que o CRUD
@@ -218,8 +306,11 @@ class MonitorService:
             detector=self.detector,
             person_detector=self.person_detector,
             pose_estimator=self.pose_estimator,
+            pose_detector=self.pose_detector,
             inference_lock=self._inference_lock,
             servico_llm=self._criar_servico_llm(),
+            agendador=self.agendador,
+            gravador=self.gravador,
         )
 
     def _criar_servico_llm(self):
@@ -288,6 +379,93 @@ class MonitorService:
 
     def latest_jpeg_versionado(self, camera_id: int | None = None) -> tuple[bytes | None, int]:
         return self._get_worker(camera_id).latest_jpeg_versionado()
+
+    def _laco_adaptativo(self) -> None:
+        while not self._parar_adaptativo.wait(2.0):
+            try:
+                manter_afinidade()
+                self.tique_adaptativo()
+            except Exception:  # noqa: BLE001  (o controlador nunca derruba o monitor)
+                pass
+
+    def tique_adaptativo(self) -> bool:
+        """Uma leitura do controlador. Devolve True se o nível mudou (e aplica)."""
+        with self._workers_lock:
+            workers = [w for w in self._workers.values() if w._running.is_set()]
+        idades = [
+            w.stats.resumo(10.0)["etapas"].get("idade_na_inferencia", {}).get("p95")
+            for w in workers
+        ]
+        idades = [v for v in idades if v is not None]
+        if not self.controlador.avaliar(max(idades) if idades else None):
+            return False
+        self._aplicar_adaptativo(workers)
+        return True
+
+    def _aplicar_adaptativo(self, workers) -> None:
+        cfg = self.controlador.configuracao()
+        resumo = self.controlador.resumo()
+        for worker in workers:
+            worker.detect_every_n = int(cfg["n"])
+            worker.pose_a_cada_k = int(cfg.get("pose_k", 1))
+            worker._intervalo_telemetria = 1.0 / float(cfg["telemetria_hz"]) if cfg["telemetria_hz"] else 0.0
+            worker.modo_adaptativo = resumo
+        self.socketio.emit("modo_adaptativo", resumo, to=SALA_PARQUE)
+        for worker in workers:
+            self.socketio.emit("modo_adaptativo", resumo | {"camera_id": worker.camera_id}, to=sala_da_camera(worker.camera_id))
+
+    def registrar_espectador(self, camera_id: int, delta: int) -> None:
+        """Quantos streams abertos por câmera (diagnóstico; o encode já é sob demanda)."""
+        with self._workers_lock:
+            self.espectadores[camera_id] = max(0, self.espectadores.get(camera_id, 0) + delta)
+            worker = self._workers.get(camera_id)
+            if worker is not None:
+                worker.espectadores = self.espectadores[camera_id]
+
+    def worker_da_camera(self, camera_id: int | None = None) -> CameraWorker:
+        """O worker em si — para o gerador do MJPEG e o diagnóstico do pipeline."""
+        return self._get_worker(camera_id)
+
+    def diagnostico_do_pipeline(
+        self, camera_ids: list[int] | None = None, janela_s: float = 30.0, quadro: int | None = None
+    ) -> dict[str, Any]:
+        """Percentis por etapa e taxas de cada câmera, mais o estado dos modelos."""
+        with self._workers_lock:
+            workers = dict(self._workers)
+        cameras = {}
+        for camera_id, worker in workers.items():
+            if camera_ids is not None and camera_id not in camera_ids:
+                continue
+            cameras[str(camera_id)] = {
+                "running": worker._running.is_set(),
+                "fonte_fps": worker.video_stream.fps_da_fonte,
+                "alvo_fps": worker.target_fps,
+                "detectar_a_cada_n": worker.detect_every_n,
+                "espectadores": self.espectadores.get(camera_id, 0),
+                "stats": worker.stats.resumo(janela_s),
+            }
+            if quadro is not None:
+                cameras[str(camera_id)]["ts_quadro_ms"] = worker.stats.ts_do_quadro(quadro)
+        detectores = {"epi": self.detector, "pessoa": self.person_detector}
+        if self.pose_detector is not None:
+            detectores["pose"] = self.pose_detector
+        modelos = {
+            nome: {
+                "caminho": getattr(det, "model_path", None),
+                "imgsz": getattr(det, "imgsz", None),
+                "carga_ms": getattr(det, "load_ms", None),
+                "runtime": getattr(det, "runtime", None),
+                "escolha": self.runtimes.get(nome),
+                "aquecimento_ms": self.aquecimento_ms.get(str(getattr(det, "model_path", ""))),
+            }
+            for nome, det in detectores.items()
+        }
+        return {
+            "cameras": cameras,
+            "modelos": modelos,
+            "agendador": self.agendador.estado() if self.agendador is not None else None,
+            "adaptativo": self.controlador.resumo(),
+        }
 
     def latest_analysis(self, camera_id: int | None = None) -> dict[str, Any] | None:
         return self._get_worker(camera_id).latest_analysis()

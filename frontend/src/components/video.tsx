@@ -25,9 +25,12 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
     const wrap = wrapRef.current;
     if (!wrap) return null;
     const box = wrap.getBoundingClientRect();
+    // O vídeo agora é o <canvas class="live-video">, que publica o tamanho do
+    // quadro em data-w/data-h; <img> fica como fallback.
+    const live = wrap.querySelector<HTMLCanvasElement>("canvas.live-video");
     const img = wrap.querySelector("img");
-    const nw = img?.naturalWidth || 0;
-    const nh = img?.naturalHeight || 0;
+    const nw = Number(live?.dataset.w) || img?.naturalWidth || 0;
+    const nh = Number(live?.dataset.h) || img?.naturalHeight || 0;
     if (!nw || !nh) return { x: 0, y: 0, w: box.width, h: box.height, box };
     const scale = Math.min(box.width / nw, box.height / nh);
     const w = nw * scale;
@@ -160,8 +163,14 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
 // O antigo <VideoCard/> (câmera padrão legada) saiu como código morto no rebrand.
 
 export function RiskAreaEditorPanel() {
-  const { riskArea, riskEditorActive, riskEditorPoints, toggleRiskEditor, clearRiskEditorPoints, resetRiskEditorFromServer, updateRiskArea, showMessage } =
-    useDashboardStore();
+  const riskArea = useDashboardStore((s) => s.riskArea);
+  const riskEditorActive = useDashboardStore((s) => s.riskEditorActive);
+  const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
+  const toggleRiskEditor = useDashboardStore((s) => s.toggleRiskEditor);
+  const clearRiskEditorPoints = useDashboardStore((s) => s.clearRiskEditorPoints);
+  const resetRiskEditorFromServer = useDashboardStore((s) => s.resetRiskEditorFromServer);
+  const updateRiskArea = useDashboardStore((s) => s.updateRiskArea);
+  const showMessage = useDashboardStore((s) => s.showMessage);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {

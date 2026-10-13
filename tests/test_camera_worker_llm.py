@@ -338,13 +338,15 @@ def test_status_expoe_o_estado_da_camada_llm(worker):
 
 
 # --------------------------------- 4. um encode por frame -----------------
-def test_um_unico_imencode_por_frame(worker, monkeypatch):
-    """Caracterização, e trava contra regressão.
+def test_encode_so_sob_demanda_e_no_maximo_um_por_quadro(worker, servico, monkeypatch):
+    """Trava contra regressão do contrato de encode (NEXT 2026).
 
-    A BENCH.md registra UM encode por frame (2,5 ms), reaproveitado por todos
-    os consumidores. O fio do LLM reaproveita o mesmo JPEG; se codificasse de
-    novo, acrescentaria 2,5 ms ao caminho do frame justamente nos frames com
-    alerta — os que mais importam.
+    Antes: exatamente UM encode por frame, houvesse ou não quem assistisse.
+    Agora o encode é sob demanda: sem espectador, o único consumidor do JPEG é
+    o LLM, no quadro em que o alerta NASCE; e cada versão de quadro é
+    codificada no máximo uma vez por variante (cru/anotado), por mais
+    espectadores que peçam. O fio do LLM continua reaproveitando o mesmo JPEG
+    que o stream usaria — nunca um segundo encode do mesmo quadro.
     """
     import cv2
 
@@ -359,7 +361,19 @@ def test_um_unico_imencode_por_frame(worker, monkeypatch):
 
     rodar(worker, 4)
 
-    assert chamadas["n"] == 4, f"esperava 1 encode por frame em 4 frames, houve {chamadas['n']}"
+    assert len(servico.submissoes) == 1
+    assert chamadas["n"] == 1, f"sem espectador, só o quadro do alerta criado é codificado; houve {chamadas['n']}"
+
+    # Dois espectadores do MESMO quadro anotado: um encode só.
+    primeiro = worker.jpeg_do_quadro(anotado=True)
+    segundo = worker.jpeg_do_quadro(anotado=True)
+    assert primeiro is segundo
+    assert chamadas["n"] == 2
+
+    # A variante crua (player em canvas) é outro encode, também único.
+    worker.jpeg_do_quadro(anotado=False)
+    worker.jpeg_do_quadro(anotado=False)
+    assert chamadas["n"] == 3
 
 
 # ------------------------------- degradacao ------------------------------

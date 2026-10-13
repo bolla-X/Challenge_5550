@@ -309,8 +309,19 @@ export interface CameraDiagnostico {
   brilho_minimo?: number;
 }
 
+/** app/services/controlador_adaptativo.py: resumo(). */
+export interface ModoAdaptativo {
+  nivel: number;
+  nivel_max: number;
+  degradado: boolean;
+  reducoes: string[];
+  motivo: string | null;
+}
+
 export interface MonitorStatus extends CameraScoped {
   running: boolean;
+  /** O que o controlador adaptativo reduziu nesta câmera (null = nunca mexeu). */
+  adaptativo?: ModoAdaptativo | null;
   frame_counter: number;
   last_error: string | null;
   video?: VideoStreamStatus;

@@ -134,3 +134,75 @@ class PersonTracker:
             track.misses += 1
             if track.misses > self.max_age:
                 del self._tracks[track_id]
+
+
+class ByteTrackPessoas:
+    """Mesma interface do `PersonTracker`, com ByteTrack por baixo (um por câmera).
+
+    O que o ByteTrack faz que o tracker IoU não faz: a SEGUNDA associação com
+    detecções de baixa confiança (entre 0,1 e o limiar de ativação). Uma pessoa
+    meio encoberta, que o modelo vê com 0,2 de confiança, continua no MESMO
+    track em vez de sumir e voltar como "Pessoa N+1". Por isso o detector de
+    pessoa, com este tracker, entrega a partir de 0,1 (`confianca_minima`) — e
+    só tracks ATIVOS saem daqui: caixa fraca nunca cria pessoa nova.
+
+    Kalman e associação em dois estágios vêm de `app/vision/bytetrack/`
+    (derivado de supervision 0.30.9, MIT). Decisão e números em
+    docs/NEXT2026/CHANGELOG.md (comparação com o tracker IoU nas fixtures).
+    """
+
+    confianca_minima = 0.1
+
+    def __init__(self, *, limiar_ativacao: float = 0.35, max_perdido: int = 15) -> None:
+        from app.vision.bytetrack.core import ByteTrack
+
+        self._limiar = limiar_ativacao
+        self._max_perdido = max_perdido
+        self._bt = ByteTrack(
+            track_activation_threshold=limiar_ativacao,
+            lost_track_buffer=max_perdido,
+            # `frame_rate` só escala o buffer (frame_rate/30 * buffer): 30 deixa
+            # `max_perdido` em INFERÊNCIAS, que é a unidade que o worker vê.
+            frame_rate=30,
+        )
+        self._ativos = 0
+
+    def reset(self) -> None:
+        self._bt.reset()
+        self._ativos = 0
+
+    @property
+    def active_count(self) -> int:
+        return self._ativos
+
+    def update(self, detections: list[Detection]) -> list[Detection]:
+        import numpy as np
+
+        tensores = np.array(
+            [[d.box.x1, d.box.y1, d.box.x2, d.box.y2, d.confidence] for d in detections], dtype=np.float32
+        ).reshape(-1, 5)
+        tracks = self._bt.update_with_tensors(tensores)
+        self._ativos = len(tracks)
+        if not tracks or not detections:
+            return []
+        # Cada track ativo volta para a detecção de ONDE veio (maior IoU entre a
+        # caixa do track — já atualizada com essa detecção — e a da detecção).
+        pares = sorted(
+            (
+                (BoundingBox(*(int(v) for v in t.tlbr)).iou(d.box), ti, di)
+                for ti, t in enumerate(tracks)
+                for di, d in enumerate(detections)
+            ),
+            reverse=True,
+        )
+        usados_t, usados_d, saida = set(), set(), []
+        for iou, ti, di in pares:
+            if iou < 0.3:
+                break
+            if ti in usados_t or di in usados_d:
+                continue
+            usados_t.add(ti)
+            usados_d.add(di)
+            saida.append(detections[di].with_track_id(int(tracks[ti].external_track_id)))
+        saida.sort(key=lambda det: det.track_id or 0)
+        return saida

@@ -1,0 +1,175 @@
+{
+ "modelo": "epi",
+ "quadros": 126,
+ "referencia": "pytorch:640",
+ "resultados": {
+  "onnx-dyn:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "helmet": {
+     "batidas": 20,
+     "n_ref": 20,
+     "n_cand": 20,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 89,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 121,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    }
+   },
+   "bancada_ms_p50": 833.4,
+   "bancada_ms_p95": 1508.6,
+   "erro": null
+  },
+  "openvino:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 3,
+     "n_ref": 6,
+     "n_cand": 5,
+     "recall_ref": 0.5,
+     "concordancia": 0.5455
+    },
+    "helmet": {
+     "batidas": 19,
+     "n_ref": 20,
+     "n_cand": 20,
+     "recall_ref": 0.95,
+     "concordancia": 0.95
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 87,
+     "n_ref": 89,
+     "n_cand": 91,
+     "recall_ref": 0.9775,
+     "concordancia": 0.9667
+    },
+    "_total": {
+     "batidas": 115,
+     "n_ref": 121,
+     "n_cand": 122,
+     "recall_ref": 0.9504,
+     "concordancia": 0.9465
+    }
+   },
+   "bancada_ms_p50": 432.1,
+   "bancada_ms_p95": 8022.2,
+   "erro": null
+  },
+  "openvino-dyn:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 3,
+     "n_ref": 6,
+     "n_cand": 5,
+     "recall_ref": 0.5,
+     "concordancia": 0.5455
+    },
+    "helmet": {
+     "batidas": 19,
+     "n_ref": 20,
+     "n_cand": 20,
+     "recall_ref": 0.95,
+     "concordancia": 0.95
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 87,
+     "n_ref": 89,
+     "n_cand": 90,
+     "recall_ref": 0.9775,
+     "concordancia": 0.9721
+    },
+    "_total": {
+     "batidas": 115,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 0.9504,
+     "concordancia": 0.9504
+    }
+   },
+   "bancada_ms_p50": 806.6,
+   "bancada_ms_p95": 9346.2,
+   "erro": null
+  },
+  "openvino-int8:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 3,
+     "n_ref": 6,
+     "n_cand": 7,
+     "recall_ref": 0.5,
+     "concordancia": 0.4615
+    },
+    "helmet": {
+     "batidas": 19,
+     "n_ref": 20,
+     "n_cand": 26,
+     "recall_ref": 0.95,
+     "concordancia": 0.8261
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 107,
+     "recall_ref": 1.0,
+     "concordancia": 0.9082
+    },
+    "_total": {
+     "batidas": 117,
+     "n_ref": 121,
+     "n_cand": 146,
+     "recall_ref": 0.9669,
+     "concordancia": 0.8764
+    }
+   },
+   "bancada_ms_p50": 1528.5,
+   "bancada_ms_p95": 2421.4,
+   "erro": null
+  }
+ }
+}

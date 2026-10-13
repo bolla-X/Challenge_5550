@@ -10,8 +10,8 @@ from flask_socketio import SocketIO
 from app.models import Alert
 from app.repositories.alert_repository import AlertRepository
 from app.services.risk_rules import RuleAlert
-from app.vision.schemas import BoundingBox
 from app.utils.salas import emitir_para_camera
+from app.vision.schemas import BoundingBox
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # pessoas perde e reencontra a mesma pessoa a cada poucos frames; se a soneca
 # caisse junto, o "resolver todos" nao segurava nada.
 SONECA_AUSENCIA_S = 10.0
+# Reenvio da lista de ativos mesmo sem mudança (ver _emit_active).
+PULSACAO_ATIVOS_S = 2.0
 # IoU minimo entre a caixa da pessoa silenciada e a de um alerta novo da mesma
 # regra pra considerar que e a MESMA pessoa com id novo.
 SONECA_IOU_MESMA_PESSOA = 0.25
@@ -43,6 +45,10 @@ class AlertRuntimeState:
     # gravação. Ver AlertStateService.intervalo_touch.
     ocorrencias_pendentes: int = 0
     ultimo_touch: float = 0.0
+    # Instante (monotonic) da 1ª confirmação da sequência atual de violação
+    # e da 1ª da sequência atual de normalidade (histerese por tempo).
+    violacao_desde: float | None = None
+    normal_desde: float | None = None
 
 
 class AlertStateService:
@@ -61,6 +67,10 @@ class AlertStateService:
         camera_id: int | None = None,
         intervalo_touch: float = 2.0,
         silencio_apos_limpar: float = 60.0,
+        create_after_seconds: float | None = None,
+        min_confirmacoes: int = 2,
+        resolve_after_seconds: float | None = None,
+        min_confirmacoes_resolver: int = 3,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
@@ -70,6 +80,21 @@ class AlertStateService:
         self.camera_id = camera_id
         self.create_after_frames = max(1, int(create_after_frames))
         self.resolve_after_frames = max(1, int(resolve_after_frames))
+        # Histerese também por TEMPO. Os limiares em quadros (8 para criar, 20
+        # para resolver) foram calibrados para o loop antigo a ~12 inferências/s,
+        # onde 8 confirmações eram ~0,7 s. Numa máquina que faz 0,3 análise/s
+        # as mesmas 8 viram ~27 s — medido no bench (docs/NEXT2026/BENCHMARKS.md:
+        # 60–84 s de latência de alerta no perfil batata). Agora cria quando
+        # bate o limiar em quadros OU quando a violação se sustenta por
+        # `create_after_seconds` com pelo menos `min_confirmacoes` inferências
+        # NOVAS e seguidas. O mínimo de confirmações é o que protege contra o
+        # falso positivo de um quadro só; o tempo é o que a pessoa no chão de
+        # fábrica entende. Resolver segue a mesma lógica, com mínimos maiores.
+        # None desliga (só quadros, como antes).
+        self.create_after_seconds = create_after_seconds
+        self.min_confirmacoes = max(1, int(min_confirmacoes))
+        self.resolve_after_seconds = resolve_after_seconds
+        self.min_confirmacoes_resolver = max(1, int(min_confirmacoes_resolver))
         # Segundos entre gravações de um alerta que CONTINUA ativo.
         #
         # Antes o `touch` (last_seen_at + occurrences) fazia um commit por
@@ -89,6 +114,8 @@ class AlertStateService:
         # fica quieto e quantos frames seguidos a violacao ja esta ausente.
         self.silencio_apos_limpar = max(0.0, float(silencio_apos_limpar))
         self._silenciados: dict[str, dict[str, Any]] = {}
+        self._ultima_assinatura_ativos: tuple | None = None
+        self._ultimo_emit_ativos = 0.0
 
     @staticmethod
     def _caixa_da_pessoa(metadata: dict[str, Any] | None) -> BoundingBox | None:
@@ -178,6 +205,17 @@ class AlertStateService:
             self._emit_active(ativos)
             return {"active": ativos, "changed": [], "created": [], "updated": [], "resolved": encerrados_por_desligar}
 
+        # UMA transação por análise: create/touch/resolve fazem só flush e o
+        # commit é único no fim. Medido no bench (multidão, perfil batata): com
+        # dezenas de pessoas x 7 EPIs, um commit SQLite por alerta tocado deixava
+        # a análise nova até ~0,9 s parada aqui antes de sair (etapa `alertas`,
+        # p99 565 ms). Os eventos vão DEPOIS do commit: o navegador nunca recebe
+        # um alerta que ainda não está no banco.
+        pendentes: list[tuple[str, Any]] = []
+
+        def emitir(evento: str, payload: Any) -> None:
+            pendentes.append((evento, payload))
+
         current_by_key = {item.key: item for item in current_violations}
         # A soneca so vale enquanto a violacao continua: se sumiu de verdade
         # (mesma histerese de resolucao), uma violacao NOVA depois dispara.
@@ -198,15 +236,20 @@ class AlertStateService:
                 state = AlertRuntimeState(key=key, rule_alert=item)
                 self._states[key] = state
             state.rule_alert = item
+            if state.violation_frames == 0:
+                state.violacao_desde = agora
             state.violation_frames += 1
             state.normal_frames = 0
+            state.normal_desde = None
 
             if (
                 state.alert is None
-                and state.violation_frames >= self.create_after_frames
+                and self._confirmou(state.violation_frames, state.violacao_desde, agora,
+                                    self.create_after_frames, self.create_after_seconds, self.min_confirmacoes)
                 and not self._silenciado(key, item)
             ):
                 state.alert = self.repository.create(
+                    commit=False,
                     camera_id=self.camera_id,
                     rule=item.rule,
                     severity=item.severity,
@@ -222,8 +265,8 @@ class AlertStateService:
                 state.ocorrencias_pendentes = 0
                 created.append(payload)
                 created_or_updated.append(payload)
-                self._emitir("alert_created", payload)
-                self._emitir("alert", payload)  # compatibilidade com clientes antigos
+                emitir("alert_created", payload)
+                emitir("alert", payload)  # compatibilidade com clientes antigos
                 logger.warning("alert_created", extra={"alert": payload})
             elif state.snapshot is not None and state.snapshot.get("status") == "active":
                 # Alerta que continua ativo: acumula e só grava de tempos em
@@ -231,13 +274,13 @@ class AlertStateService:
                 # snapshot, não `state.alert.status`, para não tocar no ORM
                 # a cada frame — mesmo motivo de active_alerts().
                 state.ocorrencias_pendentes += 1
-                agora = monotonic()
                 if agora - state.ultimo_touch < self.intervalo_touch:
                     continue
                 state.alert = self.repository.touch(
                     state.alert,
                     metadata=item.metadata | {"confirmation_frames": state.violation_frames},
                     incremento=state.ocorrencias_pendentes,
+                    commit=False,
                 )
                 state.ocorrencias_pendentes = 0
                 state.ultimo_touch = agora
@@ -245,30 +288,46 @@ class AlertStateService:
                 state.snapshot = payload
                 updated.append(payload)
                 created_or_updated.append(payload)
-                self._emitir("alert_updated", payload)
+                emitir("alert_updated", payload)
 
         for key in list(self._states.keys()):
             if key in current_by_key:
                 continue
             state = self._states[key]
+            if state.normal_frames == 0:
+                state.normal_desde = agora
             state.normal_frames += 1
             state.violation_frames = 0
-            if state.normal_frames >= self.resolve_after_frames:
+            state.violacao_desde = None
+            if self._confirmou(state.normal_frames, state.normal_desde, agora, self.resolve_after_frames,
+                               self.resolve_after_seconds, self.min_confirmacoes_resolver):
                 if state.alert is not None and state.alert.status == "active":
                     state.alert = self.repository.resolve(
                         state.alert,
                         metadata=(state.alert.metadata_json or {}) | {"resolution_frames": state.normal_frames},
+                        commit=False,
                     )
                     payload = state.alert.to_dict()
                     state.snapshot = payload
                     resolved.append(payload)
-                    self._emitir("alert_resolved", payload)
+                    emitir("alert_resolved", payload)
                     logger.info("alert_resolved", extra={"alert": payload})
                 del self._states[key]
 
+        if pendentes:
+            self.repository.salvar()
+        for evento, payload in pendentes:
+            self._emitir(evento, payload)
         active = self.active_alerts()
         self._emit_active(active)
         return {"active": active, "changed": created_or_updated, "created": created, "updated": updated, "resolved": resolved}
+
+    @staticmethod
+    def _confirmou(confirmacoes: int, desde: float | None, agora: float, limiar_quadros: int,
+                   limiar_s: float | None, minimo: int) -> bool:
+        if confirmacoes >= limiar_quadros:
+            return True
+        return limiar_s is not None and desde is not None and confirmacoes >= minimo and agora - desde >= limiar_s
 
     def _emitir(self, evento: str, payload) -> None:
         """Emite respeitando o escopo de camera do Operador.
@@ -279,6 +338,19 @@ class AlertStateService:
         emitir_para_camera(self.socketio, evento, payload, self.camera_id)
 
     def _emit_active(self, active: list[dict[str, Any]]) -> None:
+        """Emite a lista de ativos quando ela MUDA (ou a cada 2 s, de pulsação).
+
+        Antes saía a cada chamada de `process` — ou seja, a cada frame de cada
+        câmera, ~12 vezes por segundo, com a mesma lista. Com o Socket.IO em
+        long-polling, cada emit é serializado e enfileirado por cliente. A
+        pulsação garante que um painel que perdeu um evento se acerte sozinho.
+        """
+        assinatura = tuple((a.get("id"), a.get("status"), a.get("occurrences"), a.get("last_seen_at")) for a in active)
+        agora = monotonic()
+        if assinatura == self._ultima_assinatura_ativos and agora - self._ultimo_emit_ativos < PULSACAO_ATIVOS_S:
+            return
+        self._ultima_assinatura_ativos = assinatura
+        self._ultimo_emit_ativos = agora
         self._emitir("active_alerts", {"camera_id": self.camera_id, "items": active, "count": len(active)})
 
     def active_alerts(self) -> list[dict[str, Any]]:
@@ -326,3 +398,4 @@ class AlertStateService:
     def reset(self) -> None:
         self._states.clear()
         self._silenciados.clear()
+        self._ultima_assinatura_ativos = None

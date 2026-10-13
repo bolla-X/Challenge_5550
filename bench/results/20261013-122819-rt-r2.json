@@ -1,0 +1,7160 @@
+{
+ "carimbo": "20261013-122819",
+ "maquina": {
+  "cpu": "13th Gen Intel(R) Core(TM) i7-1355U",
+  "nucleos_fisicos": 10,
+  "nucleos_logicos": 12,
+  "ram_gb": 15.7,
+  "gpu_cuda": null,
+  "so": "Windows 10 (10.0.26200)",
+  "versoes": {
+   "python": "3.11.9",
+   "torch": "2.13.0+cpu",
+   "ultralytics": "8.3.40",
+   "cv2": "4.11.0",
+   "onnxruntime": "1.29.0",
+   "openvino": "2026.3.0-22451-8a17657b995-releases/2026/3",
+   "mediapipe": "0.10.14",
+   "numpy": "1.26.4",
+   "flask_socketio": null
+  }
+ },
+ "afinidade_batata": [
+  10,
+  11
+ ],
+ "config_base": {
+  "VISIONEPI_DOTENV": "0",
+  "HOST": "127.0.0.1",
+  "AUTH_REQUIRED": "true",
+  "AUTO_CREATE_TABLES": "true",
+  "FLASK_DEBUG": "false",
+  "PPE_MODEL_PATH": "models/vyra_ppe.pt",
+  "PERSON_MODEL_PATH": "models/yolov8n.pt",
+  "YOLO_CLASSES": "0,1,2,3,5,11,12,13",
+  "YOLO_CONFIDENCE": "0.35",
+  "YOLO_DEVICE": "",
+  "PPE_CONF_MIN_BY_CLASS": "helmet:0.40,vest:0.40,gloves:0.30,mask:0.30,glasses:0.15,ear_protection:0.30",
+  "MULTI_PERSON_DETECTION": "true",
+  "YOLO_IMGSZ": "640",
+  "TARGET_FPS": "12",
+  "JPEG_QUALITY": "80",
+  "POSE_PER_PERSON": "true",
+  "POSE_MAX_PEOPLE": "4",
+  "ALERT_CREATE_AFTER_FRAMES": "8",
+  "ALERT_RESOLVE_AFTER_FRAMES": "20",
+  "TELEMETRY_HZ": "8",
+  "LLM_ENABLED": "false",
+  "DEFAULT_FEATURES": "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area",
+  "CLEANUP_ON_MONITOR_START": "true",
+  "PYTHONUNBUFFERED": "1"
+ },
+ "resultados": [
+  {
+   "rotulo": "batata-4cam-pt-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao",
+    "bench",
+    "queda",
+    "bench"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "PPE_RUNTIME": "pytorch",
+    "PERSON_RUNTIME": "pytorch"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-novo",
+   "prioridade_alta": true,
+   "startup_s": 39.33,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 3.0,
+   "modelos": {
+    "epi": {
+     "aquecimento_ms": 18973.4,
+     "caminho": "models/vyra_ppe.pt",
+     "carga_ms": 303.9,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (pedido)",
+      "pedido": "pytorch"
+     },
+     "imgsz": 640,
+     "runtime": "pytorch"
+    },
+    "pessoa": {
+     "aquecimento_ms": 3497.7,
+     "caminho": "models/yolov8n.pt",
+     "carga_ms": 546.7,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (pedido)",
+      "pedido": "pytorch"
+     },
+     "imgsz": 640,
+     "runtime": "pytorch"
+    },
+    "pose": {
+     "aquecimento_ms": 4464.5,
+     "caminho": "models/yolo11n-pose.pt",
+     "carga_ms": 435.8,
+     "escolha": null,
+     "imgsz": 640,
+     "runtime": "pytorch"
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791905363784.6833,
+     "recebido_ms": 1791905393566,
+     "latencia_ms": 29781.3,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 7.32,
+    "quadros_repetidos": 3,
+    "idade_quadro_ms": {
+     "p50": 37.6,
+     "p95": 79.64,
+     "p99": 213.34
+    },
+    "decode_ms": {
+     "p50": 9.6,
+     "p95": 19.23
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 124.55,
+     "p95": 195.44,
+     "p99": 500.14
+    },
+    "video_bytes_por_s": 452611,
+    "socketio_bytes_por_s": 26737,
+    "long_tasks": 1,
+    "long_task_ms_total": 656,
+    "react_commits_por_s": 6.3,
+    "raf_fps": 59.4,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 3,
+    "ui_player": {
+     "exibidos_total": 513,
+     "idade_quadro_ms": {
+      "p50": 51.05,
+      "p95": 92.89
+     },
+     "descartados_no_cliente": 3
+    }
+   },
+   "processo": {
+    "cpu_pct_media": 182.2,
+    "cpu_pct_p95": 190.6,
+    "carga_de_fundo_pct_media": 903.1,
+    "rss_mb_inicio": 629.4,
+    "rss_mb_fim": 626.2,
+    "rss_mb_max": 662.2,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 118.7,
+      "rss_mb": 629.4,
+      "carga_de_fundo_pct": 1046.5
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 181.2,
+      "rss_mb": 637.4,
+      "carga_de_fundo_pct": 883.2
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 187.5,
+      "rss_mb": 637.5,
+      "carga_de_fundo_pct": 834.9
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 187.5,
+      "rss_mb": 632.1,
+      "carga_de_fundo_pct": 546.9
+     },
+     {
+      "t": 4.0,
+      "cpu_pct": 176.6,
+      "rss_mb": 639.9,
+      "carga_de_fundo_pct": 748.6
+     },
+     {
+      "t": 5.0,
+      "cpu_pct": 182.8,
+      "rss_mb": 644.5,
+      "carga_de_fundo_pct": 732.8
+     },
+     {
+      "t": 6.0,
+      "cpu_pct": 175.5,
+      "rss_mb": 637.2,
+      "carga_de_fundo_pct": 902.1
+     },
+     {
+      "t": 7.0,
+      "cpu_pct": 190.6,
+      "rss_mb": 642.3,
+      "carga_de_fundo_pct": 840.2
+     },
+     {
+      "t": 8.1,
+      "cpu_pct": 168.1,
+      "rss_mb": 624.1,
+      "carga_de_fundo_pct": 783.5
+     },
+     {
+      "t": 9.1,
+      "cpu_pct": 173.4,
+      "rss_mb": 662.2,
+      "carga_de_fundo_pct": 665.4
+     },
+     {
+      "t": 10.1,
+      "cpu_pct": 178.1,
+      "rss_mb": 631.4,
+      "carga_de_fundo_pct": 750.7
+     },
+     {
+      "t": 11.1,
+      "cpu_pct": 184.4,
+      "rss_mb": 631.1,
+      "carga_de_fundo_pct": 998.8
+     },
+     {
+      "t": 12.1,
+      "cpu_pct": 184.7,
+      "rss_mb": 630.3,
+      "carga_de_fundo_pct": 1002.1
+     },
+     {
+      "t": 13.1,
+      "cpu_pct": 186.1,
+      "rss_mb": 639.4,
+      "carga_de_fundo_pct": 884.3
+     },
+     {
+      "t": 14.1,
+      "cpu_pct": 176.6,
+      "rss_mb": 608.3,
+      "carga_de_fundo_pct": 797.8
+     },
+     {
+      "t": 15.1,
+      "cpu_pct": 182.8,
+      "rss_mb": 601.2,
+      "carga_de_fundo_pct": 732.8
+     },
+     {
+      "t": 16.1,
+      "cpu_pct": 179.7,
+      "rss_mb": 608.1,
+      "carga_de_fundo_pct": 588.3
+     },
+     {
+      "t": 17.1,
+      "cpu_pct": 166.3,
+      "rss_mb": 599.8,
+      "carga_de_fundo_pct": 881.3
+     },
+     {
+      "t": 18.1,
+      "cpu_pct": 178.1,
+      "rss_mb": 592.6,
+      "carga_de_fundo_pct": 1008.7
+     },
+     {
+      "t": 19.1,
+      "cpu_pct": 193.8,
+      "rss_mb": 599.7,
+      "carga_de_fundo_pct": 934.2
+     },
+     {
+      "t": 20.1,
+      "cpu_pct": 190.6,
+      "rss_mb": 604.5,
+      "carga_de_fundo_pct": 884.6
+     },
+     {
+      "t": 21.1,
+      "cpu_pct": 182.8,
+      "rss_mb": 598.3,
+      "carga_de_fundo_pct": 804.8
+     },
+     {
+      "t": 22.1,
+      "cpu_pct": 181.2,
+      "rss_mb": 598.8,
+      "carga_de_fundo_pct": 705.6
+     },
+     {
+      "t": 23.1,
+      "cpu_pct": 184.4,
+      "rss_mb": 596.9,
+      "carga_de_fundo_pct": 565.6
+     },
+     {
+      "t": 24.1,
+      "cpu_pct": 181.5,
+      "rss_mb": 623.8,
+      "carga_de_fundo_pct": 527.7
+     },
+     {
+      "t": 25.1,
+      "cpu_pct": 187.5,
+      "rss_mb": 608.1,
+      "carga_de_fundo_pct": 906.9
+     },
+     {
+      "t": 26.2,
+      "cpu_pct": 187.1,
+      "rss_mb": 601.1,
+      "carga_de_fundo_pct": 1002.1
+     },
+     {
+      "t": 27.4,
+      "cpu_pct": 185.6,
+      "rss_mb": 602.4,
+      "carga_de_fundo_pct": 1006.0
+     },
+     {
+      "t": 28.4,
+      "cpu_pct": 176.6,
+      "rss_mb": 593.0,
+      "carga_de_fundo_pct": 995.8
+     },
+     {
+      "t": 29.4,
+      "cpu_pct": 187.6,
+      "rss_mb": 594.9,
+      "carga_de_fundo_pct": 995.6
+     },
+     {
+      "t": 30.4,
+      "cpu_pct": 176.6,
+      "rss_mb": 593.3,
+      "carga_de_fundo_pct": 980.2
+     },
+     {
+      "t": 31.4,
+      "cpu_pct": 182.8,
+      "rss_mb": 611.2,
+      "carga_de_fundo_pct": 975.2
+     },
+     {
+      "t": 32.5,
+      "cpu_pct": 183.9,
+      "rss_mb": 614.8,
+      "carga_de_fundo_pct": 1016.1
+     },
+     {
+      "t": 33.7,
+      "cpu_pct": 183.8,
+      "rss_mb": 608.4,
+      "carga_de_fundo_pct": 1013.8
+     },
+     {
+      "t": 35.6,
+      "cpu_pct": 189.0,
+      "rss_mb": 607.0,
+      "carga_de_fundo_pct": 1008.6
+     },
+     {
+      "t": 36.6,
+      "cpu_pct": 184.9,
+      "rss_mb": 607.2,
+      "carga_de_fundo_pct": 1013.9
+     },
+     {
+      "t": 37.7,
+      "cpu_pct": 184.2,
+      "rss_mb": 625.5,
+      "carga_de_fundo_pct": 1003.8
+     },
+     {
+      "t": 38.8,
+      "cpu_pct": 177.9,
+      "rss_mb": 613.1,
+      "carga_de_fundo_pct": 1022.1
+     },
+     {
+      "t": 39.9,
+      "cpu_pct": 182.5,
+      "rss_mb": 617.1,
+      "carga_de_fundo_pct": 1012.7
+     },
+     {
+      "t": 41.3,
+      "cpu_pct": 184.0,
+      "rss_mb": 590.2,
+      "carga_de_fundo_pct": 1016.0
+     },
+     {
+      "t": 42.7,
+      "cpu_pct": 179.9,
+      "rss_mb": 602.4,
+      "carga_de_fundo_pct": 1020.1
+     },
+     {
+      "t": 43.9,
+      "cpu_pct": 185.0,
+      "rss_mb": 607.1,
+      "carga_de_fundo_pct": 1011.4
+     },
+     {
+      "t": 45.2,
+      "cpu_pct": 185.7,
+      "rss_mb": 641.0,
+      "carga_de_fundo_pct": 1010.7
+     },
+     {
+      "t": 46.2,
+      "cpu_pct": 176.9,
+      "rss_mb": 606.7,
+      "carga_de_fundo_pct": 1013.5
+     },
+     {
+      "t": 47.3,
+      "cpu_pct": 186.1,
+      "rss_mb": 605.1,
+      "carga_de_fundo_pct": 946.7
+     },
+     {
+      "t": 48.3,
+      "cpu_pct": 175.0,
+      "rss_mb": 613.2,
+      "carga_de_fundo_pct": 1025.0
+     },
+     {
+      "t": 49.3,
+      "cpu_pct": 183.2,
+      "rss_mb": 633.1,
+      "carga_de_fundo_pct": 913.6
+     },
+     {
+      "t": 50.3,
+      "cpu_pct": 189.1,
+      "rss_mb": 613.2,
+      "carga_de_fundo_pct": 973.7
+     },
+     {
+      "t": 51.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 617.7,
+      "carga_de_fundo_pct": 818.2
+     },
+     {
+      "t": 52.3,
+      "cpu_pct": 181.2,
+      "rss_mb": 599.1,
+      "carga_de_fundo_pct": 811.2
+     },
+     {
+      "t": 53.3,
+      "cpu_pct": 187.5,
+      "rss_mb": 604.4,
+      "carga_de_fundo_pct": 959.7
+     },
+     {
+      "t": 54.3,
+      "cpu_pct": 181.5,
+      "rss_mb": 617.9,
+      "carga_de_fundo_pct": 1017.3
+     },
+     {
+      "t": 55.3,
+      "cpu_pct": 184.5,
+      "rss_mb": 602.2,
+      "carga_de_fundo_pct": 1014.3
+     },
+     {
+      "t": 56.3,
+      "cpu_pct": 186.3,
+      "rss_mb": 613.2,
+      "carga_de_fundo_pct": 1000.5
+     },
+     {
+      "t": 57.3,
+      "cpu_pct": 176.9,
+      "rss_mb": 608.0,
+      "carga_de_fundo_pct": 1020.7
+     },
+     {
+      "t": 58.4,
+      "cpu_pct": 163.7,
+      "rss_mb": 609.2,
+      "carga_de_fundo_pct": 1035.1
+     },
+     {
+      "t": 59.4,
+      "cpu_pct": 179.9,
+      "rss_mb": 626.2,
+      "carga_de_fundo_pct": 1008.1
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.051,
+     "idade_analise_ms": {
+      "p50": 9555.801,
+      "p95": 20247.632,
+      "n": 3
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 18.393,
+     "fps_publicado": 7.287,
+     "fps_inferencia": 0.051,
+     "fps_enviado": 14.595,
+     "frames_descartados_por_s": 0.079,
+     "fracao_do_tempo_real": 0.736,
+     "bytes_video_por_s": 910112.021,
+     "etapas": {
+      "alertas": {
+       "max": 229.249,
+       "media": 1.164,
+       "n": 437,
+       "p50": 0.141,
+       "p95": 4.405,
+       "p99": 6.54
+      },
+      "analise": {
+       "max": 15.141,
+       "media": 0.09,
+       "n": 437,
+       "p50": 0.016,
+       "p95": 0.277,
+       "p99": 0.41
+      },
+      "anotacao": {
+       "max": 77.205,
+       "media": 69.589,
+       "n": 2,
+       "p50": 69.589,
+       "p95": 76.443,
+       "p99": 77.052
+      },
+      "conformidade": {
+       "max": 31.008,
+       "media": 0.907,
+       "n": 437,
+       "p50": 0.759,
+       "p95": 1.1,
+       "p99": 2.876
+      },
+      "emissao": {
+       "max": 274.885,
+       "media": 9.518,
+       "n": 437,
+       "p50": 2.266,
+       "p95": 24.596,
+       "p99": 43.773
+      },
+      "encode": {
+       "max": 70.795,
+       "media": 9.639,
+       "n": 436,
+       "p50": 7.918,
+       "p95": 17.705,
+       "p99": 47.973
+      },
+      "espera_da_analise": {
+       "max": 0.222,
+       "media": 0.012,
+       "n": 437,
+       "p50": 0.01,
+       "p95": 0.014,
+       "p99": 0.033
+      },
+      "espera_publicacao": {
+       "max": 1718.446,
+       "media": 770.83,
+       "n": 3,
+       "p50": 535.41,
+       "p95": 1600.142,
+       "p99": 1694.785
+      },
+      "filtro_epi": {
+       "max": 0.602,
+       "media": 0.261,
+       "n": 3,
+       "p50": 0.092,
+       "p95": 0.551,
+       "p99": 0.592
+      },
+      "idade_analise": {
+       "max": 21435.613,
+       "media": 13255.742,
+       "n": 3,
+       "p50": 9555.801,
+       "p95": 20247.632,
+       "p99": 21198.017
+      },
+      "idade_na_inferencia": {
+       "max": 21376.953,
+       "media": 12484.515,
+       "n": 3,
+       "p50": 9020.025,
+       "p95": 20141.26,
+       "p99": 21129.814
+      },
+      "idade_publicacao": {
+       "max": 232.985,
+       "media": 6.204,
+       "n": 437,
+       "p50": 3.542,
+       "p95": 16.784,
+       "p99": 39.714
+      },
+      "inferencia_epi": {
+       "max": 7491.642,
+       "media": 6761.999,
+       "n": 2,
+       "p50": 6761.999,
+       "p95": 7418.678,
+       "p99": 7477.049
+      },
+      "inferencia_pessoa": {
+       "max": 1457.079,
+       "media": 1194.676,
+       "n": 2,
+       "p50": 1194.676,
+       "p95": 1430.839,
+       "p99": 1451.831
+      },
+      "inferencia_pose": {
+       "max": 1242.521,
+       "media": 1242.521,
+       "n": 1,
+       "p50": 1242.521,
+       "p95": 1242.521,
+       "p99": 1242.521
+      },
+      "loop_total": {
+       "max": 487.136,
+       "media": 13.718,
+       "n": 437,
+       "p50": 7.781,
+       "p95": 28.683,
+       "p99": 50.14
+      },
+      "pose": {
+       "max": 0.47,
+       "media": 0.36,
+       "n": 3,
+       "p50": 0.314,
+       "p95": 0.454,
+       "p99": 0.467
+      },
+      "preprocessamento": {
+       "max": 0.096,
+       "media": 0.023,
+       "n": 437,
+       "p50": 0.022,
+       "p95": 0.029,
+       "p99": 0.042
+      },
+      "regras": {
+       "max": 3.765,
+       "media": 1.938,
+       "n": 437,
+       "p50": 1.954,
+       "p95": 2.514,
+       "p99": 2.862
+      },
+      "tracking": {
+       "max": 1.526,
+       "media": 1.072,
+       "n": 3,
+       "p50": 1.506,
+       "p95": 1.524,
+       "p99": 1.526
+      }
+     }
+    },
+    "2": {
+     "fixture": "bench",
+     "fps_analise": 0.024,
+     "idade_analise_ms": {
+      "p50": 11146.894,
+      "p95": 11146.894,
+      "n": 1
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 3.883,
+     "fps_publicado": 1.984,
+     "fps_inferencia": 0.024,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.13,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.531,
+       "media": 0.136,
+       "n": 119,
+       "p50": 0.056,
+       "p95": 0.462,
+       "p99": 0.519
+      },
+      "analise": {
+       "max": 3.552,
+       "media": 0.168,
+       "n": 119,
+       "p50": 0.027,
+       "p95": 0.338,
+       "p99": 1.418
+      },
+      "conformidade": {
+       "max": 3.104,
+       "media": 0.722,
+       "n": 119,
+       "p50": 0.697,
+       "p95": 0.921,
+       "p99": 1.17
+      },
+      "emissao": {
+       "max": 35.967,
+       "media": 2.137,
+       "n": 119,
+       "p50": 1.808,
+       "p95": 2.267,
+       "p99": 8.773
+      },
+      "espera_da_analise": {
+       "max": 0.087,
+       "media": 0.035,
+       "n": 119,
+       "p50": 0.031,
+       "p95": 0.058,
+       "p99": 0.082
+      },
+      "espera_publicacao": {
+       "max": 351.267,
+       "media": 351.267,
+       "n": 1,
+       "p50": 351.267,
+       "p95": 351.267,
+       "p99": 351.267
+      },
+      "filtro_epi": {
+       "max": 0.05,
+       "media": 0.05,
+       "n": 1,
+       "p50": 0.05,
+       "p95": 0.05,
+       "p99": 0.05
+      },
+      "idade_analise": {
+       "max": 11146.894,
+       "media": 11146.894,
+       "n": 1,
+       "p50": 11146.894,
+       "p95": 11146.894,
+       "p99": 11146.894
+      },
+      "idade_na_inferencia": {
+       "max": 10795.151,
+       "media": 10795.151,
+       "n": 1,
+       "p50": 10795.151,
+       "p95": 10795.151,
+       "p99": 10795.151
+      },
+      "idade_publicacao": {
+       "max": 94.635,
+       "media": 28.461,
+       "n": 119,
+       "p50": 27.115,
+       "p95": 38.978,
+       "p99": 56.361
+      },
+      "inferencia_epi": {
+       "max": 7283.798,
+       "media": 7283.798,
+       "n": 1,
+       "p50": 7283.798,
+       "p95": 7283.798,
+       "p99": 7283.798
+      },
+      "inferencia_pessoa": {
+       "max": 1661.16,
+       "media": 1661.16,
+       "n": 1,
+       "p50": 1661.16,
+       "p95": 1661.16,
+       "p99": 1661.16
+      },
+      "inferencia_pose": {
+       "max": 1779.29,
+       "media": 1779.29,
+       "n": 1,
+       "p50": 1779.29,
+       "p95": 1779.29,
+       "p99": 1779.29
+      },
+      "loop_total": {
+       "max": 60.173,
+       "media": 27.464,
+       "n": 119,
+       "p50": 27.111,
+       "p95": 36.065,
+       "p99": 43.913
+      },
+      "pose": {
+       "max": 0.023,
+       "media": 0.023,
+       "n": 1,
+       "p50": 0.023,
+       "p95": 0.023,
+       "p99": 0.023
+      },
+      "preprocessamento": {
+       "max": 41.989,
+       "media": 24.074,
+       "n": 119,
+       "p50": 23.735,
+       "p95": 30.662,
+       "p99": 38.338
+      },
+      "regras": {
+       "max": 0.369,
+       "media": 0.175,
+       "n": 119,
+       "p50": 0.17,
+       "p95": 0.24,
+       "p99": 0.313
+      },
+      "tracking": {
+       "max": 0.045,
+       "media": 0.045,
+       "n": 1,
+       "p50": 0.045,
+       "p95": 0.045,
+       "p99": 0.045
+      }
+     }
+    },
+    "3": {
+     "fixture": "queda",
+     "fps_analise": 0.036,
+     "idade_analise_ms": {
+      "p50": 13249.732,
+      "p95": 13249.732,
+      "n": 1
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 4.007,
+     "fps_publicado": 2.004,
+     "fps_inferencia": 0.035,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.16,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.63,
+       "media": 0.131,
+       "n": 120,
+       "p50": 0.056,
+       "p95": 0.456,
+       "p99": 0.552
+      },
+      "analise": {
+       "max": 2.098,
+       "media": 0.154,
+       "n": 120,
+       "p50": 0.018,
+       "p95": 0.398,
+       "p99": 1.623
+      },
+      "conformidade": {
+       "max": 3.375,
+       "media": 0.588,
+       "n": 120,
+       "p50": 0.56,
+       "p95": 0.8,
+       "p99": 0.858
+      },
+      "emissao": {
+       "max": 9.017,
+       "media": 3.142,
+       "n": 120,
+       "p50": 1.824,
+       "p95": 5.805,
+       "p99": 7.883
+      },
+      "espera_da_analise": {
+       "max": 0.3,
+       "media": 0.027,
+       "n": 120,
+       "p50": 0.025,
+       "p95": 0.048,
+       "p99": 0.193
+      },
+      "espera_publicacao": {
+       "max": 40.062,
+       "media": 40.062,
+       "n": 1,
+       "p50": 40.062,
+       "p95": 40.062,
+       "p99": 40.062
+      },
+      "filtro_epi": {
+       "max": 0.211,
+       "media": 0.211,
+       "n": 1,
+       "p50": 0.211,
+       "p95": 0.211,
+       "p99": 0.211
+      },
+      "idade_analise": {
+       "max": 13249.732,
+       "media": 13249.732,
+       "n": 1,
+       "p50": 13249.732,
+       "p95": 13249.732,
+       "p99": 13249.732
+      },
+      "idade_na_inferencia": {
+       "max": 13209.205,
+       "media": 13209.205,
+       "n": 1,
+       "p50": 13209.205,
+       "p95": 13209.205,
+       "p99": 13209.205
+      },
+      "idade_publicacao": {
+       "max": 31.273,
+       "media": 4.802,
+       "n": 120,
+       "p50": 2.554,
+       "p95": 18.156,
+       "p99": 30.646
+      },
+      "inferencia_epi": {
+       "max": 8093.331,
+       "media": 8093.331,
+       "n": 1,
+       "p50": 8093.331,
+       "p95": 8093.331,
+       "p99": 8093.331
+      },
+      "inferencia_pessoa": {
+       "max": 2827.744,
+       "media": 2827.744,
+       "n": 1,
+       "p50": 2827.744,
+       "p95": 2827.744,
+       "p99": 2827.744
+      },
+      "inferencia_pose": {
+       "max": 2100.674,
+       "media": 2100.674,
+       "n": 1,
+       "p50": 2100.674,
+       "p95": 2100.674,
+       "p99": 2100.674
+      },
+      "loop_total": {
+       "max": 11.14,
+       "media": 4.634,
+       "n": 120,
+       "p50": 3.516,
+       "p95": 8.325,
+       "p99": 10.731
+      },
+      "pose": {
+       "max": 0.265,
+       "media": 0.265,
+       "n": 1,
+       "p50": 0.265,
+       "p95": 0.265,
+       "p99": 0.265
+      },
+      "preprocessamento": {
+       "max": 0.052,
+       "media": 0.022,
+       "n": 120,
+       "p50": 0.021,
+       "p95": 0.03,
+       "p99": 0.036
+      },
+      "regras": {
+       "max": 1.266,
+       "media": 0.542,
+       "n": 120,
+       "p50": 0.221,
+       "p95": 1.172,
+       "p99": 1.21
+      },
+      "tracking": {
+       "max": 0.136,
+       "media": 0.136,
+       "n": 1,
+       "p50": 0.136,
+       "p95": 0.136,
+       "p99": 0.136
+      }
+     }
+    },
+    "4": {
+     "fixture": "bench",
+     "fps_analise": 0.063,
+     "idade_analise_ms": {
+      "p50": 12461.76,
+      "p95": 12461.76,
+      "n": 1
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 3.914,
+     "fps_publicado": 1.983,
+     "fps_inferencia": 0.062,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.131,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.513,
+       "media": 0.141,
+       "n": 119,
+       "p50": 0.058,
+       "p95": 0.461,
+       "p99": 0.497
+      },
+      "analise": {
+       "max": 1.971,
+       "media": 0.14,
+       "n": 119,
+       "p50": 0.027,
+       "p95": 0.317,
+       "p99": 0.489
+      },
+      "conformidade": {
+       "max": 3.286,
+       "media": 0.709,
+       "n": 119,
+       "p50": 0.657,
+       "p95": 0.912,
+       "p99": 2.927
+      },
+      "emissao": {
+       "max": 26.743,
+       "media": 1.971,
+       "n": 119,
+       "p50": 1.705,
+       "p95": 2.141,
+       "p99": 5.457
+      },
+      "espera_da_analise": {
+       "max": 0.135,
+       "media": 0.048,
+       "n": 119,
+       "p50": 0.047,
+       "p95": 0.088,
+       "p99": 0.108
+      },
+      "espera_publicacao": {
+       "max": 232.694,
+       "media": 232.694,
+       "n": 1,
+       "p50": 232.694,
+       "p95": 232.694,
+       "p99": 232.694
+      },
+      "filtro_epi": {
+       "max": 0.044,
+       "media": 0.044,
+       "n": 1,
+       "p50": 0.044,
+       "p95": 0.044,
+       "p99": 0.044
+      },
+      "idade_analise": {
+       "max": 12461.76,
+       "media": 12461.76,
+       "n": 1,
+       "p50": 12461.76,
+       "p95": 12461.76,
+       "p99": 12461.76
+      },
+      "idade_na_inferencia": {
+       "max": 12229.074,
+       "media": 12229.074,
+       "n": 1,
+       "p50": 12229.074,
+       "p95": 12229.074,
+       "p99": 12229.074
+      },
+      "idade_publicacao": {
+       "max": 68.783,
+       "media": 27.93,
+       "n": 119,
+       "p50": 26.626,
+       "p95": 41.685,
+       "p99": 64.937
+      },
+      "inferencia_epi": {
+       "max": 8542.303,
+       "media": 8542.303,
+       "n": 1,
+       "p50": 8542.303,
+       "p95": 8542.303,
+       "p99": 8542.303
+      },
+      "inferencia_pessoa": {
+       "max": 1388.68,
+       "media": 1388.68,
+       "n": 1,
+       "p50": 1388.68,
+       "p95": 1388.68,
+       "p99": 1388.68
+      },
+      "inferencia_pose": {
+       "max": 2162.411,
+       "media": 2162.411,
+       "n": 1,
+       "p50": 2162.411,
+       "p95": 2162.411,
+       "p99": 2162.411
+      },
+      "loop_total": {
+       "max": 67.434,
+       "media": 27.092,
+       "n": 119,
+       "p50": 27.083,
+       "p95": 32.16,
+       "p99": 51.912
+      },
+      "pose": {
+       "max": 0.02,
+       "media": 0.02,
+       "n": 1,
+       "p50": 0.02,
+       "p95": 0.02,
+       "p99": 0.02
+      },
+      "preprocessamento": {
+       "max": 64.612,
+       "media": 23.904,
+       "n": 119,
+       "p50": 23.574,
+       "p95": 28.635,
+       "p99": 45.972
+      },
+      "regras": {
+       "max": 0.269,
+       "media": 0.162,
+       "n": 119,
+       "p50": 0.16,
+       "p95": 0.208,
+       "p99": 0.241
+      },
+      "tracking": {
+       "max": 0.067,
+       "media": 0.067,
+       "n": 1,
+       "p50": 0.067,
+       "p95": 0.067,
+       "p99": 0.067
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-4cam-onnxspin-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao",
+    "bench",
+    "queda",
+    "bench"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "PPE_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+    "PERSON_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx",
+    "ONNX_SPINNING": "1"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-novo",
+   "prioridade_alta": true,
+   "startup_s": 74.05,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 3.13,
+   "modelos": {
+    "epi": {
+     "aquecimento_ms": 44052.6,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+     "carga_ms": 1.4,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pessoa": {
+     "aquecimento_ms": 6434.2,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx",
+     "carga_ms": 1.0,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pose": {
+     "aquecimento_ms": 2085.5,
+     "caminho": "models/yolo11n-pose.pt",
+     "carga_ms": 490.9,
+     "escolha": null,
+     "imgsz": 640,
+     "runtime": "pytorch"
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791905544849.6404,
+     "recebido_ms": 1791905558933,
+     "latencia_ms": 14083.4,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 6.97,
+    "quadros_repetidos": 3,
+    "idade_quadro_ms": {
+     "p50": 69.7,
+     "p95": 162.46,
+     "p99": 471.38
+    },
+    "decode_ms": {
+     "p50": 12.9,
+     "p95": 49.51
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 129.8,
+     "p95": 256.4,
+     "p99": 571.55
+    },
+    "video_bytes_por_s": 428908,
+    "socketio_bytes_por_s": 26750,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 5.99,
+    "raf_fps": 60.0,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 0,
+    "ui_player": {
+     "exibidos_total": 500,
+     "idade_quadro_ms": {
+      "p50": 84.75,
+      "p95": 163.79
+     },
+     "descartados_no_cliente": 4
+    }
+   },
+   "processo": {
+    "cpu_pct_media": 187.5,
+    "cpu_pct_p95": 197.16,
+    "carga_de_fundo_pct_media": 856.8,
+    "rss_mb_inicio": 740.6,
+    "rss_mb_fim": 794.2,
+    "rss_mb_max": 813.2,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 172.1,
+      "rss_mb": 740.6,
+      "carga_de_fundo_pct": 989.5
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 143.2,
+      "rss_mb": 736.8,
+      "carga_de_fundo_pct": 945.2
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 171.9,
+      "rss_mb": 739.6,
+      "carga_de_fundo_pct": 1014.9
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 153.1,
+      "rss_mb": 744.4,
+      "carga_de_fundo_pct": 912.5
+     },
+     {
+      "t": 4.0,
+      "cpu_pct": 185.9,
+      "rss_mb": 743.2,
+      "carga_de_fundo_pct": 889.3
+     },
+     {
+      "t": 5.0,
+      "cpu_pct": 187.5,
+      "rss_mb": 753.3,
+      "carga_de_fundo_pct": 980.1
+     },
+     {
+      "t": 6.0,
+      "cpu_pct": 186.1,
+      "rss_mb": 763.7,
+      "carga_de_fundo_pct": 1009.1
+     },
+     {
+      "t": 7.1,
+      "cpu_pct": 187.1,
+      "rss_mb": 760.2,
+      "carga_de_fundo_pct": 1012.9
+     },
+     {
+      "t": 8.2,
+      "cpu_pct": 197.1,
+      "rss_mb": 765.6,
+      "carga_de_fundo_pct": 1002.9
+     },
+     {
+      "t": 9.2,
+      "cpu_pct": 189.3,
+      "rss_mb": 768.3,
+      "carga_de_fundo_pct": 996.3
+     },
+     {
+      "t": 10.2,
+      "cpu_pct": 190.7,
+      "rss_mb": 761.6,
+      "carga_de_fundo_pct": 946.9
+     },
+     {
+      "t": 11.2,
+      "cpu_pct": 187.5,
+      "rss_mb": 763.9,
+      "carga_de_fundo_pct": 970.5
+     },
+     {
+      "t": 12.3,
+      "cpu_pct": 164.2,
+      "rss_mb": 761.8,
+      "carga_de_fundo_pct": 917.0
+     },
+     {
+      "t": 13.3,
+      "cpu_pct": 189.1,
+      "rss_mb": 773.0,
+      "carga_de_fundo_pct": 821.3
+     },
+     {
+      "t": 14.3,
+      "cpu_pct": 184.4,
+      "rss_mb": 784.0,
+      "carga_de_fundo_pct": 695.2
+     },
+     {
+      "t": 15.3,
+      "cpu_pct": 195.3,
+      "rss_mb": 785.2,
+      "carga_de_fundo_pct": 620.7
+     },
+     {
+      "t": 16.3,
+      "cpu_pct": 198.4,
+      "rss_mb": 790.6,
+      "carga_de_fundo_pct": 712.4
+     },
+     {
+      "t": 17.3,
+      "cpu_pct": 190.6,
+      "rss_mb": 787.2,
+      "carga_de_fundo_pct": 776.6
+     },
+     {
+      "t": 18.3,
+      "cpu_pct": 180.1,
+      "rss_mb": 764.8,
+      "carga_de_fundo_pct": 724.7
+     },
+     {
+      "t": 19.3,
+      "cpu_pct": 185.9,
+      "rss_mb": 772.5,
+      "carga_de_fundo_pct": 666.1
+     },
+     {
+      "t": 20.3,
+      "cpu_pct": 187.5,
+      "rss_mb": 779.2,
+      "carga_de_fundo_pct": 881.7
+     },
+     {
+      "t": 21.3,
+      "cpu_pct": 196.9,
+      "rss_mb": 779.2,
+      "carga_de_fundo_pct": 877.1
+     },
+     {
+      "t": 22.3,
+      "cpu_pct": 189.2,
+      "rss_mb": 779.2,
+      "carga_de_fundo_pct": 985.6
+     },
+     {
+      "t": 23.4,
+      "cpu_pct": 195.3,
+      "rss_mb": 779.2,
+      "carga_de_fundo_pct": 908.7
+     },
+     {
+      "t": 24.4,
+      "cpu_pct": 175.0,
+      "rss_mb": 779.3,
+      "carga_de_fundo_pct": 996.2
+     },
+     {
+      "t": 25.4,
+      "cpu_pct": 182.8,
+      "rss_mb": 769.8,
+      "carga_de_fundo_pct": 779.6
+     },
+     {
+      "t": 26.4,
+      "cpu_pct": 193.8,
+      "rss_mb": 769.7,
+      "carga_de_fundo_pct": 792.6
+     },
+     {
+      "t": 27.4,
+      "cpu_pct": 187.8,
+      "rss_mb": 778.8,
+      "carga_de_fundo_pct": 999.0
+     },
+     {
+      "t": 28.4,
+      "cpu_pct": 184.5,
+      "rss_mb": 769.8,
+      "carga_de_fundo_pct": 984.3
+     },
+     {
+      "t": 29.5,
+      "cpu_pct": 184.2,
+      "rss_mb": 773.8,
+      "carga_de_fundo_pct": 921.0
+     },
+     {
+      "t": 30.5,
+      "cpu_pct": 194.0,
+      "rss_mb": 776.3,
+      "carga_de_fundo_pct": 766.0
+     },
+     {
+      "t": 31.5,
+      "cpu_pct": 193.8,
+      "rss_mb": 780.4,
+      "carga_de_fundo_pct": 640.2
+     },
+     {
+      "t": 32.5,
+      "cpu_pct": 190.6,
+      "rss_mb": 769.4,
+      "carga_de_fundo_pct": 812.6
+     },
+     {
+      "t": 33.5,
+      "cpu_pct": 192.2,
+      "rss_mb": 788.3,
+      "carga_de_fundo_pct": 837.4
+     },
+     {
+      "t": 34.6,
+      "cpu_pct": 192.4,
+      "rss_mb": 785.7,
+      "carga_de_fundo_pct": 972.8
+     },
+     {
+      "t": 35.8,
+      "cpu_pct": 192.3,
+      "rss_mb": 768.9,
+      "carga_de_fundo_pct": 1007.7
+     },
+     {
+      "t": 37.5,
+      "cpu_pct": 184.8,
+      "rss_mb": 776.1,
+      "carga_de_fundo_pct": 1015.2
+     },
+     {
+      "t": 39.1,
+      "cpu_pct": 191.9,
+      "rss_mb": 787.4,
+      "carga_de_fundo_pct": 976.9
+     },
+     {
+      "t": 40.5,
+      "cpu_pct": 196.7,
+      "rss_mb": 784.9,
+      "carga_de_fundo_pct": 903.7
+     },
+     {
+      "t": 41.7,
+      "cpu_pct": 190.9,
+      "rss_mb": 796.4,
+      "carga_de_fundo_pct": 971.9
+     },
+     {
+      "t": 42.8,
+      "cpu_pct": 176.8,
+      "rss_mb": 786.7,
+      "carga_de_fundo_pct": 938.0
+     },
+     {
+      "t": 43.9,
+      "cpu_pct": 191.6,
+      "rss_mb": 789.8,
+      "carga_de_fundo_pct": 806.8
+     },
+     {
+      "t": 45.0,
+      "cpu_pct": 192.8,
+      "rss_mb": 792.7,
+      "carga_de_fundo_pct": 880.0
+     },
+     {
+      "t": 46.2,
+      "cpu_pct": 190.9,
+      "rss_mb": 788.1,
+      "carga_de_fundo_pct": 856.7
+     },
+     {
+      "t": 47.4,
+      "cpu_pct": 193.5,
+      "rss_mb": 788.3,
+      "carga_de_fundo_pct": 832.5
+     },
+     {
+      "t": 48.4,
+      "cpu_pct": 195.3,
+      "rss_mb": 786.9,
+      "carga_de_fundo_pct": 726.3
+     },
+     {
+      "t": 49.4,
+      "cpu_pct": 187.5,
+      "rss_mb": 791.2,
+      "carga_de_fundo_pct": 635.7
+     },
+     {
+      "t": 50.4,
+      "cpu_pct": 186.3,
+      "rss_mb": 801.9,
+      "carga_de_fundo_pct": 562.5
+     },
+     {
+      "t": 51.5,
+      "cpu_pct": 182.1,
+      "rss_mb": 804.8,
+      "carga_de_fundo_pct": 630.3
+     },
+     {
+      "t": 52.5,
+      "cpu_pct": 187.0,
+      "rss_mb": 799.5,
+      "carga_de_fundo_pct": 1004.6
+     },
+     {
+      "t": 53.6,
+      "cpu_pct": 200.0,
+      "rss_mb": 813.2,
+      "carga_de_fundo_pct": 800.8
+     },
+     {
+      "t": 54.7,
+      "cpu_pct": 186.7,
+      "rss_mb": 801.0,
+      "carga_de_fundo_pct": 883.7
+     },
+     {
+      "t": 55.7,
+      "cpu_pct": 192.7,
+      "rss_mb": 803.1,
+      "carga_de_fundo_pct": 821.3
+     },
+     {
+      "t": 56.9,
+      "cpu_pct": 197.3,
+      "rss_mb": 802.4,
+      "carga_de_fundo_pct": 751.9
+     },
+     {
+      "t": 57.9,
+      "cpu_pct": 192.2,
+      "rss_mb": 812.0,
+      "carga_de_fundo_pct": 608.2
+     },
+     {
+      "t": 59.0,
+      "cpu_pct": 195.7,
+      "rss_mb": 794.2,
+      "carga_de_fundo_pct": 737.9
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.057,
+     "idade_analise_ms": {
+      "p50": 6848.486,
+      "p95": 7680.85,
+      "n": 2
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 17.318,
+     "fps_publicado": 6.941,
+     "fps_inferencia": 0.056,
+     "fps_enviado": 13.918,
+     "frames_descartados_por_s": 0.199,
+     "fracao_do_tempo_real": 0.693,
+     "bytes_video_por_s": 865235.039,
+     "etapas": {
+      "alertas": {
+       "max": 392.87,
+       "media": 2.521,
+       "n": 416,
+       "p50": 0.144,
+       "p95": 5.448,
+       "p99": 26.94
+      },
+      "analise": {
+       "max": 11.712,
+       "media": 0.091,
+       "n": 416,
+       "p50": 0.014,
+       "p95": 0.286,
+       "p99": 0.776
+      },
+      "anotacao": {
+       "max": 72.32,
+       "media": 65.074,
+       "n": 2,
+       "p50": 65.074,
+       "p95": 71.596,
+       "p99": 72.175
+      },
+      "conformidade": {
+       "max": 16.575,
+       "media": 1.409,
+       "n": 416,
+       "p50": 0.661,
+       "p95": 5.611,
+       "p99": 10.344
+      },
+      "emissao": {
+       "max": 333.066,
+       "media": 18.656,
+       "n": 416,
+       "p50": 6.541,
+       "p95": 67.796,
+       "p99": 106.662
+      },
+      "encode": {
+       "max": 72.507,
+       "media": 18.461,
+       "n": 416,
+       "p50": 10.323,
+       "p95": 49.698,
+       "p99": 62.757
+      },
+      "espera_da_analise": {
+       "max": 0.291,
+       "media": 0.011,
+       "n": 416,
+       "p50": 0.009,
+       "p95": 0.013,
+       "p99": 0.032
+      },
+      "espera_publicacao": {
+       "max": 854.478,
+       "media": 743.249,
+       "n": 2,
+       "p50": 743.249,
+       "p95": 843.355,
+       "p99": 852.253
+      },
+      "filtro_epi": {
+       "max": 0.273,
+       "media": 0.173,
+       "n": 2,
+       "p50": 0.173,
+       "p95": 0.263,
+       "p99": 0.271
+      },
+      "idade_analise": {
+       "max": 7773.335,
+       "media": 6848.486,
+       "n": 2,
+       "p50": 6848.486,
+       "p95": 7680.85,
+       "p99": 7754.838
+      },
+      "idade_na_inferencia": {
+       "max": 7141.43,
+       "media": 6105.283,
+       "n": 2,
+       "p50": 6105.283,
+       "p95": 7037.815,
+       "p99": 7120.707
+      },
+      "idade_publicacao": {
+       "max": 415.366,
+       "media": 10.386,
+       "n": 416,
+       "p50": 3.711,
+       "p95": 33.103,
+       "p99": 96.367
+      },
+      "inferencia_epi": {
+       "max": 5004.484,
+       "media": 4305.705,
+       "n": 2,
+       "p50": 4305.705,
+       "p95": 4934.606,
+       "p99": 4990.508
+      },
+      "inferencia_pessoa": {
+       "max": 1355.688,
+       "media": 972.436,
+       "n": 2,
+       "p50": 972.436,
+       "p95": 1317.363,
+       "p99": 1348.023
+      },
+      "inferencia_pose": {
+       "max": 1436.723,
+       "media": 1436.723,
+       "n": 1,
+       "p50": 1436.723,
+       "p95": 1436.723,
+       "p99": 1436.723
+      },
+      "loop_total": {
+       "max": 728.383,
+       "media": 24.831,
+       "n": 416,
+       "p50": 11.382,
+       "p95": 79.079,
+       "p99": 134.215
+      },
+      "pose": {
+       "max": 0.328,
+       "media": 0.267,
+       "n": 2,
+       "p50": 0.267,
+       "p95": 0.322,
+       "p99": 0.327
+      },
+      "preprocessamento": {
+       "max": 0.255,
+       "media": 0.022,
+       "n": 416,
+       "p50": 0.02,
+       "p95": 0.03,
+       "p99": 0.05
+      },
+      "regras": {
+       "max": 14.035,
+       "media": 2.008,
+       "n": 416,
+       "p50": 1.642,
+       "p95": 4.662,
+       "p99": 10.957
+      },
+      "tracking": {
+       "max": 1.19,
+       "media": 1.133,
+       "n": 2,
+       "p50": 1.133,
+       "p95": 1.184,
+       "p99": 1.189
+      }
+     }
+    },
+    "2": {
+     "fixture": "bench",
+     "fps_analise": 0.053,
+     "idade_analise_ms": {
+      "p50": 5629.652,
+      "p95": 10884.428,
+      "n": 3
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 3.847,
+     "fps_publicado": 1.968,
+     "fps_inferencia": 0.053,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.128,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.74,
+       "media": 0.156,
+       "n": 118,
+       "p50": 0.059,
+       "p95": 0.578,
+       "p99": 0.725
+      },
+      "analise": {
+       "max": 21.002,
+       "media": 0.911,
+       "n": 118,
+       "p50": 0.027,
+       "p95": 7.164,
+       "p99": 15.36
+      },
+      "conformidade": {
+       "max": 12.318,
+       "media": 1.321,
+       "n": 118,
+       "p50": 0.671,
+       "p95": 6.057,
+       "p99": 7.701
+      },
+      "emissao": {
+       "max": 70.199,
+       "media": 8.421,
+       "n": 118,
+       "p50": 4.084,
+       "p95": 38.511,
+       "p99": 69.678
+      },
+      "espera_da_analise": {
+       "max": 2.523,
+       "media": 0.048,
+       "n": 118,
+       "p50": 0.025,
+       "p95": 0.053,
+       "p99": 0.084
+      },
+      "espera_publicacao": {
+       "max": 249.429,
+       "media": 173.19,
+       "n": 3,
+       "p50": 218.286,
+       "p95": 246.315,
+       "p99": 248.806
+      },
+      "filtro_epi": {
+       "max": 0.151,
+       "media": 0.062,
+       "n": 3,
+       "p50": 0.018,
+       "p95": 0.137,
+       "p99": 0.148
+      },
+      "idade_analise": {
+       "max": 11468.292,
+       "media": 7166.577,
+       "n": 3,
+       "p50": 5629.652,
+       "p95": 10884.428,
+       "p99": 11351.52
+      },
+      "idade_na_inferencia": {
+       "max": 11416.549,
+       "media": 6993.214,
+       "n": 3,
+       "p50": 5379.792,
+       "p95": 10812.873,
+       "p99": 11295.814
+      },
+      "idade_publicacao": {
+       "max": 183.885,
+       "media": 67.37,
+       "n": 118,
+       "p50": 61.253,
+       "p95": 132.815,
+       "p99": 164.955
+      },
+      "inferencia_epi": {
+       "max": 7749.309,
+       "media": 5182.545,
+       "n": 3,
+       "p50": 4458.398,
+       "p95": 7420.218,
+       "p99": 7683.49
+      },
+      "inferencia_pessoa": {
+       "max": 1614.851,
+       "media": 1022.796,
+       "n": 3,
+       "p50": 756.552,
+       "p95": 1529.021,
+       "p99": 1597.685
+      },
+      "inferencia_pose": {
+       "max": 1942.355,
+       "media": 1942.355,
+       "n": 1,
+       "p50": 1942.355,
+       "p95": 1942.355,
+       "p99": 1942.355
+      },
+      "loop_total": {
+       "max": 184.534,
+       "media": 71.378,
+       "n": 118,
+       "p50": 69.641,
+       "p95": 140.435,
+       "p99": 175.101
+      },
+      "pose": {
+       "max": 0.166,
+       "media": 0.061,
+       "n": 3,
+       "p50": 0.009,
+       "p95": 0.15,
+       "p99": 0.163
+      },
+      "preprocessamento": {
+       "max": 180.135,
+       "media": 59.857,
+       "n": 118,
+       "p50": 52.249,
+       "p95": 124.87,
+       "p99": 161.981
+      },
+      "regras": {
+       "max": 5.286,
+       "media": 0.638,
+       "n": 118,
+       "p50": 0.214,
+       "p95": 1.251,
+       "p99": 4.349
+      },
+      "tracking": {
+       "max": 0.168,
+       "media": 0.085,
+       "n": 3,
+       "p50": 0.049,
+       "p95": 0.156,
+       "p99": 0.165
+      }
+     }
+    },
+    "3": {
+     "fixture": "queda",
+     "fps_analise": 0.064,
+     "idade_analise_ms": {
+      "p50": 6720.008,
+      "p95": 9502.384,
+      "n": 3
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 4.019,
+     "fps_publicado": 2.001,
+     "fps_inferencia": 0.064,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.161,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 136.594,
+       "media": 2.161,
+       "n": 120,
+       "p50": 0.071,
+       "p95": 7.113,
+       "p99": 33.254
+      },
+      "analise": {
+       "max": 0.475,
+       "media": 0.111,
+       "n": 120,
+       "p50": 0.016,
+       "p95": 0.317,
+       "p99": 0.393
+      },
+      "anotacao": {
+       "max": 19.399,
+       "media": 19.399,
+       "n": 1,
+       "p50": 19.399,
+       "p95": 19.399,
+       "p99": 19.399
+      },
+      "conformidade": {
+       "max": 12.495,
+       "media": 1.102,
+       "n": 120,
+       "p50": 0.531,
+       "p95": 4.726,
+       "p99": 10.965
+      },
+      "emissao": {
+       "max": 175.229,
+       "media": 12.968,
+       "n": 120,
+       "p50": 5.811,
+       "p95": 35.95,
+       "p99": 61.255
+      },
+      "espera_da_analise": {
+       "max": 0.116,
+       "media": 0.018,
+       "n": 120,
+       "p50": 0.012,
+       "p95": 0.04,
+       "p99": 0.076
+      },
+      "espera_publicacao": {
+       "max": 421.498,
+       "media": 360.563,
+       "n": 3,
+       "p50": 386.139,
+       "p95": 417.962,
+       "p99": 420.791
+      },
+      "filtro_epi": {
+       "max": 0.173,
+       "media": 0.089,
+       "n": 3,
+       "p50": 0.058,
+       "p95": 0.162,
+       "p99": 0.171
+      },
+      "idade_analise": {
+       "max": 9811.537,
+       "media": 7498.455,
+       "n": 3,
+       "p50": 6720.008,
+       "p95": 9502.384,
+       "p99": 9749.707
+      },
+      "idade_na_inferencia": {
+       "max": 9537.19,
+       "media": 7138.337,
+       "n": 3,
+       "p50": 6334.59,
+       "p95": 9216.93,
+       "p99": 9473.138
+      },
+      "idade_publicacao": {
+       "max": 138.68,
+       "media": 9.31,
+       "n": 120,
+       "p50": 3.125,
+       "p95": 37.887,
+       "p99": 41.202
+      },
+      "inferencia_epi": {
+       "max": 4942.51,
+       "media": 4844.514,
+       "n": 3,
+       "p50": 4903.834,
+       "p95": 4938.642,
+       "p99": 4941.736
+      },
+      "inferencia_pessoa": {
+       "max": 1341.608,
+       "media": 1057.344,
+       "n": 3,
+       "p50": 1068.872,
+       "p95": 1314.335,
+       "p99": 1336.154
+      },
+      "inferencia_pose": {
+       "max": 3403.152,
+       "media": 3403.152,
+       "n": 1,
+       "p50": 3403.152,
+       "p95": 3403.152,
+       "p99": 3403.152
+      },
+      "loop_total": {
+       "max": 213.084,
+       "media": 17.184,
+       "n": 120,
+       "p50": 8.077,
+       "p95": 48.408,
+       "p99": 147.888
+      },
+      "pose": {
+       "max": 0.21,
+       "media": 0.17,
+       "n": 3,
+       "p50": 0.173,
+       "p95": 0.207,
+       "p99": 0.209
+      },
+      "preprocessamento": {
+       "max": 0.079,
+       "media": 0.023,
+       "n": 120,
+       "p50": 0.022,
+       "p95": 0.031,
+       "p99": 0.062
+      },
+      "regras": {
+       "max": 1.399,
+       "media": 0.764,
+       "n": 120,
+       "p50": 0.795,
+       "p95": 1.304,
+       "p99": 1.367
+      },
+      "tracking": {
+       "max": 0.37,
+       "media": 0.243,
+       "n": 3,
+       "p50": 0.207,
+       "p95": 0.354,
+       "p99": 0.367
+      }
+     }
+    },
+    "4": {
+     "fixture": "bench",
+     "fps_analise": 0.049,
+     "idade_analise_ms": {
+      "p50": 6947.518,
+      "p95": 7494.824,
+      "n": 2
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 3.881,
+     "fps_publicado": 1.948,
+     "fps_inferencia": 0.049,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.129,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 4.509,
+       "media": 0.177,
+       "n": 116,
+       "p50": 0.055,
+       "p95": 0.479,
+       "p99": 1.508
+      },
+      "analise": {
+       "max": 7.243,
+       "media": 0.222,
+       "n": 116,
+       "p50": 0.027,
+       "p95": 0.307,
+       "p99": 3.773
+      },
+      "conformidade": {
+       "max": 8.831,
+       "media": 1.049,
+       "n": 116,
+       "p50": 0.637,
+       "p95": 4.523,
+       "p99": 7.024
+      },
+      "emissao": {
+       "max": 68.48,
+       "media": 5.446,
+       "n": 116,
+       "p50": 3.586,
+       "p95": 11.966,
+       "p99": 46.055
+      },
+      "espera_da_analise": {
+       "max": 0.117,
+       "media": 0.033,
+       "n": 116,
+       "p50": 0.028,
+       "p95": 0.063,
+       "p99": 0.089
+      },
+      "espera_publicacao": {
+       "max": 164.294,
+       "media": 140.403,
+       "n": 2,
+       "p50": 140.403,
+       "p95": 161.905,
+       "p99": 163.816
+      },
+      "filtro_epi": {
+       "max": 0.116,
+       "media": 0.069,
+       "n": 2,
+       "p50": 0.069,
+       "p95": 0.111,
+       "p99": 0.115
+      },
+      "idade_analise": {
+       "max": 7555.635,
+       "media": 6947.518,
+       "n": 2,
+       "p50": 6947.518,
+       "p95": 7494.824,
+       "p99": 7543.473
+      },
+      "idade_na_inferencia": {
+       "max": 7440.564,
+       "media": 6807.863,
+       "n": 2,
+       "p50": 6807.863,
+       "p95": 7377.294,
+       "p99": 7427.91
+      },
+      "idade_publicacao": {
+       "max": 182.757,
+       "media": 62.189,
+       "n": 116,
+       "p50": 52.319,
+       "p95": 131.482,
+       "p99": 151.885
+      },
+      "inferencia_epi": {
+       "max": 4782.419,
+       "media": 4043.478,
+       "n": 2,
+       "p50": 4043.478,
+       "p95": 4708.525,
+       "p99": 4767.64
+      },
+      "inferencia_pessoa": {
+       "max": 1557.361,
+       "media": 1243.96,
+       "n": 2,
+       "p50": 1243.96,
+       "p95": 1526.021,
+       "p99": 1551.093
+      },
+      "inferencia_pose": {
+       "max": 1839.378,
+       "media": 1839.378,
+       "n": 1,
+       "p50": 1839.378,
+       "p95": 1839.378,
+       "p99": 1839.378
+      },
+      "loop_total": {
+       "max": 186.298,
+       "media": 61.933,
+       "n": 116,
+       "p50": 45.307,
+       "p95": 134.005,
+       "p99": 155.674
+      },
+      "pose": {
+       "max": 0.101,
+       "media": 0.055,
+       "n": 2,
+       "p50": 0.055,
+       "p95": 0.096,
+       "p99": 0.1
+      },
+      "preprocessamento": {
+       "max": 180.573,
+       "media": 54.377,
+       "n": 116,
+       "p50": 38.369,
+       "p95": 124.108,
+       "p99": 145.256
+      },
+      "regras": {
+       "max": 8.129,
+       "media": 0.606,
+       "n": 116,
+       "p50": 0.177,
+       "p95": 3.096,
+       "p99": 4.978
+      },
+      "tracking": {
+       "max": 0.079,
+       "media": 0.062,
+       "n": 2,
+       "p50": 0.062,
+       "p95": 0.077,
+       "p99": 0.078
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-4cam-onnx-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao",
+    "bench",
+    "queda",
+    "bench"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "PPE_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+    "PERSON_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-novo",
+   "prioridade_alta": true,
+   "startup_s": 27.17,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 0.74,
+   "modelos": {
+    "epi": {
+     "aquecimento_ms": 14055.2,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+     "carga_ms": 0.7,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pessoa": {
+     "aquecimento_ms": 2859.5,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx",
+     "carga_ms": 0.6,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pose": {
+     "aquecimento_ms": 1288.9,
+     "caminho": "models/yolo11n-pose.pt",
+     "carga_ms": 133.0,
+     "escolha": null,
+     "imgsz": 640,
+     "runtime": "pytorch"
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791905669281.143,
+     "recebido_ms": 1791905675731,
+     "latencia_ms": 6449.9,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 7.73,
+    "quadros_repetidos": 3,
+    "idade_quadro_ms": {
+     "p50": 46.3,
+     "p95": 96.92,
+     "p99": 412.96
+    },
+    "decode_ms": {
+     "p50": 11.2,
+     "p95": 24.74
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 119.2,
+     "p95": 173.92,
+     "p99": 485.56
+    },
+    "video_bytes_por_s": 478711,
+    "socketio_bytes_por_s": 42509,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 6.23,
+    "raf_fps": 60.0,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 0,
+    "ui_player": {
+     "exibidos_total": 590,
+     "idade_quadro_ms": {
+      "p50": 51.4,
+      "p95": 98.04
+     },
+     "descartados_no_cliente": 2
+    }
+   },
+   "processo": {
+    "cpu_pct_media": 184.1,
+    "cpu_pct_p95": 193.8,
+    "carga_de_fundo_pct_media": 541.9,
+    "rss_mb_inicio": 774.1,
+    "rss_mb_fim": 800.3,
+    "rss_mb_max": 813.1,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 182.5,
+      "rss_mb": 774.1,
+      "carga_de_fundo_pct": 537.5
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 173.4,
+      "rss_mb": 777.0,
+      "carga_de_fundo_pct": 624.6
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 185.1,
+      "rss_mb": 779.4,
+      "carga_de_fundo_pct": 573.3
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 189.1,
+      "rss_mb": 775.0,
+      "carga_de_fundo_pct": 517.7
+     },
+     {
+      "t": 4.1,
+      "cpu_pct": 187.5,
+      "rss_mb": 783.1,
+      "carga_de_fundo_pct": 345.3
+     },
+     {
+      "t": 5.1,
+      "cpu_pct": 175.8,
+      "rss_mb": 784.6,
+      "carga_de_fundo_pct": 658.2
+     },
+     {
+      "t": 6.1,
+      "cpu_pct": 173.4,
+      "rss_mb": 780.2,
+      "carga_de_fundo_pct": 781.8
+     },
+     {
+      "t": 7.1,
+      "cpu_pct": 182.8,
+      "rss_mb": 778.8,
+      "carga_de_fundo_pct": 804.8
+     },
+     {
+      "t": 8.1,
+      "cpu_pct": 186.4,
+      "rss_mb": 789.7,
+      "carga_de_fundo_pct": 620.0
+     },
+     {
+      "t": 9.1,
+      "cpu_pct": 190.6,
+      "rss_mb": 778.7,
+      "carga_de_fundo_pct": 702.2
+     },
+     {
+      "t": 10.1,
+      "cpu_pct": 187.5,
+      "rss_mb": 790.2,
+      "carga_de_fundo_pct": 534.9
+     },
+     {
+      "t": 11.1,
+      "cpu_pct": 187.5,
+      "rss_mb": 794.1,
+      "carga_de_fundo_pct": 602.1
+     },
+     {
+      "t": 12.1,
+      "cpu_pct": 179.7,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 667.5
+     },
+     {
+      "t": 13.1,
+      "cpu_pct": 193.8,
+      "rss_mb": 795.3,
+      "carga_de_fundo_pct": 475.8
+     },
+     {
+      "t": 14.1,
+      "cpu_pct": 185.9,
+      "rss_mb": 783.0,
+      "carga_de_fundo_pct": 314.5
+     },
+     {
+      "t": 15.1,
+      "cpu_pct": 185.9,
+      "rss_mb": 785.1,
+      "carga_de_fundo_pct": 459.7
+     },
+     {
+      "t": 16.1,
+      "cpu_pct": 186.1,
+      "rss_mb": 783.7,
+      "carga_de_fundo_pct": 521.9
+     },
+     {
+      "t": 17.1,
+      "cpu_pct": 189.1,
+      "rss_mb": 784.4,
+      "carga_de_fundo_pct": 624.5
+     },
+     {
+      "t": 18.1,
+      "cpu_pct": 184.5,
+      "rss_mb": 813.1,
+      "carga_de_fundo_pct": 659.1
+     },
+     {
+      "t": 19.2,
+      "cpu_pct": 178.8,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 824.4
+     },
+     {
+      "t": 20.2,
+      "cpu_pct": 178.6,
+      "rss_mb": 802.9,
+      "carga_de_fundo_pct": 692.6
+     },
+     {
+      "t": 21.2,
+      "cpu_pct": 183.0,
+      "rss_mb": 794.5,
+      "carga_de_fundo_pct": 382.2
+     },
+     {
+      "t": 22.2,
+      "cpu_pct": 189.1,
+      "rss_mb": 795.7,
+      "carga_de_fundo_pct": 364.1
+     },
+     {
+      "t": 23.2,
+      "cpu_pct": 193.8,
+      "rss_mb": 796.0,
+      "carga_de_fundo_pct": 353.4
+     },
+     {
+      "t": 24.2,
+      "cpu_pct": 190.6,
+      "rss_mb": 794.9,
+      "carga_de_fundo_pct": 222.2
+     },
+     {
+      "t": 25.2,
+      "cpu_pct": 187.5,
+      "rss_mb": 796.0,
+      "carga_de_fundo_pct": 568.5
+     },
+     {
+      "t": 26.2,
+      "cpu_pct": 192.2,
+      "rss_mb": 794.9,
+      "carga_de_fundo_pct": 602.2
+     },
+     {
+      "t": 27.2,
+      "cpu_pct": 181.2,
+      "rss_mb": 798.8,
+      "carga_de_fundo_pct": 266.4
+     },
+     {
+      "t": 28.2,
+      "cpu_pct": 189.2,
+      "rss_mb": 795.3,
+      "carga_de_fundo_pct": 350.8
+     },
+     {
+      "t": 29.2,
+      "cpu_pct": 182.8,
+      "rss_mb": 795.4,
+      "carga_de_fundo_pct": 290.0
+     },
+     {
+      "t": 30.2,
+      "cpu_pct": 189.1,
+      "rss_mb": 795.4,
+      "carga_de_fundo_pct": 469.7
+     },
+     {
+      "t": 31.2,
+      "cpu_pct": 184.4,
+      "rss_mb": 787.0,
+      "carga_de_fundo_pct": 346.0
+     },
+     {
+      "t": 32.2,
+      "cpu_pct": 176.6,
+      "rss_mb": 797.5,
+      "carga_de_fundo_pct": 326.2
+     },
+     {
+      "t": 33.2,
+      "cpu_pct": 187.5,
+      "rss_mb": 795.8,
+      "carga_de_fundo_pct": 316.5
+     },
+     {
+      "t": 34.2,
+      "cpu_pct": 195.3,
+      "rss_mb": 793.0,
+      "carga_de_fundo_pct": 283.5
+     },
+     {
+      "t": 35.2,
+      "cpu_pct": 171.9,
+      "rss_mb": 800.1,
+      "carga_de_fundo_pct": 420.9
+     },
+     {
+      "t": 36.2,
+      "cpu_pct": 181.7,
+      "rss_mb": 800.0,
+      "carga_de_fundo_pct": 429.1
+     },
+     {
+      "t": 37.2,
+      "cpu_pct": 193.8,
+      "rss_mb": 788.6,
+      "carga_de_fundo_pct": 259.8
+     },
+     {
+      "t": 38.2,
+      "cpu_pct": 175.0,
+      "rss_mb": 793.6,
+      "carga_de_fundo_pct": 336.2
+     },
+     {
+      "t": 39.2,
+      "cpu_pct": 190.6,
+      "rss_mb": 793.7,
+      "carga_de_fundo_pct": 337.4
+     },
+     {
+      "t": 40.2,
+      "cpu_pct": 176.6,
+      "rss_mb": 796.8,
+      "carga_de_fundo_pct": 781.0
+     },
+     {
+      "t": 41.2,
+      "cpu_pct": 181.2,
+      "rss_mb": 795.9,
+      "carga_de_fundo_pct": 558.0
+     },
+     {
+      "t": 42.3,
+      "cpu_pct": 187.6,
+      "rss_mb": 795.9,
+      "carga_de_fundo_pct": 531.2
+     },
+     {
+      "t": 43.3,
+      "cpu_pct": 187.5,
+      "rss_mb": 802.3,
+      "carga_de_fundo_pct": 352.5
+     },
+     {
+      "t": 44.3,
+      "cpu_pct": 190.6,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 357.8
+     },
+     {
+      "t": 45.3,
+      "cpu_pct": 184.5,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 381.9
+     },
+     {
+      "t": 46.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 797.3,
+      "carga_de_fundo_pct": 349.0
+     },
+     {
+      "t": 47.3,
+      "cpu_pct": 193.8,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 313.8
+     },
+     {
+      "t": 48.3,
+      "cpu_pct": 181.2,
+      "rss_mb": 796.4,
+      "carga_de_fundo_pct": 535.2
+     },
+     {
+      "t": 49.3,
+      "cpu_pct": 179.7,
+      "rss_mb": 791.2,
+      "carga_de_fundo_pct": 831.9
+     },
+     {
+      "t": 50.3,
+      "cpu_pct": 170.9,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 873.1
+     },
+     {
+      "t": 51.4,
+      "cpu_pct": 180.6,
+      "rss_mb": 789.3,
+      "carga_de_fundo_pct": 852.6
+     },
+     {
+      "t": 52.5,
+      "cpu_pct": 186.5,
+      "rss_mb": 797.6,
+      "carga_de_fundo_pct": 807.1
+     },
+     {
+      "t": 53.5,
+      "cpu_pct": 167.6,
+      "rss_mb": 796.1,
+      "carga_de_fundo_pct": 794.8
+     },
+     {
+      "t": 54.5,
+      "cpu_pct": 181.2,
+      "rss_mb": 799.7,
+      "carga_de_fundo_pct": 700.8
+     },
+     {
+      "t": 55.5,
+      "cpu_pct": 187.5,
+      "rss_mb": 797.6,
+      "carga_de_fundo_pct": 664.5
+     },
+     {
+      "t": 56.5,
+      "cpu_pct": 187.8,
+      "rss_mb": 799.1,
+      "carga_de_fundo_pct": 757.8
+     },
+     {
+      "t": 57.5,
+      "cpu_pct": 190.6,
+      "rss_mb": 797.6,
+      "carga_de_fundo_pct": 840.2
+     },
+     {
+      "t": 58.5,
+      "cpu_pct": 178.4,
+      "rss_mb": 797.7,
+      "carga_de_fundo_pct": 888.4
+     },
+     {
+      "t": 59.5,
+      "cpu_pct": 159.4,
+      "rss_mb": 800.3,
+      "carga_de_fundo_pct": 869.0
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.088,
+     "idade_analise_ms": {
+      "p50": 3682.894,
+      "p95": 4431.724,
+      "n": 5
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 23.162,
+     "fps_publicado": 7.704,
+     "fps_inferencia": 0.087,
+     "fps_enviado": 15.42,
+     "frames_descartados_por_s": 0.246,
+     "fracao_do_tempo_real": 0.926,
+     "bytes_video_por_s": 973797.954,
+     "etapas": {
+      "alertas": {
+       "max": 381.02,
+       "media": 3.817,
+       "n": 462,
+       "p50": 0.141,
+       "p95": 8.125,
+       "p99": 73.494
+      },
+      "analise": {
+       "max": 9.279,
+       "media": 0.052,
+       "n": 462,
+       "p50": 0.011,
+       "p95": 0.195,
+       "p99": 0.276
+      },
+      "anotacao": {
+       "max": 57.833,
+       "media": 45.13,
+       "n": 4,
+       "p50": 45.331,
+       "p95": 57.7,
+       "p99": 57.806
+      },
+      "conformidade": {
+       "max": 8.82,
+       "media": 1.189,
+       "n": 462,
+       "p50": 0.533,
+       "p95": 4.509,
+       "p99": 6.662
+      },
+      "emissao": {
+       "max": 491.374,
+       "media": 17.199,
+       "n": 462,
+       "p50": 5.904,
+       "p95": 46.62,
+       "p99": 85.384
+      },
+      "encode": {
+       "max": 50.29,
+       "media": 14.461,
+       "n": 462,
+       "p50": 12.653,
+       "p95": 30.15,
+       "p99": 37.413
+      },
+      "espera_da_analise": {
+       "max": 0.083,
+       "media": 0.008,
+       "n": 462,
+       "p50": 0.008,
+       "p95": 0.011,
+       "p99": 0.023
+      },
+      "espera_publicacao": {
+       "max": 868.019,
+       "media": 592.85,
+       "n": 5,
+       "p50": 671.614,
+       "p95": 835.835,
+       "p99": 861.582
+      },
+      "filtro_epi": {
+       "max": 0.5,
+       "media": 0.192,
+       "n": 5,
+       "p50": 0.066,
+       "p95": 0.454,
+       "p99": 0.491
+      },
+      "idade_analise": {
+       "max": 4517.181,
+       "media": 3527.305,
+       "n": 5,
+       "p50": 3682.894,
+       "p95": 4431.724,
+       "p99": 4500.09
+      },
+      "idade_na_inferencia": {
+       "max": 3649.283,
+       "media": 2934.594,
+       "n": 5,
+       "p50": 3220.151,
+       "p95": 3596.152,
+       "p99": 3638.657
+      },
+      "idade_publicacao": {
+       "max": 383.518,
+       "media": 7.819,
+       "n": 462,
+       "p50": 3.025,
+       "p95": 13.799,
+       "p99": 122.59
+      },
+      "inferencia_epi": {
+       "max": 2753.892,
+       "media": 2174.532,
+       "n": 5,
+       "p50": 2062.824,
+       "p95": 2705.908,
+       "p99": 2744.295
+      },
+      "inferencia_pessoa": {
+       "max": 445.41,
+       "media": 385.073,
+       "n": 5,
+       "p50": 357.692,
+       "p95": 444.457,
+       "p99": 445.219
+      },
+      "inferencia_pose": {
+       "max": 943.345,
+       "media": 809.894,
+       "n": 2,
+       "p50": 809.894,
+       "p95": 930.0,
+       "p99": 940.676
+      },
+      "loop_total": {
+       "max": 805.614,
+       "media": 24.109,
+       "n": 462,
+       "p50": 10.486,
+       "p95": 52.838,
+       "p99": 110.516
+      },
+      "pose": {
+       "max": 0.431,
+       "media": 0.34,
+       "n": 5,
+       "p50": 0.339,
+       "p95": 0.415,
+       "p99": 0.428
+      },
+      "preprocessamento": {
+       "max": 0.042,
+       "media": 0.017,
+       "n": 462,
+       "p50": 0.016,
+       "p95": 0.021,
+       "p99": 0.034
+      },
+      "regras": {
+       "max": 8.536,
+       "media": 1.711,
+       "n": 462,
+       "p50": 1.443,
+       "p95": 4.089,
+       "p99": 6.81
+      },
+      "tracking": {
+       "max": 1.453,
+       "media": 1.174,
+       "n": 5,
+       "p50": 1.101,
+       "p95": 1.446,
+       "p99": 1.452
+      }
+     }
+    },
+    "2": {
+     "fixture": "bench",
+     "fps_analise": 0.093,
+     "idade_analise_ms": {
+      "p50": 3770.543,
+      "p95": 3836.236,
+      "n": 5
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 3.921,
+     "fps_publicado": 1.971,
+     "fps_inferencia": 0.093,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.131,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 4.106,
+       "media": 0.257,
+       "n": 118,
+       "p50": 0.044,
+       "p95": 0.726,
+       "p99": 3.306
+      },
+      "analise": {
+       "max": 18.404,
+       "media": 0.395,
+       "n": 118,
+       "p50": 0.02,
+       "p95": 0.323,
+       "p99": 10.53
+      },
+      "conformidade": {
+       "max": 4.855,
+       "media": 0.793,
+       "n": 118,
+       "p50": 0.487,
+       "p95": 2.971,
+       "p99": 4.626
+      },
+      "emissao": {
+       "max": 19.244,
+       "media": 4.357,
+       "n": 118,
+       "p50": 3.408,
+       "p95": 13.935,
+       "p99": 16.059
+      },
+      "espera_da_analise": {
+       "max": 6.209,
+       "media": 0.072,
+       "n": 118,
+       "p50": 0.018,
+       "p95": 0.027,
+       "p99": 0.154
+      },
+      "espera_publicacao": {
+       "max": 268.196,
+       "media": 137.342,
+       "n": 5,
+       "p50": 122.858,
+       "p95": 239.899,
+       "p99": 262.537
+      },
+      "filtro_epi": {
+       "max": 0.041,
+       "media": 0.032,
+       "n": 5,
+       "p50": 0.034,
+       "p95": 0.04,
+       "p99": 0.04
+      },
+      "idade_analise": {
+       "max": 3839.801,
+       "media": 3666.275,
+       "n": 5,
+       "p50": 3770.543,
+       "p95": 3836.236,
+       "p99": 3839.088
+      },
+      "idade_na_inferencia": {
+       "max": 3714.342,
+       "media": 3529.034,
+       "n": 5,
+       "p50": 3709.52,
+       "p95": 3714.135,
+       "p99": 3714.3
+      },
+      "idade_publicacao": {
+       "max": 112.962,
+       "media": 44.728,
+       "n": 118,
+       "p50": 40.228,
+       "p95": 82.411,
+       "p99": 90.684
+      },
+      "inferencia_epi": {
+       "max": 3129.23,
+       "media": 2736.065,
+       "n": 5,
+       "p50": 3016.685,
+       "p95": 3108.529,
+       "p99": 3125.089
+      },
+      "inferencia_pessoa": {
+       "max": 487.152,
+       "media": 377.847,
+       "n": 5,
+       "p50": 350.103,
+       "p95": 462.778,
+       "p99": 482.278
+      },
+      "inferencia_pose": {
+       "max": 1098.829,
+       "media": 1098.829,
+       "n": 1,
+       "p50": 1098.829,
+       "p95": 1098.829,
+       "p99": 1098.829
+      },
+      "loop_total": {
+       "max": 127.244,
+       "media": 47.884,
+       "n": 118,
+       "p50": 42.833,
+       "p95": 88.007,
+       "p99": 98.359
+      },
+      "pose": {
+       "max": 0.06,
+       "media": 0.028,
+       "n": 5,
+       "p50": 0.01,
+       "p95": 0.059,
+       "p99": 0.06
+      },
+      "preprocessamento": {
+       "max": 107.329,
+       "media": 41.266,
+       "n": 118,
+       "p50": 38.027,
+       "p95": 77.712,
+       "p99": 83.357
+      },
+      "regras": {
+       "max": 5.228,
+       "media": 0.669,
+       "n": 118,
+       "p50": 0.366,
+       "p95": 3.01,
+       "p99": 5.079
+      },
+      "tracking": {
+       "max": 0.169,
+       "media": 0.092,
+       "n": 5,
+       "p50": 0.115,
+       "p95": 0.158,
+       "p99": 0.167
+      }
+     }
+    },
+    "3": {
+     "fixture": "queda",
+     "fps_analise": 0.101,
+     "idade_analise_ms": {
+      "p50": 3691.857,
+      "p95": 5289.156,
+      "n": 5
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 3.999,
+     "fps_publicado": 2.008,
+     "fps_inferencia": 0.1,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 2.0,
+     "fracao_do_tempo_real": 0.16,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 267.409,
+       "media": 5.957,
+       "n": 120,
+       "p50": 0.072,
+       "p95": 7.77,
+       "p99": 144.249
+      },
+      "analise": {
+       "max": 0.487,
+       "media": 0.093,
+       "n": 120,
+       "p50": 0.013,
+       "p95": 0.249,
+       "p99": 0.312
+      },
+      "anotacao": {
+       "max": 66.474,
+       "media": 47.956,
+       "n": 3,
+       "p50": 57.748,
+       "p95": 65.601,
+       "p99": 66.299
+      },
+      "conformidade": {
+       "max": 5.534,
+       "media": 0.574,
+       "n": 120,
+       "p50": 0.407,
+       "p95": 2.479,
+       "p99": 3.545
+      },
+      "emissao": {
+       "max": 302.212,
+       "media": 15.296,
+       "n": 120,
+       "p50": 10.865,
+       "p95": 24.474,
+       "p99": 98.421
+      },
+      "espera_da_analise": {
+       "max": 0.012,
+       "media": 0.009,
+       "n": 120,
+       "p50": 0.009,
+       "p95": 0.012,
+       "p99": 0.012
+      },
+      "espera_publicacao": {
+       "max": 799.271,
+       "media": 363.008,
+       "n": 5,
+       "p50": 308.275,
+       "p95": 719.982,
+       "p99": 783.413
+      },
+      "filtro_epi": {
+       "max": 0.106,
+       "media": 0.046,
+       "n": 5,
+       "p50": 0.032,
+       "p95": 0.093,
+       "p99": 0.104
+      },
+      "idade_analise": {
+       "max": 5553.355,
+       "media": 3917.157,
+       "n": 5,
+       "p50": 3691.857,
+       "p95": 5289.156,
+       "p99": 5500.515
+      },
+      "idade_na_inferencia": {
+       "max": 4754.677,
+       "media": 3554.098,
+       "n": 5,
+       "p50": 3289.797,
+       "p95": 4588.437,
+       "p99": 4721.429
+      },
+      "idade_publicacao": {
+       "max": 268.389,
+       "media": 8.405,
+       "n": 120,
+       "p50": 2.21,
+       "p95": 10.759,
+       "p99": 146.234
+      },
+      "inferencia_epi": {
+       "max": 3970.563,
+       "media": 2895.238,
+       "n": 5,
+       "p50": 2522.645,
+       "p95": 3850.782,
+       "p99": 3946.607
+      },
+      "inferencia_pessoa": {
+       "max": 637.004,
+       "media": 463.714,
+       "n": 5,
+       "p50": 450.443,
+       "p95": 609.993,
+       "p99": 631.602
+      },
+      "inferencia_pose": {
+       "max": 667.096,
+       "media": 667.096,
+       "n": 1,
+       "p50": 667.096,
+       "p95": 667.096,
+       "p99": 667.096
+      },
+      "loop_total": {
+       "max": 571.128,
+       "media": 22.638,
+       "n": 120,
+       "p50": 12.881,
+       "p95": 30.013,
+       "p99": 230.824
+      },
+      "pose": {
+       "max": 0.222,
+       "media": 0.113,
+       "n": 5,
+       "p50": 0.095,
+       "p95": 0.202,
+       "p99": 0.218
+      },
+      "preprocessamento": {
+       "max": 0.071,
+       "media": 0.018,
+       "n": 120,
+       "p50": 0.018,
+       "p95": 0.023,
+       "p99": 0.029
+      },
+      "regras": {
+       "max": 1.028,
+       "media": 0.66,
+       "n": 120,
+       "p50": 0.673,
+       "p95": 0.912,
+       "p99": 0.983
+      },
+      "tracking": {
+       "max": 0.338,
+       "media": 0.236,
+       "n": 5,
+       "p50": 0.222,
+       "p95": 0.324,
+       "p99": 0.335
+      }
+     }
+    },
+    "4": {
+     "fixture": "bench",
+     "fps_analise": 0.086,
+     "idade_analise_ms": {
+      "p50": 2793.321,
+      "p95": 3427.095,
+      "n": 4
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 3.919,
+     "fps_publicado": 1.985,
+     "fps_inferencia": 0.086,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.131,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 6.304,
+       "media": 0.184,
+       "n": 118,
+       "p50": 0.042,
+       "p95": 0.441,
+       "p99": 1.821
+      },
+      "analise": {
+       "max": 7.483,
+       "media": 0.198,
+       "n": 118,
+       "p50": 0.021,
+       "p95": 0.343,
+       "p99": 3.318
+      },
+      "conformidade": {
+       "max": 5.138,
+       "media": 0.796,
+       "n": 118,
+       "p50": 0.533,
+       "p95": 2.647,
+       "p99": 4.334
+      },
+      "emissao": {
+       "max": 18.724,
+       "media": 2.67,
+       "n": 118,
+       "p50": 1.732,
+       "p95": 5.429,
+       "p99": 14.291
+      },
+      "espera_da_analise": {
+       "max": 0.038,
+       "media": 0.018,
+       "n": 118,
+       "p50": 0.017,
+       "p95": 0.027,
+       "p99": 0.036
+      },
+      "espera_publicacao": {
+       "max": 263.926,
+       "media": 177.39,
+       "n": 4,
+       "p50": 174.818,
+       "p95": 253.228,
+       "p99": 261.786
+      },
+      "filtro_epi": {
+       "max": 0.064,
+       "media": 0.032,
+       "n": 4,
+       "p50": 0.028,
+       "p95": 0.061,
+       "p99": 0.064
+      },
+      "idade_analise": {
+       "max": 3528.981,
+       "media": 2857.367,
+       "n": 4,
+       "p50": 2793.321,
+       "p95": 3427.095,
+       "p99": 3508.604
+      },
+      "idade_na_inferencia": {
+       "max": 3266.111,
+       "media": 2680.523,
+       "n": 4,
+       "p50": 2649.589,
+       "p95": 3174.859,
+       "p99": 3247.861
+      },
+      "idade_publicacao": {
+       "max": 117.583,
+       "media": 41.529,
+       "n": 118,
+       "p50": 38.33,
+       "p95": 75.488,
+       "p99": 104.425
+      },
+      "inferencia_epi": {
+       "max": 2669.558,
+       "media": 2112.03,
+       "n": 4,
+       "p50": 2015.506,
+       "p95": 2596.197,
+       "p99": 2654.886
+      },
+      "inferencia_pessoa": {
+       "max": 431.65,
+       "media": 362.858,
+       "n": 4,
+       "p50": 354.616,
+       "p95": 420.494,
+       "p99": 429.419
+      },
+      "inferencia_pose": {
+       "max": 464.059,
+       "media": 464.059,
+       "n": 1,
+       "p50": 464.059,
+       "p95": 464.059,
+       "p99": 464.059
+      },
+      "loop_total": {
+       "max": 117.695,
+       "media": 43.04,
+       "n": 118,
+       "p50": 40.143,
+       "p95": 77.735,
+       "p99": 104.981
+      },
+      "pose": {
+       "max": 0.01,
+       "media": 0.007,
+       "n": 4,
+       "p50": 0.006,
+       "p95": 0.009,
+       "p99": 0.01
+      },
+      "preprocessamento": {
+       "max": 112.42,
+       "media": 38.814,
+       "n": 118,
+       "p50": 35.258,
+       "p95": 71.809,
+       "p99": 101.387
+      },
+      "regras": {
+       "max": 6.257,
+       "media": 0.346,
+       "n": 118,
+       "p50": 0.134,
+       "p95": 0.554,
+       "p99": 4.208
+      },
+      "tracking": {
+       "max": 0.052,
+       "media": 0.03,
+       "n": 4,
+       "p50": 0.026,
+       "p95": 0.049,
+       "p99": 0.052
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-4cam-base-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao",
+    "bench",
+    "queda",
+    "bench"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "DETECTION_EVERY_N_FRAMES": "3"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-baseline",
+   "prioridade_alta": true,
+   "startup_s": 17.78,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 32.22,
+   "modelos": {
+    "epi": {
+     "caminho": "models/vyra_ppe.pt",
+     "carga_ms": 361.4,
+     "imgsz": 640
+    },
+    "pessoa": {
+     "caminho": "models/yolov8n.pt",
+     "carga_ms": 497.7,
+     "imgsz": 640
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791905784966.4414,
+     "recebido_ms": null,
+     "latencia_ms": null,
+     "sem_alerta_em_s": 110.3
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 1.17,
+    "quadros_repetidos": 57,
+    "idade_quadro_ms": {
+     "p50": 6146.9,
+     "p95": 12895.62,
+     "p99": 13591.73
+    },
+    "decode_ms": {
+     "p50": 14.25,
+     "p95": 21.83
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 999.7,
+     "p95": 1021.12,
+     "p99": 1030.0
+    },
+    "video_bytes_por_s": 101664,
+    "socketio_bytes_por_s": 5818,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 2.02,
+    "raf_fps": 60.0,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 0,
+    "ui_player": null
+   },
+   "processo": {
+    "cpu_pct_media": 180.2,
+    "cpu_pct_p95": 192.23,
+    "carga_de_fundo_pct_media": 631.8,
+    "rss_mb_inicio": 1008.3,
+    "rss_mb_fim": 1038.1,
+    "rss_mb_max": 1067.2,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 181.1,
+      "rss_mb": 1008.3,
+      "carga_de_fundo_pct": 735.7
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 159.9,
+      "rss_mb": 1014.1,
+      "carga_de_fundo_pct": 694.5
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 181.7,
+      "rss_mb": 1014.3,
+      "carga_de_fundo_pct": 763.9
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 185.9,
+      "rss_mb": 1022.8,
+      "carga_de_fundo_pct": 678.1
+     },
+     {
+      "t": 4.0,
+      "cpu_pct": 184.5,
+      "rss_mb": 1012.1,
+      "carga_de_fundo_pct": 821.1
+     },
+     {
+      "t": 5.1,
+      "cpu_pct": 192.2,
+      "rss_mb": 1017.3,
+      "carga_de_fundo_pct": 778.6
+     },
+     {
+      "t": 6.1,
+      "cpu_pct": 175.8,
+      "rss_mb": 1027.6,
+      "carga_de_fundo_pct": 809.4
+     },
+     {
+      "t": 7.1,
+      "cpu_pct": 192.5,
+      "rss_mb": 1015.2,
+      "carga_de_fundo_pct": 663.1
+     },
+     {
+      "t": 8.1,
+      "cpu_pct": 171.9,
+      "rss_mb": 1030.6,
+      "carga_de_fundo_pct": 521.7
+     },
+     {
+      "t": 9.1,
+      "cpu_pct": 184.5,
+      "rss_mb": 1031.5,
+      "carga_de_fundo_pct": 594.3
+     },
+     {
+      "t": 10.1,
+      "cpu_pct": 189.1,
+      "rss_mb": 1024.5,
+      "carga_de_fundo_pct": 670.1
+     },
+     {
+      "t": 11.2,
+      "cpu_pct": 178.6,
+      "rss_mb": 1036.0,
+      "carga_de_fundo_pct": 594.2
+     },
+     {
+      "t": 12.2,
+      "cpu_pct": 167.6,
+      "rss_mb": 1025.5,
+      "carga_de_fundo_pct": 703.6
+     },
+     {
+      "t": 13.2,
+      "cpu_pct": 173.4,
+      "rss_mb": 1048.1,
+      "carga_de_fundo_pct": 646.2
+     },
+     {
+      "t": 14.2,
+      "cpu_pct": 182.8,
+      "rss_mb": 1024.5,
+      "carga_de_fundo_pct": 772.4
+     },
+     {
+      "t": 15.2,
+      "cpu_pct": 186.1,
+      "rss_mb": 1034.2,
+      "carga_de_fundo_pct": 815.9
+     },
+     {
+      "t": 16.2,
+      "cpu_pct": 181.9,
+      "rss_mb": 1067.2,
+      "carga_de_fundo_pct": 684.5
+     },
+     {
+      "t": 17.3,
+      "cpu_pct": 182.1,
+      "rss_mb": 1030.2,
+      "carga_de_fundo_pct": 836.7
+     },
+     {
+      "t": 18.3,
+      "cpu_pct": 179.1,
+      "rss_mb": 1028.8,
+      "carga_de_fundo_pct": 746.1
+     },
+     {
+      "t": 19.3,
+      "cpu_pct": 175.5,
+      "rss_mb": 1040.6,
+      "carga_de_fundo_pct": 809.7
+     },
+     {
+      "t": 20.3,
+      "cpu_pct": 200.0,
+      "rss_mb": 1018.5,
+      "carga_de_fundo_pct": 804.4
+     },
+     {
+      "t": 21.3,
+      "cpu_pct": 182.8,
+      "rss_mb": 1024.7,
+      "carga_de_fundo_pct": 699.2
+     },
+     {
+      "t": 22.3,
+      "cpu_pct": 169.2,
+      "rss_mb": 1014.1,
+      "carga_de_fundo_pct": 806.4
+     },
+     {
+      "t": 23.3,
+      "cpu_pct": 198.4,
+      "rss_mb": 1002.7,
+      "carga_de_fundo_pct": 518.0
+     },
+     {
+      "t": 24.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 1015.2,
+      "carga_de_fundo_pct": 683.8
+     },
+     {
+      "t": 25.3,
+      "cpu_pct": 160.9,
+      "rss_mb": 1019.8,
+      "carga_de_fundo_pct": 568.7
+     },
+     {
+      "t": 26.3,
+      "cpu_pct": 183.2,
+      "rss_mb": 1015.2,
+      "carga_de_fundo_pct": 482.8
+     },
+     {
+      "t": 27.4,
+      "cpu_pct": 175.0,
+      "rss_mb": 1021.6,
+      "carga_de_fundo_pct": 477.8
+     },
+     {
+      "t": 28.4,
+      "cpu_pct": 171.9,
+      "rss_mb": 1053.6,
+      "carga_de_fundo_pct": 470.1
+     },
+     {
+      "t": 29.4,
+      "cpu_pct": 184.4,
+      "rss_mb": 1013.9,
+      "carga_de_fundo_pct": 461.2
+     },
+     {
+      "t": 30.4,
+      "cpu_pct": 179.7,
+      "rss_mb": 1025.8,
+      "carga_de_fundo_pct": 264.3
+     },
+     {
+      "t": 31.4,
+      "cpu_pct": 175.0,
+      "rss_mb": 1009.2,
+      "carga_de_fundo_pct": 223.4
+     },
+     {
+      "t": 32.4,
+      "cpu_pct": 173.4,
+      "rss_mb": 1006.3,
+      "carga_de_fundo_pct": 619.8
+     },
+     {
+      "t": 33.4,
+      "cpu_pct": 187.6,
+      "rss_mb": 1019.3,
+      "carga_de_fundo_pct": 678.8
+     },
+     {
+      "t": 34.4,
+      "cpu_pct": 181.5,
+      "rss_mb": 1014.7,
+      "carga_de_fundo_pct": 653.7
+     },
+     {
+      "t": 35.4,
+      "cpu_pct": 183.4,
+      "rss_mb": 1014.2,
+      "carga_de_fundo_pct": 645.8
+     },
+     {
+      "t": 36.4,
+      "cpu_pct": 192.2,
+      "rss_mb": 1022.7,
+      "carga_de_fundo_pct": 725.8
+     },
+     {
+      "t": 37.4,
+      "cpu_pct": 156.1,
+      "rss_mb": 1023.4,
+      "carga_de_fundo_pct": 691.1
+     },
+     {
+      "t": 38.5,
+      "cpu_pct": 178.8,
+      "rss_mb": 1010.2,
+      "carga_de_fundo_pct": 504.0
+     },
+     {
+      "t": 39.5,
+      "cpu_pct": 185.9,
+      "rss_mb": 1013.4,
+      "carga_de_fundo_pct": 558.1
+     },
+     {
+      "t": 40.5,
+      "cpu_pct": 164.1,
+      "rss_mb": 1054.1,
+      "carga_de_fundo_pct": 378.3
+     },
+     {
+      "t": 41.5,
+      "cpu_pct": 192.2,
+      "rss_mb": 1013.0,
+      "carga_de_fundo_pct": 874.6
+     },
+     {
+      "t": 42.5,
+      "cpu_pct": 185.9,
+      "rss_mb": 1028.6,
+      "carga_de_fundo_pct": 673.3
+     },
+     {
+      "t": 43.5,
+      "cpu_pct": 184.4,
+      "rss_mb": 1045.8,
+      "carga_de_fundo_pct": 824.8
+     },
+     {
+      "t": 44.5,
+      "cpu_pct": 181.5,
+      "rss_mb": 1050.7,
+      "carga_de_fundo_pct": 694.5
+     },
+     {
+      "t": 45.5,
+      "cpu_pct": 184.5,
+      "rss_mb": 1035.3,
+      "carga_de_fundo_pct": 909.9
+     },
+     {
+      "t": 46.5,
+      "cpu_pct": 176.6,
+      "rss_mb": 1023.5,
+      "carga_de_fundo_pct": 671.8
+     },
+     {
+      "t": 47.5,
+      "cpu_pct": 173.4,
+      "rss_mb": 1043.2,
+      "carga_de_fundo_pct": 593.4
+     },
+     {
+      "t": 48.5,
+      "cpu_pct": 181.2,
+      "rss_mb": 1037.0,
+      "carga_de_fundo_pct": 694.8
+     },
+     {
+      "t": 49.5,
+      "cpu_pct": 177.0,
+      "rss_mb": 1022.1,
+      "carga_de_fundo_pct": 727.8
+     },
+     {
+      "t": 50.5,
+      "cpu_pct": 150.7,
+      "rss_mb": 1050.3,
+      "carga_de_fundo_pct": 673.7
+     },
+     {
+      "t": 51.5,
+      "cpu_pct": 178.1,
+      "rss_mb": 1031.8,
+      "carga_de_fundo_pct": 693.1
+     },
+     {
+      "t": 52.6,
+      "cpu_pct": 186.4,
+      "rss_mb": 1042.1,
+      "carga_de_fundo_pct": 945.2
+     },
+     {
+      "t": 53.6,
+      "cpu_pct": 172.2,
+      "rss_mb": 1034.1,
+      "carga_de_fundo_pct": 592.2
+     },
+     {
+      "t": 54.6,
+      "cpu_pct": 181.2,
+      "rss_mb": 1008.2,
+      "carga_de_fundo_pct": 434.4
+     },
+     {
+      "t": 55.6,
+      "cpu_pct": 192.2,
+      "rss_mb": 1024.3,
+      "carga_de_fundo_pct": 245.8
+     },
+     {
+      "t": 56.6,
+      "cpu_pct": 182.8,
+      "rss_mb": 1020.1,
+      "carga_de_fundo_pct": 312.8
+     },
+     {
+      "t": 57.6,
+      "cpu_pct": 184.7,
+      "rss_mb": 1016.8,
+      "carga_de_fundo_pct": 501.7
+     },
+     {
+      "t": 58.6,
+      "cpu_pct": 178.1,
+      "rss_mb": 1031.4,
+      "carga_de_fundo_pct": 322.3
+     },
+     {
+      "t": 59.6,
+      "cpu_pct": 190.6,
+      "rss_mb": 1038.1,
+      "carga_de_fundo_pct": 368.6
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.081,
+     "idade_analise_ms": {
+      "p50": 12975.572,
+      "p95": 13728.212,
+      "n": 4
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 0.244,
+     "fps_publicado": 0.243,
+     "fps_inferencia": 0.081,
+     "fps_enviado": 2.328,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.01,
+     "bytes_video_por_s": 201094.148,
+     "etapas": {
+      "alertas": {
+       "max": 13.345,
+       "media": 1.486,
+       "n": 12,
+       "p50": 0.432,
+       "p95": 6.423,
+       "p99": 11.96
+      },
+      "analise": {
+       "max": 0.346,
+       "media": 0.125,
+       "n": 12,
+       "p50": 0.047,
+       "p95": 0.334,
+       "p99": 0.343
+      },
+      "anotacao": {
+       "max": 106.575,
+       "media": 57.887,
+       "n": 12,
+       "p50": 55.234,
+       "p95": 91.377,
+       "p99": 103.535
+      },
+      "captura": {
+       "max": 33.259,
+       "media": 15.3,
+       "n": 12,
+       "p50": 13.787,
+       "p95": 28.54,
+       "p99": 32.315
+      },
+      "emissao": {
+       "max": 62.827,
+       "media": 20.53,
+       "n": 12,
+       "p50": 19.377,
+       "p95": 52.691,
+       "p99": 60.8
+      },
+      "encode": {
+       "max": 21.821,
+       "media": 10.864,
+       "n": 12,
+       "p50": 9.754,
+       "p95": 18.011,
+       "p99": 21.059
+      },
+      "espera_do_lock": {
+       "max": 10513.606,
+       "media": 9483.606,
+       "n": 5,
+       "p50": 9250.506,
+       "p95": 10474.933,
+       "p99": 10505.871
+      },
+      "espera_do_lock_pre": {
+       "max": 0.052,
+       "media": 0.033,
+       "n": 4,
+       "p50": 0.028,
+       "p95": 0.049,
+       "p99": 0.052
+      },
+      "filtro_epi": {
+       "max": 0.041,
+       "media": 0.039,
+       "n": 4,
+       "p50": 0.038,
+       "p95": 0.041,
+       "p99": 0.041
+      },
+      "idade_analise": {
+       "max": 13787.548,
+       "media": 12963.759,
+       "n": 4,
+       "p50": 12975.572,
+       "p95": 13728.212,
+       "p99": 13775.681
+      },
+      "idade_publicacao": {
+       "max": 13772.47,
+       "media": 4371.591,
+       "n": 12,
+       "p50": 100.288,
+       "p95": 13553.458,
+       "p99": 13728.667
+      },
+      "inferencia_epi": {
+       "max": 2456.261,
+       "media": 2181.0,
+       "n": 5,
+       "p50": 2249.736,
+       "p95": 2424.851,
+       "p99": 2449.979
+      },
+      "inferencia_pessoa": {
+       "max": 412.754,
+       "media": 339.843,
+       "n": 4,
+       "p50": 320.766,
+       "p95": 400.063,
+       "p99": 410.216
+      },
+      "loop_total": {
+       "max": 13793.129,
+       "media": 4404.252,
+       "n": 12,
+       "p50": 136.763,
+       "p95": 13586.169,
+       "p99": 13751.737
+      },
+      "pose": {
+       "max": 513.254,
+       "media": 458.023,
+       "n": 4,
+       "p50": 471.681,
+       "p95": 511.012,
+       "p99": 512.806
+      },
+      "regras": {
+       "max": 16.786,
+       "media": 5.119,
+       "n": 12,
+       "p50": 2.586,
+       "p95": 16.03,
+       "p99": 16.635
+      },
+      "tracking": {
+       "max": 1.515,
+       "media": 1.304,
+       "n": 4,
+       "p50": 1.318,
+       "p95": 1.503,
+       "p99": 1.513
+      }
+     }
+    },
+    "2": {
+     "fixture": "bench",
+     "fps_analise": 0.084,
+     "idade_analise_ms": {
+      "p50": 13194.327,
+      "p95": 14077.463,
+      "n": 5
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 0.252,
+     "fps_publicado": 0.252,
+     "fps_inferencia": 0.084,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.008,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.851,
+       "media": 0.354,
+       "n": 15,
+       "p50": 0.29,
+       "p95": 0.608,
+       "p99": 0.803
+      },
+      "analise": {
+       "max": 0.826,
+       "media": 0.297,
+       "n": 15,
+       "p50": 0.046,
+       "p95": 0.815,
+       "p99": 0.824
+      },
+      "anotacao": {
+       "max": 118.532,
+       "media": 63.192,
+       "n": 15,
+       "p50": 59.543,
+       "p95": 108.367,
+       "p99": 116.499
+      },
+      "captura": {
+       "max": 64.138,
+       "media": 34.701,
+       "n": 15,
+       "p50": 30.597,
+       "p95": 58.19,
+       "p99": 62.948
+      },
+      "emissao": {
+       "max": 42.303,
+       "media": 9.141,
+       "n": 15,
+       "p50": 5.03,
+       "p95": 29.137,
+       "p99": 39.67
+      },
+      "encode": {
+       "max": 53.652,
+       "media": 23.501,
+       "n": 15,
+       "p50": 23.074,
+       "p95": 39.692,
+       "p99": 50.86
+      },
+      "espera_do_lock": {
+       "max": 9905.883,
+       "media": 9668.057,
+       "n": 4,
+       "p50": 9825.371,
+       "p95": 9895.333,
+       "p99": 9903.773
+      },
+      "espera_do_lock_pre": {
+       "max": 0.045,
+       "media": 0.033,
+       "n": 5,
+       "p50": 0.034,
+       "p95": 0.043,
+       "p99": 0.044
+      },
+      "filtro_epi": {
+       "max": 0.069,
+       "media": 0.05,
+       "n": 5,
+       "p50": 0.047,
+       "p95": 0.065,
+       "p99": 0.068
+      },
+      "idade_analise": {
+       "max": 14290.316,
+       "media": 13063.412,
+       "n": 5,
+       "p50": 13194.327,
+       "p95": 14077.463,
+       "p99": 14247.746
+      },
+      "idade_publicacao": {
+       "max": 14285.311,
+       "media": 4416.344,
+       "n": 15,
+       "p50": 133.019,
+       "p95": 13539.245,
+       "p99": 14136.098
+      },
+      "inferencia_epi": {
+       "max": 2688.648,
+       "media": 2470.165,
+       "n": 4,
+       "p50": 2503.72,
+       "p95": 2683.878,
+       "p99": 2687.694
+      },
+      "inferencia_pessoa": {
+       "max": 1191.244,
+       "media": 511.982,
+       "n": 5,
+       "p50": 345.868,
+       "p95": 1033.428,
+       "p99": 1159.681
+      },
+      "loop_total": {
+       "max": 14303.915,
+       "media": 4456.519,
+       "n": 15,
+       "p50": 178.098,
+       "p95": 13587.793,
+       "p99": 14160.69
+      },
+      "pose": {
+       "max": 215.865,
+       "media": 172.486,
+       "n": 5,
+       "p50": 173.456,
+       "p95": 211.956,
+       "p99": 215.083
+      },
+      "regras": {
+       "max": 13.311,
+       "media": 1.381,
+       "n": 15,
+       "p50": 0.382,
+       "p95": 5.729,
+       "p99": 11.794
+      },
+      "tracking": {
+       "max": 0.071,
+       "media": 0.048,
+       "n": 5,
+       "p50": 0.069,
+       "p95": 0.071,
+       "p99": 0.071
+      }
+     }
+    },
+    "3": {
+     "fixture": "queda",
+     "fps_analise": 0.091,
+     "idade_analise_ms": {
+      "p50": 12788.553,
+      "p95": 14256.884,
+      "n": 5
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 0.272,
+     "fps_publicado": 0.272,
+     "fps_inferencia": 0.09,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.011,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.499,
+       "media": 0.313,
+       "n": 15,
+       "p50": 0.292,
+       "p95": 0.444,
+       "p99": 0.488
+      },
+      "analise": {
+       "max": 0.795,
+       "media": 0.246,
+       "n": 15,
+       "p50": 0.046,
+       "p95": 0.793,
+       "p99": 0.795
+      },
+      "anotacao": {
+       "max": 79.37,
+       "media": 45.287,
+       "n": 15,
+       "p50": 37.959,
+       "p95": 78.867,
+       "p99": 79.27
+      },
+      "captura": {
+       "max": 33.699,
+       "media": 14.056,
+       "n": 15,
+       "p50": 11.088,
+       "p95": 25.655,
+       "p99": 32.09
+      },
+      "emissao": {
+       "max": 25.732,
+       "media": 9.895,
+       "n": 15,
+       "p50": 6.92,
+       "p95": 25.536,
+       "p99": 25.693
+      },
+      "encode": {
+       "max": 19.904,
+       "media": 9.975,
+       "n": 15,
+       "p50": 8.962,
+       "p95": 16.85,
+       "p99": 19.293
+      },
+      "espera_do_lock": {
+       "max": 10105.737,
+       "media": 8940.783,
+       "n": 5,
+       "p50": 8856.177,
+       "p95": 9904.749,
+       "p99": 10065.539
+      },
+      "espera_do_lock_pre": {
+       "max": 0.038,
+       "media": 0.033,
+       "n": 5,
+       "p50": 0.034,
+       "p95": 0.037,
+       "p99": 0.038
+      },
+      "filtro_epi": {
+       "max": 0.107,
+       "media": 0.045,
+       "n": 5,
+       "p50": 0.029,
+       "p95": 0.092,
+       "p99": 0.104
+      },
+      "idade_analise": {
+       "max": 14540.741,
+       "media": 12940.282,
+       "n": 5,
+       "p50": 12788.553,
+       "p95": 14256.884,
+       "p99": 14483.969
+      },
+      "idade_publicacao": {
+       "max": 14517.423,
+       "media": 4351.582,
+       "n": 15,
+       "p50": 86.361,
+       "p95": 13532.478,
+       "p99": 14320.434
+      },
+      "inferencia_epi": {
+       "max": 3674.978,
+       "media": 3179.368,
+       "n": 5,
+       "p50": 3208.802,
+       "p95": 3644.095,
+       "p99": 3668.801
+      },
+      "inferencia_pessoa": {
+       "max": 924.023,
+       "media": 547.678,
+       "n": 5,
+       "p50": 488.188,
+       "p95": 840.98,
+       "p99": 907.414
+      },
+      "loop_total": {
+       "max": 14560.873,
+       "media": 4373.21,
+       "n": 15,
+       "p50": 115.943,
+       "p95": 13558.766,
+       "p99": 14360.452
+      },
+      "pose": {
+       "max": 256.391,
+       "media": 208.199,
+       "n": 5,
+       "p50": 199.886,
+       "p95": 254.703,
+       "p99": 256.053
+      },
+      "regras": {
+       "max": 3.278,
+       "media": 0.723,
+       "n": 15,
+       "p50": 0.493,
+       "p95": 1.666,
+       "p99": 2.956
+      },
+      "tracking": {
+       "max": 0.126,
+       "media": 0.105,
+       "n": 5,
+       "p50": 0.102,
+       "p95": 0.124,
+       "p99": 0.126
+      }
+     }
+    },
+    "4": {
+     "fixture": "bench",
+     "fps_analise": 0.095,
+     "idade_analise_ms": {
+      "p50": 12331.998,
+      "p95": 13985.042,
+      "n": 5
+     },
+     "fonte_fps": 29.97,
+     "fps_lido": 0.286,
+     "fps_publicado": 0.286,
+     "fps_inferencia": 0.095,
+     "fps_enviado": null,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.01,
+     "bytes_video_por_s": null,
+     "etapas": {
+      "alertas": {
+       "max": 0.467,
+       "media": 0.316,
+       "n": 15,
+       "p50": 0.318,
+       "p95": 0.41,
+       "p99": 0.455
+      },
+      "analise": {
+       "max": 0.892,
+       "media": 0.243,
+       "n": 15,
+       "p50": 0.041,
+       "p95": 0.756,
+       "p99": 0.865
+      },
+      "anotacao": {
+       "max": 92.642,
+       "media": 56.557,
+       "n": 15,
+       "p50": 52.992,
+       "p95": 89.242,
+       "p99": 91.962
+      },
+      "captura": {
+       "max": 34.193,
+       "media": 22.982,
+       "n": 15,
+       "p50": 25.222,
+       "p95": 32.919,
+       "p99": 33.939
+      },
+      "emissao": {
+       "max": 26.905,
+       "media": 6.944,
+       "n": 15,
+       "p50": 5.436,
+       "p95": 18.629,
+       "p99": 25.25
+      },
+      "encode": {
+       "max": 42.965,
+       "media": 26.626,
+       "n": 15,
+       "p50": 27.31,
+       "p95": 40.396,
+       "p99": 42.452
+      },
+      "espera_do_lock": {
+       "max": 11273.573,
+       "media": 9897.152,
+       "n": 5,
+       "p50": 9529.338,
+       "p95": 11080.898,
+       "p99": 11235.038
+      },
+      "espera_do_lock_pre": {
+       "max": 0.046,
+       "media": 0.033,
+       "n": 5,
+       "p50": 0.03,
+       "p95": 0.045,
+       "p99": 0.046
+      },
+      "filtro_epi": {
+       "max": 0.065,
+       "media": 0.045,
+       "n": 5,
+       "p50": 0.041,
+       "p95": 0.061,
+       "p99": 0.064
+      },
+      "idade_analise": {
+       "max": 14102.852,
+       "media": 12711.294,
+       "n": 5,
+       "p50": 12331.998,
+       "p95": 13985.042,
+       "p99": 14079.29
+      },
+      "idade_publicacao": {
+       "max": 14097.308,
+       "media": 4295.492,
+       "n": 15,
+       "p50": 107.874,
+       "p95": 13684.408,
+       "p99": 14014.728
+      },
+      "inferencia_epi": {
+       "max": 2530.422,
+       "media": 2254.121,
+       "n": 5,
+       "p50": 2353.105,
+       "p95": 2516.855,
+       "p99": 2527.709
+      },
+      "inferencia_pessoa": {
+       "max": 349.238,
+       "media": 315.196,
+       "n": 5,
+       "p50": 319.343,
+       "p95": 348.294,
+       "p99": 349.049
+      },
+      "loop_total": {
+       "max": 14137.014,
+       "media": 4324.682,
+       "n": 15,
+       "p50": 137.466,
+       "p95": 13719.205,
+       "p99": 14053.452
+      },
+      "pose": {
+       "max": 304.846,
+       "media": 158.639,
+       "n": 5,
+       "p50": 137.507,
+       "p95": 276.262,
+       "p99": 299.129
+      },
+      "regras": {
+       "max": 10.705,
+       "media": 1.216,
+       "n": 15,
+       "p50": 0.376,
+       "p95": 5.14,
+       "p99": 9.592
+      },
+      "tracking": {
+       "max": 0.075,
+       "media": 0.048,
+       "n": 5,
+       "p50": 0.062,
+       "p95": 0.074,
+       "p99": 0.075
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-1cam-pt-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "PPE_RUNTIME": "pytorch",
+    "PERSON_RUNTIME": "pytorch"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-novo",
+   "prioridade_alta": true,
+   "startup_s": 33.49,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 0.24,
+   "modelos": {
+    "epi": {
+     "aquecimento_ms": 16807.3,
+     "caminho": "models/vyra_ppe.pt",
+     "carga_ms": 273.2,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (pedido)",
+      "pedido": "pytorch"
+     },
+     "imgsz": 640,
+     "runtime": "pytorch"
+    },
+    "pessoa": {
+     "aquecimento_ms": 2204.9,
+     "caminho": "models/yolov8n.pt",
+     "carga_ms": 687.4,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (pedido)",
+      "pedido": "pytorch"
+     },
+     "imgsz": 640,
+     "runtime": "pytorch"
+    },
+    "pose": {
+     "aquecimento_ms": 2511.2,
+     "caminho": "models/yolo11n-pose.pt",
+     "carga_ms": 490.9,
+     "escolha": null,
+     "imgsz": 640,
+     "runtime": "pytorch"
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791905943187.2402,
+     "recebido_ms": 1791905952644,
+     "latencia_ms": 9456.8,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 6.63,
+    "quadros_repetidos": 4,
+    "idade_quadro_ms": {
+     "p50": 56.15,
+     "p95": 224.73,
+     "p99": 978.33
+    },
+    "decode_ms": {
+     "p50": 17.9,
+     "p95": 55.05
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 119.0,
+     "p95": 506.86,
+     "p99": 886.05
+    },
+    "video_bytes_por_s": 412456,
+    "socketio_bytes_por_s": 38717,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 5.08,
+    "raf_fps": 60.0,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 3,
+    "ui_player": {
+     "exibidos_total": 520,
+     "idade_quadro_ms": {
+      "p50": 62.5,
+      "p95": 285.64
+     },
+     "descartados_no_cliente": 7
+    }
+   },
+   "processo": {
+    "cpu_pct_media": 184.9,
+    "cpu_pct_p95": 192.76,
+    "carga_de_fundo_pct_media": 800.1,
+    "rss_mb_inicio": 586.4,
+    "rss_mb_fim": 610.5,
+    "rss_mb_max": 634.3,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 183.3,
+      "rss_mb": 586.4,
+      "carga_de_fundo_pct": 839.1
+     },
+     {
+      "t": 1.1,
+      "cpu_pct": 189.9,
+      "rss_mb": 609.1,
+      "carga_de_fundo_pct": 945.3
+     },
+     {
+      "t": 2.2,
+      "cpu_pct": 180.9,
+      "rss_mb": 596.3,
+      "carga_de_fundo_pct": 891.9
+     },
+     {
+      "t": 3.2,
+      "cpu_pct": 185.9,
+      "rss_mb": 594.3,
+      "carga_de_fundo_pct": 901.3
+     },
+     {
+      "t": 4.2,
+      "cpu_pct": 167.6,
+      "rss_mb": 591.8,
+      "carga_de_fundo_pct": 959.2
+     },
+     {
+      "t": 5.4,
+      "cpu_pct": 180.6,
+      "rss_mb": 606.2,
+      "carga_de_fundo_pct": 940.2
+     },
+     {
+      "t": 6.4,
+      "cpu_pct": 183.6,
+      "rss_mb": 615.2,
+      "carga_de_fundo_pct": 883.2
+     },
+     {
+      "t": 7.7,
+      "cpu_pct": 185.1,
+      "rss_mb": 615.3,
+      "carga_de_fundo_pct": 924.9
+     },
+     {
+      "t": 8.7,
+      "cpu_pct": 182.4,
+      "rss_mb": 604.8,
+      "carga_de_fundo_pct": 774.0
+     },
+     {
+      "t": 9.8,
+      "cpu_pct": 176.9,
+      "rss_mb": 597.5,
+      "carga_de_fundo_pct": 931.9
+     },
+     {
+      "t": 10.8,
+      "cpu_pct": 185.5,
+      "rss_mb": 594.9,
+      "carga_de_fundo_pct": 900.5
+     },
+     {
+      "t": 12.0,
+      "cpu_pct": 183.3,
+      "rss_mb": 594.3,
+      "carga_de_fundo_pct": 943.5
+     },
+     {
+      "t": 13.1,
+      "cpu_pct": 178.6,
+      "rss_mb": 609.0,
+      "carga_de_fundo_pct": 920.6
+     },
+     {
+      "t": 14.1,
+      "cpu_pct": 189.1,
+      "rss_mb": 596.7,
+      "carga_de_fundo_pct": 804.5
+     },
+     {
+      "t": 15.1,
+      "cpu_pct": 186.1,
+      "rss_mb": 634.3,
+      "carga_de_fundo_pct": 887.9
+     },
+     {
+      "t": 16.1,
+      "cpu_pct": 183.2,
+      "rss_mb": 595.2,
+      "carga_de_fundo_pct": 889.6
+     },
+     {
+      "t": 17.1,
+      "cpu_pct": 185.9,
+      "rss_mb": 606.3,
+      "carga_de_fundo_pct": 952.9
+     },
+     {
+      "t": 18.1,
+      "cpu_pct": 189.3,
+      "rss_mb": 602.5,
+      "carga_de_fundo_pct": 939.9
+     },
+     {
+      "t": 19.2,
+      "cpu_pct": 185.5,
+      "rss_mb": 597.8,
+      "carga_de_fundo_pct": 970.1
+     },
+     {
+      "t": 20.3,
+      "cpu_pct": 167.1,
+      "rss_mb": 629.0,
+      "carga_de_fundo_pct": 996.9
+     },
+     {
+      "t": 21.3,
+      "cpu_pct": 177.3,
+      "rss_mb": 596.7,
+      "carga_de_fundo_pct": 943.5
+     },
+     {
+      "t": 22.4,
+      "cpu_pct": 192.5,
+      "rss_mb": 604.0,
+      "carga_de_fundo_pct": 919.9
+     },
+     {
+      "t": 23.4,
+      "cpu_pct": 181.5,
+      "rss_mb": 599.0,
+      "carga_de_fundo_pct": 986.1
+     },
+     {
+      "t": 24.4,
+      "cpu_pct": 191.0,
+      "rss_mb": 604.8,
+      "carga_de_fundo_pct": 981.4
+     },
+     {
+      "t": 25.4,
+      "cpu_pct": 184.4,
+      "rss_mb": 598.6,
+      "carga_de_fundo_pct": 910.0
+     },
+     {
+      "t": 26.5,
+      "cpu_pct": 173.6,
+      "rss_mb": 598.8,
+      "carga_de_fundo_pct": 1000.0
+     },
+     {
+      "t": 27.5,
+      "cpu_pct": 193.8,
+      "rss_mb": 601.1,
+      "carga_de_fundo_pct": 924.6
+     },
+     {
+      "t": 28.5,
+      "cpu_pct": 190.9,
+      "rss_mb": 607.0,
+      "carga_de_fundo_pct": 879.5
+     },
+     {
+      "t": 29.8,
+      "cpu_pct": 183.3,
+      "rss_mb": 601.0,
+      "carga_de_fundo_pct": 943.5
+     },
+     {
+      "t": 30.8,
+      "cpu_pct": 181.7,
+      "rss_mb": 602.1,
+      "carga_de_fundo_pct": 877.9
+     },
+     {
+      "t": 31.9,
+      "cpu_pct": 190.8,
+      "rss_mb": 596.0,
+      "carga_de_fundo_pct": 794.4
+     },
+     {
+      "t": 32.9,
+      "cpu_pct": 189.4,
+      "rss_mb": 613.5,
+      "carga_de_fundo_pct": 855.8
+     },
+     {
+      "t": 33.9,
+      "cpu_pct": 192.2,
+      "rss_mb": 614.8,
+      "carga_de_fundo_pct": 695.8
+     },
+     {
+      "t": 34.9,
+      "cpu_pct": 176.6,
+      "rss_mb": 591.1,
+      "carga_de_fundo_pct": 641.8
+     },
+     {
+      "t": 35.9,
+      "cpu_pct": 172.4,
+      "rss_mb": 601.3,
+      "carga_de_fundo_pct": 652.0
+     },
+     {
+      "t": 37.0,
+      "cpu_pct": 184.1,
+      "rss_mb": 597.4,
+      "carga_de_fundo_pct": 837.1
+     },
+     {
+      "t": 38.0,
+      "cpu_pct": 196.9,
+      "rss_mb": 597.7,
+      "carga_de_fundo_pct": 652.7
+     },
+     {
+      "t": 39.0,
+      "cpu_pct": 192.2,
+      "rss_mb": 619.9,
+      "carga_de_fundo_pct": 668.2
+     },
+     {
+      "t": 40.0,
+      "cpu_pct": 187.6,
+      "rss_mb": 610.4,
+      "carga_de_fundo_pct": 450.8
+     },
+     {
+      "t": 41.0,
+      "cpu_pct": 182.8,
+      "rss_mb": 600.2,
+      "carga_de_fundo_pct": 597.2
+     },
+     {
+      "t": 42.0,
+      "cpu_pct": 187.5,
+      "rss_mb": 602.4,
+      "carga_de_fundo_pct": 728.1
+     },
+     {
+      "t": 43.0,
+      "cpu_pct": 192.2,
+      "rss_mb": 606.5,
+      "carga_de_fundo_pct": 753.4
+     },
+     {
+      "t": 44.1,
+      "cpu_pct": 184.4,
+      "rss_mb": 612.1,
+      "carga_de_fundo_pct": 544.0
+     },
+     {
+      "t": 45.1,
+      "cpu_pct": 183.4,
+      "rss_mb": 600.4,
+      "carga_de_fundo_pct": 505.4
+     },
+     {
+      "t": 46.1,
+      "cpu_pct": 190.6,
+      "rss_mb": 620.7,
+      "carga_de_fundo_pct": 583.4
+     },
+     {
+      "t": 47.1,
+      "cpu_pct": 189.1,
+      "rss_mb": 593.1,
+      "carga_de_fundo_pct": 815.3
+     },
+     {
+      "t": 48.1,
+      "cpu_pct": 177.0,
+      "rss_mb": 610.0,
+      "carga_de_fundo_pct": 549.0
+     },
+     {
+      "t": 49.1,
+      "cpu_pct": 189.3,
+      "rss_mb": 613.5,
+      "carga_de_fundo_pct": 785.1
+     },
+     {
+      "t": 50.1,
+      "cpu_pct": 181.7,
+      "rss_mb": 603.2,
+      "carga_de_fundo_pct": 843.1
+     },
+     {
+      "t": 51.1,
+      "cpu_pct": 196.9,
+      "rss_mb": 599.6,
+      "carga_de_fundo_pct": 821.9
+     },
+     {
+      "t": 52.1,
+      "cpu_pct": 187.5,
+      "rss_mb": 612.3,
+      "carga_de_fundo_pct": 832.5
+     },
+     {
+      "t": 53.2,
+      "cpu_pct": 186.1,
+      "rss_mb": 606.6,
+      "carga_de_fundo_pct": 883.1
+     },
+     {
+      "t": 54.2,
+      "cpu_pct": 189.8,
+      "rss_mb": 610.9,
+      "carga_de_fundo_pct": 897.4
+     },
+     {
+      "t": 55.3,
+      "cpu_pct": 176.1,
+      "rss_mb": 602.2,
+      "carga_de_fundo_pct": 745.5
+     },
+     {
+      "t": 56.3,
+      "cpu_pct": 189.1,
+      "rss_mb": 610.0,
+      "carga_de_fundo_pct": 544.1
+     },
+     {
+      "t": 57.3,
+      "cpu_pct": 181.2,
+      "rss_mb": 604.5,
+      "carga_de_fundo_pct": 361.2
+     },
+     {
+      "t": 58.3,
+      "cpu_pct": 190.6,
+      "rss_mb": 608.0,
+      "carga_de_fundo_pct": 330.2
+     },
+     {
+      "t": 59.3,
+      "cpu_pct": 185.9,
+      "rss_mb": 610.5,
+      "carga_de_fundo_pct": 512.5
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.237,
+     "idade_analise_ms": {
+      "p50": 5231.236,
+      "p95": 7509.644,
+      "n": 13
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 22.369,
+     "fps_publicado": 6.682,
+     "fps_inferencia": 0.234,
+     "fps_enviado": 13.449,
+     "frames_descartados_por_s": 1.195,
+     "fracao_do_tempo_real": 0.895,
+     "bytes_video_por_s": 844755.106,
+     "etapas": {
+      "alertas": {
+       "max": 519.068,
+       "media": 12.891,
+       "n": 400,
+       "p50": 0.18,
+       "p95": 9.461,
+       "p99": 444.572
+      },
+      "analise": {
+       "max": 12.377,
+       "media": 0.095,
+       "n": 400,
+       "p50": 0.013,
+       "p95": 0.279,
+       "p99": 0.559
+      },
+      "anotacao": {
+       "max": 111.515,
+       "media": 79.373,
+       "n": 9,
+       "p50": 83.122,
+       "p95": 109.365,
+       "p99": 111.085
+      },
+      "conformidade": {
+       "max": 14.255,
+       "media": 1.274,
+       "n": 400,
+       "p50": 0.688,
+       "p95": 4.49,
+       "p99": 9.667
+      },
+      "emissao": {
+       "max": 1540.969,
+       "media": 27.464,
+       "n": 400,
+       "p50": 4.747,
+       "p95": 58.002,
+       "p99": 499.842
+      },
+      "encode": {
+       "max": 57.391,
+       "media": 13.36,
+       "n": 400,
+       "p50": 10.918,
+       "p95": 32.713,
+       "p99": 49.648
+      },
+      "espera_da_analise": {
+       "max": 4.23,
+       "media": 0.022,
+       "n": 400,
+       "p50": 0.01,
+       "p95": 0.013,
+       "p99": 0.08
+      },
+      "espera_publicacao": {
+       "max": 2043.006,
+       "media": 866.818,
+       "n": 13,
+       "p50": 771.481,
+       "p95": 1681.932,
+       "p99": 1970.791
+      },
+      "filtro_epi": {
+       "max": 0.694,
+       "media": 0.225,
+       "n": 13,
+       "p50": 0.098,
+       "p95": 0.603,
+       "p99": 0.676
+      },
+      "idade_analise": {
+       "max": 7733.608,
+       "media": 5645.757,
+       "n": 13,
+       "p50": 5231.236,
+       "p95": 7509.644,
+       "p99": 7688.815
+      },
+      "idade_na_inferencia": {
+       "max": 6728.138,
+       "media": 4778.998,
+       "n": 13,
+       "p50": 4816.664,
+       "p95": 6105.674,
+       "p99": 6603.646
+      },
+      "idade_publicacao": {
+       "max": 522.655,
+       "media": 19.924,
+       "n": 400,
+       "p50": 3.745,
+       "p95": 83.791,
+       "p99": 445.902
+      },
+      "inferencia_epi": {
+       "max": 4883.043,
+       "media": 3726.187,
+       "n": 13,
+       "p50": 3618.061,
+       "p95": 4773.61,
+       "p99": 4861.156
+      },
+      "inferencia_pessoa": {
+       "max": 1928.897,
+       "media": 740.084,
+       "n": 13,
+       "p50": 610.698,
+       "p95": 1669.618,
+       "p99": 1877.041
+      },
+      "inferencia_pose": {
+       "max": 869.845,
+       "media": 591.706,
+       "n": 5,
+       "p50": 452.124,
+       "p95": 852.666,
+       "p99": 866.409
+      },
+      "loop_total": {
+       "max": 1995.209,
+       "media": 44.244,
+       "n": 400,
+       "p50": 13.494,
+       "p95": 80.468,
+       "p99": 761.754
+      },
+      "pose": {
+       "max": 0.6,
+       "media": 0.416,
+       "n": 13,
+       "p50": 0.376,
+       "p95": 0.594,
+       "p99": 0.599
+      },
+      "preprocessamento": {
+       "max": 0.195,
+       "media": 0.022,
+       "n": 400,
+       "p50": 0.021,
+       "p95": 0.029,
+       "p99": 0.062
+      },
+      "regras": {
+       "max": 21.135,
+       "media": 2.408,
+       "n": 400,
+       "p50": 1.692,
+       "p95": 7.75,
+       "p99": 12.211
+      },
+      "tracking": {
+       "max": 2.24,
+       "media": 1.644,
+       "n": 13,
+       "p50": 1.534,
+       "p95": 2.142,
+       "p99": 2.221
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-1cam-onnxspin-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "PPE_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+    "PERSON_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx",
+    "ONNX_SPINNING": "1"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-novo",
+   "prioridade_alta": true,
+   "startup_s": 30.96,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 0.17,
+   "modelos": {
+    "epi": {
+     "aquecimento_ms": 17302.9,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+     "carga_ms": 0.5,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pessoa": {
+     "aquecimento_ms": 2668.0,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx",
+     "carga_ms": 0.7,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pose": {
+     "aquecimento_ms": 913.1,
+     "caminho": "models/yolo11n-pose.pt",
+     "carga_ms": 284.4,
+     "escolha": null,
+     "imgsz": 640,
+     "runtime": "pytorch"
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791906067169.7969,
+     "recebido_ms": 1791906077101,
+     "latencia_ms": 9931.2,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 6.63,
+    "quadros_repetidos": 3,
+    "idade_quadro_ms": {
+     "p50": 57.0,
+     "p95": 271.92,
+     "p99": 663.35
+    },
+    "decode_ms": {
+     "p50": 14.8,
+     "p95": 43.31
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 118.2,
+     "p95": 432.96,
+     "p99": 917.54
+    },
+    "video_bytes_por_s": 412873,
+    "socketio_bytes_por_s": 41435,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 5.32,
+    "raf_fps": 60.0,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 1,
+    "ui_player": {
+     "exibidos_total": 520,
+     "idade_quadro_ms": {
+      "p50": 63.9,
+      "p95": 294.06
+     },
+     "descartados_no_cliente": 3
+    }
+   },
+   "processo": {
+    "cpu_pct_media": 190.8,
+    "cpu_pct_p95": 200.0,
+    "carga_de_fundo_pct_media": 672.3,
+    "rss_mb_inicio": 710.4,
+    "rss_mb_fim": 716.2,
+    "rss_mb_max": 734.9,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 189.0,
+      "rss_mb": 710.4,
+      "carga_de_fundo_pct": 847.8
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 192.2,
+      "rss_mb": 713.3,
+      "carga_de_fundo_pct": 529.0
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 195.3,
+      "rss_mb": 714.2,
+      "carga_de_fundo_pct": 499.5
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 186.1,
+      "rss_mb": 712.5,
+      "carga_de_fundo_pct": 860.3
+     },
+     {
+      "t": 4.0,
+      "cpu_pct": 180.3,
+      "rss_mb": 714.6,
+      "carga_de_fundo_pct": 933.3
+     },
+     {
+      "t": 5.1,
+      "cpu_pct": 200.0,
+      "rss_mb": 713.1,
+      "carga_de_fundo_pct": 617.2
+     },
+     {
+      "t": 6.1,
+      "cpu_pct": 193.8,
+      "rss_mb": 713.1,
+      "carga_de_fundo_pct": 467.4
+     },
+     {
+      "t": 7.1,
+      "cpu_pct": 189.5,
+      "rss_mb": 715.2,
+      "carga_de_fundo_pct": 368.5
+     },
+     {
+      "t": 8.3,
+      "cpu_pct": 201.2,
+      "rss_mb": 715.1,
+      "carga_de_fundo_pct": 721.6
+     },
+     {
+      "t": 9.4,
+      "cpu_pct": 186.5,
+      "rss_mb": 708.4,
+      "carga_de_fundo_pct": 673.9
+     },
+     {
+      "t": 10.5,
+      "cpu_pct": 190.0,
+      "rss_mb": 704.1,
+      "carga_de_fundo_pct": 688.4
+     },
+     {
+      "t": 11.6,
+      "cpu_pct": 195.7,
+      "rss_mb": 704.0,
+      "carga_de_fundo_pct": 795.5
+     },
+     {
+      "t": 12.7,
+      "cpu_pct": 184.1,
+      "rss_mb": 709.1,
+      "carga_de_fundo_pct": 887.5
+     },
+     {
+      "t": 13.7,
+      "cpu_pct": 180.6,
+      "rss_mb": 709.3,
+      "carga_de_fundo_pct": 922.2
+     },
+     {
+      "t": 14.8,
+      "cpu_pct": 192.5,
+      "rss_mb": 713.8,
+      "carga_de_fundo_pct": 771.1
+     },
+     {
+      "t": 15.8,
+      "cpu_pct": 190.6,
+      "rss_mb": 715.3,
+      "carga_de_fundo_pct": 864.2
+     },
+     {
+      "t": 16.8,
+      "cpu_pct": 196.9,
+      "rss_mb": 708.0,
+      "carga_de_fundo_pct": 763.1
+     },
+     {
+      "t": 17.8,
+      "cpu_pct": 198.4,
+      "rss_mb": 717.3,
+      "carga_de_fundo_pct": 465.2
+     },
+     {
+      "t": 18.8,
+      "cpu_pct": 192.2,
+      "rss_mb": 725.9,
+      "carga_de_fundo_pct": 549.4
+     },
+     {
+      "t": 19.8,
+      "cpu_pct": 192.2,
+      "rss_mb": 716.4,
+      "carga_de_fundo_pct": 880.6
+     },
+     {
+      "t": 20.8,
+      "cpu_pct": 193.8,
+      "rss_mb": 706.1,
+      "carga_de_fundo_pct": 774.6
+     },
+     {
+      "t": 21.8,
+      "cpu_pct": 195.3,
+      "rss_mb": 704.6,
+      "carga_de_fundo_pct": 693.9
+     },
+     {
+      "t": 22.8,
+      "cpu_pct": 190.6,
+      "rss_mb": 704.6,
+      "carga_de_fundo_pct": 738.2
+     },
+     {
+      "t": 23.8,
+      "cpu_pct": 192.2,
+      "rss_mb": 705.5,
+      "carga_de_fundo_pct": 658.6
+     },
+     {
+      "t": 24.8,
+      "cpu_pct": 177.0,
+      "rss_mb": 709.1,
+      "carga_de_fundo_pct": 663.0
+     },
+     {
+      "t": 25.8,
+      "cpu_pct": 186.4,
+      "rss_mb": 726.5,
+      "carga_de_fundo_pct": 696.8
+     },
+     {
+      "t": 26.8,
+      "cpu_pct": 195.3,
+      "rss_mb": 713.2,
+      "carga_de_fundo_pct": 845.1
+     },
+     {
+      "t": 27.8,
+      "cpu_pct": 190.6,
+      "rss_mb": 713.2,
+      "carga_de_fundo_pct": 791.0
+     },
+     {
+      "t": 28.8,
+      "cpu_pct": 190.6,
+      "rss_mb": 716.2,
+      "carga_de_fundo_pct": 522.2
+     },
+     {
+      "t": 29.8,
+      "cpu_pct": 192.2,
+      "rss_mb": 714.7,
+      "carga_de_fundo_pct": 435.4
+     },
+     {
+      "t": 30.9,
+      "cpu_pct": 200.0,
+      "rss_mb": 714.7,
+      "carga_de_fundo_pct": 365.2
+     },
+     {
+      "t": 31.9,
+      "cpu_pct": 195.3,
+      "rss_mb": 704.0,
+      "carga_de_fundo_pct": 422.7
+     },
+     {
+      "t": 32.9,
+      "cpu_pct": 192.2,
+      "rss_mb": 715.0,
+      "carga_de_fundo_pct": 586.6
+     },
+     {
+      "t": 33.9,
+      "cpu_pct": 189.1,
+      "rss_mb": 696.6,
+      "carga_de_fundo_pct": 553.7
+     },
+     {
+      "t": 34.9,
+      "cpu_pct": 176.6,
+      "rss_mb": 702.4,
+      "carga_de_fundo_pct": 829.0
+     },
+     {
+      "t": 36.0,
+      "cpu_pct": 180.3,
+      "rss_mb": 709.0,
+      "carga_de_fundo_pct": 748.5
+     },
+     {
+      "t": 37.0,
+      "cpu_pct": 187.7,
+      "rss_mb": 734.9,
+      "carga_de_fundo_pct": 809.5
+     },
+     {
+      "t": 38.0,
+      "cpu_pct": 198.4,
+      "rss_mb": 714.9,
+      "carga_de_fundo_pct": 842.0
+     },
+     {
+      "t": 39.0,
+      "cpu_pct": 197.0,
+      "rss_mb": 715.1,
+      "carga_de_fundo_pct": 691.0
+     },
+     {
+      "t": 40.0,
+      "cpu_pct": 187.6,
+      "rss_mb": 704.9,
+      "carga_de_fundo_pct": 590.0
+     },
+     {
+      "t": 41.0,
+      "cpu_pct": 196.9,
+      "rss_mb": 706.3,
+      "carga_de_fundo_pct": 575.9
+     },
+     {
+      "t": 42.0,
+      "cpu_pct": 192.2,
+      "rss_mb": 705.6,
+      "carga_de_fundo_pct": 530.2
+     },
+     {
+      "t": 43.0,
+      "cpu_pct": 192.2,
+      "rss_mb": 704.1,
+      "carga_de_fundo_pct": 674.2
+     },
+     {
+      "t": 44.1,
+      "cpu_pct": 197.0,
+      "rss_mb": 704.2,
+      "carga_de_fundo_pct": 728.2
+     },
+     {
+      "t": 45.1,
+      "cpu_pct": 198.5,
+      "rss_mb": 706.0,
+      "carga_de_fundo_pct": 786.7
+     },
+     {
+      "t": 46.2,
+      "cpu_pct": 173.3,
+      "rss_mb": 709.2,
+      "carga_de_fundo_pct": 815.5
+     },
+     {
+      "t": 47.3,
+      "cpu_pct": 195.5,
+      "rss_mb": 714.6,
+      "carga_de_fundo_pct": 948.1
+     },
+     {
+      "t": 48.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 714.6,
+      "carga_de_fundo_pct": 871.0
+     },
+     {
+      "t": 49.3,
+      "cpu_pct": 189.2,
+      "rss_mb": 714.7,
+      "carga_de_fundo_pct": 772.0
+     },
+     {
+      "t": 50.3,
+      "cpu_pct": 185.9,
+      "rss_mb": 708.8,
+      "carga_de_fundo_pct": 390.1
+     },
+     {
+      "t": 51.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 719.0,
+      "carga_de_fundo_pct": 362.2
+     },
+     {
+      "t": 52.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 705.6,
+      "carga_de_fundo_pct": 497.8
+     },
+     {
+      "t": 53.3,
+      "cpu_pct": 195.3,
+      "rss_mb": 705.5,
+      "carga_de_fundo_pct": 762.3
+     },
+     {
+      "t": 54.3,
+      "cpu_pct": 187.8,
+      "rss_mb": 705.5,
+      "carga_de_fundo_pct": 874.2
+     },
+     {
+      "t": 55.4,
+      "cpu_pct": 189.9,
+      "rss_mb": 705.4,
+      "carga_de_fundo_pct": 776.1
+     },
+     {
+      "t": 56.4,
+      "cpu_pct": 181.2,
+      "rss_mb": 705.5,
+      "carga_de_fundo_pct": 612.0
+     },
+     {
+      "t": 57.4,
+      "cpu_pct": 172.2,
+      "rss_mb": 718.8,
+      "carga_de_fundo_pct": 402.6
+     },
+     {
+      "t": 58.4,
+      "cpu_pct": 195.3,
+      "rss_mb": 716.5,
+      "carga_de_fundo_pct": 501.9
+     },
+     {
+      "t": 59.4,
+      "cpu_pct": 201.6,
+      "rss_mb": 716.2,
+      "carga_de_fundo_pct": 597.6
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.3,
+     "idade_analise_ms": {
+      "p50": 4970.766,
+      "p95": 5959.917,
+      "n": 17
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 22.818,
+     "fps_publicado": 6.627,
+     "fps_inferencia": 0.295,
+     "fps_enviado": 13.34,
+     "frames_descartados_por_s": 1.222,
+     "fracao_do_tempo_real": 0.913,
+     "bytes_video_por_s": 840941.553,
+     "etapas": {
+      "alertas": {
+       "max": 531.255,
+       "media": 14.882,
+       "n": 397,
+       "p50": 0.168,
+       "p95": 18.233,
+       "p99": 390.764
+      },
+      "analise": {
+       "max": 5.666,
+       "media": 0.081,
+       "n": 397,
+       "p50": 0.012,
+       "p95": 0.217,
+       "p99": 0.505
+      },
+      "anotacao": {
+       "max": 110.577,
+       "media": 70.545,
+       "n": 9,
+       "p50": 64.409,
+       "p95": 100.871,
+       "p99": 108.636
+      },
+      "conformidade": {
+       "max": 9.596,
+       "media": 1.384,
+       "n": 397,
+       "p50": 0.62,
+       "p95": 3.753,
+       "p99": 5.674
+      },
+      "emissao": {
+       "max": 946.365,
+       "media": 33.378,
+       "n": 398,
+       "p50": 5.308,
+       "p95": 61.228,
+       "p99": 448.365
+      },
+      "encode": {
+       "max": 92.115,
+       "media": 16.827,
+       "n": 398,
+       "p50": 14.507,
+       "p95": 31.679,
+       "p99": 49.618
+      },
+      "espera_da_analise": {
+       "max": 0.132,
+       "media": 0.01,
+       "n": 397,
+       "p50": 0.008,
+       "p95": 0.012,
+       "p99": 0.048
+      },
+      "espera_publicacao": {
+       "max": 2017.177,
+       "media": 860.298,
+       "n": 17,
+       "p50": 687.085,
+       "p95": 2000.77,
+       "p99": 2013.896
+      },
+      "filtro_epi": {
+       "max": 0.556,
+       "media": 0.173,
+       "n": 17,
+       "p50": 0.08,
+       "p95": 0.489,
+       "p99": 0.543
+      },
+      "idade_analise": {
+       "max": 6273.414,
+       "media": 4574.577,
+       "n": 17,
+       "p50": 4970.766,
+       "p95": 5959.917,
+       "p99": 6210.715
+      },
+      "idade_na_inferencia": {
+       "max": 5283.625,
+       "media": 3714.143,
+       "n": 17,
+       "p50": 3157.236,
+       "p95": 4913.204,
+       "p99": 5209.541
+      },
+      "idade_publicacao": {
+       "max": 543.934,
+       "media": 23.2,
+       "n": 397,
+       "p50": 4.038,
+       "p95": 140.143,
+       "p99": 392.68
+      },
+      "inferencia_epi": {
+       "max": 2857.364,
+       "media": 2515.432,
+       "n": 17,
+       "p50": 2531.626,
+       "p95": 2839.911,
+       "p99": 2853.873
+      },
+      "inferencia_pessoa": {
+       "max": 744.794,
+       "media": 479.901,
+       "n": 17,
+       "p50": 468.028,
+       "p95": 664.669,
+       "p99": 728.769
+      },
+      "inferencia_pose": {
+       "max": 2342.605,
+       "media": 1673.133,
+       "n": 6,
+       "p50": 1579.36,
+       "p95": 2169.747,
+       "p99": 2308.034
+      },
+      "loop_total": {
+       "max": 1484.063,
+       "media": 51.457,
+       "n": 398,
+       "p50": 9.691,
+       "p95": 78.054,
+       "p99": 928.628
+      },
+      "pose": {
+       "max": 8.484,
+       "media": 0.875,
+       "n": 17,
+       "p50": 0.305,
+       "p95": 2.905,
+       "p99": 7.368
+      },
+      "preprocessamento": {
+       "max": 0.129,
+       "media": 0.018,
+       "n": 397,
+       "p50": 0.017,
+       "p95": 0.022,
+       "p99": 0.042
+      },
+      "regras": {
+       "max": 10.272,
+       "media": 1.626,
+       "n": 397,
+       "p50": 1.352,
+       "p95": 4.054,
+       "p99": 6.997
+      },
+      "tracking": {
+       "max": 2.004,
+       "media": 1.298,
+       "n": 17,
+       "p50": 1.298,
+       "p95": 1.976,
+       "p99": 1.998
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-1cam-onnx-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "PPE_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+    "PERSON_MODEL_PATH": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-novo",
+   "prioridade_alta": true,
+   "startup_s": 32.99,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 0.12,
+   "modelos": {
+    "epi": {
+     "aquecimento_ms": 21032.1,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn.onnx",
+     "carga_ms": 0.8,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pessoa": {
+     "aquecimento_ms": 2696.0,
+     "caminho": "C:/Users/L-BARALDI/Desktop/Challenge_5550-main/models/export/yolov8n_640_dyn/yolov8n_640_dyn.onnx",
+     "carga_ms": 0.9,
+     "escolha": {
+      "ativo": "pytorch",
+      "motivo": "PyTorch (primeiro da ordem)",
+      "pedido": "auto"
+     },
+     "imgsz": 640,
+     "runtime": "onnx"
+    },
+    "pose": {
+     "aquecimento_ms": 557.0,
+     "caminho": "models/yolo11n-pose.pt",
+     "carga_ms": 108.4,
+     "escolha": null,
+     "imgsz": 640,
+     "runtime": "pytorch"
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791906191518.8074,
+     "recebido_ms": 1791906195924,
+     "latencia_ms": 4405.2,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 6.85,
+    "quadros_repetidos": 3,
+    "idade_quadro_ms": {
+     "p50": 44.6,
+     "p95": 271.9,
+     "p99": 733.17
+    },
+    "decode_ms": {
+     "p50": 11.9,
+     "p95": 23.85
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 118.35,
+     "p95": 379.68,
+     "p99": 925.4
+    },
+    "video_bytes_por_s": 421530,
+    "socketio_bytes_por_s": 5179,
+    "long_tasks": 0,
+    "long_task_ms_total": 0,
+    "react_commits_por_s": 1.48,
+    "raf_fps": 59.9,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 0,
+    "ui_player": {
+     "exibidos_total": 542,
+     "idade_quadro_ms": {
+      "p50": 53.6,
+      "p95": 259.26
+     },
+     "descartados_no_cliente": 0
+    }
+   },
+   "processo": {
+    "cpu_pct_media": 183.2,
+    "cpu_pct_p95": 192.2,
+    "carga_de_fundo_pct_media": 614.4,
+    "rss_mb_inicio": 707.7,
+    "rss_mb_fim": 721.2,
+    "rss_mb_max": 738.2,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 183.2,
+      "rss_mb": 707.7,
+      "carga_de_fundo_pct": 612.4
+     },
+     {
+      "t": 1.0,
+      "cpu_pct": 186.1,
+      "rss_mb": 718.8,
+      "carga_de_fundo_pct": 790.7
+     },
+     {
+      "t": 2.0,
+      "cpu_pct": 192.2,
+      "rss_mb": 716.1,
+      "carga_de_fundo_pct": 641.8
+     },
+     {
+      "t": 3.0,
+      "cpu_pct": 180.1,
+      "rss_mb": 714.3,
+      "carga_de_fundo_pct": 604.7
+     },
+     {
+      "t": 4.1,
+      "cpu_pct": 183.4,
+      "rss_mb": 713.1,
+      "carga_de_fundo_pct": 589.4
+     },
+     {
+      "t": 5.1,
+      "cpu_pct": 173.4,
+      "rss_mb": 713.1,
+      "carga_de_fundo_pct": 793.8
+     },
+     {
+      "t": 6.1,
+      "cpu_pct": 189.2,
+      "rss_mb": 714.8,
+      "carga_de_fundo_pct": 866.8
+     },
+     {
+      "t": 7.1,
+      "cpu_pct": 192.5,
+      "rss_mb": 714.8,
+      "carga_de_fundo_pct": 660.7
+     },
+     {
+      "t": 8.1,
+      "cpu_pct": 179.9,
+      "rss_mb": 716.3,
+      "carga_de_fundo_pct": 738.1
+     },
+     {
+      "t": 9.2,
+      "cpu_pct": 152.4,
+      "rss_mb": 715.1,
+      "carga_de_fundo_pct": 1005.6
+     },
+     {
+      "t": 10.2,
+      "cpu_pct": 185.1,
+      "rss_mb": 715.9,
+      "carga_de_fundo_pct": 740.1
+     },
+     {
+      "t": 11.2,
+      "cpu_pct": 175.0,
+      "rss_mb": 715.1,
+      "carga_de_fundo_pct": 488.6
+     },
+     {
+      "t": 12.2,
+      "cpu_pct": 184.4,
+      "rss_mb": 713.8,
+      "carga_de_fundo_pct": 343.6
+     },
+     {
+      "t": 13.2,
+      "cpu_pct": 190.6,
+      "rss_mb": 715.4,
+      "carga_de_fundo_pct": 348.2
+     },
+     {
+      "t": 14.2,
+      "cpu_pct": 192.2,
+      "rss_mb": 715.4,
+      "carga_de_fundo_pct": 345.4
+     },
+     {
+      "t": 15.2,
+      "cpu_pct": 181.5,
+      "rss_mb": 715.4,
+      "carga_de_fundo_pct": 395.7
+     },
+     {
+      "t": 16.2,
+      "cpu_pct": 192.2,
+      "rss_mb": 715.4,
+      "carga_de_fundo_pct": 358.6
+     },
+     {
+      "t": 17.2,
+      "cpu_pct": 182.8,
+      "rss_mb": 726.8,
+      "carga_de_fundo_pct": 436.4
+     },
+     {
+      "t": 18.2,
+      "cpu_pct": 179.7,
+      "rss_mb": 725.4,
+      "carga_de_fundo_pct": 681.9
+     },
+     {
+      "t": 19.2,
+      "cpu_pct": 181.2,
+      "rss_mb": 725.4,
+      "carga_de_fundo_pct": 865.2
+     },
+     {
+      "t": 20.3,
+      "cpu_pct": 178.8,
+      "rss_mb": 728.4,
+      "carga_de_fundo_pct": 782.4
+     },
+     {
+      "t": 21.3,
+      "cpu_pct": 179.7,
+      "rss_mb": 729.3,
+      "carga_de_fundo_pct": 747.9
+     },
+     {
+      "t": 22.3,
+      "cpu_pct": 182.8,
+      "rss_mb": 738.2,
+      "carga_de_fundo_pct": 502.4
+     },
+     {
+      "t": 23.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 727.1,
+      "carga_de_fundo_pct": 398.2
+     },
+     {
+      "t": 24.3,
+      "cpu_pct": 184.4,
+      "rss_mb": 715.9,
+      "carga_de_fundo_pct": 422.8
+     },
+     {
+      "t": 25.3,
+      "cpu_pct": 198.4,
+      "rss_mb": 715.9,
+      "carga_de_fundo_pct": 398.0
+     },
+     {
+      "t": 26.3,
+      "cpu_pct": 187.6,
+      "rss_mb": 717.4,
+      "carga_de_fundo_pct": 444.8
+     },
+     {
+      "t": 27.3,
+      "cpu_pct": 192.2,
+      "rss_mb": 717.4,
+      "carga_de_fundo_pct": 519.4
+     },
+     {
+      "t": 28.3,
+      "cpu_pct": 181.2,
+      "rss_mb": 704.9,
+      "carga_de_fundo_pct": 793.2
+     },
+     {
+      "t": 29.3,
+      "cpu_pct": 177.0,
+      "rss_mb": 703.5,
+      "carga_de_fundo_pct": 874.2
+     },
+     {
+      "t": 30.3,
+      "cpu_pct": 184.9,
+      "rss_mb": 703.5,
+      "carga_de_fundo_pct": 766.7
+     },
+     {
+      "t": 31.4,
+      "cpu_pct": 180.8,
+      "rss_mb": 708.0,
+      "carga_de_fundo_pct": 768.4
+     },
+     {
+      "t": 32.4,
+      "cpu_pct": 184.4,
+      "rss_mb": 719.1,
+      "carga_de_fundo_pct": 528.4
+     },
+     {
+      "t": 33.4,
+      "cpu_pct": 192.2,
+      "rss_mb": 712.7,
+      "carga_de_fundo_pct": 452.2
+     },
+     {
+      "t": 34.4,
+      "cpu_pct": 185.9,
+      "rss_mb": 720.5,
+      "carga_de_fundo_pct": 400.9
+     },
+     {
+      "t": 35.4,
+      "cpu_pct": 189.1,
+      "rss_mb": 720.5,
+      "carga_de_fundo_pct": 349.7
+     },
+     {
+      "t": 36.4,
+      "cpu_pct": 181.9,
+      "rss_mb": 720.6,
+      "carga_de_fundo_pct": 812.9
+     },
+     {
+      "t": 37.4,
+      "cpu_pct": 182.8,
+      "rss_mb": 720.6,
+      "carga_de_fundo_pct": 797.6
+     },
+     {
+      "t": 38.4,
+      "cpu_pct": 186.1,
+      "rss_mb": 719.9,
+      "carga_de_fundo_pct": 611.9
+     },
+     {
+      "t": 39.4,
+      "cpu_pct": 185.9,
+      "rss_mb": 714.5,
+      "carga_de_fundo_pct": 639.7
+     },
+     {
+      "t": 40.4,
+      "cpu_pct": 187.5,
+      "rss_mb": 714.5,
+      "carga_de_fundo_pct": 653.7
+     },
+     {
+      "t": 41.4,
+      "cpu_pct": 185.9,
+      "rss_mb": 716.1,
+      "carga_de_fundo_pct": 762.1
+     },
+     {
+      "t": 42.5,
+      "cpu_pct": 171.3,
+      "rss_mb": 716.1,
+      "carga_de_fundo_pct": 920.7
+     },
+     {
+      "t": 43.5,
+      "cpu_pct": 181.5,
+      "rss_mb": 714.6,
+      "carga_de_fundo_pct": 870.9
+     },
+     {
+      "t": 44.5,
+      "cpu_pct": 188.0,
+      "rss_mb": 716.1,
+      "carga_de_fundo_pct": 854.8
+     },
+     {
+      "t": 45.6,
+      "cpu_pct": 184.1,
+      "rss_mb": 716.1,
+      "carga_de_fundo_pct": 646.3
+     },
+     {
+      "t": 46.6,
+      "cpu_pct": 181.2,
+      "rss_mb": 729.4,
+      "carga_de_fundo_pct": 596.4
+     },
+     {
+      "t": 47.6,
+      "cpu_pct": 185.9,
+      "rss_mb": 726.6,
+      "carga_de_fundo_pct": 594.1
+     },
+     {
+      "t": 48.6,
+      "cpu_pct": 184.4,
+      "rss_mb": 728.1,
+      "carga_de_fundo_pct": 530.8
+     },
+     {
+      "t": 49.6,
+      "cpu_pct": 171.9,
+      "rss_mb": 721.8,
+      "carga_de_fundo_pct": 602.1
+     },
+     {
+      "t": 50.6,
+      "cpu_pct": 173.4,
+      "rss_mb": 728.3,
+      "carga_de_fundo_pct": 569.4
+     },
+     {
+      "t": 51.6,
+      "cpu_pct": 172.4,
+      "rss_mb": 728.3,
+      "carga_de_fundo_pct": 552.4
+     },
+     {
+      "t": 52.6,
+      "cpu_pct": 192.2,
+      "rss_mb": 728.3,
+      "carga_de_fundo_pct": 351.4
+     },
+     {
+      "t": 53.6,
+      "cpu_pct": 178.1,
+      "rss_mb": 722.6,
+      "carga_de_fundo_pct": 437.5
+     },
+     {
+      "t": 54.6,
+      "cpu_pct": 190.6,
+      "rss_mb": 719.6,
+      "carga_de_fundo_pct": 489.8
+     },
+     {
+      "t": 55.6,
+      "cpu_pct": 173.4,
+      "rss_mb": 734.6,
+      "carga_de_fundo_pct": 571.8
+     },
+     {
+      "t": 56.6,
+      "cpu_pct": 187.5,
+      "rss_mb": 721.2,
+      "carga_de_fundo_pct": 543.3
+     },
+     {
+      "t": 57.6,
+      "cpu_pct": 184.4,
+      "rss_mb": 721.2,
+      "carga_de_fundo_pct": 728.8
+     },
+     {
+      "t": 58.6,
+      "cpu_pct": 171.9,
+      "rss_mb": 721.3,
+      "carga_de_fundo_pct": 719.7
+     },
+     {
+      "t": 59.6,
+      "cpu_pct": 178.1,
+      "rss_mb": 721.2,
+      "carga_de_fundo_pct": 544.3
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.437,
+     "idade_analise_ms": {
+      "p50": 2859.231,
+      "p95": 4611.467,
+      "n": 26
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 23.017,
+     "fps_publicado": 6.935,
+     "fps_inferencia": 0.431,
+     "fps_enviado": 13.854,
+     "frames_descartados_por_s": 1.068,
+     "fracao_do_tempo_real": 0.921,
+     "bytes_video_por_s": 869545.219,
+     "etapas": {
+      "alertas": {
+       "max": 595.984,
+       "media": 17.392,
+       "n": 415,
+       "p50": 0.179,
+       "p95": 152.749,
+       "p99": 345.374
+      },
+      "analise": {
+       "max": 4.7,
+       "media": 0.088,
+       "n": 414,
+       "p50": 0.013,
+       "p95": 0.214,
+       "p99": 2.757
+      },
+      "anotacao": {
+       "max": 57.129,
+       "media": 41.618,
+       "n": 12,
+       "p50": 42.999,
+       "p95": 52.11,
+       "p99": 56.125
+      },
+      "conformidade": {
+       "max": 5.986,
+       "media": 1.14,
+       "n": 415,
+       "p50": 0.587,
+       "p95": 3.25,
+       "p99": 4.847
+      },
+      "emissao": {
+       "max": 952.335,
+       "media": 27.53,
+       "n": 415,
+       "p50": 5.219,
+       "p95": 56.763,
+       "p99": 309.838
+      },
+      "encode": {
+       "max": 43.406,
+       "media": 12.082,
+       "n": 418,
+       "p50": 10.353,
+       "p95": 25.466,
+       "p99": 34.327
+      },
+      "espera_da_analise": {
+       "max": 0.05,
+       "media": 0.009,
+       "n": 414,
+       "p50": 0.008,
+       "p95": 0.012,
+       "p99": 0.015
+      },
+      "espera_publicacao": {
+       "max": 1976.962,
+       "media": 588.035,
+       "n": 26,
+       "p50": 492.92,
+       "p95": 1323.307,
+       "p99": 1839.089
+      },
+      "filtro_epi": {
+       "max": 0.528,
+       "media": 0.176,
+       "n": 25,
+       "p50": 0.133,
+       "p95": 0.443,
+       "p99": 0.507
+      },
+      "idade_analise": {
+       "max": 5055.092,
+       "media": 3145.524,
+       "n": 26,
+       "p50": 2859.231,
+       "p95": 4611.467,
+       "p99": 4975.881
+      },
+      "idade_na_inferencia": {
+       "max": 3840.196,
+       "media": 2549.384,
+       "n": 25,
+       "p50": 2396.557,
+       "p95": 3617.386,
+       "p99": 3789.555
+      },
+      "idade_publicacao": {
+       "max": 602.004,
+       "media": 25.788,
+       "n": 415,
+       "p50": 3.66,
+       "p95": 164.918,
+       "p99": 347.757
+      },
+      "inferencia_epi": {
+       "max": 2709.36,
+       "media": 1980.3,
+       "n": 25,
+       "p50": 1975.776,
+       "p95": 2540.982,
+       "p99": 2676.726
+      },
+      "inferencia_pessoa": {
+       "max": 526.513,
+       "media": 295.198,
+       "n": 25,
+       "p50": 268.292,
+       "p95": 395.067,
+       "p99": 496.882
+      },
+      "inferencia_pose": {
+       "max": 966.268,
+       "media": 445.195,
+       "n": 9,
+       "p50": 392.967,
+       "p95": 767.147,
+       "p99": 926.444
+      },
+      "loop_total": {
+       "max": 1411.81,
+       "media": 48.019,
+       "n": 415,
+       "p50": 10.265,
+       "p95": 276.599,
+       "p99": 744.876
+      },
+      "pose": {
+       "max": 0.452,
+       "media": 0.303,
+       "n": 25,
+       "p50": 0.295,
+       "p95": 0.409,
+       "p99": 0.442
+      },
+      "preprocessamento": {
+       "max": 0.083,
+       "media": 0.017,
+       "n": 414,
+       "p50": 0.017,
+       "p95": 0.021,
+       "p99": 0.032
+      },
+      "regras": {
+       "max": 10.716,
+       "media": 1.748,
+       "n": 414,
+       "p50": 1.385,
+       "p95": 4.294,
+       "p99": 7.215
+      },
+      "tracking": {
+       "max": 2.345,
+       "media": 1.44,
+       "n": 25,
+       "p50": 1.503,
+       "p95": 2.114,
+       "p99": 2.29
+      }
+     }
+    }
+   }
+  },
+  {
+   "rotulo": "batata-1cam-base-rt-r2",
+   "perfil": "batata",
+   "fixtures": [
+    "multidao"
+   ],
+   "afinidade": [
+    10,
+    11
+   ],
+   "env_extra": {
+    "DETECTION_EVERY_N_FRAMES": "3"
+   },
+   "duracao_s": 60.0,
+   "aquecimento_s": 15.0,
+   "arvore": "C:\\Users\\L-BARALDI\\Desktop\\VisionEPI-baseline",
+   "prioridade_alta": true,
+   "startup_s": 10.25,
+   "ouvinte_de_alertas_conectado": true,
+   "primeiro_frame_s": 38.27,
+   "modelos": {
+    "epi": {
+     "caminho": "models/vyra_ppe.pt",
+     "carga_ms": 572.2,
+     "imgsz": 640
+    },
+    "pessoa": {
+     "caminho": "models/yolov8n.pt",
+     "carga_ms": 263.6,
+     "imgsz": 640
+    }
+   },
+   "afinidade_cliente": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "latencia_alerta": {
+    "1:missing_helmet": {
+     "camera_id": 1,
+     "fixture": "multidao",
+     "regra": "missing_helmet",
+     "quadro": 0,
+     "ts_quadro_ms": 1791906288435.589,
+     "recebido_ms": 1791906356908,
+     "latencia_ms": 68472.4,
+     "sem_alerta_em_s": null
+    }
+   },
+   "navegador": {
+    "fps_exibido_sonda": 1.5,
+    "quadros_repetidos": 50,
+    "idade_quadro_ms": {
+     "p50": 2089.0,
+     "p95": 4511.62,
+     "p99": 4958.59
+    },
+    "decode_ms": {
+     "p50": 22.25,
+     "p95": 56.21
+    },
+    "intervalo_entre_quadros_ms": {
+     "p50": 976.6,
+     "p95": 1020.66,
+     "p99": 1078.02
+    },
+    "video_bytes_por_s": 127470,
+    "socketio_bytes_por_s": 13905,
+    "long_tasks": 1,
+    "long_task_ms_total": 522,
+    "react_commits_por_s": 3.87,
+    "raf_fps": 59.5,
+    "erros_console": [],
+    "erros_js": [],
+    "erro_sonda": null,
+    "descartados_no_cliente": 0,
+    "ui_player": null
+   },
+   "processo": {
+    "cpu_pct_media": 169.7,
+    "cpu_pct_p95": 192.2,
+    "carga_de_fundo_pct_media": 910.1,
+    "rss_mb_inicio": 707.7,
+    "rss_mb_fim": 695.3,
+    "rss_mb_max": 718.7,
+    "amostras": [
+     {
+      "t": 0.0,
+      "cpu_pct": 173.9,
+      "rss_mb": 707.7,
+      "carga_de_fundo_pct": 921.7
+     },
+     {
+      "t": 1.1,
+      "cpu_pct": 188.1,
+      "rss_mb": 699.1,
+      "carga_de_fundo_pct": 859.5
+     },
+     {
+      "t": 2.1,
+      "cpu_pct": 192.2,
+      "rss_mb": 695.6,
+      "carga_de_fundo_pct": 863.8
+     },
+     {
+      "t": 3.1,
+      "cpu_pct": 147.9,
+      "rss_mb": 684.6,
+      "carga_de_fundo_pct": 960.9
+     },
+     {
+      "t": 4.1,
+      "cpu_pct": 169.6,
+      "rss_mb": 710.9,
+      "carga_de_fundo_pct": 854.0
+     },
+     {
+      "t": 5.2,
+      "cpu_pct": 176.8,
+      "rss_mb": 711.3,
+      "carga_de_fundo_pct": 869.6
+     },
+     {
+      "t": 6.3,
+      "cpu_pct": 192.5,
+      "rss_mb": 680.1,
+      "carga_de_fundo_pct": 897.1
+     },
+     {
+      "t": 7.3,
+      "cpu_pct": 135.0,
+      "rss_mb": 697.7,
+      "carga_de_fundo_pct": 923.4
+     },
+     {
+      "t": 8.5,
+      "cpu_pct": 192.2,
+      "rss_mb": 702.1,
+      "carga_de_fundo_pct": 878.2
+     },
+     {
+      "t": 9.5,
+      "cpu_pct": 190.6,
+      "rss_mb": 694.1,
+      "carga_de_fundo_pct": 833.0
+     },
+     {
+      "t": 10.6,
+      "cpu_pct": 180.6,
+      "rss_mb": 684.4,
+      "carga_de_fundo_pct": 894.6
+     },
+     {
+      "t": 11.7,
+      "cpu_pct": 112.0,
+      "rss_mb": 684.4,
+      "carga_de_fundo_pct": 990.8
+     },
+     {
+      "t": 12.8,
+      "cpu_pct": 157.4,
+      "rss_mb": 711.8,
+      "carga_de_fundo_pct": 998.2
+     },
+     {
+      "t": 13.8,
+      "cpu_pct": 185.9,
+      "rss_mb": 693.1,
+      "carga_de_fundo_pct": 980.5
+     },
+     {
+      "t": 14.9,
+      "cpu_pct": 177.1,
+      "rss_mb": 703.1,
+      "carga_de_fundo_pct": 878.9
+     },
+     {
+      "t": 16.0,
+      "cpu_pct": 182.3,
+      "rss_mb": 684.8,
+      "carga_de_fundo_pct": 814.9
+     },
+     {
+      "t": 17.2,
+      "cpu_pct": 122.3,
+      "rss_mb": 684.8,
+      "carga_de_fundo_pct": 936.1
+     },
+     {
+      "t": 18.3,
+      "cpu_pct": 179.3,
+      "rss_mb": 694.1,
+      "carga_de_fundo_pct": 893.5
+     },
+     {
+      "t": 19.3,
+      "cpu_pct": 189.3,
+      "rss_mb": 716.1,
+      "carga_de_fundo_pct": 881.1
+     },
+     {
+      "t": 20.3,
+      "cpu_pct": 193.8,
+      "rss_mb": 677.3,
+      "carga_de_fundo_pct": 930.6
+     },
+     {
+      "t": 21.4,
+      "cpu_pct": 183.9,
+      "rss_mb": 685.1,
+      "carga_de_fundo_pct": 810.9
+     },
+     {
+      "t": 22.7,
+      "cpu_pct": 119.7,
+      "rss_mb": 705.8,
+      "carga_de_fundo_pct": 917.1
+     },
+     {
+      "t": 23.7,
+      "cpu_pct": 184.4,
+      "rss_mb": 695.5,
+      "carga_de_fundo_pct": 799.6
+     },
+     {
+      "t": 24.7,
+      "cpu_pct": 189.1,
+      "rss_mb": 702.9,
+      "carga_de_fundo_pct": 866.9
+     },
+     {
+      "t": 25.7,
+      "cpu_pct": 187.9,
+      "rss_mb": 686.0,
+      "carga_de_fundo_pct": 913.7
+     },
+     {
+      "t": 26.8,
+      "cpu_pct": 121.8,
+      "rss_mb": 689.0,
+      "carga_de_fundo_pct": 1001.4
+     },
+     {
+      "t": 28.0,
+      "cpu_pct": 177.7,
+      "rss_mb": 695.9,
+      "carga_de_fundo_pct": 935.9
+     },
+     {
+      "t": 29.0,
+      "cpu_pct": 189.1,
+      "rss_mb": 700.5,
+      "carga_de_fundo_pct": 900.5
+     },
+     {
+      "t": 30.0,
+      "cpu_pct": 186.4,
+      "rss_mb": 679.9,
+      "carga_de_fundo_pct": 950.0
+     },
+     {
+      "t": 31.2,
+      "cpu_pct": 124.6,
+      "rss_mb": 710.0,
+      "carga_de_fundo_pct": 954.2
+     },
+     {
+      "t": 32.5,
+      "cpu_pct": 179.2,
+      "rss_mb": 695.7,
+      "carga_de_fundo_pct": 918.8
+     },
+     {
+      "t": 33.5,
+      "cpu_pct": 187.6,
+      "rss_mb": 696.6,
+      "carga_de_fundo_pct": 850.4
+     },
+     {
+      "t": 34.6,
+      "cpu_pct": 187.6,
+      "rss_mb": 684.7,
+      "carga_de_fundo_pct": 873.2
+     },
+     {
+      "t": 35.6,
+      "cpu_pct": 122.8,
+      "rss_mb": 710.1,
+      "carga_de_fundo_pct": 960.8
+     },
+     {
+      "t": 36.8,
+      "cpu_pct": 183.6,
+      "rss_mb": 693.8,
+      "carga_de_fundo_pct": 902.4
+     },
+     {
+      "t": 37.8,
+      "cpu_pct": 187.7,
+      "rss_mb": 685.7,
+      "carga_de_fundo_pct": 886.3
+     },
+     {
+      "t": 38.9,
+      "cpu_pct": 183.4,
+      "rss_mb": 696.8,
+      "carga_de_fundo_pct": 890.6
+     },
+     {
+      "t": 39.9,
+      "cpu_pct": 120.3,
+      "rss_mb": 710.8,
+      "carga_de_fundo_pct": 954.9
+     },
+     {
+      "t": 41.0,
+      "cpu_pct": 189.2,
+      "rss_mb": 696.3,
+      "carga_de_fundo_pct": 892.0
+     },
+     {
+      "t": 42.0,
+      "cpu_pct": 184.9,
+      "rss_mb": 702.0,
+      "carga_de_fundo_pct": 927.5
+     },
+     {
+      "t": 43.1,
+      "cpu_pct": 177.5,
+      "rss_mb": 692.3,
+      "carga_de_fundo_pct": 934.9
+     },
+     {
+      "t": 44.1,
+      "cpu_pct": 143.3,
+      "rss_mb": 685.1,
+      "carga_de_fundo_pct": 951.1
+     },
+     {
+      "t": 45.2,
+      "cpu_pct": 150.7,
+      "rss_mb": 686.3,
+      "carga_de_fundo_pct": 952.1
+     },
+     {
+      "t": 46.2,
+      "cpu_pct": 190.3,
+      "rss_mb": 691.7,
+      "carga_de_fundo_pct": 923.3
+     },
+     {
+      "t": 47.3,
+      "cpu_pct": 185.1,
+      "rss_mb": 701.0,
+      "carga_de_fundo_pct": 887.7
+     },
+     {
+      "t": 48.4,
+      "cpu_pct": 174.8,
+      "rss_mb": 688.6,
+      "carga_de_fundo_pct": 906.4
+     },
+     {
+      "t": 49.4,
+      "cpu_pct": 134.3,
+      "rss_mb": 718.7,
+      "carga_de_fundo_pct": 934.9
+     },
+     {
+      "t": 50.5,
+      "cpu_pct": 191.7,
+      "rss_mb": 694.0,
+      "carga_de_fundo_pct": 930.3
+     },
+     {
+      "t": 51.6,
+      "cpu_pct": 188.4,
+      "rss_mb": 697.0,
+      "carga_de_fundo_pct": 897.6
+     },
+     {
+      "t": 52.6,
+      "cpu_pct": 178.7,
+      "rss_mb": 681.4,
+      "carga_de_fundo_pct": 873.7
+     },
+     {
+      "t": 53.9,
+      "cpu_pct": 135.5,
+      "rss_mb": 686.0,
+      "carga_de_fundo_pct": 963.7
+     },
+     {
+      "t": 54.9,
+      "cpu_pct": 168.6,
+      "rss_mb": 711.4,
+      "carga_de_fundo_pct": 898.2
+     },
+     {
+      "t": 55.9,
+      "cpu_pct": 185.9,
+      "rss_mb": 699.2,
+      "carga_de_fundo_pct": 913.3
+     },
+     {
+      "t": 57.0,
+      "cpu_pct": 175.8,
+      "rss_mb": 697.4,
+      "carga_de_fundo_pct": 957.0
+     },
+     {
+      "t": 58.0,
+      "cpu_pct": 164.2,
+      "rss_mb": 688.5,
+      "carga_de_fundo_pct": 891.8
+     },
+     {
+      "t": 59.0,
+      "cpu_pct": 130.7,
+      "rss_mb": 695.3,
+      "carga_de_fundo_pct": 996.1
+     }
+    ]
+   },
+   "cameras": {
+    "1": {
+     "fixture": "multidao",
+     "fps_analise": 0.224,
+     "idade_analise_ms": {
+      "p50": 4270.253,
+      "p95": 4922.677,
+      "n": 13
+     },
+     "fonte_fps": 25.0,
+     "fps_lido": 0.672,
+     "fps_publicado": 0.671,
+     "fps_inferencia": 0.224,
+     "fps_enviado": 2.967,
+     "frames_descartados_por_s": 0.0,
+     "fracao_do_tempo_real": 0.027,
+     "bytes_video_por_s": 249825.567,
+     "etapas": {
+      "alertas": {
+       "max": 559.061,
+       "media": 85.849,
+       "n": 39,
+       "p50": 4.585,
+       "p95": 349.528,
+       "p99": 540.455
+      },
+      "analise": {
+       "max": 0.6,
+       "media": 0.14,
+       "n": 39,
+       "p50": 0.05,
+       "p95": 0.33,
+       "p99": 0.512
+      },
+      "anotacao": {
+       "max": 66.04,
+       "media": 34.273,
+       "n": 39,
+       "p50": 32.782,
+       "p95": 53.593,
+       "p99": 64.472
+      },
+      "captura": {
+       "max": 19.819,
+       "media": 9.774,
+       "n": 39,
+       "p50": 9.738,
+       "p95": 15.006,
+       "p99": 19.16
+      },
+      "emissao": {
+       "max": 52.891,
+       "media": 26.1,
+       "n": 39,
+       "p50": 32.738,
+       "p95": 49.893,
+       "p99": 52.407
+      },
+      "encode": {
+       "max": 686.251,
+       "media": 31.013,
+       "n": 39,
+       "p50": 7.97,
+       "p95": 39.008,
+       "p99": 508.278
+      },
+      "espera_do_lock": {
+       "max": 0.011,
+       "media": 0.009,
+       "n": 13,
+       "p50": 0.009,
+       "p95": 0.01,
+       "p99": 0.011
+      },
+      "espera_do_lock_pre": {
+       "max": 0.071,
+       "media": 0.041,
+       "n": 13,
+       "p50": 0.039,
+       "p95": 0.054,
+       "p99": 0.068
+      },
+      "filtro_epi": {
+       "max": 0.087,
+       "media": 0.052,
+       "n": 13,
+       "p50": 0.047,
+       "p95": 0.07,
+       "p99": 0.083
+      },
+      "idade_analise": {
+       "max": 4962.426,
+       "media": 4372.492,
+       "n": 13,
+       "p50": 4270.253,
+       "p95": 4922.677,
+       "p99": 4954.476
+      },
+      "idade_publicacao": {
+       "max": 4919.066,
+       "media": 1480.83,
+       "n": 39,
+       "p50": 56.483,
+       "p95": 4803.343,
+       "p99": 4897.961
+      },
+      "inferencia_epi": {
+       "max": 3027.953,
+       "media": 2775.414,
+       "n": 13,
+       "p50": 2715.5,
+       "p95": 3005.625,
+       "p99": 3023.487
+      },
+      "inferencia_pessoa": {
+       "max": 1191.045,
+       "media": 564.05,
+       "n": 13,
+       "p50": 455.797,
+       "p95": 1146.565,
+       "p99": 1182.149
+      },
+      "loop_total": {
+       "max": 4972.624,
+       "media": 1513.677,
+       "n": 39,
+       "p50": 92.207,
+       "p95": 4842.336,
+       "p99": 4946.892
+      },
+      "pose": {
+       "max": 723.164,
+       "media": 631.364,
+       "n": 13,
+       "p50": 638.868,
+       "p95": 722.989,
+       "p99": 723.129
+      },
+      "regras": {
+       "max": 4.389,
+       "media": 2.165,
+       "n": 39,
+       "p50": 1.812,
+       "p95": 3.598,
+       "p99": 4.137
+      },
+      "tracking": {
+       "max": 3.282,
+       "media": 2.053,
+       "n": 13,
+       "p50": 1.939,
+       "p95": 2.71,
+       "p99": 3.167
+      }
+     }
+    }
+   }
+  }
+ ]
+}

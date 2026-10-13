@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
-import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord } from "../api/types";
+import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
 // /api/cameras/<id>, não o /video_feed legado (que só serve a câmera padrão).
@@ -14,6 +14,8 @@ export type EstadoDaCamera = {
   diagnostico?: CameraDiagnostico;
   /** Alertas ativos desta câmera, do mesmo GET /status. */
   alertas: Alert[];
+  /** Reduções do controlador adaptativo (banner DEGRADADO). */
+  adaptativo?: ModoAdaptativo | null;
 };
 
 const PARADA: EstadoDaCamera = { running: false, tentativas: 0, alertas: [] };
@@ -34,6 +36,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
             tentativas: status.video?.reconnect_attempts ?? 0,
             diagnostico: status.diagnostico,
             alertas: status.active_alerts ?? [],
+            adaptativo: status.adaptativo ?? null,
           });
         })
         .catch(() => {
@@ -76,7 +79,7 @@ function ChevronIcon() {
 /** Miniatura do painel: um quadro por segundo, cada pedido abre e fecha. Video
  * contínuo por cartão prende as 6 conexões do navegador com 6 câmeras ligadas
  * e trava os cliques. O atraso inicial varia por câmera pra não pedir todas juntas. */
-function Miniatura({ cameraId }: { cameraId: number }) {
+export function Miniatura({ cameraId }: { cameraId: number }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let intervalo: number | undefined;
