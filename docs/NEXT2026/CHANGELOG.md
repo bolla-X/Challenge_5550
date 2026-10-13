@@ -265,6 +265,90 @@ CC BY 4.0, 2.286 imagens, YOLO; "Construction Site Safety" da Roboflow, CC BY
 foi feita. **Resultado: L2 não entra; o Vyra segue como único modelo de EPI.**
 Sem treino nem fine-tune nesta máquina, como manda o adendo.
 
+# PR2 — diferenciais F1–F10
+
+Base: WIP `b344f5e` (F1 replay, F3 aproximação, F4 privacidade, F5
+diagnóstico, F7 mapa de calor, F9 relatório, F10 escala, Sobre/Licenças,
+"Iniciar" ligando todas) trazido por cherry-pick sobre o PR1 + alavancas L1/L2.
+Antes de código novo: build do frontend ok (o `dist` do WIP estava defasado do
+próprio código) e suíte com 1 falha — `test_toda_rota_exige_sessao` acusou
+`GET /api/alerts/<int:alert_id>/clip/<int:indice>.jpg -> 404`. A rota TINHA
+`@login_required`; a varredura só substituía parâmetros conhecidos e deixava
+`<int:indice>` literal na URL, então o Flask respondia 404 antes da
+autenticação. Corrigido o TESTE para substituir qualquer parâmetro (fica mais
+forte: rota nova passa a ser exercitada, não ignorada por 404).
+
+## F2 — queda pelo modelo, atribuída a um ID; linha do tempo por ID
+
+- Sondagem na fixture `next_queda` (domínio público): o Vyra vê `fall_detected`
+  em 44 de 500 quadros, em janelas curtas — a maior em 6,0–6,9 s (24 quadros);
+  as outras de 1 a 7 quadros. Nos quadros com a pessoa caída, o detector de
+  pessoa NÃO a vê: maior fração da caixa de queda dentro de alguma pessoa
+  = 0,00–0,18.
+- Regra (`app/vision/quedas.py`): a queda pertence à pessoa que mais a contém
+  (≥ 0,3); se ninguém a contém, a caixa de queda entra no rastreador como
+  pessoa e ganha ID. Alerta `fall_detected`, crítico, feature `falls`,
+  independente da pose. A pílula da tela mostra emergência com pessoa (queda,
+  SOS) antes de EPI crítico.
+- Linha do tempo de conformidade por ID (`app/services/linha_do_tempo_conformidade.py`):
+  só mudanças (EPIs, queda, zona), 120 eventos por ID, 64 IDs; API
+  `/api/cameras/<id>/conformidade-por-id[/<pessoa>]`; botão "Linha do tempo"
+  no cartão da pessoa, com o aviso "ID de rastreio — não identifica ninguém".
+- E2E `test_queda_do_modelo_chega_ao_navegador_com_id`: o alerta chega com
+  "Queda detectada — Pessoa N". Primeiras execuções: (1) chegou SEM pessoa —
+  a injeção só existia no modo com detector de pessoa separado, e o padrão é
+  `MULTI_PERSON_DETECTION=false`; corrigido para os dois modos; (2) com 4–5
+  câmeras no agendador, a câmera "Queda" analisa pouco dentro da janela de
+  ~0,9 s e a histerese (NÃO afrouxada) quase nunca confirma — o teste pausa
+  as outras câmeras durante a execução, como o técnico faria. Limitação real
+  registrada para a BANCA: num pátio com muitas câmeras numa máquina fraca,
+  uma queda que o modelo só enxerga por < 1 s pode não virar alerta.
+
+## F6 — celular como câmera via QR
+
+- Docs: getUserMedia só em contexto seguro, e em contexto inseguro
+  "`navigator.mediaDevices` is `undefined`"
+  (https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia);
+  IP de LAN em `http://` não é contexto seguro
+  (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).
+- Fonte `celular://<token>` (`app/vision/fonte_celular.py`); token aleatório é
+  a única credencial do celular: só envia quadro para aquela câmera.
+  `GET /cam` e `POST /api/celular/<token>/quadro` são as duas rotas públicas
+  (listadas na varredura, com testes de token desconhecido → 404, imagem
+  inválida → 400, teto de taxa → 429). Pareamento `GET /api/cameras/<id>/celular`
+  só para técnico.
+- HTTPS local: `python run.py --https` gera certificado autoassinado com o
+  `cryptography` (SAN localhost, 127.0.0.1 e IP da LAN; chave em `instance/`,
+  fora do git) e escuta na rede.
+- QR: Project Nayuki, MIT, arquivo único vendorizado em
+  `frontend/src/vendor/qrcodegen.ts` (lido antes: só cálculo, sem rede/eval/DOM)
+  — ATRIBUICOES.md.
+- E2E `test_celular_vira_camera_pelo_link_do_qr` com o Chromium em
+  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`: página
+  sem login, câmera falsa, ≥ 10 quadros no servidor, QR na aba da câmera.
+
+## F8 — YOLOE-26 (vocabulário aberto): descartado
+
+- Condições da missão ATENDIDAS: (a) o Vyra carrega no ultralytics 8.4.176
+  (instalação lateral `bench/_ul84`, `YOLO_CONFIG_DIR` separado) com
+  concordância de **100 %** contra o 8.3.40 (121 de 121 caixas,
+  `scripts/dump_deteccoes.py`); (b) a suíte passa inteira sob o 8.4:
+  **486 passed**.
+- Bloqueio de LICENÇA: prompt de texto no YOLOE-26 baixa o codificador
+  `mobileclip2_b.ts` (~254 MB, doc https://docs.ultralytics.com/models/yoloe/).
+  A licença dos modelos MobileCLIP (`apple/ml-mobileclip`, arquivo
+  `LICENSE_MODELS`) restringe a "Research Purposes" e diz que isso "does not
+  include any commercial exploitation, product development or use in any
+  commercial product". Definir classes de EPI do produto com ele é
+  desenvolvimento de produto. A variante sem prompt (`-seg-pf.pt`) usa
+  vocabulário embutido de procedência não documentada, e não há conjunto
+  rotulado aqui para provar qualidade.
+- Achado ao tentar: sob o 8.4 o runtime "OpenVINO GPU" rodou na CPU (log:
+  "inference on (CPU)"; concordância 99,17 %) — os ajustes de runtime deste
+  projeto dependem dos internos do 8.3.40. Trocar de versão exige refazer essa
+  camada.
+- **Decisão: F8 descartado; ultralytics segue 8.3.40.**
+
 ## 4.1 Pipeline
 
 | Mudança | Motivo | Evidência |

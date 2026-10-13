@@ -18,7 +18,15 @@ import { PipelinePanel } from "./pipeline-panel";
 import { HeatmapPanel } from "./heatmap-panel";
 import { CelularQr } from "./celular-qr";
 import { AvisoDegradado, FeedBadge } from "./feed-status";
-import { deleteCamera, discoverCameras, getCameraStatus, startCamera, stopCamera, updateCamera } from "../api/endpoints";
+import {
+  definirPrivacidade,
+  deleteCamera,
+  discoverCameras,
+  getCameraStatus,
+  startCamera,
+  stopCamera,
+  updateCamera,
+} from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
 import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
 import { paraDate } from "../utils/datas";
@@ -133,6 +141,46 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   );
 }
 
+/**
+ * Modo privacidade (F4). Todos veem o estado; só o supervisor troca, e o
+ * servidor registra quem trocou e quando. Desligar pede confirmação.
+ */
+function PrivacidadeControle({ cameraId, ativa, rodando, onMudou }: {
+  cameraId: number; ativa: boolean; rodando: boolean; onMudou: () => void;
+}) {
+  const mode = useDashboardStore((s) => s.mode);
+  const [pendente, setPendente] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const supervisor = mode === "supervisor";
+  const trocar = () => {
+    if (ativa && !window.confirm("Desligar o desfoque de rosto desta câmera? A troca fica registrada com o seu usuário.")) return;
+    setPendente(true);
+    setErro(null);
+    definirPrivacidade(cameraId, !ativa)
+      .then(onMudou)
+      .catch((e) => setErro(e instanceof Error ? e.message : "Falha ao trocar a privacidade"))
+      .finally(() => setPendente(false));
+  };
+  return (
+    <div className="privacidade-linha">
+      <span>
+        Desfoque de rosto: <strong data-testid="privacidade-estado">{ativa ? "ligado" : "desligado"}</strong>
+      </span>
+      <button
+        type="button"
+        className="ghost small"
+        data-testid="privacidade-botao"
+        disabled={!supervisor || pendente || !rodando}
+        onClick={trocar}
+      >
+        {ativa ? "Desligar desfoque" : "Ligar desfoque"}
+      </button>
+      {!supervisor && <span className="muted">Só o supervisor altera.</span>}
+      {erro && <span className="status-text error">{erro}</span>}
+    </div>
+  );
+}
+
 function CameraLiveControl({ camera }: { camera: CameraRecord }) {
   const [status, setStatus] = useState<MonitorStatus | null>(null);
   const [pending, setPending] = useState(false);
@@ -198,6 +246,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
           </div>
         )}
       </div>
+      <PrivacidadeControle cameraId={camera.id} ativa={status?.privacidade?.ativa ?? true} rodando={running} onMudou={refresh} />
       <div className="actions">
         <button type="button" className="primary" disabled={pending || running} onClick={handleStart}>
           {pending && !running ? "Iniciando…" : "Iniciar esta câmera"}

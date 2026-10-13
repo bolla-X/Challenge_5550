@@ -21,7 +21,10 @@ type CameraDiag = {
 };
 type Diag = {
   cameras: Record<string, CameraDiag>;
-  modelos: Record<string, { caminho: string | null; imgsz: number | null; runtime: string | null; carga_ms: number | null }>;
+  modelos: Record<
+    string,
+    { caminho: string | null; imgsz: number | null; runtime: string | null; carga_ms: number | null; dispositivo?: string | null }
+  >;
   agendador: { modo: string; inferencias: number; ultimo_erro: string | null } | null;
   adaptativo: { nivel: number; nivel_max: number; degradado: boolean; reducoes: string[]; motivo: string | null } | null;
 };
@@ -136,10 +139,11 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
           <section className="pipe-grupo">
             <h4>Modelos e controle</h4>
             {Object.entries(diag?.modelos ?? {}).map(([nome, m]) => (
-              <div key={nome} className="pipe-linha">
+              <div key={nome} className="pipe-linha" data-testid={`runtime-${nome}`}>
                 <span className="pipe-rotulo">{nome === "epi" ? "EPI" : nome === "pessoa" ? "Pessoa" : "Pose"}</span>
                 <span className="pipe-num t-data">
-                  {(m.runtime ?? "?").toUpperCase()} · imgsz {m.imgsz ?? "?"} · {m.caminho?.split(/[\\/]/).pop()}
+                  {(m.runtime ?? "?").toUpperCase()}
+                  {m.dispositivo ? ` em ${m.dispositivo}` : ""} · imgsz {m.imgsz ?? "?"} · {m.caminho?.split(/[\\/]/).pop()}
                 </span>
               </div>
             ))}

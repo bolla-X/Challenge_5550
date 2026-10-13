@@ -594,3 +594,6 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 .celular-qr code { word-break: break-all; font-size: 13px; color: var(--text); }
 .celular-qr-texto { display: grid; gap: var(--s2); }
 @media (max-width: 640px) { .celular-qr { grid-template-columns: 1fr; } }
+
+/* Modo privacidade (F4) no painel da câmera. */
+.privacidade-linha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); margin-top: var(--s3); }

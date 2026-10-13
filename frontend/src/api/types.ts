@@ -343,6 +343,8 @@ export interface MonitorStatus extends CameraScoped {
   settings: RuntimeSettings;
   risk_area: RiskAreaState;
   snapshot: SnapshotInfo;
+  /** Modo privacidade (F4): desfoque de rosto em tudo que sai do worker. */
+  privacidade?: { ativa: boolean };
 }
 
 // ---- GET /status: {"system": "VisionEPI", ...status()} -------------------

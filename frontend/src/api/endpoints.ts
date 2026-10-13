@@ -47,6 +47,11 @@ export const patchFeatures = (features: Record<string, boolean>, cameraId?: numb
 // direto como `src` de <img>, não faz sentido "buscar" um MJPEG via fetch.
 export const getCameraStatus = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/status`);
 export const startCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/start`, { method: "POST" });
+export const definirPrivacidade = (cameraId: number, ativa: boolean) =>
+  apiFetch<{ ativa: boolean }>(`/api/cameras/${cameraId}/privacidade`, {
+    method: "PATCH",
+    body: JSON.stringify({ ativa, motivo: "painel" }),
+  });
 export const stopCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/stop`, { method: "POST" });
 
 // ---- CRUD de câmeras (ver app/api/cameras.py) ---------------------------
