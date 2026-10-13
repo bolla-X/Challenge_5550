@@ -39,8 +39,15 @@ class CapturaContinua:
         stats: Any | None = None,
         tempo_real_em_arquivo: bool = True,
         nome: str = "captura",
+        taxa_util: Callable[[], float] | None = None,
     ) -> None:
         self._obter_fonte = obter_fonte
+        # Quantos quadros por segundo alguém vai de fato consumir (vídeo
+        # assistido, miniatura, inferência). Acima disso a fonte só AVANÇA
+        # (`pular`: grab sem retrieve) — continua no tempo real, sem pagar a
+        # conversão de quadro que ninguém vai ver. None/0 = converte todos.
+        self._taxa_util = taxa_util
+        self._ultimo_util = 0.0
         self._stats = stats
         self.tempo_real_em_arquivo = tempo_real_em_arquivo
         self._nome = nome
@@ -95,6 +102,9 @@ class CapturaContinua:
             if fonte is not fonte_anterior:
                 proximo = 0.0
                 fonte_anterior = fonte
+            if self._pular_se_ninguem_precisa(fonte):
+                proximo = self._cadenciar(fonte, proximo)
+                continue
             try:
                 ok, frame = fonte.read()
             except Exception as exc:  # noqa: BLE001  (fonte nunca derruba a thread)
@@ -110,6 +120,7 @@ class CapturaContinua:
                 continue
             self.falhando = False
             agora_ms = time.time() * 1000.0
+            self._ultimo_util = time.monotonic()
             with self._cond:
                 if self._frame is not None and not self._consumido and self._stats is not None:
                     self._stats.contar("frames_descartados")
@@ -121,19 +132,42 @@ class CapturaContinua:
             if self._stats is not None:
                 self._stats.contar("frames_lidos")
                 self._stats.quadro_lido(agora_ms)
+            proximo = self._cadenciar(fonte, proximo)
 
-            # Arquivo entrega tão rápido quanto se pede: sem ritmo, um vídeo de
-            # 30 fps seria "capturado" a 300 fps. Agenda pelo relógio (e não
-            # por sleep fixo) para não acumular deriva; se atrasou mais de um
-            # quadro, recomeça a agenda em vez de tentar recuperar em rajada.
-            fps = getattr(fonte, "fps_da_fonte", None) if self._e_arquivo(fonte) else None
-            if self.tempo_real_em_arquivo and fps:
-                intervalo = 1.0 / float(fps)
-                agora = time.monotonic()
-                proximo = agora + intervalo if proximo == 0.0 or agora - proximo > intervalo else proximo + intervalo
-                espera = proximo - time.monotonic()
-                if espera > 0:
-                    time.sleep(espera)
+    def _pular_se_ninguem_precisa(self, fonte: Any) -> bool:
+        """True se avançou a fonte sem converter o quadro (ver `taxa_util`)."""
+        taxa = float(self._taxa_util() or 0.0) if self._taxa_util is not None else 0.0
+        if taxa <= 0 or not hasattr(fonte, "pular") or time.monotonic() - self._ultimo_util >= 1.0 / taxa:
+            return False
+        try:
+            if not fonte.pular():
+                return False
+        except Exception:  # noqa: BLE001  (na dúvida, o read() normal decide)
+            return False
+        self.falhando = False
+        if self._stats is not None:
+            # Lido da fonte, só não convertido: conta como lido (a fração do
+            # tempo real continua honesta) e mantém o índice dos quadros.
+            self._stats.contar("frames_lidos")
+            self._stats.contar("frames_pulados")
+            self._stats.quadro_lido(time.time() * 1000.0)
+        return True
+
+    def _cadenciar(self, fonte: Any, proximo: float) -> float:
+        """Arquivo entrega tão rápido quanto se pede: sem ritmo, um vídeo de
+        30 fps seria "capturado" a 300 fps. Agenda pelo relógio (e não por
+        sleep fixo) para não acumular deriva; se atrasou mais de um quadro,
+        recomeça a agenda em vez de tentar recuperar em rajada."""
+        fps = getattr(fonte, "fps_da_fonte", None) if self._e_arquivo(fonte) else None
+        if not (self.tempo_real_em_arquivo and fps):
+            return proximo
+        intervalo = 1.0 / float(fps)
+        agora = time.monotonic()
+        proximo = agora + intervalo if proximo == 0.0 or agora - proximo > intervalo else proximo + intervalo
+        espera = proximo - time.monotonic()
+        if espera > 0:
+            time.sleep(espera)
+        return proximo
 
     @staticmethod
     def _e_arquivo(fonte: Any) -> bool:

@@ -195,6 +195,9 @@ class Config:
     # Publicação de vídeo de câmera SEM espectador no MJPEG (só miniatura e
     # snapshot). Análise nova sai na hora, independente disto.
     VIDEO_FPS_SEM_ESPECTADOR = env_float("VIDEO_FPS_SEM_ESPECTADOR", 2.0)
+    # Quadros/s CONVERTIDOS pela captura de câmera sem espectador (miniatura +
+    # inferência); os demais só avançam a fonte (grab sem retrieve).
+    CAPTURA_FPS_SEM_ESPECTADOR = env_float("CAPTURA_FPS_SEM_ESPECTADOR", 4.0)
     # Uma inferência em cada modelo antes de servir (run.py). Ver
     # app/vision/runtime_do_modelo.py:aquecer_modelos.
     AQUECER_MODELOS_NO_BOOT = env_bool("AQUECER_MODELOS_NO_BOOT", True)

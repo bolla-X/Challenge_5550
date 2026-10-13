@@ -109,3 +109,53 @@ def test_api_devolve_o_instante_do_quadro_pedido(real_monitor_app, real_monitor_
     assert dados["cameras"][str(camera.id)]["ts_quadro_ms"] == 123456.0
     sem_parametro = real_monitor_client.get("/api/diagnostics/pipeline").get_json()
     assert "ts_quadro_ms" not in sem_parametro["cameras"][str(camera.id)]
+
+
+class FonteQuePula(FonteFalsa):
+    def __init__(self, n: int) -> None:
+        super().__init__(n)
+        self.convertidos = 0
+        self.pulados = 0
+
+    def read(self):
+        ok, frame = super().read()
+        if ok:
+            self.convertidos += 1
+        return ok, frame
+
+    def pular(self):
+        if self.restantes <= 0:
+            return False
+        self.restantes -= 1
+        self.pulados += 1
+        time.sleep(0.002)
+        return True
+
+
+def test_captura_so_converte_na_taxa_util_e_conta_todos_os_quadros():
+    """Acima da taxa útil a fonte só avança (grab): tempo real sem conversão inútil."""
+    stats = EstatisticasDoPipeline()
+    fonte = FonteQuePula(300)
+    captura = CapturaContinua(lambda: fonte, stats=stats, taxa_util=lambda: 10.0)
+    inicio = time.monotonic()
+    captura.iniciar()
+    assert fonte.lidos.wait(5.0)
+    captura.parar()
+    duracao = time.monotonic() - inicio
+
+    assert fonte.pulados > fonte.convertidos, (fonte.pulados, fonte.convertidos)
+    assert fonte.convertidos <= 10 * duracao + 3
+    totais = stats.resumo(30)["totais"]
+    assert totais["frames_lidos"] == 300, "pulado também é lido da fonte"
+    assert totais["frames_pulados"] == fonte.pulados
+    assert stats.ts_do_quadro(299) is not None, "o índice da âncora de latência não pode ter buraco"
+
+
+def test_sem_taxa_util_converte_todos():
+    stats = EstatisticasDoPipeline()
+    fonte = FonteQuePula(20)
+    captura = CapturaContinua(lambda: fonte, stats=stats)
+    captura.iniciar()
+    assert fonte.lidos.wait(3.0)
+    captura.parar()
+    assert (fonte.convertidos, fonte.pulados) == (20, 0)

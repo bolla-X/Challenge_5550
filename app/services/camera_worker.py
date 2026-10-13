@@ -828,6 +828,18 @@ class CameraWorker:
             saida.append(det)
         return saida
 
+    def _taxa_util_de_captura(self) -> float:
+        """Quadros/s que alguém consome: o vídeo assistido, ou miniatura + inferência.
+
+        Acima disso a captura só avança a fonte (ver CapturaContinua). Medido
+        (micro-bench, 2 E-cores, 4 fontes em tempo real): inferência EPI ONNX
+        1178 ms com todas as fontes convertendo cada quadro, 981 ms convertendo
+        só ~2,5 quadros/s por fonte, 791 ms sem vídeo nenhum.
+        """
+        if self.espectadores > 0:
+            return float(self.target_fps)
+        return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
+
     def _preparar_quadro(self, frame):
         """Resolução da câmera e rotação: o mesmo para o quadro publicado e o inferido."""
         frame = self._ajustar_resolucao(frame)
@@ -939,7 +951,9 @@ class CameraWorker:
         sai na taxa da fonte (limitada por `fps` da câmera); a detecção, na
         taxa que a máquina aguenta.
         """
-        self.captura = CapturaContinua(lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}")
+        self.captura = CapturaContinua(
+            lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}", taxa_util=self._taxa_util_de_captura
+        )
         self.captura.iniciar()
         intervalo_minimo = 1.0 / max(1, self.target_fps)
         # Sem ninguém no MJPEG, o vídeo só alimenta a miniatura (1 quadro/s por

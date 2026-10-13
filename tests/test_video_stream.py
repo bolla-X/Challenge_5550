@@ -618,3 +618,11 @@ def test_decoder_de_arquivo_abre_com_teto_de_threads():
         assert processo.num_threads() - antes <= 2
     finally:
         captura.release()
+
+
+def test_pular_avanca_sem_converter_e_falha_como_o_read(relogio, capturas):
+    capturas["fila"].append(FakeCapture([True, True]))
+    stream = VideoStream("tests/fixtures/bench.mp4", 640, 480)
+    assert stream.pular() is False, "sem captura aberta, quem reabre é o read()"
+    assert stream.read()[0] is True
+    assert stream.pular() is True

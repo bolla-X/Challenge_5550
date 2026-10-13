@@ -324,6 +324,28 @@ class VideoStream:
             self._on_failure()
             return False, None
 
+    def pular(self) -> bool:
+        """Avança um quadro sem convertê-lo (`grab()` sem `retrieve()`).
+
+        Para quem só precisa de alguns quadros por segundo, mas tem que manter
+        a fonte no tempo real (ver `CapturaContinua`). Medido num E-core com
+        decoder de 1 thread: `grab()` custa 1,2 ms contra 2,9 ms do `read()`
+        (960x540) e 3,3 contra 6,0 ms (1280x720) — o `grab()` do FFmpeg
+        DECODIFICA; o que ele economiza é a conversão para BGR e a alocação.
+        Mesma semântica de falha e de fim de arquivo em loop do `read()`.
+        Sem captura aberta devolve False e quem chamou cai no `read()`, que é
+        quem sabe reabrir.
+        """
+        with self._lock:
+            if self._capture is None:
+                return False
+            if self._capture.grab():
+                self._consecutive_failures = 0
+                self._rebobinando = False
+                return True
+            self._on_failure()
+            return False
+
     def _ler_do_capture(self) -> tuple[bool, Any]:
         """Lê um frame. Em fonte de REDE, o mais NOVO disponível.
 
@@ -353,11 +375,13 @@ class VideoStream:
         `grab()` da leitura já for lento, não havia fila e nada é descartado —
         o custo no caso normal é zero.
 
-        `grab()` avança sem decodificar e `retrieve()` decodifica só o último
-        (doc oficial: "The method/function combines VideoCapture::grab() and
-        VideoCapture::retrieve() in one call" —
-        https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html), então
-        descartar N frames custa N demux e UM decode, não N decodes.
+        `read()` = `grab()` + `retrieve()` (doc oficial: "The method/function
+        combines VideoCapture::grab() and VideoCapture::retrieve() in one call"
+        — https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html).
+        Correção de 13/10: este comentário dizia que descartar N frames custa
+        "N demux e UM decode". Medido, não é assim no backend FFmpeg: o `grab()`
+        já decodifica (1,2 ms contra 2,9 ms do `read()` a 960x540); o que se
+        economiza é a conversão para BGR e a cópia (ver `pular`).
         """
         if not self._descartar_atrasados:
             return self._capture.read()
