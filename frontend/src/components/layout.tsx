@@ -125,6 +125,7 @@ export function Topbar() {
   const running = useDashboardStore((s) => s.running);
   const setCommandPaletteOpen = useDashboardStore((s) => s.setCommandPaletteOpen);
   const alertHistory = useDashboardStore((s) => s.alertHistory);
+  const setScreen = useDashboardStore((s) => s.setScreen);
   const access = ROLE_ACCESS[mode];
   // Feedback de "seu clique registrou" durante a latência real do REST.
   const [pending, setPending] = useState<"start" | "stop" | null>(null);
@@ -154,6 +155,16 @@ export function Topbar() {
             onClick={() => exportAlertsCsv(alertHistory)}
           >
             Exportar
+          </button>
+        )}
+        {access.canConfigure && (
+          <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
+            Relatório do turno
+          </a>
+        )}
+        {access.canConfigure && (
+          <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
+            Sobre
           </button>
         )}
         <ThemeToggle />

@@ -19,13 +19,25 @@ from app.utils.limites_de_cpu import manter_afinidade
 from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
-from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver_caminho
+from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver
 from app.vision.yolo_pose_detector import YoloPoseDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 
 class CameraNotFoundError(LookupError):
     pass
+
+
+def _aplicar_dispositivo(detector: Any, escolha: dict[str, Any]) -> None:
+    """Dispositivo/precisão da aprovação escolhida (ex.: OpenVINO na GPU, FP32).
+
+    O detector já cai para a CPU sozinho se a GPU não compilar
+    (`YoloPPEDetector._recompilar_openvino`), e o diagnóstico mostra o fallback.
+    """
+    if escolha.get("dispositivo"):
+        detector.dispositivo_openvino = escolha["dispositivo"]
+    if escolha.get("precisao"):
+        detector.precisao_openvino = escolha["precisao"]
 
 
 class MonitorService:
@@ -56,10 +68,11 @@ class MonitorService:
         # ---- modelos compartilhados: criados 1x, injetados em cada worker ----
         # Runtime: só export aprovado no guarda de qualidade; senão o .pt.
         peso_epi = str(app.config.get("PPE_MODEL_PATH", "yolov8n.pt"))
-        caminho_epi, motivo_epi = resolver_caminho(
+        escolha_epi = resolver(
             BASE_DIR, modelo="epi", peso_pt=peso_epi, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
-            pedido=str(app.config.get("PPE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
+            pedido=str(app.config.get("PPE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")),
         )
+        caminho_epi, motivo_epi = escolha_epi["caminho"], escolha_epi["motivo"]
         detector_principal = YoloPPEDetector(
             model_path=caminho_epi,
             confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
@@ -70,6 +83,7 @@ class MonitorService:
             imgsz=app.config.get("YOLO_IMGSZ", 640),
             half=app.config.get("YOLO_HALF", True),
         )
+        _aplicar_dispositivo(detector_principal, escolha_epi)
         # PPE_EXTRA_MODELS vazio => self.detector e o detector unico de sempre.
         # Com um ou mais caminhos, envelopa tudo num ensemble que roda todos no
         # mesmo frame e funde o resultado (ver EnsemblePPEDetector). Cada extra
@@ -126,10 +140,11 @@ class MonitorService:
             "YOLO_CONFIDENCE", 0.35
         )
         peso_pessoa = str(app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"))
-        caminho_pessoa, motivo_pessoa = resolver_caminho(
+        escolha_pessoa = resolver(
             BASE_DIR, modelo="pessoa", peso_pt=peso_pessoa, imgsz=int(app.config.get("YOLO_IMGSZ", 640)),
-            pedido=str(app.config.get("PERSON_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "onnx,pytorch")),
+            pedido=str(app.config.get("PERSON_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")),
         )
+        caminho_pessoa, motivo_pessoa = escolha_pessoa["caminho"], escolha_pessoa["motivo"]
         self.person_detector = YoloPPEDetector(
             model_path=caminho_pessoa,
             confidence=confianca_pessoa,
@@ -139,14 +154,23 @@ class MonitorService:
             imgsz=app.config.get("YOLO_IMGSZ", 640),
             half=app.config.get("YOLO_HALF", True),
         )
+        _aplicar_dispositivo(self.person_detector, escolha_pessoa)
         # POSE_BACKEND=yolo: UMA passada de YOLO-pose por inferência para todas
         # as pessoas; cada esqueleto é associado ao track do detector de pessoa
         # por IoU (ver yolo_pose_detector.associar_esqueletos). O detector de
         # pessoa NÃO é trocado: o yolo11n-pose concordou só 83,8% com o yolov8n
         # nas caixas de pessoa (scripts/concordancia.py, CHANGELOG).
+        # Mesmo `auto` dos outros dois (modelo "esqueleto" no aprovados.json): com
+        # o detector de pessoa ligado por padrão a pose passou a rodar em toda
+        # análise, e em PyTorch custava 236 ms por quadro (CHANGELOG, PR2).
+        peso_pose = str(app.config.get("POSE_MODEL_PATH", "models/yolo11n-pose.pt"))
+        escolha_pose = resolver(
+            BASE_DIR, modelo="esqueleto", peso_pt=peso_pose, imgsz=int(app.config.get("POSE_IMGSZ", 640)),
+            pedido=str(app.config.get("POSE_RUNTIME", "auto")), ordem=str(app.config.get("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")),
+        )
         self.pose_detector = (
             YoloPoseDetector(
-                str(app.config.get("POSE_MODEL_PATH", "models/yolo11n-pose.pt")),
+                escolha_pose["caminho"],
                 confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
                 device=app.config.get("YOLO_DEVICE"),
                 max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
@@ -155,6 +179,8 @@ class MonitorService:
             if str(app.config.get("POSE_BACKEND", "mediapipe")).lower() == "yolo"
             else None
         )
+        if self.pose_detector is not None:
+            _aplicar_dispositivo(self.pose_detector, escolha_pose)
         self.pose_estimator = MediaPipePoseEstimator(
             min_detection_confidence=app.config.get("POSE_MIN_DETECTION_CONFIDENCE", 0.5),
             min_tracking_confidence=app.config.get("POSE_MIN_TRACKING_CONFIDENCE", 0.5),
@@ -163,9 +189,13 @@ class MonitorService:
         # carga + 1 inferência (com volta ao .pt se falhar) só fora dos testes.
         self.runtimes = {"epi": {"pedido": app.config.get("PPE_RUNTIME"), "motivo": motivo_epi},
                          "pessoa": {"pedido": app.config.get("PERSON_RUNTIME"), "motivo": motivo_pessoa}}
+        if self.pose_detector is not None:
+            self.runtimes["pose"] = {"pedido": app.config.get("POSE_RUNTIME"), "motivo": escolha_pose["motivo"]}
         if not app.config.get("TESTING"):
             self.runtimes["epi"]["ativo"] = garantir_runtime(detector_principal, peso_epi)
             self.runtimes["pessoa"]["ativo"] = garantir_runtime(self.person_detector, peso_pessoa)
+            if self.pose_detector is not None:
+                self.runtimes["pose"]["ativo"] = garantir_runtime(self.pose_detector, peso_pose)
         self.aquecimento_ms: dict[str, float] = {}
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
@@ -414,6 +444,29 @@ class MonitorService:
         for worker in workers:
             self.socketio.emit("modo_adaptativo", resumo | {"camera_id": worker.camera_id}, to=sala_da_camera(worker.camera_id))
 
+    def definir_privacidade(self, camera_id: int, ativa: bool, *, usuario, motivo: str = "") -> dict[str, Any]:
+        """Liga/desliga o desfoque de rosto de UMA câmera e registra quem fez.
+
+        A auditoria vai para a linha do tempo (EventLog), que é persistida e
+        consultável: desligar privacidade é exatamente o tipo de ação que
+        alguém vai precisar justificar depois.
+        """
+        from app.repositories.event_repository import EventRepository
+
+        worker = self._get_worker(camera_id)
+        worker.definir_privacidade(ativa)
+        evento = EventRepository().create(
+            camera_id=camera_id,
+            event_type="privacy_toggled",
+            message=("Privacidade LIGADA" if ativa else "Privacidade DESLIGADA") + f" por {usuario.email}",
+            severity="info" if ativa else "warning",
+            subject=usuario.email,
+            metadata={"ativa": bool(ativa), "motivo": motivo[:200], "usuario_id": usuario.id, "papel": usuario.role},
+        )
+        payload = evento.to_dict()
+        self.socketio.emit("timeline_event", payload, to=SALA_PARQUE)
+        return {"camera_id": camera_id, "ativa": bool(ativa), "evento": payload}
+
     def registrar_espectador(self, camera_id: int, delta: int) -> None:
         """Quantos streams abertos por câmera (diagnóstico; o encode já é sob demanda)."""
         with self._workers_lock:
@@ -455,6 +508,9 @@ class MonitorService:
                 "imgsz": getattr(det, "imgsz", None),
                 "carga_ms": getattr(det, "load_ms", None),
                 "runtime": getattr(det, "runtime", None),
+                # O que de fato executa (OpenVINO: CPU, GPU ou fallback).
+                "dispositivo": getattr(det, "dispositivo_ativo", None)
+                or ("CPU" if getattr(det, "runtime", None) in ("pytorch", "onnx", "openvino") else None),
                 "escolha": self.runtimes.get(nome),
                 "aquecimento_ms": self.aquecimento_ms.get(str(getattr(det, "model_path", ""))),
             }

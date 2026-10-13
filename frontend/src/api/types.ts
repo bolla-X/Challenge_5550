@@ -309,6 +309,14 @@ export interface CameraDiagnostico {
   brilho_minimo?: number;
 }
 
+/** app/services/aproximacao.py: aviso de aproximação (projeção cinemática). */
+export interface PreAlerta {
+  track_id: number;
+  segundos_ate_entrar: number;
+  velocidade: number;
+  metodo: "projecao_cinematica";
+}
+
 /** app/services/controlador_adaptativo.py: resumo(). */
 export interface ModoAdaptativo {
   nivel: number;
@@ -335,6 +343,8 @@ export interface MonitorStatus extends CameraScoped {
   settings: RuntimeSettings;
   risk_area: RiskAreaState;
   snapshot: SnapshotInfo;
+  /** Modo privacidade (F4): desfoque de rosto em tudo que sai do worker. */
+  privacidade?: { ativa: boolean };
 }
 
 // ---- GET /status: {"system": "VisionEPI", ...status()} -------------------
@@ -453,7 +463,7 @@ export interface CameraRecord {
   id: number;
   name: string;
   location: string | null;
-  source_type: "USB" | "RTSP" | "Arquivo";
+  source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
   source: string;
   fps: number;
   width: number;

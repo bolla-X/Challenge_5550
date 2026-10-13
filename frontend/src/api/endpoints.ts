@@ -32,8 +32,9 @@ export const logout = () => apiFetch<{ ok: boolean }>("/api/auth/logout", { meth
 
 export const getStatus = () => apiFetch<StatusResponse>("/status");
 export const getPreflight = () => apiFetch<PreflightResponse>("/preflight");
-export const startMonitor = () => apiFetch<StatusResponse>("/start", { method: "POST" });
-export const stopMonitor = () => apiFetch<StatusResponse>("/stop", { method: "POST" });
+// `todas=1`: Técnico/Supervisor ligam todas as câmeras; o Operador fica no setor dele (escopo no servidor).
+export const startMonitor = () => apiFetch<StatusResponse>("/start?todas=1", { method: "POST" });
+export const stopMonitor = () => apiFetch<StatusResponse>("/stop?todas=1", { method: "POST" });
 
 const comCameraQuery = (cameraId?: number | null) => (cameraId != null ? `?camera_id=${cameraId}` : "");
 export const getFeatures = (cameraId?: number | null) => apiFetch<FeaturesResponse>(`/features${comCameraQuery(cameraId)}`);
@@ -46,6 +47,11 @@ export const patchFeatures = (features: Record<string, boolean>, cameraId?: numb
 // direto como `src` de <img>, não faz sentido "buscar" um MJPEG via fetch.
 export const getCameraStatus = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/status`);
 export const startCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/start`, { method: "POST" });
+export const definirPrivacidade = (cameraId: number, ativa: boolean) =>
+  apiFetch<{ ativa: boolean }>(`/api/cameras/${cameraId}/privacidade`, {
+    method: "PATCH",
+    body: JSON.stringify({ ativa, motivo: "painel" }),
+  });
 export const stopCamera = (cameraId: number) => apiFetch<MonitorStatus>(`/api/cameras/${cameraId}/stop`, { method: "POST" });
 
 // ---- CRUD de câmeras (ver app/api/cameras.py) ---------------------------
@@ -53,7 +59,7 @@ export const listCameras = () => apiFetch<CamerasResponse>("/api/cameras");
 export const createCamera = (payload: {
   name: string;
   location?: string | null;
-  source_type: "USB" | "RTSP" | "Arquivo";
+  source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
   source: string;
   fps?: number;
   width?: number;
@@ -65,7 +71,7 @@ export const updateCamera = (
   payload: Partial<{
     name: string;
     location: string | null;
-    source_type: "USB" | "RTSP" | "Arquivo";
+    source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
     source: string;
     fps: number;
     width: number;

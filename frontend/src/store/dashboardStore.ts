@@ -38,6 +38,7 @@ import type {
   ModelDiagnostics,
   OverlayOptions,
   PoseResult,
+  PreAlerta,
   RiskAreaState,
   RiskScore,
   RiskTrendResponse,
@@ -51,7 +52,7 @@ export type ViewMode = "operator" | "technical" | "supervisor";
 // Tela dentro do "espaço multi-câmera". Independente de `mode`: o mesmo
 // `mode` pode passear entre grid/foco (Técnico/Supervisor), e Operador fica
 // travado em "kiosk" (ver setMode e setScreenForMode abaixo).
-export type CameraScreen = "grid" | "focus" | "kiosk" | "overview" | "home" | "accounts";
+export type CameraScreen = "grid" | "focus" | "kiosk" | "overview" | "home" | "accounts" | "sobre";
 
 // Acesso por papel. A FONTE é a sessão (`user.role`), não um seletor de tela —
 // e o backend valida de novo em cada rota, então isto aqui é só para a UI não
@@ -129,6 +130,8 @@ interface DashboardState {
   model: ModelDiagnostics | null;
   compliance: ComplianceState | null;
   activeAlerts: Alert[];
+  /** Pré-alertas de aproximação da câmera em foco (amarelo, projeção). */
+  preAlertas: PreAlerta[];
   // Set only by the alert_created socket event (never alert_updated) — lets
   // AlertPanel highlight the one row that's genuinely new, not a re-confirm.
   lastAlertCreatedId: number | null;
@@ -292,6 +295,7 @@ const ESTADO_LIMPO: Partial<DashboardState> = {
   camId: null,
   operatorCam: null,
   activeAlerts: [],
+      preAlertas: [],
   alertHistory: [],
   lastAlertCreatedId: null,
   timeline: [],
@@ -405,6 +409,7 @@ export const useDashboardStore = create<DashboardState>()(
       model: null,
       compliance: null,
       activeAlerts: [],
+      preAlertas: [],
       lastAlertCreatedId: null,
       alertHistory: [],
       timeline: [],
@@ -823,6 +828,9 @@ export function subscribeToServerEvents(): () => void {
   });
   on("compliance_state", (compliance) => {
     if (belongsToFocusedCamera(compliance)) set({ compliance }, false, "ws:compliance_state");
+  });
+  on("pre_alertas", (payload) => {
+    if (belongsToFocusedCamera(payload)) set({ preAlertas: payload.items }, false, "ws:pre_alertas");
   });
   on("active_alerts", (payload) => {
     if (belongsToFocusedCamera(payload)) set({ activeAlerts: payload.items }, false, "ws:active_alerts");

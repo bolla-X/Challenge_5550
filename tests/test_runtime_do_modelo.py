@@ -95,3 +95,79 @@ def test_aquecer_modelos_infere_uma_vez_em_cada_e_tolera_falha():
 
     assert (epi.chamadas, pessoa.chamadas, quebrado.chamadas) == (1, 1, 1)
     assert set(tempos) == {"epi.onnx", "pessoa.onnx"}, "falha não derruba o boot nem entra nos tempos"
+
+
+def test_openvino_gpu_aprovado_devolve_dispositivo_e_precisao(tmp_path, monkeypatch):
+    import app.vision.runtime_do_modelo as rt
+    from app.vision.runtime_do_modelo import resolver
+
+    monkeypatch.setattr(rt, "gpu_disponivel", lambda: True)
+
+    pasta = tmp_path / "models" / "export" / "vyra_ppe_640_dyn" / "vyra_ppe_640_dyn_openvino_model"
+    pasta.mkdir(parents=True)
+    (tmp_path / "models" / "export" / "aprovados.json").write_text(json.dumps({"epi": {
+        "openvino-dyn@gpu-fp16:640": {"concordancia": 0.99, "caminho": "models/export/vyra_ppe_640_dyn/vyra_ppe_640_dyn_openvino_model"},
+        "onnx-dyn:640": {"concordancia": 1.0, "caminho": "models/export/nao-existe.onnx"},
+    }}), encoding="utf-8")
+
+    escolha = resolver(tmp_path, modelo="epi", peso_pt="vyra.pt", imgsz=640, pedido="auto", ordem="openvino-gpu,onnx,pytorch")
+
+    assert escolha["caminho"] == str(pasta)
+    assert (escolha["dispositivo"], escolha["precisao"]) == ("GPU", "fp16")
+    sem_gpu = resolver(tmp_path, modelo="epi", peso_pt="vyra.pt", imgsz=640, pedido="auto", ordem="onnx,pytorch")
+    assert sem_gpu["caminho"] == "vyra.pt" and sem_gpu["dispositivo"] is None, "onnx aprovado mas ausente → .pt"
+
+
+def test_gpu_que_nao_compila_cai_para_cpu(tmp_path, monkeypatch):
+    """Fallback garantido: o detector compila na CPU e diz isso no diagnóstico."""
+    import sys
+    import types
+
+    from app.vision.yolo_ppe_detector import YoloPPEDetector
+
+    pasta = tmp_path / "x_openvino_model"
+    pasta.mkdir()
+    (pasta / "x.xml").write_text("<net/>", encoding="utf-8")
+    compilados = []
+
+    class Modelo:
+        def get_parameters(self):
+            return [type("P", (), {"get_layout": lambda self: type("L", (), {"empty": False})()})()]
+
+    class Core:
+        def read_model(self, model, weights):
+            return Modelo()
+
+        def compile_model(self, modelo, device_name, config):
+            if device_name == "GPU":
+                raise RuntimeError("GPU indisponível")
+            compilados.append((device_name, config))
+            return "compilado-cpu"
+
+    falso = types.ModuleType("openvino")
+    falso.Core = Core
+    falso.Layout = lambda s: s
+    monkeypatch.setitem(sys.modules, "openvino", falso)
+    detector = YoloPPEDetector(model_path=str(pasta))
+    detector.dispositivo_openvino = "GPU"
+    backend = type("B", (), {})()
+    detector._recompilar_openvino(backend)
+
+    assert backend.ov_compiled_model == "compilado-cpu"
+    assert compilados[0][0] == "CPU"
+    assert detector.dispositivo_ativo == "CPU (fallback da GPU)"
+
+
+def test_sem_gpu_o_auto_pula_o_openvino_gpu(tmp_path, monkeypatch):
+    import app.vision.runtime_do_modelo as rt
+
+    (tmp_path / "models" / "export" / "ov_model").mkdir(parents=True)
+    (tmp_path / "x.onnx").write_text("", encoding="utf-8")
+    (tmp_path / "models" / "export" / "aprovados.json").write_text(json.dumps({"epi": {
+        "openvino-dyn@gpu-fp32:640": {"concordancia": 1.0, "caminho": "models/export/ov_model"},
+        "onnx-dyn:640": {"concordancia": 1.0, "caminho": str(tmp_path / "x.onnx")},
+    }}), encoding="utf-8")
+    monkeypatch.setattr(rt, "gpu_disponivel", lambda: False)
+    escolha = rt.resolver(tmp_path, modelo="epi", peso_pt="vyra.pt", imgsz=640, pedido="auto", ordem="openvino-gpu,onnx,pytorch")
+    assert escolha["caminho"] == str(tmp_path / "x.onnx")
+    assert escolha["dispositivo"] is None

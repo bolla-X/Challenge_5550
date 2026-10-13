@@ -19,6 +19,8 @@ from app.vision.schemas import FrameAnalysis
 
 
 class DetectorDuble:
+    model_path = "duble.pt"
+
     def detect(self, frame):  # noqa: ARG002
         return []
 

@@ -177,6 +177,275 @@ falhas e reabre do início (log do E2E: `video_stream_reconnecting`,
 `consecutive_failures: 15`, a cada volta da fixture). Comportamento anterior
 a esta missão; é um engasgo visível a cada loop.
 
+## L1 — OpenVINO na iGPU Intel (ADENDO 1): aprovado, vira o padrão
+
+Docs lidas: export OpenVINO da Ultralytics
+(https://docs.ultralytics.com/integrations/openvino/ — `dynamic`, dispositivo
+`intel:gpu`, `quantize=16` no lugar do `half` deprecado) e plugin de GPU do
+OpenVINO
+(https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/gpu-device.html
+— shape dinâmico é "preview" e rende menos que estático; cada shape novo
+compila kernel em tempo de execução; precisão segue a IR; `ov::cache_dir`
+cobre totalmente só modelo estático).
+
+- `openvino.Core().available_devices` = `['CPU', 'GPU']`; GPU = "Intel(R)
+  Iris(R) Xe Graphics (iGPU)".
+- Export: o `vyra_ppe_640_dyn_openvino_model` já era dinâmico de verdade
+  (`shape="?,3,?,?"` no `.xml`); o letterbox retangular vem da correção de
+  `dynamic` no AutoBackend (§4.2).
+- `YoloPPEDetector`: dispositivo (CPU|GPU) e dica de precisão
+  (`INFERENCE_PRECISION_HINT` f32|f16); GPU com `CACHE_DIR`; falhou na GPU →
+  compila na CPU e o diagnóstico mostra "CPU (fallback da GPU)"
+  (`tests/test_runtime_do_modelo.py::test_gpu_que_nao_compila_cai_para_cpu`).
+  O dispositivo ativo sai em `/api/diagnostics/pipeline` (`modelos.*.dispositivo`).
+- Guarda (`concordancia-epi-20261013-140531.json`,
+  `concordancia-pessoa-20261013-140747.json`), dispositivo conferido no JSON:
+
+| candidato | EPI | pessoa | bancada EPI p50 |
+|---|---|---|---|
+| openvino-dyn@cpu-fp32 | 100 % | — | 705 ms |
+| openvino-dyn@cpu-fp16 | 100 % | — | 675 ms |
+| **openvino-dyn@gpu-fp32** | **100 %** | **100 %** | **125 ms** |
+| openvino-dyn@gpu-fp16 | 99,17 % | 99,88 % | 105 ms |
+
+  Hipótese registrada (não verificada): o 99,17 % do "OpenVINO dinâmico"
+  anterior vinha do `device_name="AUTO"` do ultralytics caindo na GPU em f16;
+  forçado na CPU, deu 100 %.
+- CPU do servidor (batata 1 câm., 3 repetições, `*-l1-r*.json`):
+
+| perfil | câm. | árvore | análises/rodada | CPU-ms por análise | CPU-ms por quadro | encodes por quadro |
+|---|---|---|---|---|---|---|
+| batata | 1 | onnx | 40, 16, 17 | **6,431.8** [2,836.9, 6,818.4, 6,431.8] | **249.9** [241.4, 249.9, 258.2] | **1.0** [1.0, 1.0, 1.0] |
+| batata | 1 | ovgpu16 | 103, 77, 80 | **1,349.6** [1,023.1, 1,403.7, 1,349.6] | **239.7** [215.9, 239.7, 247.8] | **1.0** [1.0, 1.0, 1.0] |
+| batata | 1 | ovgpu32 | 90, 76, 52 | **1,400.7** [1,167.1, 1,400.7, 2,034.4] | **226.0** [213.5, 226.0, 278.4] | **1.0** [1.0, 1.0, 1.0] |
+
+  Relógio, sob saturação — indicativo:
+
+| perfil | câm. | árvore | n | FPS de análise/câm. | idade da análise p50 (ms) | idade p95 (ms) | latência de alerta (s) | fundo (% de 1 núcleo) |
+|---|---|---|---|---|---|---|---|---|
+| batata | 1 | onnx | 3 | **0,28** [0,67, 0,27, 0,28] | **4.310** [1.846, 4.541, 4.310] | **5.674** [2.757, 5.674, 5.674] | **5,7** [5,4, 8,8, 5,7] | 845 |
+| batata | 1 | ovgpu16 | 3 | **1,33** [1,72, 1,28, 1,33] | **943** [741, 943, 1.010] | **2.165** [1.184, 2.194, 2.165] | **3,0** [3,0, 2,7, 4,4] | 722 |
+| batata | 1 | ovgpu32 | 3 | **1,27** [1,50, 1,27, 0,87] | **966** [826, 966, 1.511] | **1.959** [1.205, 1.959, 3.056] | **3,4** [3,1, 3,4, 4,4] | 640 |
+
+- Decisão: GPU FP32 e FP16 empatam em CPU-ms (dentro de 10 %) → **FP32**
+  (100 % no guarda). `RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`; sem GPU visível
+  ao OpenVINO, o resolvedor pula para o ONNX
+  (`test_sem_gpu_o_auto_pula_o_openvino_gpu`).
+- Ressalva para a banca: o perfil "batata" limita a CPU do servidor a 2
+  E-cores, mas a iGPU é a da máquina inteira. Uma máquina fraca de verdade com
+  gráfico Intel integrado tem esse caminho; sem iGPU, vale o ONNX.
+
+## L2 — modelo de EPI leve para o modo batata (ADENDO 1): sem candidato
+
+Restrição de segurança declarada: peso `.pt` do Ultralytics é *pickle* —
+carregá-lo (inclusive para converter em ONNX) executa código do arquivo. Peso
+de terceiros só entra aqui em formato que carrega sem executar código (ONNX,
+safetensors).
+
+Buscas (13/10):
+
+- Hugging Face, API pública `api/models?search=` com `ppe`, `helmet`,
+  `hardhat`, `safety vest`, `personal protective`, filtrando quem publica
+  `.onnx`: só modelos de **capacete apenas** (`vivekvar/helmet-v5` Apache-2.0,
+  `goyalsamarth/helmetCPT` MIT, `HudatersU/Safety_helmet` GPL-3.0,
+  `raghavendra24/helmet-yolov8s` sem licença…) ou fora do tema; o único com
+  capacete E colete em ONNX é o próprio Vyra (`Hexmon/vyra-yolo-ppe-detection`,
+  YOLOv8**m**, CC BY 4.0, treinado no "PPE Combined Model v4" da Roboflow).
+- Busca web: candidatos YOLOv8n de EPI (`Tanishjain9/yolov8n-ppe-detection-6classes`
+  MIT, `Hansung-Cho/yolov8-ppe-detection`, `ayushgupta7777/safetyvision-yolov8`)
+  só em `.pt` — descartados pela restrição acima.
+- GitHub (`gh search repos "ppe detection yolov8"`): dos 20 primeiros, só
+  `Kanon14/PPE-Detection-YOLOv8` e `Venta02/ppe-detection-yolov8` declaram
+  licença (MIT), e nenhum dos dois publica pesos (árvore sem `.onnx/.pt/.safetensors`).
+
+Conjuntos rotulados públicos com capacete e colete e licença compatível
+existem (ex.: "Dataset of Personal Protective Equipment", Data in Brief 2025,
+CC BY 4.0, 2.286 imagens, YOLO; "Construction Site Safety" da Roboflow, CC BY
+4.0, com split de teste). Sem candidato aprovado, a avaliação comparativa não
+foi feita. **Resultado: L2 não entra; o Vyra segue como único modelo de EPI.**
+Sem treino nem fine-tune nesta máquina, como manda o adendo.
+
+# PR2 — diferenciais F1–F10
+
+Base: WIP `b344f5e` (F1 replay, F3 aproximação, F4 privacidade, F5
+diagnóstico, F7 mapa de calor, F9 relatório, F10 escala, Sobre/Licenças,
+"Iniciar" ligando todas) trazido por cherry-pick sobre o PR1 + alavancas L1/L2.
+Antes de código novo: build do frontend ok (o `dist` do WIP estava defasado do
+próprio código) e suíte com 1 falha — `test_toda_rota_exige_sessao` acusou
+`GET /api/alerts/<int:alert_id>/clip/<int:indice>.jpg -> 404`. A rota TINHA
+`@login_required`; a varredura só substituía parâmetros conhecidos e deixava
+`<int:indice>` literal na URL, então o Flask respondia 404 antes da
+autenticação. Corrigido o TESTE para substituir qualquer parâmetro (fica mais
+forte: rota nova passa a ser exercitada, não ignorada por 404).
+
+## F2 — queda pelo modelo, atribuída a um ID; linha do tempo por ID
+
+- Sondagem na fixture `next_queda` (domínio público): o Vyra vê `fall_detected`
+  em 44 de 500 quadros, em janelas curtas — a maior em 6,0–6,9 s (24 quadros);
+  as outras de 1 a 7 quadros. Nos quadros com a pessoa caída, o detector de
+  pessoa NÃO a vê: maior fração da caixa de queda dentro de alguma pessoa
+  = 0,00–0,18.
+- Regra (`app/vision/quedas.py`): a queda pertence à pessoa que mais a contém
+  (≥ 0,3); se ninguém a contém, a caixa de queda entra no rastreador como
+  pessoa e ganha ID. Alerta `fall_detected`, crítico, feature `falls`,
+  independente da pose. A pílula da tela mostra emergência com pessoa (queda,
+  SOS) antes de EPI crítico.
+- Linha do tempo de conformidade por ID (`app/services/linha_do_tempo_conformidade.py`):
+  só mudanças (EPIs, queda, zona), 120 eventos por ID, 64 IDs; API
+  `/api/cameras/<id>/conformidade-por-id[/<pessoa>]`; botão "Linha do tempo"
+  no cartão da pessoa, com o aviso "ID de rastreio — não identifica ninguém".
+- E2E `test_queda_do_modelo_chega_ao_navegador_com_id`: o alerta chega com
+  "Queda detectada — Pessoa N". Primeiras execuções: (1) chegou SEM pessoa —
+  a injeção só existia no modo com detector de pessoa separado, e o padrão é
+  `MULTI_PERSON_DETECTION=false`; corrigido para os dois modos; (2) com 4–5
+  câmeras no agendador, a câmera "Queda" analisa pouco dentro da janela de
+  ~0,9 s e a histerese (NÃO afrouxada) quase nunca confirma — o teste pausa
+  as outras câmeras durante a execução, como o técnico faria. Limitação real
+  registrada para a BANCA: num pátio com muitas câmeras numa máquina fraca,
+  uma queda que o modelo só enxerga por < 1 s pode não virar alerta.
+
+## F3 — a pílula de aproximação nunca aparecia (E2E) — duas causas
+
+1. No modo de um modelo só (`MULTI_PERSON_DETECTION=false`), as pessoas vinham
+   da classe `Person` do Vyra SEM passar pelo rastreador; a projeção só usa
+   pessoas com ID de rastreio → nunca havia trilha. Corrigido: essas pessoas
+   também passam pelo rastreador (`tests/test_rastreio_modelo_unico.py`, que
+   falha no código anterior).
+2. Mesmo rastreadas, quase não havia pessoas: medido (1 quadro/s, Vyra@640 e
+   yolov8n@640), pessoas por quadro — multidão **0,1 vs 7,1**, canteiro **0,0
+   vs 1,0**, queda **0,0 vs 2,0** (classe `Person` do Vyra vs yolov8n). No
+   padrão antigo o sistema estava praticamente cego para pessoas — quedas por
+   ID, aproximação, linha do tempo e EPI por pessoa dependiam disso. Diagnóstico
+   no servidor do E2E: 18 leituras de status em 90 s, 0 pré-alertas.
+   **Mudança: `MULTI_PERSON_DETECTION=true` é o padrão** (o `.env.example` já
+   dizia `true` e o teste de onboarding conferia isso; o default do código
+   divergia). Os portões do PR1 já foram medidos com ele ligado. Simulação com
+   yolov8n e a mesma zona: 5 de 15 análises com pré-alerta a 1 análise/s.
+   Também: `PERSON_MODEL_PATH` padrão passou de `yolov8n.pt` (que o ultralytics
+   baixaria da internet se não achasse no diretório de trabalho) para
+   `models/yolov8n.pt`.
+
+## Pose no mesmo `auto` (OpenVINO na iGPU) — consequência do detector de pessoa padrão
+
+Com `MULTI_PERSON_DETECTION=true` como padrão, cada análise passou a rodar
+também o yolov8n (~100 ms na iGPU) e o **YOLO-pose em PyTorch (236 ms por
+quadro, medido na fixture de queda)** — no modo antigo a pose não rodava, porque
+os esqueletos só são calculados no ramo multi-pessoa. A reexecução do E2E
+(`bench/runtime/e2e-pr2c.out`) caiu para 7/11: queda, replay, aproximação e
+privacidade estouraram o tempo; na janela do teste de queda não houve nenhum
+`fall_detected` na câmera Queda (houve depois, fora da janela).
+
+Correção: o YOLO-pose entra no resolvedor de runtime como modelo `esqueleto`
+(`POSE_RUNTIME=auto`, mesma `RUNTIME_ORDEM`). Guarda estendida para pose:
+concordância de caixas (≥ 97 %) **e** erro dos keypoints — distância ao da
+referência PyTorch@640 dividida pela diagonal da caixa, p95 ≤ 0,05
+(`scripts/concordancia.py --modelo esqueleto`, 120 quadros das 3 fixtures):
+
+| candidato | concordância | pares | erro kp p50 | erro kp p95 | bancada p50 |
+|---|---|---|---|---|---|
+| OpenVINO iGPU FP32 | 100 % | 459 | 0,0000 | 0,0000 | 63 ms |
+| OpenVINO iGPU FP16 | 99,25 % | 456 | 0,0008 | 0,0048 | 78 ms |
+| OpenVINO CPU FP32 | 100 % | 459 | 0,0000 | 0,0000 | 150 ms |
+| ONNX dinâmico | 100 % | 459 | 0,0000 | 0,0000 | 87 ms |
+| PyTorch (medição avulsa) | referência | — | — | — | 236 ms |
+
+Bancada é só pista (processo isolado); a decisão vale pelo E2E e pelo bench do
+portão. Fonte: `bench/results/concordancia-esqueleto-20261013-170752.json`.
+
+## Revisão visual do PR2 (capturas 1920x1080 e 1366x768, claro e escuro)
+
+`python e2e/capturas_de_tela.py` (16 telas × 4 combinações, fora do git em
+`bench/runtime/capturas/`). Critérios: cor só para status, tema claro como
+padrão da demo, nada quebrando em 1366x768. Corrigido:
+
+| tela | problema | correção |
+|---|---|---|
+| foco da câmera | barra de abas quebrava em 2 linhas ("Mais" caía) | sem quebra; abas mais justas abaixo de 1440 px |
+| foco da câmera | pílula do alerta vazava pela direita do vídeo | largura máxima com reticências |
+| Diagnóstico | KPIs (4 colunas fixas) e barras estouravam o painel | grade `auto-fit` e colunas com mínimo |
+| foco da câmera | cabeçalho mostrava o caminho inteiro do arquivo (com a pasta do usuário) | só o nome do arquivo |
+| Prova de escala | modal sem respiro (texto colado na borda) | padding |
+| Pessoas | descrição antiga ("quando o modelo PPE completo estiver disponível") | "o número é do rastreio, não uma identidade" |
+
+Não corrigido (anotado): na grade, o primeiro cartão fica ~15 px mais alto que
+os vizinhos — causa não isolada; "Visão geral" do supervisor ainda é um
+marcador "em construção" (vira o painel agregado/Modo TV no PR3, G8).
+
+## E2E com pessoas de verdade na cena: dois testes e uma regra de tela
+
+Com o detector de pessoa padrão, a câmera Multidão passou a ter ~8 pessoas com
+alerta. Rodada `e2e-pr2d`: 9/11. Diagnóstico por captura de tela (script
+Playwright contra o servidor do E2E, 120 s na aba Alertas):
+
+- **Replay**: a aba Alertas agrupa por pessoa e recolhe os grupos quando há
+  mais de 3 (`alerts.tsx`); o botão "Ver replay" existia, dentro de um grupo
+  fechado. O teste agora abre o primeiro grupo. Sem mudança no produto.
+- **Pílula de aproximação**: a pílula cedia a QUALQUER alerta `high`, e "pessoa
+  na área de risco" é `high`. Com a zona do teste (40 % do quadro) sempre havia
+  alguém dentro, então a projeção de quem se aproximava nunca aparecia — o
+  mesmo aconteceria numa doca movimentada. Regra nova (`cobrePreAlerta`): o
+  pré-alerta cede só para emergência (queda, SOS) ou EPI crítico.
+
+Ruído observado (não corrigido neste PR, vai para o PR4): ~1.000 alertas em 16
+min no servidor do E2E — 5 por pessoa e um novo conjunto a cada troca de ID do
+rastreador na multidão. Cada alerta também grava o próprio clipe de replay.
+
+## Alerta que ficava ativo depois de parar a câmera
+
+Achado no log do servidor do E2E (`alert_state_stop_resolution_failed`,
+"Instance <Alert> is not bound to a Session"). `CameraWorker.stop()` roda na
+thread da requisição e resolve alertas criados na sessão da thread do worker; o
+objeto chegava desanexado e expirado pelo commit. Resultado: exceção (lendo
+`status`) ou commit vazio — o alerta continuava `active` no banco com a câmera
+parada. Correção: `AlertRepository.na_sessao()` traz o alerta para a sessão da
+thread atual antes de ler/alterar. Teste que reproduz (falhava com `'active' ==
+'resolved'`): `tests/test_alert_repository.py::test_resolve_de_outra_thread_nao_perde_o_alerta`.
+
+## F6 — celular como câmera via QR
+
+- Docs: getUserMedia só em contexto seguro, e em contexto inseguro
+  "`navigator.mediaDevices` is `undefined`"
+  (https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia);
+  IP de LAN em `http://` não é contexto seguro
+  (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).
+- Fonte `celular://<token>` (`app/vision/fonte_celular.py`); token aleatório é
+  a única credencial do celular: só envia quadro para aquela câmera.
+  `GET /cam` e `POST /api/celular/<token>/quadro` são as duas rotas públicas
+  (listadas na varredura, com testes de token desconhecido → 404, imagem
+  inválida → 400, teto de taxa → 429). Pareamento `GET /api/cameras/<id>/celular`
+  só para técnico.
+- HTTPS local: `python run.py --https` gera certificado autoassinado com o
+  `cryptography` (SAN localhost, 127.0.0.1 e IP da LAN; chave em `instance/`,
+  fora do git) e escuta na rede.
+- QR: Project Nayuki, MIT, arquivo único vendorizado em
+  `frontend/src/vendor/qrcodegen.ts` (lido antes: só cálculo, sem rede/eval/DOM)
+  — ATRIBUICOES.md.
+- E2E `test_celular_vira_camera_pelo_link_do_qr` com o Chromium em
+  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`: página
+  sem login, câmera falsa, ≥ 10 quadros no servidor, QR na aba da câmera.
+
+## F8 — YOLOE-26 (vocabulário aberto): descartado
+
+- Condições da missão ATENDIDAS: (a) o Vyra carrega no ultralytics 8.4.176
+  (instalação lateral `bench/_ul84`, `YOLO_CONFIG_DIR` separado) com
+  concordância de **100 %** contra o 8.3.40 (121 de 121 caixas,
+  `scripts/dump_deteccoes.py`); (b) a suíte passa inteira sob o 8.4:
+  **486 passed**.
+- Bloqueio de LICENÇA: prompt de texto no YOLOE-26 baixa o codificador
+  `mobileclip2_b.ts` (~254 MB, doc https://docs.ultralytics.com/models/yoloe/).
+  A licença dos modelos MobileCLIP (`apple/ml-mobileclip`, arquivo
+  `LICENSE_MODELS`) restringe a "Research Purposes" e diz que isso "does not
+  include any commercial exploitation, product development or use in any
+  commercial product". Definir classes de EPI do produto com ele é
+  desenvolvimento de produto. A variante sem prompt (`-seg-pf.pt`) usa
+  vocabulário embutido de procedência não documentada, e não há conjunto
+  rotulado aqui para provar qualidade.
+- Achado ao tentar: sob o 8.4 o runtime "OpenVINO GPU" rodou na CPU (log:
+  "inference on (CPU)"; concordância 99,17 %) — os ajustes de runtime deste
+  projeto dependem dos internos do 8.3.40. Trocar de versão exige refazer essa
+  camada.
+- **Decisão: F8 descartado; ultralytics segue 8.3.40.**
+
 ## 4.1 Pipeline
 
 | Mudança | Motivo | Evidência |

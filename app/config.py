@@ -286,11 +286,14 @@ class Config:
     # fundo. So aplica quando ha pessoa no frame.
     PPE_REQUIRE_PERSON_OVERLAP = env_bool("PPE_REQUIRE_PERSON_OVERLAP", True)
     PPE_PERSON_OVERLAP_MIN = env_float("PPE_PERSON_OVERLAP_MIN", 0.35)
-    # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
-    # PPE_MODEL_PATH aponta pra um modelo de EPI sem classe "person" própria
-    # (ex: epi_pretrained.pt). O Vyra já traz "Person" (classe 11), então roda
-    # desligado por padrão — ver MULTI_PERSON_DETECTION abaixo.
-    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "yolov8n.pt")
+    # Modelo dedicado a detectar "person" (classe 0 COCO). O Vyra tem a classe
+    # "Person" (11), mas medido nas fixtures (13/10, docs/NEXT2026/CHANGELOG.md)
+    # ela quase não dispara: pessoas por quadro Vyra 0,1 / 0,0 / 0,0 contra
+    # yolov8n 7,1 / 1,0 / 2,0 (multidão, canteiro, queda). Por isso o detector
+    # dedicado é LIGADO por padrão — ver MULTI_PERSON_DETECTION abaixo.
+    # Caminho dentro de models/: "yolov8n.pt" solto faria o ultralytics baixar
+    # o peso da internet quando não o achasse no diretório de trabalho.
+    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "models/yolov8n.pt")
     YOLO_CONFIDENCE = env_float("YOLO_CONFIDENCE", 0.35)
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
     # FP16 na GPU: quase metade do tempo de inferencia na mesma RTX, sem perda
@@ -322,11 +325,30 @@ class Config:
     # PyTorch 3997. Exportar e aprovar: python scripts/concordancia.py.
     PPE_RUNTIME = os.getenv("PPE_RUNTIME", "auto")
     PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "auto")
-    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "onnx,pytorch")
+    POSE_RUNTIME = os.getenv("POSE_RUNTIME", "auto")
+    # openvino-gpu primeiro (13/10, ADENDO 1 L1): na iGPU Intel o CPU-ms do
+    # servidor por análise caiu 78 % contra o ONNX (batata 1 câm., 3 rodadas);
+    # sem GPU visível ao OpenVINO, o resolvedor pula para o ONNX.
+    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
     # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
     # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
+    # Modo privacidade (F4): desfoque de rosto em tudo que sai do worker.
+    # Ligado por padrão; só o supervisor desliga, e cada troca é auditada.
+    PRIVACIDADE_PADRAO = env_bool("PRIVACIDADE_PADRAO", True)
+    # Mapa de calor (F7): meia-vida do decaimento.
+    MAPA_DE_CALOR_MEIA_VIDA_S = env_float("MAPA_DE_CALOR_MEIA_VIDA_S", 900.0)
+    # Replay de incidente (F1): buffer circular em memória por câmera e clipe
+    # de REPLAY_ANTES_S antes a REPLAY_DEPOIS_S depois do alerta.
+    REPLAY_ATIVO = env_bool("REPLAY_ATIVO", True)
+    REPLAY_DIR = os.getenv("REPLAY_DIR", "runtime/clips")
+    REPLAY_ANTES_S = env_float("REPLAY_ANTES_S", 5.0)
+    REPLAY_DEPOIS_S = env_float("REPLAY_DEPOIS_S", 3.0)
+    REPLAY_FPS = env_float("REPLAY_FPS", 10.0)
+    # Pré-alerta de aproximação da zona de risco (projeção cinemática, F3).
+    APROXIMACAO_ATIVA = env_bool("APROXIMACAO_ATIVA", True)
+    APROXIMACAO_LIMITE_S = env_float("APROXIMACAO_LIMITE_S", 3.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
@@ -350,7 +372,7 @@ class Config:
     # 0 = desligado (padrao). Use quando o video estiver travado pra ver ONDE
     # o tempo vai, em vez de adivinhar pelo FPS medio.
     PROFILE_FRAMES = env_int("PROFILE_FRAMES", 0)
-    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", False)
+    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", True)
 
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
     # frame. E o que permite atribuir queda/postura a um individuo. Custa N
@@ -458,6 +480,7 @@ class TestConfig(Config):
     # MÁQUINA (fora do git). A suíte não pode depender de export local.
     PPE_RUNTIME = "pytorch"
     PERSON_RUNTIME = "pytorch"
+    POSE_RUNTIME = "pytorch"
     # Mesmo motivo: um .env com credencial RTSP de planta real configurada
     # (necessaria pra rodar contra camera de verdade) nao pode fazer
     # test_add_recusa_host_sem_credencial_configurada deixar de testar o

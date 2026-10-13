@@ -79,6 +79,11 @@ class AlertRepository:
         return alert
 
     def resolve(self, alert: Alert, *, metadata: dict[str, Any] | None = None, commit: bool = True) -> Alert:
+        # `stop()` resolve, na thread da requisição, alertas criados na thread do
+        # worker: o objeto chega de outra sessão (desanexado e expirado pelo
+        # commit). Sem trazê-lo para esta sessão, o commit não gravava nada e o
+        # alerta ficava ativo no banco (tests/test_alert_repository.py).
+        alert = self.na_sessao(alert)
         now = utc_now()
         alert.status = "resolved"
         alert.last_seen_at = now
@@ -88,6 +93,11 @@ class AlertRepository:
         if commit:
             db.session.commit()
         return alert
+
+    @staticmethod
+    def na_sessao(alert: Alert) -> Alert:
+        """O alerta anexado à sessão desta thread (recarregado se veio de outra)."""
+        return alert if alert in db.session else db.session.merge(alert)
 
     def salvar(self) -> None:
         """Fecha a transação aberta por chamadas com `commit=False`."""

@@ -12,10 +12,21 @@ import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
-import { Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { cobrePreAlerta, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
+import { PipelinePanel } from "./pipeline-panel";
+import { HeatmapPanel } from "./heatmap-panel";
+import { CelularQr } from "./celular-qr";
 import { AvisoDegradado, FeedBadge } from "./feed-status";
-import { deleteCamera, discoverCameras, getCameraStatus, startCamera, stopCamera, updateCamera } from "../api/endpoints";
+import {
+  definirPrivacidade,
+  deleteCamera,
+  discoverCameras,
+  getCameraStatus,
+  startCamera,
+  stopCamera,
+  updateCamera,
+} from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
 import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
 import { paraDate } from "../utils/datas";
@@ -46,6 +57,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const [agora, setAgora] = useState(() => Date.now());
   const [stream, setStream] = useState<EstadoDoStream>("conectando");
   const critico = temAlertaCritico(estado);
+  const preAlertas = useDashboardStore((s) => s.preAlertas);
 
   // O relógio do alerta anda sozinho; sem isso o "decorrido" congelava entre
   // dois pollings.
@@ -85,6 +97,13 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 <span className={`dot ${connected ? "ok" : "off"}`} />
                 {connected ? "Conectado" : "Sem conexão"}
               </span>
+              {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
+                <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
+                  <span className="dot" />
+                  Aproximação · Pessoa {preAlertas[0].track_id} · ~{preAlertas[0].segundos_ate_entrar.toFixed(1)} s
+                  <span className="t-data">projeção cinemática</span>
+                </span>
+              )}
               <AnimatePresence initial={false}>
                 {critico && (
                   <motion.span
@@ -119,6 +138,46 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
       </div>
       {estado.running && <PartToggles />}
     </section>
+  );
+}
+
+/**
+ * Modo privacidade (F4). Todos veem o estado; só o supervisor troca, e o
+ * servidor registra quem trocou e quando. Desligar pede confirmação.
+ */
+function PrivacidadeControle({ cameraId, ativa, rodando, onMudou }: {
+  cameraId: number; ativa: boolean; rodando: boolean; onMudou: () => void;
+}) {
+  const mode = useDashboardStore((s) => s.mode);
+  const [pendente, setPendente] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const supervisor = mode === "supervisor";
+  const trocar = () => {
+    if (ativa && !window.confirm("Desligar o desfoque de rosto desta câmera? A troca fica registrada com o seu usuário.")) return;
+    setPendente(true);
+    setErro(null);
+    definirPrivacidade(cameraId, !ativa)
+      .then(onMudou)
+      .catch((e) => setErro(e instanceof Error ? e.message : "Falha ao trocar a privacidade"))
+      .finally(() => setPendente(false));
+  };
+  return (
+    <div className="privacidade-linha">
+      <span>
+        Desfoque de rosto: <strong data-testid="privacidade-estado">{ativa ? "ligado" : "desligado"}</strong>
+      </span>
+      <button
+        type="button"
+        className="ghost small"
+        data-testid="privacidade-botao"
+        disabled={!supervisor || pendente || !rodando}
+        onClick={trocar}
+      >
+        {ativa ? "Desligar desfoque" : "Ligar desfoque"}
+      </button>
+      {!supervisor && <span className="muted">Só o supervisor altera.</span>}
+      {erro && <span className="status-text error">{erro}</span>}
+    </div>
   );
 }
 
@@ -187,6 +246,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
           </div>
         )}
       </div>
+      <PrivacidadeControle cameraId={camera.id} ativa={status?.privacidade?.ativa ?? true} rodando={running} onMudou={refresh} />
       <div className="actions">
         <button type="button" className="primary" disabled={pending || running} onClick={handleStart}>
           {pending && !running ? "Iniciando…" : "Iniciar esta câmera"}
@@ -288,6 +348,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
               <option value="USB">USB</option>
               <option value="RTSP">RTSP</option>
               <option value="Arquivo">Arquivo</option>
+              <option value="Celular">Celular (via QR code)</option>
             </select>
           </label>
           <label>
@@ -363,6 +424,8 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
+    { key: "heatmap", label: "Mapa de calor", content: <></> },
+    { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
@@ -381,6 +444,8 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
     { key: "settings", label: "Parâmetros", content: <SettingsPanel /> },
+    { key: "heatmap", label: "Mapa de calor", content: <></> },
+    { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
@@ -424,12 +489,31 @@ export function CameraFocus() {
   const tabs = TABS_BY_MODE[mode].map((tab) => {
     if (tab.key === "llm") return { ...tab, content: <LlmPanel camId={camera.id} /> };
     if (tab.key === "gate") return { ...tab, content: <GateConfigPanel camera={camera} /> };
-    if (tab.key === "camconfig") return { ...tab, content: <CameraConfigPanel camera={camera} /> };
+    if (tab.key === "camconfig")
+      return {
+        ...tab,
+        content: (
+          <>
+            {camera.source_type === "Celular" && <CelularQr cameraId={camera.id} />}
+            <CameraConfigPanel camera={camera} />
+          </>
+        ),
+      };
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
+    if (tab.key === "pipeline") return { ...tab, content: <PipelinePanel cameraId={camera.id} /> };
+    if (tab.key === "heatmap") return { ...tab, content: <HeatmapPanel cameraId={camera.id} /> };
     return tab;
   });
 
-  const sub = [camera.location, `${camera.source_type} ${camera.source}`].filter(Boolean).join(", ");
+  // Celular: a fonte é o token de pareamento — não vai para o cabeçalho.
+  // Arquivo: só o nome; o caminho inteiro poluía e expunha a pasta do usuário.
+  const fonte =
+    camera.source_type === "Celular"
+      ? "Celular (via QR code)"
+      : camera.source_type === "Arquivo"
+        ? `Arquivo ${String(camera.source).split(/[\\/]/).pop()}`
+        : `${camera.source_type} ${camera.source}`;
+  const sub = [camera.location, fonte].filter(Boolean).join(", ");
 
   return (
     <div className="screen with-sidebar">

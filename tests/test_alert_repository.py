@@ -146,3 +146,33 @@ def test_snapshots_referenciados_sao_listados_para_protecao(app, repository):
         repository.create(rule="r", severity="high", message="sem evidencia", feature="vest")
 
         assert repository.referenced_frame_filenames() == {"alert_1_missing_vest_x.jpg"}
+
+
+def test_resolve_de_outra_thread_nao_perde_o_alerta(app, repository):
+    """Regressão (log do E2E, 13/10): `stop()` roda na thread da requisição e
+    resolve alertas criados na thread do worker. O objeto chega desanexado e
+    expirado pelo commit; `resolve` falhava com "not bound to a Session" e o
+    alerta ficava ativo no banco depois de a câmera parar."""
+    import threading
+
+    criado = {}
+
+    def worker():
+        with app.app_context():
+            criado["alerta"] = repository.create(rule="missing_vest", severity="high", message="Sem colete",
+                                                 feature="vest", metadata=dict(METADATA))
+            criado["id"] = criado["alerta"].id
+
+    t = threading.Thread(target=worker)
+    t.start()
+    t.join()
+
+    with app.app_context():
+        # O caminho real (`AlertStateService.resolve_all`) lê o status antes.
+        assert repository.na_sessao(criado["alerta"]).status == "active"
+        resolvido = repository.resolve(criado["alerta"], metadata={"resolution_reason": "monitor_stopped"})
+        assert resolvido.status == "resolved"
+        assert resolvido.to_dict()["id"] == criado["id"]
+        stored = _reload(criado["id"])
+        assert stored.status == "resolved"
+        assert stored.metadata_json["resolution_reason"] == "monitor_stopped"

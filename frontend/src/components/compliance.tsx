@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
@@ -65,6 +66,61 @@ export function ComplianceCard() {
   );
 }
 
+type EventoDaLinha = { ts: number; ppe: Record<string, string>; queda: boolean; zona?: string | null };
+
+/** Linha do tempo de conformidade de UM ID de rastreio (F2): só as mudanças. */
+function LinhaDoTempo({ cameraId, pessoaId }: { cameraId: number; pessoaId: string }) {
+  const [eventos, setEventos] = useState<EventoDaLinha[] | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    const carregar = () =>
+      fetch(`/api/cameras/${cameraId}/conformidade-por-id/${encodeURIComponent(pessoaId)}`, { credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => vivo && setEventos(d ? (d.eventos as EventoDaLinha[]) : []))
+        .catch(() => vivo && setEventos([]));
+    carregar();
+    const t = window.setInterval(carregar, 3000);
+    return () => {
+      vivo = false;
+      window.clearInterval(t);
+    };
+  }, [cameraId, pessoaId]);
+  if (eventos === null) return <span className="muted">Carregando…</span>;
+  return (
+    <div className="linha-do-tempo" data-testid="linha-do-tempo">
+      <span className="muted">ID de rastreio — some quando a pessoa sai de cena; não identifica ninguém.</span>
+      {eventos.length === 0 ? (
+        <span className="muted">Sem mudanças registradas ainda.</span>
+      ) : (
+        <ol>
+          {[...eventos].reverse().map((e) => (
+            <li key={e.ts}>
+              <time>{new Date(e.ts * 1000).toLocaleTimeString("pt-BR")}</time>
+              <span className="chip-row">
+                {e.queda && (
+                  <span className="chip miss">
+                    <span className="dot" />
+                    Queda
+                  </span>
+                )}
+                {PPE_KEYS.filter((k) => e.ppe[k]).map((k) => (
+                  <PpeChip key={k} label={PPE_LABELS[k]} status={e.ppe[k]} />
+                ))}
+                {e.zona === "inside" && (
+                  <span className="chip miss">
+                    <span className="dot" />
+                    Na área de risco
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 export function PersonCard() {
   const compliance = useDashboardStore((s) => s.compliance);
   const lastDetections = useDashboardStore((s) => s.lastDetections);
@@ -72,10 +128,12 @@ export function PersonCard() {
   const bootstrapping = useDashboardStore((s) => s.bootstrapping);
   const people = compliance?.people || [];
   const detectionCount = lastDetections.length;
+  const camId = useDashboardStore((s) => s.camId);
+  const [aberto, setAberto] = useState<string | null>(null);
 
   if (bootstrapping) {
     return (
-      <Panel id="panel-people" title="Pessoas e detecções" description="Cards por pessoa quando o modelo PPE completo estiver disponível.">
+      <Panel id="panel-people" title="Pessoas e detecções" description="Uma ficha por pessoa rastreada. O número é do rastreio, não uma identidade.">
         <PanelSkeleton lines={2} />
       </Panel>
     );
@@ -85,7 +143,7 @@ export function PersonCard() {
     <Panel
       id="panel-people"
       title="Pessoas e detecções"
-      description="Cards por pessoa quando o modelo PPE completo estiver disponível."
+      description="Uma ficha por pessoa rastreada. O número é do rastreio, não uma identidade."
       action={<Badge>{`${detectionCount} ${detectionCount === 1 ? "detecção" : "detecções"}`}</Badge>}
     >
       <div className="row-list">
@@ -100,6 +158,17 @@ export function PersonCard() {
                   <span>
                     Confiança {(person.confidence * 100).toFixed(1)}%, caixa {person.box.x1},{person.box.y1} a {person.box.x2},{person.box.y2}
                   </span>
+                  {camId != null && (
+                    <button
+                      type="button"
+                      className="link-button"
+                      aria-expanded={aberto === person.id}
+                      onClick={() => setAberto(aberto === person.id ? null : person.id)}
+                    >
+                      {aberto === person.id ? "Fechar linha do tempo" : "Linha do tempo"}
+                    </button>
+                  )}
+                  {camId != null && aberto === person.id && <LinhaDoTempo cameraId={camId} pessoaId={person.id} />}
                   <div className="chip-row">
                     {PPE_KEYS.map((key) => {
                       const item = person.ppe[key];
