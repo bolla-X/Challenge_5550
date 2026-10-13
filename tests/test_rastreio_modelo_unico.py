@@ -41,7 +41,8 @@ def test_pessoas_do_modelo_unico_ganham_id_estavel_e_alimentam_a_aproximacao():
     app = create_app(Cfg)
     with app.app_context():
         epi = DetectorDuble([_pessoa(100)])
-        worker = CameraWorker(app, socketio=None, feature_manager=FeatureManager.from_config({"DEFAULT_FEATURES": "ppe,helmet,vest,risk_area"}), camera_id=3,
+        recursos = FeatureManager.from_config({"DEFAULT_FEATURES": "ppe,helmet,vest,risk_area"})
+        worker = CameraWorker(app, socketio=None, feature_manager=recursos, camera_id=3,
                               source="fonte-falsa", fps=12, detector=epi, person_detector=DetectorDuble([]),
                               pose_estimator=None, inference_lock=threading.Lock())
         quadro = np.zeros((540, 960, 3), dtype=np.uint8)
