@@ -259,5 +259,6 @@ def test_diagnostico_mostra_o_runtime_ativo(pagina, servidor):
 def test_relatorio_de_turno_abre(pagina, servidor):
     """F9: o relatório do turno abre (link da barra) e traz o título e os números."""
     entrar(pagina, servidor, "supervisor")
+    pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.wait_for(timeout=30_000)  # login concluído
     pagina.goto(servidor.base + "/relatorio/turno")
-    assert pagina.get_by_role("heading", name="Relatório de turno").is_visible()
+    pagina.get_by_role("heading", name="Relatório de turno").wait_for(timeout=30_000)

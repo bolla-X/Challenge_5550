@@ -100,9 +100,8 @@ def test_envio_com_token_valido_e_limitado(app):
 
 
 def test_certificado_local_cobre_os_ips_e_e_reaproveitado(tmp_path):
-    from cryptography import x509
-
     from app.utils.https_local import garantir_certificado
+    from cryptography import x509
 
     cert, chave = garantir_certificado(tmp_path, ["192.168.0.10"])
     lido = x509.load_pem_x509_certificate(cert.read_bytes())

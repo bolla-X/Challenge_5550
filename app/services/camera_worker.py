@@ -1755,10 +1755,17 @@ class CameraWorker:
                     people = self._anexar_esqueletos(people, esqueletos)
             else:
                 # Sem detector de pessoa separado, as pessoas são a classe
-                # `Person` do próprio modelo de EPI: a queda que nenhuma delas
-                # contém entra como pessoa do mesmo jeito (F2).
+                # `Person` do próprio modelo de EPI. Elas TAMBÉM passam pelo
+                # rastreador: sem ID de rastreio, a projeção de aproximação (F3)
+                # nunca disparava neste modo (o padrão), e o ID da pessoa era a
+                # posição na cena — mudava a cada quadro e quebrava a chave do
+                # alerta e a linha do tempo (F2). A queda que nenhuma pessoa
+                # contém entra como pessoa do mesmo jeito.
                 vistas = [d for d in ppe_detections if d.label == "person" or d.category == "person"]
-                ppe_detections = ppe_detections + pessoas_com_quedas(vistas, ppe_detections)[len(vistas):]
+                outras = [d for d in ppe_detections if not (d.label == "person" or d.category == "person")]
+                rastreadas = self.person_tracker.update(pessoas_com_quedas(vistas, ppe_detections))
+                marcar("tracking")
+                ppe_detections = outras + rastreadas
             ppe_detections = self._gate_ppe_to_people(ppe_detections, people)
             marcar("filtro_epi")
             detections = ppe_detections + people
