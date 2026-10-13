@@ -348,6 +348,10 @@ class CameraWorker:
             min_confirmacoes=app.config.get("ALERT_MIN_CONFIRMATIONS", 2),
             resolve_after_seconds=float(app.config.get("ALERT_RESOLVE_AFTER_SECONDS", 0)) or None,
             min_confirmacoes_resolver=app.config.get("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3),
+            regras_de_emergencia=frozenset(
+                r.strip() for r in str(app.config.get("ALERT_EMERGENCY_RULES", "fall_detected")).split(",") if r.strip()
+            ),
+            confirmacoes_emergencia=int(app.config.get("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")

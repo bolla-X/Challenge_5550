@@ -690,7 +690,22 @@ dentro do bloco `with self._thread_lock` e tirou dele o contador de quadros
 (`_frame_counter`/`_latest_capture_ts_ms` só atualizavam quando havia fila de
 rótulos). Achado lendo o diff; a suíte não pegava.
 
-Instabilidade conhecida do E2E: o teste de queda depende de 3 análises caírem
-dentro da janela de ~0,9 s em que o modelo vê a pessoa caída; numa rodada
-completa do PR3 falhou (nenhum `fall_detected` em 5 min), isolado passou em
-~1 min. A histerese não foi afrouxada.
+Queda breve nunca virava alerta (achado ao investigar o E2E de queda, que
+falhou nas duas rodadas completas do PR3 e passava isolado): a histerese comum
+(8 quadros OU 2 s com ≥ 2 confirmações) não acontece num evento que o modelo vê
+por ~1 s. Medido a 4 análises/s com o Vyra (classe `Fall-Detected`, conf 0,35):
+
+| gravação | análises com queda | maior sequência | pares seguidos |
+|---|---|---|---|
+| queda | 9 de 84 | 4 (~1 s) | 3 |
+| multidão (sem queda) | 2 de 63 | 1 | 0 |
+| canteiro (sem queda) | 0 de 30 | 0 | 0 |
+
+A queda real aparece em análises seguidas; o falso positivo, isolado. Regra
+nova só para emergência (`ALERT_EMERGENCY_RULES=fall_detected`): 2 análises
+NOVAS seguidas criam o alerta. EPI e área de risco seguem a histerese comum
+(teste garante). Amostra pequena (3 gravações): o risco de falso alarme de
+queda numa planta real fica registrado para a banca.
+
+Corrida benigna no Socket.IO (`join_room` de cliente que acabou de
+desconectar, `KeyError` no log do E2E) tratada no handler de foco.

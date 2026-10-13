@@ -174,10 +174,15 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                 return {"ok": False}
             if usuario.role == "operator" and usuario.camera_id != camera_id:
                 return {"ok": False}
-        for sala in list(rooms()):
-            if str(sala).startswith("foco:"):
-                leave_room(sala)
-        join_room(sala_de_foco(camera_id))
+        try:
+            for sala in list(rooms()):
+                if str(sala).startswith("foco:"):
+                    leave_room(sala)
+            join_room(sala_de_foco(camera_id))
+        except KeyError:
+            # O cliente desconectou entre o evento e o join (corrida vista no
+            # log do E2E): não há sala para entrar, e não é erro do servidor.
+            return {"ok": False}
         return {"ok": True}
 
     @socketio.on("revalidate")

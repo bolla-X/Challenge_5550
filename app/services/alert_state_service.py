@@ -71,6 +71,8 @@ class AlertStateService:
         min_confirmacoes: int = 2,
         resolve_after_seconds: float | None = None,
         min_confirmacoes_resolver: int = 3,
+        regras_de_emergencia: frozenset[str] = frozenset(),
+        confirmacoes_emergencia: int = 2,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
@@ -95,6 +97,14 @@ class AlertStateService:
         self.min_confirmacoes = max(1, int(min_confirmacoes))
         self.resolve_after_seconds = resolve_after_seconds
         self.min_confirmacoes_resolver = max(1, int(min_confirmacoes_resolver))
+        # Emergência (queda) é BREVE no vídeo: na gravação de queda o modelo vê a
+        # pessoa caída por ~1 s (4 análises seguidas a 4/s), e nem 8 quadros nem
+        # "2 s com 2 confirmações" acontecem — a queda nunca virava alerta. Nas
+        # gravações sem queda, a classe aparece só em análises ISOLADAS (0 pares
+        # seguidos em 93 análises; CHANGELOG, PR3). Daí: para estas regras,
+        # `confirmacoes_emergencia` análises novas seguidas bastam.
+        self.regras_de_emergencia = frozenset(regras_de_emergencia)
+        self.confirmacoes_emergencia = max(1, int(confirmacoes_emergencia))
         # Segundos entre gravações de um alerta que CONTINUA ativo.
         #
         # Antes o `touch` (last_seen_at + occurrences) fazia um commit por
@@ -242,10 +252,11 @@ class AlertStateService:
             state.normal_frames = 0
             state.normal_desde = None
 
+            emergencia = item.rule in self.regras_de_emergencia and state.violation_frames >= self.confirmacoes_emergencia
             if (
                 state.alert is None
-                and self._confirmou(state.violation_frames, state.violacao_desde, agora,
-                                    self.create_after_frames, self.create_after_seconds, self.min_confirmacoes)
+                and (emergencia or self._confirmou(state.violation_frames, state.violacao_desde, agora, self.create_after_frames,
+                                                   self.create_after_seconds, self.min_confirmacoes))
                 and not self._silenciado(key, item)
             ):
                 state.alert = self.repository.create(

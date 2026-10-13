@@ -420,6 +420,10 @@ class Config:
     ALERT_MIN_CONFIRMATIONS = env_int("ALERT_MIN_CONFIRMATIONS", 2)
     ALERT_RESOLVE_AFTER_SECONDS = env_float("ALERT_RESOLVE_AFTER_SECONDS", 6.0)
     ALERT_MIN_RESOLVE_CONFIRMATIONS = env_int("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3)
+    # Emergência breve (queda pelo modelo): N análises novas seguidas criam o
+    # alerta, sem esperar o tempo mínimo (ver AlertStateService, PR3).
+    ALERT_EMERGENCY_RULES = os.getenv("ALERT_EMERGENCY_RULES", "fall_detected")
+    ALERT_EMERGENCY_MIN_CONFIRMATIONS = env_int("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
