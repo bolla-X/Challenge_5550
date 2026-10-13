@@ -193,6 +193,15 @@ class ProvedorGemini:
             raise ProvedorIndisponivel(redigir_segredos(f"{type(exc).__name__}: {exc}")) from None
         return resposta.text or ""
 
+    def resumir(self, prompt: str) -> str:
+        """Texto puro (sem imagem) — usado pelo resumo opcional do relatório de turno."""
+        cliente = self._obter_cliente()
+        try:
+            resposta = cliente.models.generate_content(model=self.modelo, contents=[prompt])
+        except Exception as exc:  # noqa: BLE001  (fronteira de rede engole tudo de proposito)
+            raise ProvedorIndisponivel(redigir_segredos(f"{type(exc).__name__}: {exc}")) from None
+        return resposta.text or ""
+
 
 # --------------------------------------------------------------- prompts ----
 def versoes_de_prompt() -> list[str]:

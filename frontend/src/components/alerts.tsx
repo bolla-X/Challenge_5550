@@ -6,6 +6,7 @@ import type { Alert } from "../api/types";
 import { acknowledgeAllAlerts, deleteResolvedAlerts, getCameraStatus, listAlerts, resolveActiveAlerts } from "../api/endpoints";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { paraDate } from "../utils/datas";
+import { IncidentReplay } from "./replay";
 
 const NIVEL: Record<string, number> = { operator: 1, technical: 2, supervisor: 3 };
 const TIPOS_DE_ALERTA: { value: string; label: string }[] = [
@@ -31,12 +32,14 @@ function formatDateTime(value: string | null): string {
  * alto tingem a linha e acendem o ponto; médio acende só o ponto. */
 function AlertRow({ alert, active, reduceMotion = false, animated = false }: { alert: Alert; active: boolean; reduceMotion?: boolean; animated?: boolean }) {
   const markFalsePositive = useDashboardStore((s) => s.markFalsePositive);
+  const nomeDaCamera = useDashboardStore((s) => s.cameras.find((c) => c.id === alert.camera_id)?.name);
+  const [replayAberto, setReplayAberto] = useState(false);
   const meta = alert.metadata || {};
   const subject = (meta.person_label as string) || (meta.person_id as string) || (meta.subject as string) || "global";
   const cls = ["alert-row", alert.severity, alert.resolved_at ? "resolved" : "", alert.false_positive ? "false-positive" : ""].filter(Boolean).join(" ");
   const contexto = [alert.rule, subject].filter(Boolean).join(" · ");
   const resolvido = alert.resolved_at ? `, resolvido ${formatDateTime(alert.resolved_at)}` : "";
-  const temAcao = Boolean(alert.frame_ref) || alert.false_positive || active;
+  const temAcao = true;
 
   const body = (
     <>
@@ -49,6 +52,9 @@ function AlertRow({ alert, active, reduceMotion = false, animated = false }: { a
         </div>
         {temAcao && (
           <div className="alert-row-actions">
+            <button className="ghost small" type="button" onClick={() => setReplayAberto(true)}>
+              Ver replay
+            </button>
             {alert.frame_ref && (
               <a className="evidence-link" href={`/alerts/${alert.id}/evidence`} target="_blank" rel="noopener noreferrer">
                 Ver evidência
@@ -69,6 +75,7 @@ function AlertRow({ alert, active, reduceMotion = false, animated = false }: { a
       <span className="alert-row-time" title={`Visto às ${formatDateTime(alert.last_seen_at)}`}>
         {formatTime(alert.last_seen_at)}
       </span>
+      {replayAberto && <IncidentReplay alertId={alert.id} cameraName={nomeDaCamera} onClose={() => setReplayAberto(false)} />}
     </>
   );
 

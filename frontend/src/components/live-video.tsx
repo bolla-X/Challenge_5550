@@ -19,8 +19,18 @@ import { LeitorMultipart } from "../socket/multipart";
  * detectar travamento nem alinhar o overlay ao quadro certo.
  */
 
-type Caixa = { l: string; n: string | null; c: number; b: [number, number, number, number]; t: number | null; k: string; r: boolean };
-type Overlay = {
+type Caixa = {
+  l: string;
+  n: string | null;
+  c: number;
+  b: [number, number, number, number];
+  t: number | null;
+  k: string;
+  r: boolean;
+  /** Segundos até entrar na zona de risco (pré-alerta), ou null. */
+  a?: number | null;
+};
+export type Overlay = {
   v: number;
   w: number;
   h: number;
@@ -82,6 +92,7 @@ export function estatisticasDoVideo(cameraId: number): EstatisticasDoVideo | nul
 const COR_PESSOA = "rgb(255,255,255)";
 const COR_OK = "rgb(72,209,138)";
 const COR_PERIGO = "rgb(255,158,94)";
+const COR_APROXIMACAO = "rgb(255,214,10)";
 const FUNDO_ROTULO = "rgba(18,19,22,0.75)";
 const TEXTO_ROTULO = "rgb(245,245,247)";
 
@@ -92,7 +103,7 @@ function retangulo(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.roundRect(x, y, w, h, rr);
 }
 
-function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: number, dy: number, escala: number) {
+export function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: number, dy: number, escala: number) {
   const opc = ov.opcoes || {};
   const mostrarCaixas = opc.boxes !== false;
   const mostrarRotulos = opc.labels !== false;
@@ -118,9 +129,10 @@ function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: number,
     const [x1, y1, x2, y2] = cx.b;
     const pessoa = cx.k === "pessoa";
     const perigo = cx.r || cx.k === "queda";
+    const aproximando = !perigo && cx.a != null;
     if (mostrarCaixas) {
-      ctx.lineWidth = perigo ? 3 : 2;
-      ctx.strokeStyle = perigo ? COR_PERIGO : pessoa ? COR_PESSOA : COR_OK;
+      ctx.lineWidth = perigo || aproximando ? 3 : 2;
+      ctx.strokeStyle = perigo ? COR_PERIGO : aproximando ? COR_APROXIMACAO : pessoa ? COR_PESSOA : COR_OK;
       ctx.globalAlpha = pessoa && !perigo ? 0.9 : 1;
       retangulo(ctx, px(x1), py(y1), (x2 - x1) * escala, (y2 - y1) * escala, 10);
       ctx.stroke();
@@ -129,6 +141,7 @@ function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: number,
     if (mostrarRotulos) {
       let texto = pessoa ? (cx.t != null ? `Pessoa ${cx.t}` : "Pessoa") : cx.n || cx.l;
       if (mostrarConf) texto += ` ${cx.c.toFixed(2)}`;
+      if (aproximando) texto += ` · entra na zona em ~${(cx.a as number).toFixed(1)} s`;
       const largura = ctx.measureText(texto).width + 12;
       const altura = fonte + 8;
       const lx = Math.max(dx, Math.min(px(x1), dx + ov.w * escala - largura));
@@ -136,7 +149,7 @@ function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: number,
       ctx.fillStyle = FUNDO_ROTULO;
       retangulo(ctx, lx, ly, largura, altura, 9);
       ctx.fill();
-      ctx.fillStyle = perigo ? COR_PERIGO : TEXTO_ROTULO;
+      ctx.fillStyle = perigo ? COR_PERIGO : aproximando ? COR_APROXIMACAO : TEXTO_ROTULO;
       ctx.fillText(texto, lx + 6, ly + altura / 2);
     }
   }

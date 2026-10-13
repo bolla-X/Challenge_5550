@@ -8,9 +8,9 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.llm import MARCA_DE_REDACAO
-from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
+from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_SUPERVISOR, ROLE_TECHNICAL, Camera
 from app.services.gate_service import normalizar_exigidos
-from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
+from app.utils.auth import camera_permitida, camera_scope, current_user, erro_fora_do_escopo, login_required, require_role
 from app.vision.video_stream import capture_api
 
 cameras_bp = Blueprint("cameras", __name__)
@@ -367,6 +367,35 @@ def camera_video_feed(camera_id: int):
             monitor.registrar_espectador(camera_id, -1)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/mapa-de-calor")
+@login_required
+def camera_mapa_de_calor(camera_id: int):
+    """Onde as violações aconteceram (F7), em grade normalizada, com meia-vida."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify(monitor.worker_da_camera(camera_id).mapa_de_calor.exportar() | {"camera_id": camera_id})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.patch("/api/cameras/<int:camera_id>/privacidade")
+@require_role(ROLE_SUPERVISOR)
+def camera_privacidade(camera_id: int):
+    """Liga/desliga o desfoque de rosto. Só supervisor; toda troca é auditada."""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload.get("ativa"), bool):
+        return jsonify({"error": "'ativa' (true/false) é obrigatório"}), 400
+    monitor = current_app.extensions["monitor_service"]
+    usuario = current_user()
+    try:
+        return jsonify(monitor.definir_privacidade(camera_id, payload["ativa"], usuario=usuario,
+                                                   motivo=str(payload.get("motivo", ""))))
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/frame.jpg")

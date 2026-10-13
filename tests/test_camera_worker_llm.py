@@ -358,6 +358,10 @@ def test_encode_so_sob_demanda_e_no_maximo_um_por_quadro(worker, servico, monkey
         return original(*args, **kwargs)
 
     monkeypatch.setattr("app.services.camera_worker.cv2.imencode", contando)
+    # O buffer de replay (F1) é OUTRO consumidor, com custo próprio e limitado
+    # (JPEG pequeno a no máximo REPLAY_FPS) — contado no teste seguinte. Aqui
+    # o contrato é o do stream e do LLM.
+    worker.replay = None
 
     rodar(worker, 4)
 
@@ -374,6 +378,26 @@ def test_encode_so_sob_demanda_e_no_maximo_um_por_quadro(worker, servico, monkey
     worker.jpeg_do_quadro(anotado=False)
     worker.jpeg_do_quadro(anotado=False)
     assert chamadas["n"] == 3
+
+
+def test_replay_codifica_no_maximo_um_quadro_pequeno_por_quadro_gravado(worker, servico, monkeypatch):
+    """O custo do replay é explícito: 1 JPEG pequeno por quadro que entra no buffer."""
+    import cv2
+
+    chamadas = {"n": 0}
+    original = cv2.imencode
+
+    def contando(*args, **kwargs):
+        chamadas["n"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr("app.services.replay.cv2.imencode", contando)
+    rodar(worker, 4)
+    gravados = worker.replay.estado()["quadros"]
+    assert 1 <= gravados <= 4
+    # `cv2` é um módulo só: o patch conta também o JPEG anotado do LLM (1, no
+    # quadro do alerta criado). Fora ele, exatamente um encode por quadro gravado.
+    assert chamadas["n"] == gravados + len(servico.submissoes)
 
 
 # ------------------------------- degradacao ------------------------------

@@ -32,8 +32,9 @@ export const logout = () => apiFetch<{ ok: boolean }>("/api/auth/logout", { meth
 
 export const getStatus = () => apiFetch<StatusResponse>("/status");
 export const getPreflight = () => apiFetch<PreflightResponse>("/preflight");
-export const startMonitor = () => apiFetch<StatusResponse>("/start", { method: "POST" });
-export const stopMonitor = () => apiFetch<StatusResponse>("/stop", { method: "POST" });
+// `todas=1`: Técnico/Supervisor ligam todas as câmeras; o Operador fica no setor dele (escopo no servidor).
+export const startMonitor = () => apiFetch<StatusResponse>("/start?todas=1", { method: "POST" });
+export const stopMonitor = () => apiFetch<StatusResponse>("/stop?todas=1", { method: "POST" });
 
 const comCameraQuery = (cameraId?: number | null) => (cameraId != null ? `?camera_id=${cameraId}` : "");
 export const getFeatures = (cameraId?: number | null) => apiFetch<FeaturesResponse>(`/features${comCameraQuery(cameraId)}`);

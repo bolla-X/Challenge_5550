@@ -93,6 +93,44 @@ def get_alert_evidence(alert_id: int):
     return send_from_directory(directory, filename, as_attachment=False)
 
 
+def _pasta_do_clipe(alert_id: int):
+    from app.config import BASE_DIR
+
+    base = Path(str(current_app.config.get("REPLAY_DIR", "runtime/clips")))
+    base = base if base.is_absolute() else Path(BASE_DIR) / base
+    return base / f"alert_{int(alert_id)}"
+
+
+@alerts_bp.get("/api/alerts/<int:alert_id>/clip")
+@login_required
+def get_alert_clip(alert_id: int):
+    """Índice do replay do incidente (F1): quadros gravados, overlay e evidências."""
+    alert = AlertRepository().get(alert_id)
+    if alert is None:
+        return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
+    indice = _pasta_do_clipe(alert_id) / "clip.json"
+    if not indice.exists():
+        return jsonify({"error": "replay ainda não disponível para este alerta"}), 404
+    return current_app.response_class(indice.read_text(encoding="utf-8"), mimetype="application/json")
+
+
+@alerts_bp.get("/api/alerts/<int:alert_id>/clip/<int:indice>.jpg")
+@login_required
+def get_alert_clip_frame(alert_id: int, indice: int):
+    alert = AlertRepository().get(alert_id)
+    if alert is None:
+        return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
+    pasta = _pasta_do_clipe(alert_id)
+    nome = f"{int(indice):04d}.jpg"
+    if not (pasta / nome).exists():
+        return jsonify({"error": "quadro não encontrado"}), 404
+    return send_from_directory(pasta, nome, as_attachment=False, max_age=3600)
+
+
 @alerts_bp.post("/alerts/<int:alert_id>/false-positive")
 @require_role(ROLE_OPERATOR)
 def mark_false_positive(alert_id: int):

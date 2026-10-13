@@ -20,10 +20,13 @@ from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.alert_state_service import AlertStateService
+from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
 from app.services.gate_service import GateState, avaliar_quadro
+from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
 from app.services.pipeline_stats import EstatisticasDoPipeline
+from app.services.replay import BufferDeReplay, ClipePendente, gravar_clipe
 from app.services.risk_rules import RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
@@ -34,6 +37,7 @@ from app.vision.captura_continua import CapturaContinua
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.vision.privacidade import desfocar, regioes_de_rosto
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
@@ -219,6 +223,32 @@ class CameraWorker:
         # RLock: o JPEG anotado pede o quadro anotado, que usa o mesmo cache.
         self._cache_lock = threading.RLock()
         self.espectadores = 0
+        # Pré-alerta de aproximação (F3): projeção cinemática por track.
+        self.aproximacao = (
+            EstimadorDeAproximacao(limite_s=float(app.config.get("APROXIMACAO_LIMITE_S", 3.0)))
+            if app.config.get("APROXIMACAO_ATIVA", True)
+            else None
+        )
+        self._pre_alertas: list[dict[str, Any]] = []
+        # Modo privacidade (F4). Por câmera, em memória: volta ao padrão (ligado)
+        # a cada reinício — o estado seguro é o default, não o último clique.
+        self.privacidade_ativa = bool(app.config.get("PRIVACIDADE_PADRAO", True))
+        self._ts_analise_ms: float | None = None
+        # Replay de incidente (F1).
+        self.replay = (
+            BufferDeReplay(segundos=float(app.config.get("REPLAY_ANTES_S", 5.0)) + float(app.config.get("REPLAY_DEPOIS_S", 3.0)),
+                           fps_max=float(app.config.get("REPLAY_FPS", 10.0)))
+            if app.config.get("REPLAY_ATIVO", True)
+            else None
+        )
+        self._replay_antes_ms = float(app.config.get("REPLAY_ANTES_S", 5.0)) * 1000.0
+        self._replay_depois_ms = float(app.config.get("REPLAY_DEPOIS_S", 3.0)) * 1000.0
+        replay_dir = Path(str(app.config.get("REPLAY_DIR", "runtime/clips")))
+        self.replay_dir = replay_dir if replay_dir.is_absolute() else Path(BASE_DIR) / replay_dir
+        self._clipes_pendentes: list[ClipePendente] = []
+        # Mapa de calor de risco (F7): pés de quem está em violação, com meia-vida.
+        self.mapa_de_calor = MapaDeCalor(meia_vida_s=float(app.config.get("MAPA_DE_CALOR_MEIA_VIDA_S", 900.0)))
+        self._pre_alerta_registrado: dict[int, float] = {}
         # Resumo do controlador adaptativo (o MonitorService escreve aqui).
         self.modo_adaptativo: dict[str, Any] | None = None
         # Um tracker POR câmera (ver docstring de PersonTracker): os modelos
@@ -361,6 +391,13 @@ class CameraWorker:
             self._ultima_amostra_de_brilho = 0.0
             self._escuro_desde = None
             self.person_tracker.reset()
+            if self.aproximacao is not None:
+                self.aproximacao.reset()
+            self._pre_alertas = []
+            self._pre_alerta_registrado.clear()
+            if self.replay is not None:
+                self.replay.limpar()
+            self._clipes_pendentes = []
             if self.agendador is not None and self.camera_id is not None:
                 self.agendador.registrar(
                     self.camera_id,
@@ -425,6 +462,10 @@ class CameraWorker:
             "llm": self._estado_do_llm(),
             # O que o controlador adaptativo reduziu (banner DEGRADADO na tela).
             "adaptativo": self.modo_adaptativo,
+            # Pré-alertas de aproximação (amarelo): projeção, não alerta.
+            "pre_alertas": list(self._pre_alertas),
+            "privacidade": {"ativa": self.privacidade_ativa},
+            "replay": self.replay.estado() if self.replay is not None else None,
         }
 
     def _estado_do_llm(self) -> dict[str, Any]:
@@ -557,8 +598,31 @@ class CameraWorker:
                 self._cache_saidas[chave] = (versao, valor)
             return valor
 
-    def _quadro_anotado(self):
+    def _quadro_publico(self):
+        """O quadro como pode SAIR do worker: com rosto desfocado se o modo estiver ligado."""
         quadro, estado = self._quadro_bruto, self._quadro_estado
+        if quadro is None or estado is None or not self.privacidade_ativa:
+            return quadro
+        inicio = time.perf_counter()
+        with self._thread_lock:
+            capturado, analisado = self._latest_capture_ts_ms, self._ts_analise_ms
+        idade_s = max(0.0, (capturado - analisado) / 1000.0) if capturado and analisado else 0.0
+        publico = desfocar(quadro, regioes_de_rosto(estado[0], quadro.shape, idade_s=idade_s))
+        self.stats.duracao("privacidade", (time.perf_counter() - inicio) * 1000.0)
+        return publico
+
+    def quadro_publico(self):
+        return self._sob_demanda("publico", self._quadro_publico)
+
+    def definir_privacidade(self, ativa: bool) -> None:
+        self.privacidade_ativa = bool(ativa)
+        # A versão do quadro não muda com o clique: sem isto o cache serviria o
+        # JPEG antigo (com ou sem desfoque) até o próximo quadro.
+        with self._cache_lock:
+            self._cache_saidas.clear()
+
+    def _quadro_anotado(self):
+        quadro, estado = self.quadro_publico(), self._quadro_estado
         if quadro is None or estado is None:
             return None
         analysis, compliance_state, enabled_map = estado
@@ -590,19 +654,25 @@ class CameraWorker:
     def jpeg_do_quadro(self, *, anotado: bool) -> bytes | None:
         if anotado:
             return self._sob_demanda("jpeg_anotado", lambda: self._codificar(self.quadro_anotado()))
-        return self._sob_demanda("jpeg_bruto", lambda: self._codificar(self._quadro_bruto))
+        return self._sob_demanda("jpeg_bruto", lambda: self._codificar(self.quadro_publico()))
 
     def overlay_do_quadro(self) -> bytes | None:
         """Metadados do overlay do último quadro, em JSON, para o canvas do navegador."""
-        return self._sob_demanda("overlay", self._produzir_overlay)
+        return self._sob_demanda(
+            "overlay", lambda: (lambda d: json.dumps(d, separators=(",", ":")).encode("utf-8") if d else None)(self.overlay_dict())
+        )
 
-    def _produzir_overlay(self) -> bytes | None:
+    def overlay_dict(self) -> dict[str, Any] | None:
+        return self._sob_demanda("overlay_dict", self._produzir_overlay)
+
+    def _produzir_overlay(self) -> dict[str, Any] | None:
         quadro, estado = self._quadro_bruto, self._quadro_estado
         if quadro is None or estado is None:
             return None
         analysis, compliance_state, enabled_map = estado
         altura, largura = quadro.shape[:2]
         sem_epi = self.annotator._caixas_sem_epi(compliance_state)
+        aproximando = {a["track_id"]: a["segundos_ate_entrar"] for a in self._pre_alertas}
         partes = FrameAnnotator._PARTES
         caixas = []
         for det in analysis.detections:
@@ -620,6 +690,8 @@ class CameraWorker:
                 "t": det.track_id,
                 "k": tipo,
                 "r": bool(e_pessoa and box in sem_epi),
+                # Segundos até entrar na zona (pré-alerta amarelo), se houver.
+                "a": aproximando.get(det.track_id) if e_pessoa else None,
             })
         poses = []
         if enabled_map.get("pose", False) and self.overlay_options.get("pose", True):
@@ -636,7 +708,7 @@ class CameraWorker:
             "zona_ativa": bool(enabled_map.get("risk_area", False)),
             "opcoes": self.overlay_options,
         }
-        return json.dumps(corpo, separators=(",", ":")).encode("utf-8")
+        return corpo
 
     def registrar_envio_de_video(self, nbytes: int) -> None:
         """Chamado pelo gerador do MJPEG a cada parte enviada a um cliente."""
@@ -973,11 +1045,73 @@ class CameraWorker:
         finally:
             self.captura.parar()
 
+    def _atualizar_aproximacao(self, analysis: FrameAnalysis, frame_shape) -> None:
+        """Alimenta a projeção cinemática com os pés de cada track (só em análise nova)."""
+        if self.aproximacao is None or not self.feature_manager.is_enabled("risk_area"):
+            if self._pre_alertas:
+                self._pre_alertas = []
+                self._emitir("pre_alertas", {"camera_id": self.camera_id, "items": []})
+            return
+        altura, largura = frame_shape[:2]
+        pes = [
+            (det.track_id, ((det.box.x1 + det.box.x2) / 2 / max(1, largura), det.box.y2 / max(1, altura)))
+            for det in analysis.detections
+            if (det.label == "person" or det.category == "person") and det.track_id is not None
+        ]
+        agora = time.monotonic()
+        self.aproximacao.atualizar(pes, agora)
+        anteriores = {a["track_id"] for a in self._pre_alertas}
+        self._pre_alertas = self.aproximacao.avisos(self.rule_engine.risk_polygon)
+        atuais = {a["track_id"] for a in self._pre_alertas}
+        if atuais != anteriores:
+            self._emitir("pre_alertas", {"camera_id": self.camera_id, "items": self._pre_alertas})
+        for aviso in self._pre_alertas:
+            # Linha do tempo: um registro por pessoa a cada 30 s, não por quadro.
+            if agora - self._pre_alerta_registrado.get(aviso["track_id"], -1e9) >= 30.0:
+                self._pre_alerta_registrado[aviso["track_id"]] = agora
+                self._emit_timeline_event(
+                    "approach_risk_area",
+                    f"Aproximação da área de risco — Pessoa {aviso['track_id']} "
+                    f"(projeção cinemática: ~{aviso['segundos_ate_entrar']:.1f} s)",
+                    "warning",
+                    subject=f"Pessoa {aviso['track_id']}",
+                    metadata=aviso,
+                )
+
+    def _alimentar_replay(self, ts_captura_ms: float, alert_state: dict[str, Any]) -> None:
+        """Grava o quadro público (desfocado) no buffer e fecha clipes vencidos."""
+        if self.replay is None:
+            return
+        inicio = time.perf_counter()
+        if self.replay.deve_gravar(ts_captura_ms):
+            self.replay.gravar(self.quadro_publico(), ts_captura_ms, self.overlay_dict())
+        for criado in alert_state.get("created", []) or []:
+            if criado.get("id"):
+                self._clipes_pendentes.append(ClipePendente(
+                    alert_id=int(criado["id"]), t0_ms=ts_captura_ms, inicio_ms=ts_captura_ms - self._replay_antes_ms,
+                    fim_ms=ts_captura_ms + self._replay_depois_ms, alerta=criado,
+                ))
+        prontos = [c for c in self._clipes_pendentes if ts_captura_ms >= c.fim_ms]
+        if prontos:
+            self._clipes_pendentes = [c for c in self._clipes_pendentes if ts_captura_ms < c.fim_ms]
+            for pendente in prontos:
+                quadros = self.replay.entre(pendente.inicio_ms, pendente.fim_ms)
+                if self.gravador is not None:
+                    self.gravador.enfileirar(self._gravar_clipe, pendente, quadros)
+                else:
+                    self._gravar_clipe(pendente, quadros)
+        self.stats.duracao("replay", (time.perf_counter() - inicio) * 1000.0)
+
+    def _gravar_clipe(self, pendente: ClipePendente, quadros) -> None:
+        clipe = gravar_clipe(self.replay_dir, pendente, quadros, self.camera_id)
+        self._emitir("clip_pronto", {"camera_id": self.camera_id, "alert_id": pendente.alert_id, "total": clipe["total"]})
+
     def _receber_analise(self, analise: FrameAnalysis, ts_ms: float) -> None:
         """Callback do agendador (thread dele): guarda a análise pronta."""
         with self._thread_lock:
             self._analise_recente = analise
             self._versao_analise += 1
+            self._ts_analise_ms = ts_ms
         self._cached_analysis = analise
 
     def _publicar(self, frame, analysis: FrameAnalysis, nova: bool, ts_captura_ms: float) -> None:
@@ -994,6 +1128,8 @@ class CameraWorker:
             poses=analysis.poses,
         )
         self._perf_marca("regras")
+        if nova:
+            self._atualizar_aproximacao(analysis, frame.shape)
         # `deteccao_nova` impede que uma inferência reaproveitada conte como
         # confirmação nova na histerese.
         alert_state = self.alert_state_service.process(
@@ -1014,6 +1150,8 @@ class CameraWorker:
 
         if self.gate_required:
             self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
+        if nova:
+            self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
 
         enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
         with self._thread_lock:
@@ -1025,6 +1163,7 @@ class CameraWorker:
         self.stats.duracao("idade_publicacao", time.time() * 1000.0 - ts_captura_ms)
         self._perf_marca("conformidade")
 
+        self._alimentar_replay(ts_captura_ms, alert_state)
         # Snapshot só quando um alerta NASCE (raro): é o único consumidor do
         # quadro anotado que existe sem ninguém assistindo.
         anotado = self.quadro_anotado() if alert_state.get("created") else None
