@@ -840,6 +840,20 @@ class CameraWorker:
             return float(self.target_fps)
         return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
 
+    def _ritmo_de_gravacao(self) -> float | None:
+        """Gravação (arquivo) sem espectador avança na taxa útil; com espectador, tempo real.
+
+        Política de GRAVAÇÃO, não de câmera ao vivo: webcam e RTSP seguem em
+        tempo real com "último quadro vence". Uma gravação que ninguém está
+        vendo não precisa andar no relógio — e mantê-la no relógio custava
+        decodificar 25–30 quadros/s por gravação (batata 4 câm.: análise ~35 %
+        mais lenta, docs/NEXT2026/BENCHMARKS.md). A tela já rotula fixture como
+        GRAVAÇÃO; ao abrir o foco, volta ao tempo real a partir de onde está.
+        """
+        if self.espectadores > 0 or not self.app.config.get("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True):
+            return None
+        return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
+
     def _preparar_quadro(self, frame):
         """Resolução da câmera e rotação: o mesmo para o quadro publicado e o inferido."""
         frame = self._ajustar_resolucao(frame)
@@ -952,7 +966,8 @@ class CameraWorker:
         taxa que a máquina aguenta.
         """
         self.captura = CapturaContinua(
-            lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}", taxa_util=self._taxa_util_de_captura
+            lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}", taxa_util=self._taxa_util_de_captura,
+            ritmo_de_gravacao=self._ritmo_de_gravacao,
         )
         self.captura.iniciar()
         intervalo_minimo = 1.0 / max(1, self.target_fps)

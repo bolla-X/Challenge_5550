@@ -17,11 +17,16 @@ import cv2
 
 
 class FonteMJPEG:
-    def __init__(self, video: Path, porta: int, *, fps: float = 10.0) -> None:
+    def __init__(self, video: Path, porta: int, *, fps: float | None = 10.0, tamanho: tuple[int, int] | None = (640, 360),
+                 max_quadros: int | None = 150) -> None:
+        """`fps=None` = o do arquivo; `tamanho=None` = reduz só se passar de 960 no lado maior;
+        `max_quadros=None` = o arquivo inteiro (o bench usa assim: câmera IP em tempo real)."""
         self.video = Path(video)
         self.porta = porta
-        self.fps = fps
+        self.tamanho = tamanho
+        self.max_quadros = max_quadros
         self._quadros = self._carregar()
+        self.fps = fps or self._fps_do_arquivo or 25.0
         self._servidor: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._vivo = threading.Event()
@@ -32,12 +37,18 @@ class FonteMJPEG:
 
     def _carregar(self) -> list[bytes]:
         cap = cv2.VideoCapture(str(self.video))
+        self._fps_do_arquivo = cap.get(cv2.CAP_PROP_FPS) or None
         quadros = []
-        while len(quadros) < 150:
+        while self.max_quadros is None or len(quadros) < self.max_quadros:
             ok, frame = cap.read()
             if not ok:
                 break
-            frame = cv2.resize(frame, (640, 360))
+            if self.tamanho is not None:
+                frame = cv2.resize(frame, self.tamanho)
+            elif max(frame.shape[:2]) > 960:
+                escala = 960 / max(frame.shape[:2])
+                frame = cv2.resize(frame, (round(frame.shape[1] * escala), round(frame.shape[0] * escala)),
+                                   interpolation=cv2.INTER_AREA)
             quadros.append(cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])[1].tobytes())
         cap.release()
         if not quadros:
@@ -56,13 +67,21 @@ class FonteMJPEG:
                 self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=quadro")
                 self.end_headers()
                 i = 0
+                proximo = time.monotonic()
                 try:
                     while fonte._vivo.is_set():
                         corpo = fonte._quadros[i % len(fonte._quadros)]
                         self.wfile.write(b"--quadro\r\nContent-Type: image/jpeg\r\nContent-Length: "
                                          + str(len(corpo)).encode() + b"\r\n\r\n" + corpo + b"\r\n")
                         i += 1
-                        time.sleep(1.0 / fonte.fps)
+                        # Agenda pelo relógio: `sleep(1/fps)` fixo somava o tempo de
+                        # escrita e a "câmera" andava abaixo do FPS declarado.
+                        proximo += 1.0 / fonte.fps
+                        if time.monotonic() - proximo > 1.0:
+                            # Cliente lento segurou a escrita: câmera de verdade não
+                            # "recupera" em rajada, ela simplesmente segue.
+                            proximo = time.monotonic()
+                        time.sleep(max(0.0, proximo - time.monotonic()))
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                     pass
 

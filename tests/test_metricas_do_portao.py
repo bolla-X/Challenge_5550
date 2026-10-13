@@ -159,3 +159,31 @@ def test_sem_taxa_util_converte_todos():
     assert fonte.lidos.wait(3.0)
     captura.parar()
     assert (fonte.convertidos, fonte.pulados) == (20, 0)
+
+
+class GravacaoFalsa(FonteQuePula):
+    """Parece arquivo para a captura: `source` é caminho e há `fps_da_fonte`."""
+
+    source = "gravacao.mp4"
+    fps_da_fonte = 50.0
+
+
+def test_gravacao_sem_espectador_desacelera_em_vez_de_decodificar_tudo():
+    stats = EstatisticasDoPipeline()
+    fonte = GravacaoFalsa(10_000)
+    captura = CapturaContinua(lambda: fonte, stats=stats, taxa_util=lambda: 5.0, ritmo_de_gravacao=lambda: 5.0)
+    captura.iniciar()
+    time.sleep(1.0)
+    captura.parar()
+    assert fonte.pulados == 0, "gravação desacelera; não decodifica quadro para jogar fora"
+    assert 3 <= fonte.convertidos <= 8, fonte.convertidos
+
+
+def test_gravacao_com_espectador_segue_o_relogio():
+    stats = EstatisticasDoPipeline()
+    fonte = GravacaoFalsa(10_000)
+    captura = CapturaContinua(lambda: fonte, stats=stats, ritmo_de_gravacao=lambda: None)
+    captura.iniciar()
+    time.sleep(1.0)
+    captura.parar()
+    assert fonte.convertidos >= 35, f"tempo real a 50 fps; leu {fonte.convertidos} em 1 s"

@@ -40,6 +40,7 @@ class CapturaContinua:
         tempo_real_em_arquivo: bool = True,
         nome: str = "captura",
         taxa_util: Callable[[], float] | None = None,
+        ritmo_de_gravacao: Callable[[], float | None] | None = None,
     ) -> None:
         self._obter_fonte = obter_fonte
         # Quantos quadros por segundo alguém vai de fato consumir (vídeo
@@ -48,6 +49,12 @@ class CapturaContinua:
         # conversão de quadro que ninguém vai ver. None/0 = converte todos.
         self._taxa_util = taxa_util
         self._ultimo_util = 0.0
+        # Só para ARQUIVO (gravação): quadros/s em que a gravação avança quando
+        # ninguém está assistindo, ou None para tempo real. Num arquivo H.264,
+        # manter o tempo real exige decodificar TODO quadro (o grab decodifica;
+        # a busca do OpenCV custou 64–164 ms por quadro, medido) — trabalho que
+        # disputava os núcleos com a inferência sem ninguém ver o vídeo.
+        self._ritmo_de_gravacao = ritmo_de_gravacao
         self._stats = stats
         self.tempo_real_em_arquivo = tempo_real_em_arquivo
         self._nome = nome
@@ -139,6 +146,8 @@ class CapturaContinua:
         taxa = float(self._taxa_util() or 0.0) if self._taxa_util is not None else 0.0
         if taxa <= 0 or not hasattr(fonte, "pular") or time.monotonic() - self._ultimo_util >= 1.0 / taxa:
             return False
+        if self._e_arquivo(fonte) and self._ritmo_gravacao() is not None:
+            return False  # a gravação desacelera em vez de pular (ver _cadenciar)
         try:
             if not fonte.pular():
                 return False
@@ -161,6 +170,9 @@ class CapturaContinua:
         fps = getattr(fonte, "fps_da_fonte", None) if self._e_arquivo(fonte) else None
         if not (self.tempo_real_em_arquivo and fps):
             return proximo
+        ritmo = self._ritmo_gravacao()
+        if ritmo is not None:
+            fps = min(float(fps), ritmo)
         intervalo = 1.0 / float(fps)
         agora = time.monotonic()
         proximo = agora + intervalo if proximo == 0.0 or agora - proximo > intervalo else proximo + intervalo
@@ -168,6 +180,15 @@ class CapturaContinua:
         if espera > 0:
             time.sleep(espera)
         return proximo
+
+    def _ritmo_gravacao(self) -> float | None:
+        if self._ritmo_de_gravacao is None:
+            return None
+        try:
+            ritmo = self._ritmo_de_gravacao()
+        except Exception:  # noqa: BLE001
+            return None
+        return float(ritmo) if ritmo and ritmo > 0 else None
 
     @staticmethod
     def _e_arquivo(fonte: Any) -> bool:

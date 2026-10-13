@@ -198,6 +198,10 @@ class Config:
     # Quadros/s CONVERTIDOS pela captura de câmera sem espectador (miniatura +
     # inferência); os demais só avançam a fonte (grab sem retrieve).
     CAPTURA_FPS_SEM_ESPECTADOR = env_float("CAPTURA_FPS_SEM_ESPECTADOR", 4.0)
+    # Gravação (arquivo) sem espectador avança a CAPTURA_FPS_SEM_ESPECTADOR em
+    # vez de no relógio (ver CameraWorker._ritmo_de_gravacao). false = sempre
+    # tempo real. Câmera ao vivo não é afetada.
+    GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL = env_bool("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True)
     # Uma inferência em cada modelo antes de servir (run.py). Ver
     # app/vision/runtime_do_modelo.py:aquecer_modelos.
     AQUECER_MODELOS_NO_BOOT = env_bool("AQUECER_MODELOS_NO_BOOT", True)
