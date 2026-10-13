@@ -28,7 +28,7 @@ from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
 from app.services.pipeline_stats import EstatisticasDoPipeline
 from app.services.replay import BufferDeReplay, ClipePendente, gravar_clipe
-from app.services.risk_rules import RuleEngine
+from app.services.risk_rules import RuleAlert, RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
@@ -42,6 +42,7 @@ from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
+from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
@@ -240,6 +241,18 @@ class CameraWorker:
             else None
         )
         self._pre_alertas: list[dict[str, Any]] = []
+        # Sinais que dependem de duração, por ID (G3 SOS, G4 imóvel, G7 ergonomia).
+        # Atualizados só em análise nova; valem até a próxima.
+        self.sinais = SinaisPorId(
+            ConfigSinais(
+                sos_segundos=float(app.config.get("SOS_SEGUNDOS", 3.0)),
+                imovel_segundos=float(app.config.get("IMOVEL_SEGUNDOS", 20.0)),
+                imovel_limiar=float(app.config.get("IMOVEL_LIMIAR", 0.08)),
+                ergonomia_graus=float(app.config.get("ERGONOMIA_GRAUS", 45.0)),
+                ergonomia_segundos=float(app.config.get("ERGONOMIA_SEGUNDOS", 10.0)),
+            )
+        )
+        self._alertas_temporais: list[RuleAlert] = []
         # Modo privacidade (F4). Por câmera, em memória: volta ao padrão (ligado)
         # a cada reinício — o estado seguro é o default, não o último clique.
         self.privacidade_ativa = bool(app.config.get("PRIVACIDADE_PADRAO", True))
@@ -411,6 +424,8 @@ class CameraWorker:
                 self.aproximacao.reset()
             self._pre_alertas = []
             self._pre_alerta_registrado.clear()
+            self.sinais = SinaisPorId(self.sinais.config)
+            self._alertas_temporais = []
             self.linha_do_tempo.limpar()
             if self.replay is not None:
                 self.replay.limpar()
@@ -1151,6 +1166,17 @@ class CameraWorker:
                     metadata=aviso,
                 )
 
+    def _atualizar_sinais(self, evaluation, frame_shape) -> None:
+        """G3/G4/G7: sinais por ID que só existem no tempo (app/vision/sinais_por_id.py)."""
+        ligados = {k for k in ("sos", "imobilidade", "ergonomia") if self.feature_manager.is_enabled(k)}
+        if not self.feature_manager.is_enabled("pose"):
+            ligados -= {"sos", "ergonomia"}
+        if not ligados:
+            self._alertas_temporais = []
+            return
+        brutos = self.sinais.atualizar(evaluation.poses, evaluation.people, frame_shape, time.monotonic(), ligados)
+        self._alertas_temporais = [RuleAlert(**a) for a in brutos]
+
     def _alimentar_replay(self, ts_captura_ms: float, alert_state: dict[str, Any]) -> None:
         """Grava o quadro público (desfocado) no buffer e fecha clipes vencidos."""
         if self.replay is None:
@@ -1233,10 +1259,11 @@ class CameraWorker:
         self._perf_marca("regras")
         if nova:
             self._atualizar_aproximacao(analysis, frame.shape)
+            self._atualizar_sinais(evaluation, frame.shape)
         # `deteccao_nova` impede que uma inferência reaproveitada conte como
         # confirmação nova na histerese.
         alert_state = self.alert_state_service.process(
-            evaluation.alerts,
+            evaluation.alerts + self._alertas_temporais if self._alertas_temporais else evaluation.alerts,
             deteccao_nova=nova,
             features_desligadas=self._features_desligadas(),
         )

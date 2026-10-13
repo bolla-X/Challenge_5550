@@ -29,7 +29,10 @@ class FeatureManager:
         FeatureFlag("pose", "Pose", "Ativa MediaPipe Pose Estimation", True, "Postura"),
         FeatureFlag("falls", "Quedas", "Detecta pessoa caída por landmarks de pose", True, "Postura"),
         FeatureFlag("posture", "Postura inadequada", "Detecta inclinação/curvatura suspeita", True, "Postura"),
+        FeatureFlag("sos", "SOS por gesto", "Os dois punhos acima da cabeça por 3 s geram alerta de emergência", True, "Postura"),
+        FeatureFlag("ergonomia", "Ergonomia (estimativa)", "Tronco flexionado acima de 45° por tempo prolongado; não é RULA/REBA", True, "Postura"),
         FeatureFlag("risk_area", "Área de risco", "Detecta permanência em região de risco simulada", True, "Risco"),
+        FeatureFlag("imobilidade", "Pessoa imóvel", "Pessoa parada na área de risco por tempo prolongado; não é diagnóstico", True, "Risco"),
     )
 
     def __init__(self, features: dict[str, FeatureFlag]) -> None:

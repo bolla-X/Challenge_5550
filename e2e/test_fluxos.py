@@ -270,3 +270,51 @@ def test_relatorio_de_turno_abre(pagina, servidor):
     pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.wait_for(timeout=30_000)  # login concluído
     pagina.goto(servidor.base + "/relatorio/turno")
     pagina.get_by_role("heading", name="Relatório de turno").wait_for(timeout=30_000)
+
+
+# Web Speech falsa (G6): grava o que seria falado. Headless não tem voz, e o
+# teste precisa provar a frase, a voz pt-BR e o limite de taxa — não o áudio.
+_FALA_FALSA = """
+window.__falas = [];
+const voz = {name: "Falsa pt-BR", lang: "pt-BR", localService: true, default: true, voiceURI: "falsa"};
+const falsa = {
+  speaking: false, pending: false, paused: false,
+  getVoices() { return [voz]; },
+  speak(u) {
+    window.__falas.push({texto: u.text, lang: u.lang, t: Date.now()});
+    this.speaking = true;
+    setTimeout(() => { this.speaking = false; u.onend && u.onend(); }, 1500);
+  },
+  cancel() { this.speaking = false; },
+  addEventListener() {}, removeEventListener() {},
+};
+Object.defineProperty(window, "speechSynthesis", {value: falsa, configurable: true});
+window.SpeechSynthesisUtterance = function (texto) { this.text = texto; };
+"""
+
+
+def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor):
+    """G6: alerta crítico vira frase pt-BR com a câmera; intervalo mínimo entre frases."""
+    contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
+    contexto.add_init_script(_FALA_FALSA)
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "technical")
+        _abrir_camera(pagina, "Multidão")
+        pagina.wait_for_function("window.__falas.length >= 1", timeout=180_000)
+        time.sleep(20)
+        falas = pagina.evaluate("window.__falas")
+        assert all(f["lang"] == "pt-BR" for f in falas), falas
+        assert falas[0]["texto"].startswith("Atenção: "), falas[0]
+        assert "na câmera Multidão" in falas[0]["texto"], falas[0]
+        intervalos = [b["t"] - a["t"] for a, b in zip(falas, falas[1:], strict=False)]
+        assert all(i >= 3_900 for i in intervalos), intervalos
+        assert len({f["texto"] for f in falas}) == len(falas), "a mesma frase repetiu dentro de 30 s"
+
+        # Mudo: nada mais é falado.
+        pagina.get_by_role("button", name="Silenciar som de alertas").click()
+        antes = pagina.evaluate("window.__falas.length")
+        time.sleep(15)
+        assert pagina.evaluate("window.__falas.length") == antes
+    finally:
+        contexto.close()

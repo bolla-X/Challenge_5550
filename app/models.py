@@ -118,6 +118,9 @@ DEFAULT_CAMERA_FEATURES = {
     "falls": True,
     "posture": True,
     "risk_area": True,
+    "sos": True,
+    "ergonomia": True,
+    "imobilidade": True,
 }
 
 
