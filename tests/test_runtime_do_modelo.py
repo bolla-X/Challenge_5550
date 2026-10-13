@@ -74,3 +74,24 @@ def test_estatico_aprovado_vale_quando_nao_ha_dinamico(tmp_path):
     _aprovar(tmp_path, "pessoa", "onnx:640", "models/export/p/p.onnx", concordancia=0.98)
     caminho, motivo = resolver_caminho(tmp_path, modelo="pessoa", peso_pt="models/y.pt", imgsz=640, pedido="onnx", ordem="onnx")
     assert caminho.endswith("p.onnx")
+
+
+def test_aquecer_modelos_infere_uma_vez_em_cada_e_tolera_falha():
+    from app.vision.runtime_do_modelo import aquecer_modelos
+
+    class Det:
+        def __init__(self, caminho, falha=False):
+            self.model_path, self.falha, self.chamadas = caminho, falha, 0
+
+        def detect_lote(self, quadros):
+            self.chamadas += 1
+            assert quadros[0].shape == (540, 960, 3)
+            if self.falha:
+                raise RuntimeError("modelo ausente")
+            return [[]]
+
+    epi, pessoa, quebrado = Det("epi.onnx"), Det("pessoa.onnx"), Det("pose.pt", falha=True)
+    tempos = aquecer_modelos([epi, pessoa, None, quebrado])
+
+    assert (epi.chamadas, pessoa.chamadas, quebrado.chamadas) == (1, 1, 1)
+    assert set(tempos) == {"epi.onnx", "pessoa.onnx"}, "falha não derruba o boot nem entra nos tempos"

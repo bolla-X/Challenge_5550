@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -82,3 +83,31 @@ def garantir_runtime(detector: Any, peso_pt: str) -> str:
         detector._last_diagnostics = None
         detector._sessao_onnx_ajustada = False
         return "pytorch (fallback)"
+
+
+def aquecer_modelos(detectores: list[Any]) -> dict[str, float]:
+    """Uma inferência em cada modelo no BOOT, antes de qualquer câmera ligar.
+
+    Medido no bench (perfil batata, docs/NEXT2026/CHANGELOG.md): sem isto, a
+    primeira análise depois de ligar a câmera levava ~30 s — carga preguiçosa
+    do modelo de pose, criação do predictor do ultralytics e recriação da
+    sessão ONNX — e esses 30 s entravam inteiros na latência do primeiro
+    alerta. Pago na subida do servidor, onde ninguém está esperando alerta.
+    Falha aqui não derruba o boot: o detector já trata erro no `detect`.
+    """
+    quadro = np.zeros((540, 960, 3), dtype=np.uint8)
+    tempos: dict[str, float] = {}
+    for detector in detectores:
+        if detector is None:
+            continue
+        inicio = time.perf_counter()
+        try:
+            detectar = getattr(detector, "detect_lote", None)
+            detectar([quadro]) if detectar else detector.detect(quadro)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("aquecimento_falhou", extra={"modelo": getattr(detector, "model_path", "?"), "error": str(exc)})
+            continue
+        tempos[str(getattr(detector, "model_path", type(detector).__name__))] = round((time.perf_counter() - inicio) * 1000.0, 1)
+    logger.info("modelos_aquecidos", extra={"tempos_ms": tempos})
+    return tempos
+

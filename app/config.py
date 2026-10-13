@@ -192,6 +192,9 @@ class Config:
     # Threads do decoder FFmpeg por câmera (arquivo e rede). 0 = padrão do
     # OpenCV, um por núcleo lógico — ver app/vision/video_stream.py.
     CAPTURA_THREADS_DECODE = env_int("CAPTURA_THREADS_DECODE", 2)
+    # Uma inferência em cada modelo antes de servir (run.py). Ver
+    # app/vision/runtime_do_modelo.py:aquecer_modelos.
+    AQUECER_MODELOS_NO_BOOT = env_bool("AQUECER_MODELOS_NO_BOOT", True)
 
     # --- fonte CEGA: o frame chega, a imagem nao --------------------------
     # Brilho medio abaixo do qual o frame conta como "sem imagem". MEDIDO: uma

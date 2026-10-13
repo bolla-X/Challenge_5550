@@ -48,6 +48,50 @@ compartilhada com processos de fora do projeto; o bench registra essa carga
   quadrática) e, uma vez atrasados, nunca recuperavam — a idade do quadro media
   o leitor, não o sistema. As rodadas afetadas estão marcadas em BENCHMARKS.md.
 
+## Métricas do portão (13/10)
+
+O bench herdado media bem o VÍDEO (idade do quadro exibido) e nada da ANÁLISE.
+O vídeo pode estar fresco enquanto as caixas e os alertas são de segundos atrás
+— exatamente o que o operador não vê. Métricas principais agora:
+
+- **FPS de análise por câmera** (`analises_publicadas`/s);
+- **idade da análise p50/p95**: da captura do quadro ANALISADO até o resultado
+  sair (regras, alertas e emissão feitos) — `CameraWorker._registrar_analise_publicada`;
+- **latência de alerta**: do primeiro quadro com a violação até o
+  `alert_created` chegar ao navegador. Gabarito: `scripts/primeira_violacao.py`
+  (referência PyTorch@640 + `RuleEngine`, sem histerese) → `multidao`,
+  `missing_helmet`, **quadro 0** (pedestres, ninguém de capacete; conferido no
+  quadro extraído). Âncora: instante em que o servidor leu o quadro
+  (`/api/diagnostics/pipeline?quadro=K`); chegada: ouvinte Socket.IO oficial
+  injetado no Chromium, conectado ANTES de ligar as câmeras.
+
+A baseline recebeu o MESMO instrumento num branch local de medição
+(`bench/base-instrumentada`, só pipeline_stats + 6 linhas no loop), para a
+comparação ser da mesma régua. A câmera 1 do bench passou a ser a `multidao`.
+
+**Perfil batata reprodutível.** "Os 2 núcleos mais lentos medidos" escolheu
+`[4,5]`, `[0,2]` e `[1,7]` em rodadas diferentes (cronometragem sob carga de
+fundo variável; `[1,7]` mistura P-core com HT e E-core). Agora:
+`GetSystemCpuSetInformation` → os 2 últimos núcleos de menor `EfficiencyClass`
+(https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_cpu_set_information):
+**E-cores 10 e 11** neste i7-1355U (lógicos 0–3 = 2 P-cores com HT, classe 1;
+4–11 = E-cores, classe 0).
+
+## Achados de desempenho do perfil batata (13/10)
+
+| Achado | Evidência | Mudança |
+|---|---|---|
+| Decoder FFmpeg do OpenCV abre **12 threads por câmera** (uma por núcleo lógico), mesmo com o processo preso a 2 núcleos | `psutil.num_threads()` antes/depois de `VideoCapture(...).read()`: +12; com `CAP_PROP_N_THREADS=2`: +2 | `abrir_captura(..., threads_decode=2)` para arquivo e rede; `CAPTURA_THREADS_DECODE`. Doc: `CAP_PROP_N_THREADS = 70, //!< (**open-only**) Set the maximum number of threads to use. Use 0 to use as many threads as CPU cores` (`modules/videoio/include/opencv2/videoio.hpp`, branch 4.x; docs.opencv.org devolveu desafio Cloudflare ao cliente automatizado) |
+| Vídeo concorrente custa ~40 % na inferência nos 2 E-cores; baixar a prioridade da thread de vídeo recupera só ~6 % | micro-bench intercalado, 3 rodadas: sem vídeo 2143 ms, vídeo normal 3041, vídeo abaixo do normal 2848 (medianas) | **não adotado** (dentro do ruído) |
+| Análise pronta esperava até ~0,9 s para sair: um commit SQLite por alerta criado/tocado/resolvido | etapa `alertas` p99 565 ms / máx 917 ms; `espera_publicacao` p50 522 ms (bench `diag-espera`) | uma transação por análise, eventos depois do commit: `alertas` máx 154 ms, `espera_publicacao` p50 185 ms (`diag-espera2`); `tests/test_alert_state.py::test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois` |
+| Histerese de 8 quadros = ~0,7 s no loop antigo, ~27 s a 0,3 análise/s | latência de alerta batata 1 câm.: base 31 s, PyTorch 18 s, ONNX 42 s (medianas de 3) | cria com 8 quadros **ou** 2 s com ≥ 2 inferências novas seguidas; resolve com 20 **ou** 6 s com ≥ 3 (`ALERT_CREATE_AFTER_SECONDS`, `ALERT_MIN_CONFIRMATIONS`, `ALERT_RESOLVE_AFTER_SECONDS`, `ALERT_MIN_RESOLVE_CONFIRMATIONS`); 7 testes novos |
+| No modo assíncrono, os degraus de N do controlador não aliviam nada e atrasam a redução da pose em ~30 s | o slot por câmera já guarda só o quadro mais novo | escada assíncrona começa pela pose (`tests/test_controlador_adaptativo.py::test_no_modo_assincrono_a_escada_comeca_pela_pose`) |
+
+Teste ajustado (contrato, não afrouxamento): `test_arquivo_local_nao_recebe_timeout`
+afirmava `params is None`; a intenção declarada era "sem timeout de rede em
+arquivo". Agora afirma que o ÚNICO parâmetro de abertura de arquivo é
+`CAP_PROP_N_THREADS=2` — timeouts seguem proibidos.
+
 ## 4.1 Pipeline
 
 | Mudança | Motivo | Evidência |
@@ -210,6 +254,10 @@ resolução, e o `MonitorService` real no nível máximo mantém EPI e pessoa em
   → fixtures do Wikimedia Commons (ATRIBUICOES.md).
 
 ## URLs de documentação citadas
+
+- https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device/performance-hint-and-thread-scheduling.html
+- https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_cpu_set_information
+- https://github.com/opencv/opencv/blob/4.x/modules/videoio/include/opencv2/videoio.hpp (CAP_PROP_N_THREADS)
 
 - https://onnxruntime.ai/docs/performance/tune-performance/threading.html
 - https://docs.ultralytics.com/modes/export/

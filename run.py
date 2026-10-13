@@ -28,6 +28,10 @@ if __name__ == "__main__":
     #   - debug liga o console interativo do Werkzeug, que executa código
     #     arbitrário de quem alcançar a porta. Esse fica atrás de FLASK_DEBUG,
     #     desligado por padrão.
+    # Modelos aquecidos ANTES de servir: sem isto a 1ª análise depois de ligar
+    # a câmera levava ~30 s no perfil batata (ver aquecer_modelos).
+    if Config.AQUECER_MODELOS_NO_BOOT:
+        app.extensions["monitor_service"].aquecer()
     socketio.run(
         app,
         host=Config.HOST,

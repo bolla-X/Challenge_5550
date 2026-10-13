@@ -19,7 +19,7 @@ from app.utils.limites_de_cpu import manter_afinidade
 from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
-from app.vision.runtime_do_modelo import garantir_runtime, resolver_caminho
+from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver_caminho
 from app.vision.yolo_pose_detector import YoloPoseDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
@@ -166,6 +166,7 @@ class MonitorService:
         if not app.config.get("TESTING"):
             self.runtimes["epi"]["ativo"] = garantir_runtime(detector_principal, peso_epi)
             self.runtimes["pessoa"]["ativo"] = garantir_runtime(self.person_detector, peso_pessoa)
+        self.aquecimento_ms: dict[str, float] = {}
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
         # Um thread de inferência para todas as câmeras (ver
@@ -217,6 +218,16 @@ class MonitorService:
         self._default_camera_id: int | None = None
 
     # ---- ciclo de vida dos workers -----------------------------------------
+    def aquecer(self) -> dict[str, float]:
+        """Uma inferência em cada modelo (EPI, pessoa, pose) antes de servir.
+
+        Chamado pelo `run.py`, não pelo construtor: o `wsgi.py` também é
+        importado pelos comandos `flask users ...`, que não precisam de modelo.
+        Ver `aquecer_modelos` para o número que motivou isto.
+        """
+        self.aquecimento_ms = aquecer_modelos([self.detector, self.person_detector, self.pose_detector])
+        return self.aquecimento_ms
+
     def load_cameras_from_db(self) -> None:
         """Sincroniza self._workers com a tabela `cameras`. Chamado no boot
         (app/__init__.py, dentro do app_context) e de novo sempre que o CRUD
@@ -445,6 +456,7 @@ class MonitorService:
                 "carga_ms": getattr(det, "load_ms", None),
                 "runtime": getattr(det, "runtime", None),
                 "escolha": self.runtimes.get(nome),
+                "aquecimento_ms": self.aquecimento_ms.get(str(getattr(det, "model_path", ""))),
             }
             for nome, det in detectores.items()
         }
