@@ -211,6 +211,11 @@ PUBLICAS = {
     "auth.me",          # e quem decide se a tela de login aparece
     "status.index",     # shell do SPA (o HTML em si nao tem dado)
     "static",           # assets do build
+    # Celular como câmera (F6): o celular não tem sessão. A página é HTML sem
+    # dado; o envio só aceita token de câmera existente e em monitoramento.
+    # Coberto por tests/test_celular.py (token desconhecido → 404, sem quadro).
+    "celular.pagina",
+    "celular.receber_quadro",
 }
 
 

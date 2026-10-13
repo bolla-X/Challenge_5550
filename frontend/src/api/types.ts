@@ -461,7 +461,7 @@ export interface CameraRecord {
   id: number;
   name: string;
   location: string | null;
-  source_type: "USB" | "RTSP" | "Arquivo";
+  source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
   source: string;
   fps: number;
   width: number;

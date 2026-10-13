@@ -10,6 +10,7 @@ from flask_socketio import join_room, leave_room, rooms
 from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
 from app.api.cameras import cameras_bp
+from app.api.celular import celular_bp
 from app.api.diagnostics import runtime_bp
 from app.api.escala import escala_bp
 from app.api.features import features_bp
@@ -109,6 +110,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(risk_bp)
     app.register_blueprint(escala_bp)
     app.register_blueprint(relatorio_bp)
+    app.register_blueprint(celular_bp)
 
     # Cobre toda rota LEGADA que opera sobre "a câmera padrão" (/start,
     # /stop, /status, /preflight, /settings, /overlay, /risk-area,

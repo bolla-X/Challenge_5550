@@ -51,7 +51,7 @@ class ServidorE2E:
         runtime.mkdir(parents=True, exist_ok=True)
         banco = runtime / "e2e.db"
         banco.unlink(missing_ok=True)
-        self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao")}
+        self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}
         self.emails = {papel: f"{papel}@e2e.local" for papel in self.senhas}
@@ -103,7 +103,8 @@ class ServidorE2E:
         tecnico = self.sessao("technical")
         for nome, tipo, fonte in (("Multidão", "Arquivo", str(self.fixtures["multidao"])),
                                   ("Canteiro", "Arquivo", str(self.fixtures["bench"])),
-                                  ("Rede", "RTSP", self.fonte_rede.url)):
+                                  ("Rede", "RTSP", self.fonte_rede.url),
+                                  ("Queda", "Arquivo", str(self.fixtures["queda"]))):
             r = tecnico.post(self.base + "/api/cameras", json={"name": nome, "source_type": tipo, "source": fonte,
                                                                 "fps": 12, "width": 960, "height": 540}, timeout=10)
             r.raise_for_status()
@@ -145,7 +146,10 @@ def navegador():
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
-        nav = pw.chromium.launch(headless=True)
+        # Câmera falsa do Chromium para o F6 (celular como câmera): o
+        # getUserMedia recebe um vídeo sintético e a permissão é concedida
+        # sem diálogo. Não afeta os outros testes.
+        nav = pw.chromium.launch(headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"])
         yield nav
         nav.close()
 

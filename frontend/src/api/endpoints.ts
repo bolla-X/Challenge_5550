@@ -54,7 +54,7 @@ export const listCameras = () => apiFetch<CamerasResponse>("/api/cameras");
 export const createCamera = (payload: {
   name: string;
   location?: string | null;
-  source_type: "USB" | "RTSP" | "Arquivo";
+  source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
   source: string;
   fps?: number;
   width?: number;
@@ -66,7 +66,7 @@ export const updateCamera = (
   payload: Partial<{
     name: string;
     location: string | null;
-    source_type: "USB" | "RTSP" | "Arquivo";
+    source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
     source: string;
     fps: number;
     width: number;

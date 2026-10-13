@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from app.services.feature_manager import FeatureManager
 from app.vision.person_compliance_matcher import PPE_KEYS, PersonComplianceMatcher
+from app.vision.quedas import atribuir_quedas
 from app.vision.schemas import Detection, PoseResult
 
 # feature -> (mensagem, severidade). Fonte única das regras de EPI: a mesma
@@ -99,6 +100,7 @@ class RuleEngine:
         alerts: list[RuleAlert] = []
         alerts.extend(self._evaluate_ppe(detections, pose, people))
         alerts.extend(self._evaluate_pose(poses_avaliadas, frame_shape))
+        alerts.extend(self._evaluate_quedas_do_modelo(detections, people))
         alerts.extend(self._evaluate_risk_area(people, pose))
         return RuleEvaluation(alerts=alerts, people=people, poses=poses_avaliadas)
 
@@ -215,6 +217,34 @@ class RuleEngine:
                     )
                 )
         return alerts
+
+    def _evaluate_quedas_do_modelo(self, detections: list[Detection], people: list[dict[str, Any]]) -> list[RuleAlert]:
+        """Queda pela classe `fall_detected` do modelo de EPI (F2), atribuída a um ID.
+
+        Independe da pose: a pessoa caída costuma não ser vista pelo detector
+        de pessoa (ver app/vision/quedas.py). Sem pessoa que contenha a caixa
+        (rastreamento desligado), o sujeito é a própria queda.
+        """
+        if not self.feature_manager.is_enabled("falls"):
+            return []
+        alertas = []
+        for queda, pessoa in atribuir_quedas(detections, people):
+            if pessoa is not None:
+                sujeito = {"person_id": pessoa["id"], "person_label": pessoa["label"], "person_box": pessoa["box"]}
+                rotulo = f" — {pessoa['label']}"
+            else:
+                sujeito = {"subject": "queda_sem_pessoa", "person_box": queda.box.to_dict()}
+                rotulo = ""
+            alertas.append(
+                RuleAlert(
+                    rule="fall_detected",
+                    severity="critical",
+                    message=f"Queda detectada{rotulo}",
+                    feature="falls",
+                    metadata={**sujeito, "method": "modelo_epi_fall_detected", "confianca": round(queda.confidence, 2)},
+                )
+            )
+        return alertas
 
     @staticmethod
     def _pose_subject(pose: PoseResult) -> dict[str, Any]:

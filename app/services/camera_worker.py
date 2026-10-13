@@ -24,6 +24,7 @@ from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
 from app.services.gate_service import GateState, avaliar_quadro
+from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
 from app.services.pipeline_stats import EstatisticasDoPipeline
 from app.services.replay import BufferDeReplay, ClipePendente, gravar_clipe
@@ -34,10 +35,12 @@ from app.services.storage_cleanup_service import StorageCleanupService
 from app.utils.salas import emitir_para_camera, emitir_para_foco
 from app.vision.annotator import FrameAnnotator
 from app.vision.captura_continua import CapturaContinua
+from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_rosto
+from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
@@ -157,7 +160,8 @@ class CameraWorker:
             app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON)
         )
         self.risk_area_name = str(app.config.get("RISK_AREA_NAME", "Área de risco"))
-        self.video_stream = VideoStream(
+        # Celular como câmera (F6): o navegador do celular empurra quadros.
+        self.video_stream = FonteDeCelular(source, width, height) if e_celular(source) else VideoStream(
             source=source,
             width=width,
             height=height,
@@ -253,6 +257,8 @@ class CameraWorker:
         self._clipes_pendentes: list[ClipePendente] = []
         # Mapa de calor de risco (F7): pés de quem está em violação, com meia-vida.
         self.mapa_de_calor = MapaDeCalor(meia_vida_s=float(app.config.get("MAPA_DE_CALOR_MEIA_VIDA_S", 900.0)))
+        # Linha do tempo de conformidade por ID de rastreio (F2).
+        self.linha_do_tempo = LinhaDoTempoPorId()
         self._pre_alerta_registrado: dict[int, float] = {}
         # Resumo do controlador adaptativo (o MonitorService escreve aqui).
         self.modo_adaptativo: dict[str, Any] | None = None
@@ -405,6 +411,7 @@ class CameraWorker:
                 self.aproximacao.reset()
             self._pre_alertas = []
             self._pre_alerta_registrado.clear()
+            self.linha_do_tempo.limpar()
             if self.replay is not None:
                 self.replay.limpar()
             self._clipes_pendentes = []
@@ -1259,6 +1266,7 @@ class CameraWorker:
             self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
         if nova:
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
+            self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
 
         with self._thread_lock:
             self._quadro_bruto = frame
@@ -1738,10 +1746,19 @@ class CameraWorker:
                 # Só as pessoas passam pelo tracker — EPIs são associados
                 # geometricamente a elas (PersonComplianceMatcher), não
                 # rastreados por conta própria.
+                # Queda que nenhuma pessoa detectada contém vira pessoa antes do
+                # rastreador: é assim que o alerta de queda ganha um ID (F2).
+                pessoas_detectadas = pessoas_com_quedas(pessoas_detectadas, ppe_detections)
                 people = self.person_tracker.update(pessoas_detectadas)
                 marcar("tracking")
                 if self._pose_backend == "yolo":
                     people = self._anexar_esqueletos(people, esqueletos)
+            else:
+                # Sem detector de pessoa separado, as pessoas são a classe
+                # `Person` do próprio modelo de EPI: a queda que nenhuma delas
+                # contém entra como pessoa do mesmo jeito (F2).
+                vistas = [d for d in ppe_detections if d.label == "person" or d.category == "person"]
+                ppe_detections = ppe_detections + pessoas_com_quedas(vistas, ppe_detections)[len(vistas):]
             ppe_detections = self._gate_ppe_to_people(ppe_detections, people)
             marcar("filtro_epi")
             detections = ppe_detections + people

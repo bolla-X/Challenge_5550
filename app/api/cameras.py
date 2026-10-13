@@ -11,11 +11,13 @@ from app.llm import MARCA_DE_REDACAO
 from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_SUPERVISOR, ROLE_TECHNICAL, Camera
 from app.services.gate_service import normalizar_exigidos
 from app.utils.auth import camera_permitida, camera_scope, current_user, erro_fora_do_escopo, login_required, require_role
+from app.vision.fonte_celular import PREFIXO as PREFIXO_CELULAR
+from app.vision.fonte_celular import novo_token
 from app.vision.video_stream import capture_api
 
 cameras_bp = Blueprint("cameras", __name__)
 
-VALID_SOURCE_TYPES = {"USB", "RTSP", "Arquivo"}
+VALID_SOURCE_TYPES = {"USB", "RTSP", "Arquivo", "Celular"}
 # Mesmas 8 chaves de FeatureManager.AVAILABLE_FEATURES — validado aqui pra
 # nunca deixar entrar uma chave de feature que o resto do sistema (Sidebar,
 # RuleEngine) não reconhece.
@@ -56,7 +58,12 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
             return f"'source_type' deve ser um de {sorted(VALID_SOURCE_TYPES)}.", 400
         camera.source_type = source_type
 
-    if is_create or "source" in payload:
+    if camera.source_type == "Celular":
+        # Celular como câmera (F6): a fonte é um token gerado aqui, nunca
+        # digitado — é a única credencial do celular (ver app/vision/fonte_celular.py).
+        if not str(camera.source or "").startswith(PREFIXO_CELULAR):
+            camera.source = PREFIXO_CELULAR + novo_token()
+    elif is_create or "source" in payload:
         source = str(payload.get("source", "")).strip()
         if not source:
             return "'source' é obrigatório (índice USB, URL RTSP ou caminho de arquivo).", 400
@@ -367,6 +374,35 @@ def camera_video_feed(camera_id: int):
             monitor.registrar_espectador(camera_id, -1)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/conformidade-por-id")
+@login_required
+def camera_ids_rastreados(camera_id: int):
+    """IDs de rastreio com linha do tempo (F2). ID de rastreio não é identidade."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify({"camera_id": camera_id, "items": monitor.worker_da_camera(camera_id).linha_do_tempo.ids()})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/conformidade-por-id/<pessoa_id>")
+@login_required
+def camera_linha_do_tempo_do_id(camera_id: int, pessoa_id: str):
+    """Mudanças de estado (EPIs, queda, zona) de UM ID de rastreio (F2)."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        linha = monitor.worker_da_camera(camera_id).linha_do_tempo.obter(pessoa_id)
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+    if linha is None:
+        return jsonify({"error": "ID de rastreio não visto recentemente nesta câmera"}), 404
+    return jsonify(linha | {"camera_id": camera_id})
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/mapa-de-calor")

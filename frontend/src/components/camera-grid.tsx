@@ -54,8 +54,19 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
 }
 
 /** Estado crítico: alerta ativo `critical` ou `high` na câmera. */
+/** Emergência com pessoa (queda, SOS) vem antes de EPI crítico, que vem antes de "alto". */
+const EMERGENCIAS = new Set(["fall_detected", "fallen_person", "sos_gesto"]);
+
+function prioridade(a: Alert): number {
+  if (EMERGENCIAS.has(a.rule)) return 0;
+  if (a.severity === "critical") return 1;
+  if (a.severity === "high") return 2;
+  return 3;
+}
+
 export function temAlertaCritico(estado: EstadoDaCamera): Alert | undefined {
-  return estado.alertas.find((a) => a.severity === "critical" || a.severity === "high");
+  const candidatos = estado.alertas.filter((a) => prioridade(a) < 3);
+  return candidatos.sort((x, y) => prioridade(x) - prioridade(y))[0];
 }
 
 /** Uma linha de estado, em caixa normal. `fixture` NÃO é falha: é fallback
@@ -150,7 +161,7 @@ function CameraCard({
 function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
-  const [sourceType, setSourceType] = useState<"USB" | "RTSP" | "Arquivo">("USB");
+  const [sourceType, setSourceType] = useState<"USB" | "RTSP" | "Arquivo" | "Celular">("USB");
   const [source, setSource] = useState("");
   const [fps, setFps] = useState(12);
   const [width, setWidth] = useState(960);
@@ -180,13 +191,13 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
       setSubmitError("Dê um nome à câmera.");
       return;
     }
-    if (!source.trim()) {
+    if (!source.trim() && sourceType !== "Celular") {
       setSubmitError(sourceType === "USB" ? "Escolha um índice detectado abaixo." : "Preencha o endereço da câmera.");
       return;
     }
     setSubmitting(true);
     setSubmitError(null);
-    createCamera({ name: name.trim(), location: location.trim() || null, source_type: sourceType, source: source.trim(), fps, width, height })
+    createCamera({ name: name.trim(), location: location.trim() || null, source_type: sourceType, source: sourceType === "Celular" ? "celular" : source.trim(), fps, width, height })
       .then(() => onCreated())
       .catch((err) => setSubmitError(err instanceof Error ? err.message : "Falha ao cadastrar câmera"))
       .finally(() => setSubmitting(false));
@@ -216,7 +227,7 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
               <select
                 value={sourceType}
                 onChange={(e) => {
-                  const next = e.target.value as "USB" | "RTSP" | "Arquivo";
+                  const next = e.target.value as "USB" | "RTSP" | "Arquivo" | "Celular";
                   setSourceType(next);
                   setSource("");
                 }}
@@ -224,6 +235,7 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
                 <option value="USB">USB / webcam</option>
                 <option value="RTSP">RTSP</option>
                 <option value="Arquivo">Arquivo</option>
+                <option value="Celular">Celular (via QR code)</option>
               </select>
             </label>
             <label>
@@ -285,6 +297,11 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
                 )}
               </div>
             </div>
+          ) : sourceType === "Celular" ? (
+            <p className="hint">
+              O celular vira a câmera: depois de cadastrar, abra esta câmera e leia o QR code com o celular. O servidor
+              precisa estar em HTTPS (python run.py --https).
+            </p>
           ) : (
             <label className="field">
               <span>{sourceType === "RTSP" ? "URL RTSP" : "Caminho do arquivo"}</span>

@@ -16,6 +16,7 @@ import { Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./c
 import { LiveVideo, type EstadoDoStream } from "./live-video";
 import { PipelinePanel } from "./pipeline-panel";
 import { HeatmapPanel } from "./heatmap-panel";
+import { CelularQr } from "./celular-qr";
 import { AvisoDegradado, FeedBadge } from "./feed-status";
 import { deleteCamera, discoverCameras, getCameraStatus, startCamera, stopCamera, updateCamera } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
@@ -298,6 +299,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
               <option value="USB">USB</option>
               <option value="RTSP">RTSP</option>
               <option value="Arquivo">Arquivo</option>
+              <option value="Celular">Celular (via QR code)</option>
             </select>
           </label>
           <label>
@@ -438,14 +440,25 @@ export function CameraFocus() {
   const tabs = TABS_BY_MODE[mode].map((tab) => {
     if (tab.key === "llm") return { ...tab, content: <LlmPanel camId={camera.id} /> };
     if (tab.key === "gate") return { ...tab, content: <GateConfigPanel camera={camera} /> };
-    if (tab.key === "camconfig") return { ...tab, content: <CameraConfigPanel camera={camera} /> };
+    if (tab.key === "camconfig")
+      return {
+        ...tab,
+        content: (
+          <>
+            {camera.source_type === "Celular" && <CelularQr cameraId={camera.id} />}
+            <CameraConfigPanel camera={camera} />
+          </>
+        ),
+      };
     if (tab.key === "logs") return { ...tab, content: <LogsPanel /> };
     if (tab.key === "pipeline") return { ...tab, content: <PipelinePanel cameraId={camera.id} /> };
     if (tab.key === "heatmap") return { ...tab, content: <HeatmapPanel cameraId={camera.id} /> };
     return tab;
   });
 
-  const sub = [camera.location, `${camera.source_type} ${camera.source}`].filter(Boolean).join(", ");
+  // Celular: a fonte é o token de pareamento — não vai para o cabeçalho.
+  const fonte = camera.source_type === "Celular" ? "Celular (via QR code)" : `${camera.source_type} ${camera.source}`;
+  const sub = [camera.location, fonte].filter(Boolean).join(", ");
 
   return (
     <div className="screen with-sidebar">

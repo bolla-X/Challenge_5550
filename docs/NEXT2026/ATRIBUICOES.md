@@ -41,3 +41,4 @@ O pacote `ultralytics` é **AGPL-3.0** (https://github.com/ultralytics/ultralyti
 | Diretório | Origem | Licença |
 |---|---|---|
 | `app/vision/bytetrack/` | `supervision` 0.30.9 (`supervision/tracker/byte_tracker/`), Roboflow | **MIT** — `app/vision/bytetrack/LICENSE.md` |
+| `frontend/src/vendor/qrcodegen.ts` | [QR Code generator library (TypeScript)](https://github.com/nayuki/QR-Code-generator), Project Nayuki — `typescript-javascript/qrcodegen.ts` do branch `master` (baixado em 13/10/2026) | **MIT** — aviso de copyright e licença no cabeçalho do próprio arquivo; única alteração: `export default qrcodegen;` no fim |
