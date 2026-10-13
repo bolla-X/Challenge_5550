@@ -58,9 +58,16 @@ class Detection:
     # Id estável ENTRE frames, atribuído pelo PersonTracker (só para pessoas).
     # None = objeto não rastreado (EPIs) ou tracking desligado.
     track_id: int | None = None
+    # Esqueleto COCO-17 em PIXELS ((x, y, confiança) por ponto), quando a
+    # pessoa veio de um modelo de pose (ver app/vision/yolo_pose_detector.py).
+    # Fora da igualdade e do `to_dict`: é insumo da pose, não da detecção.
+    keypoints: tuple[tuple[float, float, float], ...] | None = field(default=None, compare=False, repr=False)
 
     def with_track_id(self, track_id: int | None) -> "Detection":
         return replace(self, track_id=track_id)
+
+    def with_keypoints(self, keypoints) -> "Detection":
+        return replace(self, keypoints=keypoints)
 
     def to_dict(self) -> dict[str, Any]:
         return {

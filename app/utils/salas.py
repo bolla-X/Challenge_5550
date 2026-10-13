@@ -51,6 +51,23 @@ def salas_do_usuario(usuario: User | None) -> list[str]:
     return [SALA_PARQUE]
 
 
+def sala_de_foco(camera_id: int | None) -> str:
+    """Sala de quem está com a câmera ABERTA na tela (telemetria de alta frequência)."""
+    return f"foco:{camera_id}"
+
+
+def emitir_para_foco(socketio: Any, evento: str, payload: Any, camera_id: int | None) -> None:
+    """Telemetria de alta frequência (`analysis`, `compliance_state`) só para quem a vê.
+
+    Antes ia para o parque inteiro: com 4 câmeras a 8 Hz, todo navegador
+    recebia 32 eventos/s e descartava 24 no cliente (`belongsToFocusedCamera`).
+    O escopo continua garantido: só entra em `foco:<id>` quem tem permissão
+    sobre a câmera (ver `app/__init__.py::_focar`).
+    """
+    if camera_id is not None:
+        socketio.emit(evento, payload, to=sala_de_foco(camera_id))
+
+
 def emitir_para_camera(socketio: Any, evento: str, payload: Any, camera_id: int | None) -> None:
     """Emite um evento so para quem tem escopo sobre `camera_id`.
 

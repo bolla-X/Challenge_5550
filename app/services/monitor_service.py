@@ -11,10 +11,14 @@ from app.extensions import db
 from app.models import Camera
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.camera_worker import CameraWorker
+from app.services.controlador_adaptativo import ControladorAdaptativo
 from app.services.feature_manager import FeatureManager
+from app.services.gravador_assincrono import GravadorAssincrono
 from app.services.llm_risk_service import ServicoDeRiscoLLM
+from app.utils.salas import SALA_PARQUE, sala_da_camera
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.vision.yolo_pose_detector import YoloPoseDetector
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 
@@ -108,9 +112,21 @@ class MonitorService:
         # um modelo de EPI sem classe "person" propria (ex: epi_pretrained.pt).
         # Com o Vyra, que ja detecta "Person", fica ocioso.
         # Mesmo par de modelos, compartilhado por todas as cameras.
-        self.person_detector = YoloPPEDetector(
-            model_path=app.config.get("PERSON_MODEL_PATH", "yolov8n.pt"),
-            confidence=app.config.get("YOLO_CONFIDENCE", 0.35),
+        # POSE_BACKEND=yolo: o detector de pessoa É o modelo de pose (pessoa +
+        # esqueleto numa chamada só; ver yolo_pose_detector.py). Isso exige o
+        # caminho multi-pessoa, então MULTI_PERSON_DETECTION passa a valer true.
+        pose_yolo = str(app.config.get("POSE_BACKEND", "mediapipe")).lower() == "yolo"
+        if pose_yolo:
+            app.config["MULTI_PERSON_DETECTION"] = True
+        classe_pessoa = YoloPoseDetector if pose_yolo else YoloPPEDetector
+        # Com ByteTrack o detector entrega a partir de 0,1: a caixa fraca só
+        # continua um track existente, nunca cria pessoa (ByteTrackPessoas).
+        confianca_pessoa = 0.1 if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack" else app.config.get(
+            "YOLO_CONFIDENCE", 0.35
+        )
+        self.person_detector = classe_pessoa(
+            model_path=app.config.get("POSE_MODEL_PATH" if pose_yolo else "PERSON_MODEL_PATH", "yolov8n.pt"),
+            confidence=confianca_pessoa,
             device=app.config.get("YOLO_DEVICE"),
             classes=[0],
             max_detections=app.config.get("YOLO_MAX_DETECTIONS", 100),
@@ -145,6 +161,25 @@ class MonitorService:
 
         self._workers: dict[int, CameraWorker] = {}
         self.espectadores: dict[int, int] = {}
+
+        # ---- controlador adaptativo ("modo batata") -----------------------
+        permitidos = [int(v) for v in str(app.config.get("ADAPTATIVO_IMGSZ_PERMITIDOS", "")).split(",") if v.strip().isdigit()]
+        self.controlador = ControladorAdaptativo(
+            n_base=max(1, int(app.config.get("DETECTION_EVERY_N_FRAMES", 1))),
+            n_max=max(1, int(app.config.get("ADAPTATIVO_N_MAX", 6))),
+            imgsz_base=int(self.detector.imgsz) if hasattr(self.detector, "imgsz") else int(app.config.get("YOLO_IMGSZ", 640)),
+            imgsz_permitidos=permitidos,
+            telemetria_base_hz=float(app.config.get("TELEMETRY_HZ", 8.0)),
+            limite_alto_ms=float(app.config.get("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)),
+            limite_baixo_ms=float(app.config.get("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)),
+        )
+        # Snapshot de alerta gravado fora do loop da câmera (um thread para todas).
+        self.gravador = GravadorAssincrono(app) if self.agendador is not None and not app.config.get("TESTING") else None
+        self._parar_adaptativo = threading.Event()
+        self._thread_adaptativo: threading.Thread | None = None
+        if app.config.get("ADAPTATIVO", True) and self.agendador is not None and not app.config.get("TESTING"):
+            self._thread_adaptativo = threading.Thread(target=self._laco_adaptativo, name="controlador-adaptativo", daemon=True)
+            self._thread_adaptativo.start()
         self._workers_lock = threading.RLock()
         self._default_camera_id: int | None = None
 
@@ -230,6 +265,7 @@ class MonitorService:
             inference_lock=self._inference_lock,
             servico_llm=self._criar_servico_llm(),
             agendador=self.agendador,
+            gravador=self.gravador,
         )
 
     def _criar_servico_llm(self):
@@ -299,6 +335,43 @@ class MonitorService:
     def latest_jpeg_versionado(self, camera_id: int | None = None) -> tuple[bytes | None, int]:
         return self._get_worker(camera_id).latest_jpeg_versionado()
 
+    def _laco_adaptativo(self) -> None:
+        while not self._parar_adaptativo.wait(2.0):
+            try:
+                self.tique_adaptativo()
+            except Exception:  # noqa: BLE001  (o controlador nunca derruba o monitor)
+                pass
+
+    def tique_adaptativo(self) -> bool:
+        """Uma leitura do controlador. Devolve True se o nível mudou (e aplica)."""
+        with self._workers_lock:
+            workers = [w for w in self._workers.values() if w._running.is_set()]
+        idades = [
+            w.stats.resumo(10.0)["etapas"].get("idade_na_inferencia", {}).get("p95")
+            for w in workers
+        ]
+        idades = [v for v in idades if v is not None]
+        if not self.controlador.avaliar(max(idades) if idades else None):
+            return False
+        self._aplicar_adaptativo(workers)
+        return True
+
+    def _aplicar_adaptativo(self, workers) -> None:
+        cfg = self.controlador.configuracao()
+        resumo = self.controlador.resumo()
+        for worker in workers:
+            worker.detect_every_n = int(cfg["n"])
+            worker._intervalo_telemetria = 1.0 / float(cfg["telemetria_hz"]) if cfg["telemetria_hz"] else 0.0
+            worker.modo_adaptativo = resumo
+        # imgsz só muda em runtime no PyTorch: ONNX/OpenVINO congelam a forma
+        # de entrada na exportação (ver YoloPPEDetector._validar_imgsz).
+        for det in (self.detector, self.person_detector):
+            if str(getattr(det, "model_path", "")).endswith(".pt"):
+                det.imgsz = int(cfg["imgsz"])
+        self.socketio.emit("modo_adaptativo", resumo, to=SALA_PARQUE)
+        for worker in workers:
+            self.socketio.emit("modo_adaptativo", resumo | {"camera_id": worker.camera_id}, to=sala_da_camera(worker.camera_id))
+
     def registrar_espectador(self, camera_id: int, delta: int) -> None:
         """Quantos streams abertos por câmera (diagnóstico; o encode já é sob demanda)."""
         with self._workers_lock:
@@ -340,6 +413,7 @@ class MonitorService:
             "cameras": cameras,
             "modelos": modelos,
             "agendador": self.agendador.estado() if self.agendador is not None else None,
+            "adaptativo": self.controlador.resumo(),
         }
 
     def latest_analysis(self, camera_id: int | None = None) -> dict[str, Any] | None:

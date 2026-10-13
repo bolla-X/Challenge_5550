@@ -299,6 +299,14 @@ class Config:
     INFERENCIA_ASSINCRONA = env_bool("INFERENCIA_ASSINCRONA", True)
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
+    # Controlador adaptativo (ver app/services/controlador_adaptativo.py).
+    # IMGSZ_PERMITIDOS: só resoluções que passaram no guarda de qualidade
+    # (scripts/concordancia.py); vazio = o controlador nunca mexe na resolução.
+    ADAPTATIVO = env_bool("ADAPTATIVO", True)
+    ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
+    ADAPTATIVO_IMGSZ_PERMITIDOS = os.getenv("ADAPTATIVO_IMGSZ_PERMITIDOS", "")
+    ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
+    ADAPTATIVO_LIMITE_BAIXO_MS = env_float("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)
     # Segundos entre gravações de um alerta que continua ativo. Cada gravação
     # é um commit (9,2 ms aqui) feito DENTRO do loop de captura, e antes
     # acontecia por alerta a cada frame — o vídeo travava justamente quando
@@ -323,6 +331,14 @@ class Config:
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
     # frame. E o que permite atribuir queda/postura a um individuo. Custa N
     # inferencias por frame, entao POSE_MAX_PEOPLE limita o pior caso.
+    # Pose (NEXT 2026): "yolo" = um YOLO-pose é o detector de pessoa e devolve o
+    # esqueleto de todos numa passada (substitui yolov8n + MediaPipe por
+    # recorte); "mediapipe" = caminho anterior. Decisão e números no CHANGELOG.
+    POSE_BACKEND = os.getenv("POSE_BACKEND", "yolo").strip().lower()
+    POSE_MODEL_PATH = os.getenv("POSE_MODEL_PATH", "models/yolo11n-pose.pt")
+    # "iou" (padrão) ou "bytetrack" (laboratório; o detector de pessoa passa a
+    # entregar a partir de 0,1 para a segunda associação). Ver CHANGELOG.
+    TRACKER = os.getenv("TRACKER", "iou").strip().lower()
     POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)
     POSE_MAX_PEOPLE = env_int("POSE_MAX_PEOPLE", 4)
     POSE_MIN_DETECTION_CONFIDENCE = env_float("POSE_MIN_DETECTION_CONFIDENCE", 0.5)

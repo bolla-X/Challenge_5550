@@ -28,14 +28,15 @@ from app.services.risk_rules import RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
-from app.utils.salas import emitir_para_camera
+from app.utils.salas import emitir_para_camera, emitir_para_foco
 from app.vision.annotator import FrameAnnotator
 from app.vision.captura_continua import CapturaContinua
 from app.vision.person_compliance_matcher import PPE_KEYS
-from app.vision.person_tracker import PersonTracker
+from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.video_stream import VideoStream
+from app.vision.yolo_pose_detector import pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ class CameraWorker:
         inference_lock: threading.Lock,
         servico_llm: Any | None = None,
         agendador: AgendadorDeInferencia | None = None,
+        gravador: Any | None = None,
     ) -> None:
         self.app = app
         self.socketio = socketio
@@ -191,6 +193,9 @@ class CameraWorker:
         # agendador e o worker só publica. Sem ele (testes de caracterização,
         # uso isolado), o loop síncrono de sempre continua valendo.
         self.agendador = agendador
+        # Escrita de evidência fora do loop (ver gravador_assincrono.py). None =
+        # síncrono, como antes (testes de caracterização).
+        self.gravador = gravador
         self.captura: CapturaContinua | None = None
         self._analise_recente: FrameAnalysis | None = None
         self._versao_analise = 0
@@ -204,10 +209,18 @@ class CameraWorker:
         # RLock: o JPEG anotado pede o quadro anotado, que usa o mesmo cache.
         self._cache_lock = threading.RLock()
         self.espectadores = 0
+        # Resumo do controlador adaptativo (o MonitorService escreve aqui).
+        self.modo_adaptativo: dict[str, Any] | None = None
         # Um tracker POR câmera (ver docstring de PersonTracker): os modelos
         # YOLO são compartilhados, então o estado de tracking não pode morar
         # dentro deles.
-        self.person_tracker = PersonTracker()
+        # TRACKER=bytetrack liga o ByteTrack por câmera (laboratório: reduziu
+        # fragmentação nas fixtures mas custou > 1 ms p95 — ver CHANGELOG).
+        self.person_tracker = (
+            ByteTrackPessoas(limiar_ativacao=float(app.config.get("YOLO_CONFIDENCE", 0.35)))
+            if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack"
+            else PersonTracker()
+        )
         # Detecção intercalada (ver Config.DETECTION_EVERY_N_FRAMES). Contador
         # e último resultado são POR câmera: cada uma tem seu próprio ritmo, e
         # misturar as caixas de uma com as da outra seria pior que o lag.
@@ -400,6 +413,8 @@ class CameraWorker:
             # Estado da camada de segunda opiniao. `habilitado: false` e o
             # default e nao e erro — o dashboard mostra "desligada", nao falha.
             "llm": self._estado_do_llm(),
+            # O que o controlador adaptativo reduziu (banner DEGRADADO na tela).
+            "adaptativo": self.modo_adaptativo,
         }
 
     def _estado_do_llm(self) -> dict[str, Any]:
@@ -629,6 +644,11 @@ class CameraWorker:
                 alert = runtime_state.alert
                 if alert is None or alert.id not in created_ids:
                     continue
+                if self.gravador is not None and frame is not None:
+                    # Disco fora do loop: o quadro anotado é um array novo (o
+                    # anotador copia), então pode ir para outro thread sem cópia.
+                    self.gravador.enfileirar(self._gravar_snapshot, alert.id, frame)
+                    continue
                 updated_alert = self.snapshot_service.attach_to_alert(alert, frame)
                 payload = updated_alert.to_dict()
                 runtime_state.alert = updated_alert
@@ -636,6 +656,16 @@ class CameraWorker:
                 # Linha do tempo registra apenas alertas que saíram do estado ativo.
         for payload in alert_state.get("resolved", []):
             self._emit_resolved_alert_event_once(payload)
+
+    def _gravar_snapshot(self, alert_id: int, frame) -> None:
+        """Roda no thread do GravadorAssincrono, com sessão própria."""
+        from app.models import Alert
+
+        alerta = db.session.get(Alert, alert_id)
+        if alerta is None:
+            return
+        atualizado = self.snapshot_service.attach_to_alert(alerta, frame)
+        self._emitir("alert_updated", atualizado.to_dict())
 
     def _emit_resolved_alert_event_once(self, payload: dict[str, Any], *, false_positive: bool = False) -> dict[str, Any] | None:
         metadata = payload.get("metadata") or {}
@@ -710,6 +740,9 @@ class CameraWorker:
         cfg = self.app.config
         self._multi_pessoa = bool(cfg.get("MULTI_PERSON_DETECTION", True))
         self._pose_por_pessoa = bool(cfg.get("POSE_PER_PERSON", True))
+        # "yolo": o detector de pessoa é um YOLO-pose e a pose sai junto (ver
+        # yolo_pose_detector.py). "mediapipe": recorte por pessoa, como antes.
+        self._pose_backend = "yolo" if getattr(self.person_detector, "e_pose", False) else "mediapipe"
         self._pose_max_pessoas = int(cfg.get("POSE_MAX_PEOPLE", 4))
         self._exigir_sobreposicao = bool(cfg.get("PPE_REQUIRE_PERSON_OVERLAP", True))
         self._sobreposicao_min = float(cfg.get("PPE_PERSON_OVERLAP_MIN", 0.35))
@@ -1022,8 +1055,8 @@ class CameraWorker:
         mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"])
         if mudou_alerta or self._deve_emitir_telemetria():
             payload = self.latest_analysis() or {}
-            self._emitir("analysis", payload | {"camera_id": self.camera_id})
-            self._emitir("compliance_state", compliance_state | {"camera_id": self.camera_id})
+            emitir_para_foco(self.socketio, "analysis", payload | {"camera_id": self.camera_id}, self.camera_id)
+            emitir_para_foco(self.socketio, "compliance_state", compliance_state | {"camera_id": self.camera_id}, self.camera_id)
             self._emitir_diagnostico_se_mudou(model_diagnostics)
         self._maybe_emit_risk_score()
         self._perf_marca("emissao")
@@ -1428,6 +1461,18 @@ class CameraWorker:
         MediaPipe ainda encontra um corpo — comportamento de sempre, mantido
         como rede de seguranca.
         """
+        if self._pose_backend == "yolo":
+            # Pessoas vieram do YOLO-pose: cada caixa já traz o esqueleto dela,
+            # e o track_id é o do tracker — nada a associar, nada a re-rodar.
+            poses = []
+            for item in detections:
+                if (item.label == "person" or item.category == "person") and item.keypoints:
+                    rotulo = f"person_{item.track_id}" if item.track_id is not None else None
+                    pose = pose_da_deteccao(item, frame.shape, person_id=rotulo)
+                    if pose is not None:
+                        poses.append(pose)
+            return poses
+
         if not self._pose_por_pessoa:
             global_pose = self.pose_estimator.estimate(frame)
             return [global_pose] if global_pose.found else []

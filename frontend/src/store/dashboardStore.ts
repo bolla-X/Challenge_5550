@@ -764,7 +764,16 @@ export function subscribeToServerEvents(): () => void {
     teardown.push(() => (socket.off as (event: K, handler: (payload: ServerEvents[K]) => void) => void)(event, wrapped));
   }
 
-  const onConnect = () => set({ connected: true }, false, "ws:connect");
+  const focar = (camId: number | null) => {
+    if (camId !== null && socket.connected) socket.emit("focar", { camera_id: camId });
+  };
+  const onConnect = () => {
+    set({ connected: true }, false, "ws:connect");
+    focar(useDashboardStore.getState().camId);
+  };
+  teardown.push(useDashboardStore.subscribe((s, anterior) => {
+    if (s.camId !== anterior.camId) focar(s.camId);
+  }));
   const onDisconnect = () => set({ connected: false }, false, "ws:disconnect");
   socket.on("connect", onConnect);
   socket.on("disconnect", onDisconnect);

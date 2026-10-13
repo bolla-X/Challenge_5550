@@ -5,7 +5,7 @@ import logging
 from flask import Flask, jsonify
 from flask import session as socket_session
 from flask_socketio import disconnect as socketio_disconnect
-from flask_socketio import join_room
+from flask_socketio import join_room, leave_room, rooms
 
 from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
@@ -25,7 +25,7 @@ from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.auth import current_user
 from app.utils.limites_de_cpu import aplicar_limites_de_cpu
 from app.utils.logging_config import configure_logging
-from app.utils.salas import salas_do_usuario
+from app.utils.salas import sala_de_foco, salas_do_usuario
 
 
 def _validar_secret_key(app: Flask) -> None:
@@ -142,6 +142,29 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         for sala in salas_do_usuario(usuario):
             join_room(sala)
         return True
+
+    @socketio.on("focar")
+    def _focar(payload=None):
+        """O cliente diz qual câmera está aberta na tela; entra em `foco:<id>`.
+
+        Validado contra o mesmo escopo do REST: operador só foca a câmera do
+        próprio setor. Sai de qualquer foco anterior (uma câmera por aba).
+        """
+        try:
+            camera_id = int((payload or {}).get("camera_id"))
+        except (TypeError, ValueError):
+            return {"ok": False}
+        if app.config.get("AUTH_REQUIRED", True):
+            usuario = current_user()
+            if usuario is None or not usuario.active:
+                return {"ok": False}
+            if usuario.role == "operator" and usuario.camera_id != camera_id:
+                return {"ok": False}
+        for sala in list(rooms()):
+            if str(sala).startswith("foco:"):
+                leave_room(sala)
+        join_room(sala_de_foco(camera_id))
+        return {"ok": True}
 
     @socketio.on("revalidate")
     def _revalidate_socket():

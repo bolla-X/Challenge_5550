@@ -154,3 +154,43 @@ def test_escopo_do_socket_acompanha_a_troca_de_setor(app):
 
     emitir_alertas_da_camera(app, app.config["ID_PORTARIA"])
     assert eventos(cliente, "active_alerts") == [], "Ana ainda recebe da Portaria depois de sair de la"
+
+
+# ------------------------------------------------ sala de foco (NEXT 2026) --
+def emitir_telemetria(aplicacao, camera_id: int) -> None:
+    from app.utils.salas import emitir_para_foco
+
+    with aplicacao.app_context():
+        emitir_para_foco(socketio, "analysis", {"camera_id": camera_id}, camera_id)
+
+
+def test_telemetria_so_chega_a_quem_focou_a_camera(app):
+    """`analysis` deixou de ir para o parque: vai só para quem abriu a câmera."""
+    tecnico = conectar(app, "tec@fabrica.com")
+    emitir_telemetria(app, app.config["ID_ALMOX"])
+    assert eventos(tecnico, "analysis") == [], "sem foco, nada de telemetria de alta frequência"
+
+    assert tecnico.emit("focar", {"camera_id": app.config["ID_ALMOX"]}, callback=True) == {"ok": True}
+    emitir_telemetria(app, app.config["ID_ALMOX"])
+    assert [e["camera_id"] for e in eventos(tecnico, "analysis")] == [app.config["ID_ALMOX"]]
+
+
+def test_trocar_o_foco_sai_do_anterior(app):
+    tecnico = conectar(app, "tec@fabrica.com")
+    tecnico.emit("focar", {"camera_id": app.config["ID_ALMOX"]}, callback=True)
+    tecnico.emit("focar", {"camera_id": app.config["ID_PORTARIA"]}, callback=True)
+    emitir_telemetria(app, app.config["ID_ALMOX"])
+    emitir_telemetria(app, app.config["ID_PORTARIA"])
+    assert [e["camera_id"] for e in eventos(tecnico, "analysis")] == [app.config["ID_PORTARIA"]]
+
+
+def test_operador_nao_consegue_focar_camera_de_outro_setor(app):
+    """O foco é validado com o mesmo escopo do REST: pedir não basta."""
+    ana = conectar(app, "ana@fabrica.com")  # Portaria
+    assert ana.emit("focar", {"camera_id": app.config["ID_ALMOX"]}, callback=True) == {"ok": False}
+    emitir_telemetria(app, app.config["ID_ALMOX"])
+    assert eventos(ana, "analysis") == [], "Ana recebeu telemetria do Almoxarifado"
+
+    assert ana.emit("focar", {"camera_id": app.config["ID_PORTARIA"]}, callback=True) == {"ok": True}
+    emitir_telemetria(app, app.config["ID_PORTARIA"])
+    assert eventos(ana, "analysis"), "Ana precisa receber a telemetria da própria câmera"

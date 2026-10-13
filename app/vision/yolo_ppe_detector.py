@@ -174,7 +174,7 @@ class YoloPPEDetector:
         # task="detect" só é obrigatório no OpenVINO, mas informar sempre é
         # correto (este projeto só faz detecção) e evita um ramo a mais.
         inicio = time.perf_counter()
-        modelo = YOLO(self.model_path, task="detect")
+        modelo = YOLO(self.model_path, task=getattr(self, "task", "detect"))
         if self.is_openvino:
             self._validar_imgsz(modelo)
         # Tempo de carga do peso (sem a primeira inferencia, que tem warmup
