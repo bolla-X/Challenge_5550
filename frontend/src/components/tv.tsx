@@ -86,7 +86,7 @@ function Setor({ s }: { s: TvSetor }) {
   );
 }
 
-export function TvScreen() {
+export function TvScreen({ embutido = false }: { embutido?: boolean }) {
   const [estado, setEstado] = useState<TvEstado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [agora, setAgora] = useState(() => new Date());
@@ -111,11 +111,13 @@ export function TvScreen() {
   }, []);
 
   return (
-    <div className="tv" data-testid="tv">
-      <header className="tv-cabeca">
-        <h1>Segurança do turno</h1>
-        <span className="t-data">{agora.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-      </header>
+    <div className={`tv ${embutido ? "embutido" : ""}`.trim()} data-testid="tv">
+      {!embutido && (
+        <header className="tv-cabeca">
+          <h1>Segurança do turno</h1>
+          <span className="t-data">{agora.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+        </header>
+      )}
       {erro && <p className="status-text error">{erro}</p>}
       {!estado ? (
         <p className="centered-empty">Carregando…</p>

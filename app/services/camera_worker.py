@@ -1270,7 +1270,9 @@ class CameraWorker:
         self._perf_marca("regras")
         if nova:
             self._atualizar_aproximacao(analysis, frame.shape)
+            inicio = time.perf_counter()
             self._atualizar_sinais(evaluation, frame.shape)
+            self.stats.duracao("g3_g4_g7_sinais", (time.perf_counter() - inicio) * 1000.0)
         # `deteccao_nova` impede que uma inferência reaproveitada conte como
         # confirmação nova na histerese.
         alert_state = self.alert_state_service.process(
@@ -1303,31 +1305,39 @@ class CameraWorker:
         if self.gate_required:
             self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
             if nova:
+                inicio = time.perf_counter()
                 portal = self._portal.atualizar(
                     avaliar_portal(compliance_state, self.gate_required, frame.shape, analysis.poses)
                 )
+                self.stats.duracao("g1_portal", (time.perf_counter() - inicio) * 1000.0)
                 if portal.get("checkin_novo"):
                     # Conta para a meta do SETOR (G8); sem foto, sem nome, sem ID salvo.
                     self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
                                               metadata={"exigidos": list(self.gate_required)})
         if nova:
+            inicio = time.perf_counter()
             self.andon.registrar(compliance_state.get("people") or [], self.epis_exigidos(), time.time())
+            self.stats.duracao("g8_andon", (time.perf_counter() - inicio) * 1000.0)
             if self.planta:
+                inicio = time.perf_counter()
                 try:
                     self.pes_na_planta = pes_na_planta(compliance_state.get("people") or [], frame.shape, self.planta)
                 except (ValueError, KeyError):
                     self.pes_na_planta = []
+                self.stats.duracao("g5_planta", (time.perf_counter() - inicio) * 1000.0)
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
             self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
 
         with self._thread_lock:
             self._quadro_bruto = frame
             self._quadro_estado = (analysis, compliance_state, enabled_map)
-        if nova and self.fila_de_rotulos is not None:
-            # G9: recorte do quadro PÚBLICO (desfocado) da detecção mais duvidosa.
-            self.fila_de_rotulos.talvez_coletar(self.camera_id, self.quadro_publico, analysis.detections)
             self._latest_capture_ts_ms = ts_captura_ms
             self._frame_counter += 1
+        if nova and self.fila_de_rotulos is not None:
+            # G9: recorte do quadro PÚBLICO (desfocado) da detecção mais duvidosa.
+            inicio = time.perf_counter()
+            if self.fila_de_rotulos.talvez_coletar(self.camera_id, self.quadro_publico, analysis.detections):
+                self.stats.duracao("g9_rotulos", (time.perf_counter() - inicio) * 1000.0)
         self.stats.contar("frames_publicados")
         self.stats.duracao("idade_publicacao", time.time() * 1000.0 - ts_captura_ms)
         self._perf_marca("conformidade")

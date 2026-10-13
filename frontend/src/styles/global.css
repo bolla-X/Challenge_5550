@@ -680,3 +680,6 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 .desafio-resultado table { width: 100%; border-collapse: collapse; font-size: 18px; }
 .desafio-resultado th, .desafio-resultado td { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; }
 .desafio-resultado { display: grid; gap: var(--s3); }
+.tv.embutido { min-height: 0; padding: 0; background: transparent; }
+.tv.embutido .tv-grade { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+.tv.embutido .tv-grande { font-size: clamp(40px, 4vw, 72px); }
