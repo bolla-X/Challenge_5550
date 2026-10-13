@@ -59,3 +59,22 @@ def test_decisao_invalida_ou_id_estranho(tmp_path):
     with pytest.raises(LookupError):
         fila.decidir("naoexiste", "confirmar")
     assert fila.imagem("../../etc") is None
+
+
+def test_classes_do_rosto_podem_ser_excluidas(tmp_path):
+    fila = FilaDeRotulos(tmp_path)
+    assert fila.candidato([_det(label="glasses")], excluir=frozenset({"glasses"})) is None
+    assert fila.candidato([_det(label="helmet")], excluir=frozenset({"glasses"})).label == "helmet"
+
+
+def test_recorte_desfoca_so_olhos_e_nariz_e_sem_keypoint_nao_recorta():
+    from app.vision.privacidade import regioes_de_olhos_e_nariz
+
+    sem = Detection(label="person", confidence=0.9, box=BoundingBox(100, 100, 200, 400), category="person")
+    assert regioes_de_olhos_e_nariz([sem], (540, 960, 3)) is None
+    kps = tuple([(150.0, 160.0, 0.9), (145.0, 155.0, 0.9), (155.0, 155.0, 0.9)] + [(0.0, 0.0, 0.0)] * 14)
+    com = sem.with_keypoints(kps)
+    (x1, y1, x2, y2), = regioes_de_olhos_e_nariz([com], (540, 960, 3))
+    # Cobre olhos e nariz, mas não sobe até o topo da caixa (onde fica o capacete).
+    assert x1 <= 145 and x2 >= 155 and y1 <= 155 and y2 >= 160
+    assert y1 > 120

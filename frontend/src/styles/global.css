@@ -605,7 +605,8 @@ a.button.ghost:hover { background: var(--sunken); color: var(--text); }
 .portal { min-height: 100vh; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s5); background: var(--bg, var(--sunken)); }
 .portal-cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); color: var(--text-2); font-size: 15px; }
 .portal-corpo { flex: 1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: var(--s5); align-items: start; }
-.portal-video { position: relative; overflow: hidden; }
+.portal-video { position: relative; overflow: hidden; background: var(--sunken); }
+.portal-video canvas.live-video { width: 100%; display: block; aspect-ratio: 16 / 9; }
 .portal-iniciar { position: absolute; right: var(--s3); bottom: var(--s3); }
 .portal-titulo { font-size: clamp(36px, 5vw, 64px); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; margin: 0 0 var(--s5); }
 .portal.approved .portal-titulo { color: var(--ok); }

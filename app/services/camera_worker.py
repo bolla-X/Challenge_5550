@@ -41,13 +41,16 @@ from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
 from app.vision.planta import pes_na_planta
 from app.vision.pose_estimator import MediaPipePoseEstimator
-from app.vision.privacidade import desfocar, regioes_de_rosto
+from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
+
+# G9: EPIs que só se vê no rosto — não viram recorte com a privacidade ligada.
+EPIS_DO_ROSTO = frozenset({"glasses", "mask", "ear_protection"})
 
 logger = logging.getLogger(__name__)
 
@@ -654,6 +657,13 @@ class CameraWorker:
         publico = desfocar(quadro, regioes_de_rosto(estado[0], quadro.shape, idade_s=idade_s))
         self.stats.duracao("privacidade", (time.perf_counter() - inicio) * 1000.0)
         return publico
+
+    def _quadro_para_recorte(self, frame, analysis):
+        """G9: rosto (olhos e nariz) desfocado, capacete visível. None = não recorta."""
+        if not self.privacidade_ativa:
+            return frame
+        regioes = regioes_de_olhos_e_nariz(analysis.detections, frame.shape)
+        return None if regioes is None else desfocar(frame, regioes)
 
     def quadro_publico(self):
         return self._sob_demanda("publico", self._quadro_publico)
@@ -1336,7 +1346,10 @@ class CameraWorker:
         if nova and self.fila_de_rotulos is not None:
             # G9: recorte do quadro PÚBLICO (desfocado) da detecção mais duvidosa.
             inicio = time.perf_counter()
-            if self.fila_de_rotulos.talvez_coletar(self.camera_id, self.quadro_publico, analysis.detections):
+            if self.fila_de_rotulos.talvez_coletar(
+                self.camera_id, lambda: self._quadro_para_recorte(frame, analysis), analysis.detections,
+                excluir=EPIS_DO_ROSTO if self.privacidade_ativa else frozenset(),
+            ):
                 self.stats.duracao("g9_rotulos", (time.perf_counter() - inicio) * 1000.0)
         self.stats.contar("frames_publicados")
         self.stats.duracao("idade_publicacao", time.time() * 1000.0 - ts_captura_ms)

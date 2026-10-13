@@ -7,6 +7,12 @@ disco. O técnico confirma (→) ou rejeita (←) e a fila exporta um zip no
 formato de dataset YOLO (images/ + labels/ + data.yaml + README com a origem e a
 licença). Nada de treino dentro do app.
 
+Privacidade × rótulo: o desfoque do vídeo cobre a cabeça inteira — e com ela o
+capacete (primeira versão: recortes de capacete saíam pixelados, inúteis). O
+recorte agora desfoca só olhos e nariz (keypoints da pose); sem keypoints de
+alguma pessoa, não recorta. Com a privacidade ligada, óculos, máscara e
+protetor auricular — que só se vê no rosto — não são coletados.
+
 Limites, para não virar custo nem acúmulo:
 - no máximo um recorte por câmera a cada `intervalo_s`;
 - `limite` recortes pendentes (a fila não cresce além disso);
@@ -31,6 +37,7 @@ from app.vision.person_compliance_matcher import PPE_KEYS
 
 MARGEM = 0.3  # recorte = caixa + 30 % de cada lado, para ter contexto
 LADO_MAX = 320
+LADO_MIN = 96
 
 
 class FilaDeRotulos:
@@ -46,18 +53,20 @@ class FilaDeRotulos:
             (self.pasta / sub).mkdir(parents=True, exist_ok=True)
 
     # ---- coleta (thread da câmera) ----------------------------------------
-    def candidato(self, detections) -> Any | None:
-        """A detecção de EPI mais duvidosa (mais perto de 0,5 de baixo) na faixa."""
-        na_faixa = [d for d in detections if d.label in PPE_KEYS and self.conf_min <= d.confidence < self.conf_max]
+    def candidato(self, detections, *, excluir: frozenset[str] = frozenset()) -> Any | None:
+        """A detecção de EPI mais duvidosa (mais perto do meio da faixa)."""
+        na_faixa = [d for d in detections if d.label in PPE_KEYS and d.label not in excluir
+                    and self.conf_min <= d.confidence < self.conf_max]
         return min(na_faixa, key=lambda d: abs(d.confidence - (self.conf_min + self.conf_max) / 2), default=None)
 
-    def talvez_coletar(self, camera_id, quadro_publico, detections, agora: float | None = None) -> str | None:
+    def talvez_coletar(self, camera_id, quadro_publico, detections, agora: float | None = None, *,
+                       excluir: frozenset[str] = frozenset()) -> str | None:
         """`quadro_publico` pode ser o quadro ou uma função que o produz: o
         desfoque só é pago quando há candidato e o intervalo da câmera venceu."""
         agora = time.monotonic() if agora is None else agora
         if agora - self._ultimo_por_camera.get(camera_id, -1e9) < self.intervalo_s:
             return None
-        det = self.candidato(detections)
+        det = self.candidato(detections, excluir=excluir)
         if det is None:
             return None
         if callable(quadro_publico):
@@ -139,10 +148,12 @@ def _recortar(quadro, box) -> tuple[Any, list[float] | None]:
     bw, bh = box.x2 - box.x1, box.y2 - box.y1
     if bw <= 2 or bh <= 2:
         return None, None
-    x1 = max(0, int(box.x1 - bw * MARGEM))
-    y1 = max(0, int(box.y1 - bh * MARGEM))
-    x2 = min(largura, int(box.x2 + bw * MARGEM))
-    y2 = min(altura, int(box.y2 + bh * MARGEM))
+    # Margem de contexto, com um lado mínimo: capacete a distância tem ~20 px.
+    meia_l = max(bw * (0.5 + MARGEM), LADO_MIN / 2)
+    meia_a = max(bh * (0.5 + MARGEM), LADO_MIN / 2)
+    cx, cy = (box.x1 + box.x2) / 2, (box.y1 + box.y2) / 2
+    x1, y1 = max(0, int(cx - meia_l)), max(0, int(cy - meia_a))
+    x2, y2 = min(largura, int(cx + meia_l)), min(altura, int(cy + meia_a))
     recorte = quadro[y1:y2, x1:x2]
     rw, rh = x2 - x1, y2 - y1
     caixa = [((box.x1 + box.x2) / 2 - x1) / rw, ((box.y1 + box.y2) / 2 - y1) / rh, bw / rw, bh / rh]

@@ -56,6 +56,32 @@ def regioes_de_rosto(analysis, frame_shape, *, idade_s: float = 0.0) -> list[tup
     return [r for r in regioes if r[2] > r[0] and r[3] > r[1]]
 
 
+# Olhos e nariz (COCO 0, 1, 2): o rosto sem o alto da cabeça, onde fica o capacete.
+PONTOS_DO_ROSTO = {0, 1, 2}
+
+
+def regioes_de_olhos_e_nariz(detections, frame_shape) -> list[tuple[int, int, int, int]] | None:
+    """Caixa justa em volta de olhos e nariz de cada pessoa, para o recorte do G9.
+
+    None quando alguma pessoa não tem esses keypoints: aí não dá para garantir o
+    desfoque do rosto sem cobrir o capacete, e o recorte não é feito.
+    """
+    altura, largura = frame_shape[:2]
+    regioes = []
+    for det in detections or []:
+        if not (det.label == "person" or det.category == "person"):
+            continue
+        pontos = [(x, y) for i, (x, y, c) in enumerate(det.keypoints or ()) if i in PONTOS_DO_ROSTO and c > 0.3 and (x or y)]
+        if len(pontos) < 2:
+            return None
+        xs, ys = [q[0] for q in pontos], [q[1] for q in pontos]
+        lado = max(max(xs) - min(xs), max(ys) - min(ys), 8.0)
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2 + lado * 0.4
+        regioes.append((max(0, int(cx - lado * 1.1)), max(0, int(cy - lado * 0.9)),
+                        min(largura, int(cx + lado * 1.1)), min(altura, int(cy + lado * 1.2))))
+    return [r for r in regioes if r[2] > r[0] and r[3] > r[1]]
+
+
 def desfocar(frame: np.ndarray, regioes) -> np.ndarray:
     """Cópia do quadro com as regiões pixelizadas. Sem regiões, devolve o próprio."""
     if not regioes:
