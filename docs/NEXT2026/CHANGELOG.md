@@ -1237,3 +1237,13 @@ A primeira rodada (`portao-pr6/`) reprovou e foi refeita inteira depois das corr
   câmera do Portal em 4:3 (640×480 na rede contra 640×384).
 - A cena "Queda" passou a declarar `ativas: "cena"`, como o Portal: isolado,
   **2 de 2**, alerta ao vivo em 22,2 s e 19,2 s desde entrar na cena.
+
+### Portão final do PR6 (r3, depois da correção da Queda)
+
+`bench/runtime/portao-pr6-r3/`, rodada única: `ruff` 0 · `pytest` **664
+passed** · `npm run build` ok · `pytest e2e` **36 passed** (4 câmeras, axe nos
+dois temas) · `bench.py --rapido` exit 0 (`bench/results/20261014-153054-rapido.json`):
+1 câm. 1,29 análise/s, alerta 4,8 s; 4 câm. 0,31/s por câmera, alerta 5,2 s —
+com **76–82 % da CPU** tomada por processos de fora do projeto (r2: 47–54 %,
+1,86 e 0,36/s). O ADENDO 3 não toca o caminho por análise; a diferença
+acompanha a carga de fundo (regra do bench leve: sem investigação).
