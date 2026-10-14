@@ -21,6 +21,12 @@ onnxruntime==1.29.0
 # Intel) nunca era aprovado. Versões medidas no clone limpo (ADENDO 3).
 onnx==1.22.0
 onnxslim==0.1.98
+# O exportador do torch 2.x pede onnxscript; e o torch fica FIXO na versão com
+# que as aprovações e medições foram feitas — sem pino, o clone limpo pegou
+# 2.14.1 e o export ONNX falhou (ADENDO 3).
+onnxscript==0.7.1
+torch==2.13.0
+torchvision==0.28.0
 mediapipe==0.10.14
 numpy==1.26.4
 gunicorn==22.0.0
