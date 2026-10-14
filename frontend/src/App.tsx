@@ -14,6 +14,7 @@ import { PortalScreen } from "./components/portal";
 import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
+import { PanelSkeleton } from "./components/common";
 
 // Telas pesadas (three.js) só carregam quando abertas.
 const GemeoScreen = lazy(() => import("./components/gemeo/gemeo-screen"));
@@ -25,7 +26,11 @@ const PalcoControle = lazy(() => import("./components/palco").then((m) => ({ def
 const RetrospectivaScreen = lazy(() => import("./components/retrospectiva"));
 
 function CarregandoTela() {
-  return <p className="centered-empty" aria-busy="true">Carregando…</p>;
+  return (
+    <div className="screen" aria-busy="true">
+      <PanelSkeleton lines={5} />
+    </div>
+  );
 }
 
 // Visão geral do Supervisor: o mesmo painel por setor do Modo TV (G8), com
@@ -154,9 +159,11 @@ export default function App() {
   // Controle da apresentação pelo celular: sem login, só com o token do QR (X6).
   if (window.location.pathname.startsWith("/palco/controle")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <PalcoControle />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <PalcoControle />
+        </Suspense>
+      </main>
     );
   }
 
@@ -164,7 +171,11 @@ export default function App() {
     return <div className="login-shell" aria-busy="true" />;
   }
   if (!user) {
-    return <LoginScreen />;
+    return (
+      <main id="conteudo">
+        <LoginScreen />
+      </main>
+    );
   }
 
   // Roteamento por papel: Operador sempre kiosk (trava aplicada em setMode
@@ -172,63 +183,87 @@ export default function App() {
   // entre grid/foco/overview livremente dentro do próprio `screen`.
   // Telas de tela cheia por endereço (PR3): sem barra superior, para TV/totem.
   if (window.location.pathname.startsWith("/desafio")) {
-    return <DesafioScreen />;
+    return (
+      <main id="conteudo">
+        <DesafioScreen />
+      </main>
+    );
   }
   if (window.location.pathname.startsWith("/rotular")) {
-    return <RotularScreen />;
+    return (
+      <main id="conteudo">
+        <RotularScreen />
+      </main>
+    );
   }
   if (window.location.pathname.startsWith("/gemeo")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <GemeoScreen />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <GemeoScreen />
+        </Suspense>
+      </main>
     );
   }
   if (window.location.pathname.startsWith("/palco")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <PalcoScreen />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <PalcoScreen />
+        </Suspense>
+      </main>
     );
   }
   if (window.location.pathname.startsWith("/liga")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <LigaScreen />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <LigaScreen />
+        </Suspense>
+      </main>
     );
   }
   if (window.location.pathname.startsWith("/retrospectiva")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <RetrospectivaScreen />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <RetrospectivaScreen />
+        </Suspense>
+      </main>
     );
   }
   if (window.location.pathname.startsWith("/auditoria")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <AuditoriaScreen />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <AuditoriaScreen />
+        </Suspense>
+      </main>
     );
   }
   if (window.location.pathname.startsWith("/simulador")) {
     return (
-      <Suspense fallback={<CarregandoTela />}>
-        <SimuladorScreen />
-      </Suspense>
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <SimuladorScreen />
+        </Suspense>
+      </main>
     );
   }
   if (window.location.pathname.startsWith("/tv")) {
-    return <TvScreen />;
+    return (
+      <main id="conteudo">
+        <TvScreen />
+      </main>
+    );
   }
   if (window.location.pathname.startsWith("/portal")) {
-    return camerasLoading ? <p className="centered-empty">Carregando câmeras…</p> : <PortalScreen />;
+    return <main id="conteudo">{camerasLoading ? <CarregandoTela /> : <PortalScreen />}</main>;
   }
 
   let content;
   if (camerasLoading) {
-    content = <p className="centered-empty">Carregando câmeras…</p>;
+    content = <CarregandoTela />;
   } else if (mode === "operator") {
     content =
       camId !== null ? (
@@ -268,7 +303,7 @@ export default function App() {
       <CommandPalette />
       <Topbar />
       <MessageBar />
-      {content}
+      <main id="conteudo">{content}</main>
     </div>
   );
 }

@@ -138,7 +138,7 @@ def _explicar(chave: str, estado: dict[str, Any], status: str | None, caixa: dic
     ]
     if dentro:
         melhor = max(dentro, key=lambda d: d.get("c", 0))
-        return f"o modelo viu com {melhor['c']:.2f}, {melhor['m']} — descartado".replace(".", ",", 1)
+        return f"o modelo viu com {melhor['c']:.2f} ({melhor['m']}) e descartou".replace(".", ",", 1)
     return "o modelo não viu este item na pessoa"
 
 

@@ -21,6 +21,7 @@ TEXTO = ["text", "text-2", "text-3", "accent", "danger", "stop", "ok"]
 # O overlay flutua sobre vídeo, então também sobre preto e branco puros.
 COMPOSTOS = [
     ("tint-danger", ["canvas", "surface"], ["text", "text-2", "danger"]),
+    ("tint-ok", ["canvas", "surface"], ["text", "text-2", "ok"]),
     ("overlay", ["canvas", "surface", "#000000", "#FFFFFF"], ["on-overlay"]),
     ("scrim", ["canvas", "surface"], ["text"]),
 ]

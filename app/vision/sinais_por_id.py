@@ -174,7 +174,7 @@ class SinaisPorId:
                         {
                             "rule": "sos_gesto",
                             "severity": "critical",
-                            "message": f"SOS: braços erguidos — {rotulo}",
+                            "message": f"SOS: braços erguidos · {rotulo}",
                             "feature": "sos",
                             "metadata": {**sujeito, "method": "punhos_acima_da_cabeca", "segundos": round(segundos, 1)},
                         }
@@ -197,7 +197,7 @@ class SinaisPorId:
                         {
                             "rule": "ergonomia_tronco",
                             "severity": "medium",
-                            "message": f"Postura de risco ergonômico (estimativa) — {rotulo}",
+                            "message": f"Postura de risco ergonômico (estimativa) · {rotulo}",
                             "feature": "ergonomia",
                             "metadata": {
                                 **sujeito,
@@ -221,7 +221,7 @@ class SinaisPorId:
                         {
                             "rule": "pessoa_imovel",
                             "severity": "high",
-                            "message": f"Pessoa imóvel na área de risco — {pessoa['label']} (não é diagnóstico)",
+                            "message": f"Pessoa imóvel na área de risco · {pessoa['label']} (não é diagnóstico)",
                             "feature": "imobilidade",
                             "metadata": {
                                 "person_id": pid,

@@ -1,4 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { EmptyState, Numero, PanelSkeleton } from "./common";
+import { IlustracaoEscudo } from "./ilustracoes";
 import { useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import type { Incidente } from "../api/types";
@@ -79,11 +81,11 @@ function NumerosDoSistema() {
       </div>
       <div>
         <dt>pessoas na planta</dt>
-        <dd className="t-data">{n.pessoas}</dd>
+        <dd className="t-data"><Numero valor={n.pessoas} /></dd>
       </div>
       <div>
         <dt>incidentes ativos</dt>
-        <dd className="t-data">{n.incidentes}</dd>
+        <dd className="t-data"><Numero valor={n.incidentes} /></dd>
       </div>
     </dl>
   );
@@ -96,8 +98,13 @@ function IncidenteDaCena({ cameraId }: { cameraId: number | null }) {
       .then((r) => setInc(r.items[0] ?? null))
       .catch(() => setInc(null));
   }, [cameraId]);
-  if (inc === undefined) return <p className="status-text">Buscando o incidente mais recente…</p>;
-  if (inc === null) return <p className="palco-vazio">Nenhum incidente registrado ainda nesta câmera — volte a esta cena em instantes.</p>;
+  if (inc === undefined) return <PanelSkeleton lines={5} />;
+  if (inc === null)
+    return (
+      <EmptyState ilustracao={<IlustracaoEscudo />} titulo="Nenhum incidente registrado ainda nesta câmera">
+        Volte a esta cena em instantes: a câmera continua analisando.
+      </EmptyState>
+    );
   return <IncidenteDetalhe incidente={inc} inline onClose={() => undefined} />;
 }
 
@@ -120,7 +127,7 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
       return cena.camera_id != null ? <VideoDaCena cameraId={cena.camera_id} /> : <p className="palco-vazio">Câmera da cena não cadastrada.</p>;
     case "gemeo":
       return (
-        <Suspense fallback={<p className="status-text">Carregando o gêmeo…</p>}>
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
           <GemeoScreen embutido />
         </Suspense>
       );
@@ -136,7 +143,7 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
       );
     case "simulador":
       return (
-        <Suspense fallback={<p className="status-text">Carregando o simulador…</p>}>
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
           <SimuladorScreen />
         </Suspense>
       );

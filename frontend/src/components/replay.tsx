@@ -140,9 +140,11 @@ export function IncidentReplay({
             {erro}
           </p>
         ) : !clipe ? (
-          <p className="status-text">Carregando replay…</p>
+          <div className="replay-video" aria-busy="true">
+            <div className="skeleton-block video-skeleton" />
+          </div>
         ) : clipe.total === 0 ? (
-          <p className="status-text">Nenhum quadro foi gravado nessa janela — a câmera não entregou imagem.</p>
+          <p className="status-text">Nenhum quadro foi gravado nessa janela: a câmera não entregou imagem.</p>
         ) : (
           <>
             <div className="replay-video">

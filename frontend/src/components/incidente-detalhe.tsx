@@ -93,7 +93,7 @@ export function VerificarIntegridade({ incidenteId }: { incidenteId?: number }) 
             ))}
           </ol>
           <p className="muted">
-            Último elo da cadeia: <code className="t-data">{resultado.ultimo_elo.slice(0, 16)}…</code> — anote-o no relatório do turno para ancorar a cadeia fora do sistema.
+            Último elo da cadeia: <code className="t-data">{resultado.ultimo_elo.slice(0, 16)}…</code>. Anote no relatório do turno para ancorar a cadeia fora do sistema.
           </p>
         </div>
       )}

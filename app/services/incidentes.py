@@ -14,6 +14,8 @@ mesma transação de `AlertStateService.process`.
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -38,8 +40,8 @@ def numero_da_pessoa(person_id: Any) -> Any:
 
 
 def titulo_do_alerta(mensagem: str) -> str:
-    """"Sem capacete — Pessoa 3" → "Sem capacete" (o incidente não é de uma pessoa)."""
-    return (mensagem or "").split(" — ")[0].strip() or "Alerta"
+    """"Sem capacete · Pessoa 3" → "Sem capacete" (o incidente não é de uma pessoa)."""
+    return re.split(r" [·—] ", mensagem or "")[0].strip() or "Alerta"
 
 
 @dataclass

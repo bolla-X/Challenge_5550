@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Panel } from "./common";
+import { Panel, PanelSkeleton } from "./common";
 import { estatisticasDoVideo } from "./live-video";
 
 /**
@@ -64,7 +64,7 @@ const GRUPOS: { titulo: string; etapas: [string, string][] }[] = [
 ];
 
 function ms(v: number | null | undefined): string {
-  if (v == null) return "—";
+  if (v == null) return "sem dado";
   return v >= 100 ? `${Math.round(v)} ms` : `${v.toFixed(1)} ms`;
 }
 
@@ -99,7 +99,7 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
     <Panel id="panel-pipeline" title="Diagnóstico do pipeline" description="Medido no próprio loop, janela de 10 s. p50 na barra cheia, p95 no traço.">
       {erro && <p className="status-text error">{erro}</p>}
       {!cam ? (
-        <p className="status-text">{diag ? "Câmera parada ou sem dados ainda." : "Carregando…"}</p>
+        diag ? <p className="status-text">Câmera parada ou sem dados ainda.</p> : <PanelSkeleton lines={3} />
       ) : (
         <div className="pipe">
           <div className="pipe-kpis">
@@ -172,7 +172,7 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
 function Kpi({ rotulo, valor, texto }: { rotulo: string; valor?: number | null; texto?: string }) {
   return (
     <div className="pipe-kpi">
-      <span className="pipe-kpi-valor t-data">{texto ?? (valor == null ? "—" : valor.toFixed(1))}</span>
+      <span className="pipe-kpi-valor t-data">{texto ?? (valor == null ? "sem dado" : valor.toFixed(1))}</span>
       <span className="pipe-kpi-rotulo">{rotulo}</span>
     </div>
   );

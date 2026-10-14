@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { playCelebrationChime } from "../audio/chime";
-import { PanelSkeleton } from "./common";
+import { EmptyState, Numero, PanelSkeleton } from "./common";
+import { IlustracaoFila } from "./ilustracoes";
 
 /**
  * Liga de Setores (X8): temporada semanal, nível da planta e missões do turno.
@@ -128,7 +129,7 @@ export function NivelDaPlanta({ planta }: { planta: EstadoDaLiga["planta"] }) {
   return (
     <div className="liga-nivel" data-testid="liga-nivel">
       <span className="liga-kicker">Nível da planta</span>
-      <strong className="liga-nivel-numero t-data">{planta.nivel}</strong>
+      <strong className="liga-nivel-numero t-data"><Numero valor={planta.nivel} /></strong>
       <div className="liga-barra" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(planta.progresso * 100)} aria-label="Progresso até o próximo nível">
         <span style={{ transform: `scaleX(${planta.progresso})` }} />
       </div>
@@ -141,7 +142,11 @@ export function NivelDaPlanta({ planta }: { planta: EstadoDaLiga["planta"] }) {
 
 export function Missoes({ missoes, compacto = false }: { missoes: MissaoEstado[]; compacto?: boolean }) {
   if (!missoes.length) {
-    return <p className="muted">Nenhuma missão ativa. O supervisor configura as missões do turno na Liga.</p>;
+    return (
+      <EmptyState ilustracao={<IlustracaoFila />} titulo="Nenhuma missão ativa">
+        O supervisor configura as missões do turno da equipe nesta tela.
+      </EmptyState>
+    );
   }
   return (
     <ul className={`liga-missoes ${compacto ? "compacto" : ""}`} aria-label="Missões do turno">
@@ -180,7 +185,7 @@ export function Placar({ liga, limite = 8 }: { liga: EstadoDaLiga; limite?: numb
               <span style={{ transform: `scaleX(${lider ? s.pontos / lider : 0})` }} />
             </span>
           </div>
-          <strong className="liga-pontos t-data">{s.pontos}</strong>
+          <strong className="liga-pontos t-data"><Numero valor={s.pontos} /></strong>
         </li>
       ))}
     </ol>
@@ -281,7 +286,7 @@ export function LigaScreen() {
       <div className="screen-head">
         <h1>Liga de Setores</h1>
         <span className="screen-sub">
-          {liga ? `Temporada da semana ${liga.temporada.semana} · turno ${liga.turno.nome}` : "Carregando…"}
+          {liga ? `Temporada da semana ${liga.temporada.semana}, turno ${liga.turno.nome}` : <span className="skeleton-block skeleton-inline" />}
         </span>
         <div className="screen-actions">
           <a className="button ghost" href="/retrospectiva">

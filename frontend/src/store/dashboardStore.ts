@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { flushSync } from "react-dom";
 import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
@@ -298,6 +299,22 @@ function readStoredMode(): ViewMode {
  * pode ver, nem por um instante, os alertas e as detecções da anterior. Só
  * `mode`/`screen` ficam de fora porque o login seguinte os define na hora.
  */
+/**
+ * Troca de tela com View Transition (fallback: troca direta). MDN:
+ * https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API/Using
+ */
+export function comTransicao(mudar: () => void): void {
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  const reduzir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!doc.startViewTransition || reduzir) {
+    mudar();
+    return;
+  }
+  doc.startViewTransition(() => {
+    flushSync(mudar);
+  });
+}
+
 const ESTADO_LIMPO: Partial<DashboardState> = {
   cameras: [],
   camerasLoading: true,
@@ -505,7 +522,7 @@ export const useDashboardStore = create<DashboardState>()(
           set({ camerasLoading: false }, false, "loadCameras:error");
         }
       },
-      setScreen: (screen) => set({ screen }, false, "setScreen"),
+      setScreen: (screen) => comTransicao(() => set({ screen }, false, "setScreen")),
       setCamId: (camId) => {
         set({ camId }, false, "setCamId");
         // A zona de risco é de cada câmera: ao trocar o foco, carrega a DESTA

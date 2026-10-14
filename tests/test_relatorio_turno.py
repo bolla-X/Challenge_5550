@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models import Alert, Camera
 
 
-def _alerta(camera_id, *, severity="critical", rule="missing_helmet", message="Sem capacete — Pessoa 1", **kw):
+def _alerta(camera_id, *, severity="critical", rule="missing_helmet", message="Sem capacete · Pessoa 1", **kw):
     meta = {"false_positive": True} if kw.pop("false_positive", False) else {}
     return Alert(camera_id=camera_id, rule=rule, severity=severity, message=message, feature="helmet",
                  status=kw.pop("status", "resolved"), metadata_json=meta, **kw)
@@ -18,7 +18,7 @@ def test_relatorio_conta_por_tipo_e_por_camera(real_monitor_app):
         db.session.add_all([a, b])
         db.session.commit()
         db.session.add_all([_alerta(a.id), _alerta(a.id, false_positive=True),
-                            _alerta(b.id, severity="high", rule="missing_vest", message="Sem colete — Pessoa 2")])
+                            _alerta(b.id, severity="high", rule="missing_vest", message="Sem colete · Pessoa 2")])
         db.session.commit()
     dados = real_monitor_app.test_client().get("/api/relatorio/turno?horas=8").get_json()
     assert dados["alertas"]["total"] == 3

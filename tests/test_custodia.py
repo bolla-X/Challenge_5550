@@ -15,7 +15,7 @@ from app.services import custodia
 
 
 def _alerta(n: int = 1) -> Alert:
-    return AlertRepository().create(rule="missing_helmet", severity="critical", message=f"Sem capacete — Pessoa {n}",
+    return AlertRepository().create(rule="missing_helmet", severity="critical", message=f"Sem capacete · Pessoa {n}",
                                     feature="helmet", metadata={"person_id": f"person_{n}"}, camera_id=2)
 
 
@@ -130,7 +130,7 @@ def test_alerta_criado_pelo_servico_entra_na_cadeia(app):
 
     with app.app_context():
         s = AlertStateService(AlertRepository(), _Socket(), create_after_frames=1, camera_id=1)
-        s.process([RuleAlert("missing_vest", "critical", "Sem colete — Pessoa 1", "vest", {"person_id": "person_1"})])
+        s.process([RuleAlert("missing_vest", "critical", "Sem colete · Pessoa 1", "vest", {"person_id": "person_1"})])
         elo = ElodeCustodia.query.one()
         assert elo.tipo == "alerta" and custodia.verificar()["integra"]
 

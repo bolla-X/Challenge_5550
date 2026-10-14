@@ -243,3 +243,44 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 }
 code { font-variant-ligatures: none; }
 .palco-qr code { font-size: 10px; }
+
+/* ---------- Sistema (PR6): estados, tabela, ilustrações, transições ---------- */
+.ilustracao { width: 160px; height: 112px; color: var(--text-3); }
+.ilustracao .tr { stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ilustracao .fino { stroke-width: 1.25; opacity: .6; }
+.ilustracao .tracejado { stroke-dasharray: 4 4; }
+.ilustracao .destaque { fill: var(--accent); }
+.ilustracao .destaque-traco { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.ilustracao .zona { fill: var(--sunken); stroke: currentColor; stroke-width: 1.25; }
+.empty-state.rico { display: grid; justify-items: center; text-align: center; gap: var(--s2); padding: var(--s6) var(--s4); }
+.empty-state.rico h3 { font-size: var(--t-title-3); line-height: var(--t-title-3-lh); letter-spacing: var(--t-title-3-tr); font-weight: 600; color: var(--text); margin-top: var(--s2); }
+.empty-state.rico p { font-size: var(--t-callout); color: var(--text-2); max-width: 44ch; }
+.empty-state-acao { margin-top: var(--s2); display: flex; gap: var(--s2); }
+
+.tabela { width: 100%; border-collapse: collapse; font-size: var(--t-callout); }
+.tabela caption { text-align: left; font-size: var(--t-footnote); font-weight: 600; color: var(--text-2); padding-bottom: var(--s2); }
+.tabela th, .tabela td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--hairline); text-align: left; vertical-align: baseline; }
+.tabela thead th { font-size: var(--t-caption); font-weight: 500; color: var(--text-3); }
+.tabela td.num, .tabela th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* View Transitions entre telas (com fallback: sem a API, a troca é direta). */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-panel); animation-timing-function: var(--ease-out); }
+::view-transition-old(root) { animation-name: vt-sai; }
+::view-transition-new(root) { animation-name: vt-entra; }
+@keyframes vt-sai { to { opacity: 0; } }
+@keyframes vt-entra { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
+
+.skeleton-inline { display: inline-block; width: 16ch; height: 1em; vertical-align: middle; }
+.desafio-esqueleto { width: 100%; aspect-ratio: 16 / 9; margin-bottom: var(--s4); }
+
+.alert-group > summary { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.alert-group .alert-stripe { display: inline-block; width: 4px; height: 16px; border-radius: 2px; }
+.incidente-resumo { display: inline-flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; margin-right: auto; }
+.incidente-zona { font-size: var(--t-footnote); color: var(--text-2); padding: 1px 8px; border-radius: var(--r-chip); background: var(--sunken); }
+.alert-stripe.critical, .alert-stripe.high { background: var(--danger); }
+.alert-stripe.medium, .alert-stripe.low, .alert-stripe.info { background: var(--text-3); }

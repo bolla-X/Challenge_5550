@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { EmptyState } from "./common";
+import { IlustracaoCamera } from "./ilustracoes";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
+import { IconeAvancar, IconeMais } from "./icones";
 import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Incidente, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
@@ -107,9 +110,7 @@ export function textoDeEstado(estado: EstadoDaCamera): string {
 
 function ChevronIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M9 6l6 6-6 6" />
-    </svg>
+    <IconeAvancar />
   );
 }
 
@@ -383,15 +384,19 @@ export function CameraGrid({ onEstado }: { onEstado?: (id: number, estado: Estad
   if (cameras.length === 0) {
     return (
       <div className="centered-empty">
-        <p>
-          Nenhuma câmera cadastrada ainda.{" "}
-          {access.canConfigure ? "Cadastre a primeira para começar." : "Peça ao Técnico ou ao Supervisor para cadastrar uma."}
-        </p>
-        {access.canConfigure && (
-          <button type="button" className="primary" onClick={() => setShowAddModal(true)}>
-            Adicionar câmera
-          </button>
-        )}
+        <EmptyState
+          ilustracao={<IlustracaoCamera />}
+          titulo="Nenhuma câmera cadastrada"
+          acao={
+            access.canConfigure && (
+              <button type="button" className="primary" onClick={() => setShowAddModal(true)}>
+                Adicionar câmera
+              </button>
+            )
+          }
+        >
+          {access.canConfigure ? "Cadastre a primeira câmera para começar o monitoramento." : "Peça ao Técnico ou ao Supervisor para cadastrar a câmera do seu setor."}
+        </EmptyState>
         {showAddModal && <AddCameraModal onClose={() => setShowAddModal(false)} onCreated={handleCreated} />}
       </div>
     );
@@ -404,9 +409,7 @@ export function CameraGrid({ onEstado }: { onEstado?: (id: number, estado: Estad
       ))}
       {access.canConfigure && (
         <button type="button" className="cam-add" onClick={() => setShowAddModal(true)}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <IconeMais />
           <span>Adicionar câmera</span>
         </button>
       )}

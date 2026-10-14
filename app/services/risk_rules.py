@@ -148,7 +148,7 @@ class RuleEngine:
                         RuleAlert(
                             rule=rule,
                             severity=severity,
-                            message=f"{texto} — {person_state['label']}",
+                            message=f"{texto} · {person_state['label']}",
                             feature=feature_key,
                             metadata={
                                 "person_id": person_state["id"],
@@ -233,7 +233,7 @@ class RuleEngine:
         for queda, pessoa in atribuir_quedas(detections, people):
             if pessoa is not None:
                 sujeito = {"person_id": pessoa["id"], "person_label": pessoa["label"], "person_box": pessoa["box"]}
-                rotulo = f" — {pessoa['label']}"
+                rotulo = f" · {pessoa['label']}"
             else:
                 sujeito = {"subject": "queda_sem_pessoa", "person_box": queda.box.to_dict()}
                 rotulo = ""
@@ -256,7 +256,7 @@ class RuleEngine:
 
     @staticmethod
     def _pose_label(pose: PoseResult) -> str:
-        return f" — Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
+        return f" · Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
 
     def _torso_px(self, pose: PoseResult, frame_shape: tuple[int, int, int]):
         """Centro dos ombros e dos quadris, em pixels. None se nao der pra confiar."""
@@ -324,7 +324,7 @@ class RuleEngine:
             RuleAlert(
                 rule="risk_area_presence",
                 severity="high",
-                message=f"Pessoa em área de risco — {person['label']}",
+                message=f"Pessoa em área de risco · {person['label']}",
                 feature="risk_area",
                 metadata={
                     "person_id": person["id"],

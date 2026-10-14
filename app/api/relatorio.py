@@ -12,6 +12,8 @@ os números acima são os do banco.
 
 from __future__ import annotations
 
+import re
+
 import html
 import threading
 from collections import Counter, defaultdict
@@ -43,7 +45,7 @@ def montar_relatorio(horas: float, camera_id: int | None) -> dict[str, Any]:
     alertas = consulta.all()
     cameras = {c.id: c.name for c in Camera.query.all()}
 
-    por_regra = Counter(a.message.split(" — ")[0] if a.message else a.rule for a in alertas)
+    por_regra = Counter(re.split(r" [·—] ", a.message)[0] if a.message else a.rule for a in alertas)
     por_camera = Counter(cameras.get(a.camera_id, f"#{a.camera_id}") for a in alertas)
     por_hora: dict[str, int] = defaultdict(int)
     duracoes = []
@@ -114,7 +116,7 @@ def _secao_nr6(nr6: dict[str, Any]) -> str:
     for linha in nr6["linhas"]:
         nome = html.escape(_NOMES_EPI.get(linha["epi"], linha["epi"]))
         if linha["itens"]:
-            itens = "<br>".join(f"<b>{html.escape(i['item'])}</b> — “{html.escape(i['texto'])}”" for i in linha["itens"])
+            itens = "<br>".join(f"<b>{html.escape(i['item'])}</b>: “{html.escape(i['texto'])}”" for i in linha["itens"])
         else:
             itens = f"<i>sem item sustentado pelo texto</i>: {html.escape(linha['sem_item'] or '')}"
         linhas.append(f"<tr><td>{nome}</td><td class=nr6>{itens}</td><td>{linha['alertas']}</td></tr>")
@@ -135,7 +137,7 @@ def relatorio_html():
         return "".join(f"<tr><td>{html.escape(str(k))}</td><td>{v}</td></tr>" for k, v in d.items()) or \
             "<tr><td colspan=2>nenhum</td></tr>"
 
-    mediana = f"{a['duracao_mediana_s'] / 60:.1f} min" if a["duracao_mediana_s"] is not None else "—"
+    mediana = f"{a['duracao_mediana_s'] / 60:.1f} min" if a["duracao_mediana_s"] is not None else "sem dado"
     inicio_txt = html.escape(r["janela"]["inicio"][:16].replace("T", " "))
     fim_txt = html.escape(r["janela"]["fim"][:16].replace("T", " "))
     escopo_txt = f"câmera #{camera_id}" if camera_id else "todas as câmeras"

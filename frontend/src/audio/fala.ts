@@ -23,7 +23,7 @@ type AlertaFalavel = { message: string; severity: string; camera_id?: number | n
 
 /** "Sem capacete — Pessoa 3" na câmera "Doca 2" → "Atenção: sem capacete, pessoa 3, na câmera Doca 2." */
 export function montarFrase(alerta: AlertaFalavel, nomeDaCamera?: string | null): string {
-  const partes = alerta.message.split(" — ").map((p) => p.trim()).filter(Boolean);
+  const partes = alerta.message.split(/ [·—] /).map((p) => p.trim()).filter(Boolean);
   const oque = (partes[0] ?? "alerta").replace(/^./, (c) => c.toLowerCase());
   const quem = partes[1] ? `, ${partes[1].replace(/^Pessoa/, "pessoa")}` : "";
   const onde = nomeDaCamera ? `, na câmera ${nomeDaCamera}` : "";

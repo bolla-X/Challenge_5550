@@ -85,10 +85,10 @@ function LinhaDoTempo({ cameraId, pessoaId }: { cameraId: number; pessoaId: stri
       window.clearInterval(t);
     };
   }, [cameraId, pessoaId]);
-  if (eventos === null) return <span className="muted">Carregando…</span>;
+  if (eventos === null) return <PanelSkeleton lines={2} />;
   return (
     <div className="linha-do-tempo" data-testid="linha-do-tempo">
-      <span className="muted">ID de rastreio — some quando a pessoa sai de cena; não identifica ninguém.</span>
+      <span className="muted">ID de rastreio: some quando a pessoa sai de cena e não identifica ninguém.</span>
       {eventos.length === 0 ? (
         <span className="muted">Sem mudanças registradas ainda.</span>
       ) : (

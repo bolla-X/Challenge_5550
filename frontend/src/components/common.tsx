@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import NumberFlow from "@number-flow/react";
 
 // Mesma curva de tokens.css (--ease-out).
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -195,8 +196,31 @@ export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "ok" 
   );
 }
 
-export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="empty-state">{children}</div>;
+/**
+ * Estado vazio do sistema: ilustração original + uma frase + (de preferência)
+ * uma ação. `children` sozinho continua funcionando para os vazios curtos
+ * dentro de painéis.
+ */
+export function EmptyState({
+  children,
+  titulo,
+  ilustracao,
+  acao,
+}: {
+  children?: ReactNode;
+  titulo?: string;
+  ilustracao?: ReactNode;
+  acao?: ReactNode;
+}) {
+  if (!titulo && !ilustracao && !acao) return <div className="empty-state">{children}</div>;
+  return (
+    <div className="empty-state rico" role="status">
+      {ilustracao}
+      {titulo && <h3>{titulo}</h3>}
+      {children && <p>{children}</p>}
+      {acao && <div className="empty-state-acao">{acao}</div>}
+    </div>
+  );
 }
 
 /** Placeholder dos primeiros segundos antes do bootstrap() resolver:
@@ -209,4 +233,9 @@ export function PanelSkeleton({ lines = 3 }: { lines?: number }) {
       ))}
     </div>
   );
+}
+
+/** Número que muda ao vivo: anima a troca (NumberFlow), sem salto; parado com reduced-motion. */
+export function Numero({ valor, className }: { valor: number; className?: string }) {
+  return <NumberFlow className={className} value={valor} respectMotionPreference locales="pt-BR" />;
 }
