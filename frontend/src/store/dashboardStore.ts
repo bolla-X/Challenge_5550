@@ -3,6 +3,7 @@ import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
 import { calarFala, falarAlerta } from "../audio/fala";
+import { avisarAlertaCritico } from "../pwa";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
@@ -30,6 +31,7 @@ import {
 } from "../api/endpoints";
 import type {
   Alert,
+  Incidente,
   AuthUser,
   CameraFeatureSet,
   CameraRecord,
@@ -89,6 +91,10 @@ interface DashboardState {
   mutedByProfile: Record<ViewMode, boolean>;
   toggleMuted: () => void;
 
+  /** Modo Raio-X (X5) sobre o vídeo ao vivo; tecla X alterna. */
+  raioX: boolean;
+  alternarRaioX: () => void;
+
   // tema: persistido em localStorage (visionepi-theme). null = sistema decide.
   theme: Theme | null;
   toggleTheme: () => void;
@@ -131,6 +137,8 @@ interface DashboardState {
   model: ModelDiagnostics | null;
   compliance: ComplianceState | null;
   activeAlerts: Alert[];
+  /** Incidentes ativos da câmera em foco (alertas agrupados por regra e zona). */
+  activeIncidents: Incidente[];
   /** Pré-alertas de aproximação da câmera em foco (amarelo, projeção). */
   preAlertas: PreAlerta[];
   // Set only by the alert_created socket event (never alert_updated) — lets
@@ -296,6 +304,7 @@ const ESTADO_LIMPO: Partial<DashboardState> = {
   camId: null,
   operatorCam: null,
   activeAlerts: [],
+  activeIncidents: [],
       preAlertas: [],
   alertHistory: [],
   lastAlertCreatedId: null,
@@ -374,6 +383,9 @@ export const useDashboardStore = create<DashboardState>()(
           "toggleMuted",
         ),
 
+      raioX: false,
+      alternarRaioX: () => set((state) => ({ raioX: !state.raioX }), false, "alternarRaioX"),
+
       theme: readStoredTheme(),
       toggleTheme: () =>
         set(
@@ -411,6 +423,7 @@ export const useDashboardStore = create<DashboardState>()(
       model: null,
       compliance: null,
       activeAlerts: [],
+      activeIncidents: [],
       preAlertas: [],
       lastAlertCreatedId: null,
       alertHistory: [],
@@ -591,6 +604,7 @@ export const useDashboardStore = create<DashboardState>()(
             videoStream: statusValue?.video ?? null,
             model: statusValue?.model ?? null,
             activeAlerts: statusValue?.active_alerts ?? [],
+            activeIncidents: statusValue?.active_incidents ?? [],
             features: value(featuresRes)?.features ?? [],
             settings: value(settingsRes)?.settings ?? null,
             overlay: value(overlayRes)?.overlay ?? null,
@@ -796,6 +810,7 @@ export function subscribeToServerEvents(): () => void {
         videoStream: status.video ?? null,
         model: status.model,
         activeAlerts: status.active_alerts,
+        activeIncidents: status.active_incidents ?? [],
         overlay: status.overlay,
         settings: status.settings,
         riskArea: status.risk_area,
@@ -835,7 +850,8 @@ export function subscribeToServerEvents(): () => void {
     if (belongsToFocusedCamera(payload)) set({ preAlertas: payload.items }, false, "ws:pre_alertas");
   });
   on("active_alerts", (payload) => {
-    if (belongsToFocusedCamera(payload)) set({ activeAlerts: payload.items }, false, "ws:active_alerts");
+    if (belongsToFocusedCamera(payload))
+      set({ activeAlerts: payload.items, activeIncidents: payload.incidentes ?? [] }, false, "ws:active_alerts");
   });
   on("analysis", (payload) => {
     if (!belongsToFocusedCamera(payload)) return;
@@ -875,6 +891,8 @@ export function subscribeToServerEvents(): () => void {
     if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
     set({ lastAlertCreatedId: alert.id }, false, "ws:alert_created:lastId");
     const estado = useDashboardStore.getState();
+    // X10: alerta crítico com o app aberto vira notificação do sistema + vibração.
+    avisarAlertaCritico(alert, estado.cameras.find((c) => c.id === alert.camera_id)?.name);
     if (!estado.muted && SEVERITIES_WITH_CHIME.has(alert.severity)) {
       // Crítico: falado em pt-BR (G6); sem voz pt-BR na máquina, o bipe de sempre.
       const camera = estado.cameras.find((c) => c.id === alert.camera_id);

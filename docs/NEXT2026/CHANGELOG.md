@@ -760,3 +760,322 @@ Achados no caminho:
   escrita nele. Ainda diz `YOLO_IMGSZ=416`, enquanto o código usa 640 por
   padrão. Quem copia o `.env.example` herda 416 — fica registrado para a equipe
   corrigir à mão.
+
+
+---
+
+# MISSÃO 2 (`MISSAO-2.md`)
+
+Rollback: tag `pre-missao-2` (HEAD de `feat/completo-com-rebrand` = `906c81e`) e
+`main-pre-release` (HEAD de `main` = `6c3ed61`), as duas publicadas.
+
+Antes de começar: `bench/results/` tinha 11 JSON e `scripts/dump_deteccoes.py`
+citados no BENCHMARKS/CHANGELOG mas nunca versionados — entraram num commit
+próprio (`chore: versiona evidências…`).
+
+## PR5 — consertos que afetam a demo (Fase A)
+
+### P0.1 Rodízio ponderado (câmera em foco ≥ 50 %)
+
+- **O quê.** `AgendadorDeInferencia` troca o rodízio igualitário por *smooth
+  weighted round-robin* (o do nginx): as câmeras em foco somam peso igual ao
+  número das outras (≥ 50 % das vagas) e as outras dividem o resto. Guarda de
+  espera: quem está há `INFERENCIA_ESPERA_MAX_S` (2,5 s) sem inferência é servido
+  primeiro. Foco = `video_feed` aberto (tela de foco, portal, quiosque, palco —
+  a grade usa miniatura) **ou** consulta do portal nos últimos `FOCO_LEASE_S` (3 s).
+- **Por quê.** O E2E do PR3 só passava parando as outras câmeras: com 4 câmeras o
+  portal recebia 1/4 das inferências e não chegava a "Liberado".
+- **Evidência.** `tests/test_agendador_ponderado.py` (8): com 4 câmeras sempre
+  pendentes, foco ≥ 50 %; inferência de 0,5 s → nenhuma outra fica > 3 s sem
+  análise; 0,9 s → a guarda segura em ≤ 2,5 s + 3 inferências. `/api/diagnostics/pipeline`
+  passa a mostrar `em_foco` e `servidos_em_foco` por câmera.
+- **E2E.** As pausas de câmera dos testes de queda, aproximação e portal foram
+  removidas; cada um termina provando que as 4 câmeras estavam ligadas
+  (`_todas_ligadas`).
+
+### P0.2 Incidentes por (câmera, regra, zona) + re-associação de ID
+
+- **O quê.** Tabela `incidentes` (migração `a7b8c9d0e1f2`). O alerta continua
+  por pessoa (é a evidência: caixa, clipe, replay); o incidente agrupa os alertas
+  da mesma regra e zona, com os IDs envolvidos, o pico de pessoas e quando foi
+  reconhecido. Zona = nome da área de risco se a pessoa está dentro, "Fora da
+  zona" se não, "Toda a câmera" sem zona desenhada. API `/api/incidentes`
+  (lista, detalhe, reconhecer). A pílula do vídeo e a aba de alertas mostram o
+  incidente ("Sem capacete · Zona A · Pessoas 4, 7, 9").
+- **Re-associação.** `app/vision/reassociacao.py`, por cima de qualquer
+  rastreador: track novo a até 1,5 × a largura da caixa de onde um track sumiu,
+  em até 2 s, herda o ID (`REASSOCIAR_*`). IDs estáveis próprios, para o herdado
+  nunca colidir com um cru reutilizado. `tests/test_reassociacao.py` (8).
+- **Medição** (`scripts/contar_incidentes.py`, servidor real, 1 câmera, todos os
+  EPIs, 150 s com o vídeo aberto; "antes" = worktree em `pre-missao-2`):
+
+  | gravação | análises | alertas criados | IDs com alerta | máx. itens no painel | incidentes criados | máx. incidentes ao mesmo tempo | máx. por regra e zona |
+  |---|---|---|---|---|---|---|---|
+  | multidão, antes | 295 | 279 | 30 | **64** alertas | — | — | — |
+  | multidão, depois | 327 | 250 | 34 | **11** incidentes | 11 | 11 | **1** |
+  | queda, antes | 146 | 150 | 9 | 23 alertas | — | — | — |
+  | queda, depois | 141 | 96 | 7 | 12 incidentes | 30 | 12 | 1 |
+  | canteiro, antes | 307 | 3 | 1 | 3 | — | — | — |
+  | canteiro, depois | 398 | 3 | 1 | 3 | 3 | 3 | 1 |
+
+  JSON em `bench/results/incidentes-*.json`. CPU total da máquina durante as
+  rodadas: 78–100 % (inclui o próprio servidor). As rodadas não veem exatamente
+  os mesmos quadros (a gravação toca em tempo de relógio): a contagem de alertas
+  varia; o que muda de natureza é o painel — de até 64 linhas para no máximo 1
+  incidente por regra e zona.
+- **Consequência.** A demo volta a exigir **todos** os EPIs
+  (`EPIS_DESLIGADOS_NA_DEMO = ()`). Calçado e protetor auricular continuam "não
+  suportado pelo modelo", nunca "faltando".
+- **Achado no caminho.** O ID do incidente sumia na renovação do alerta (o
+  `touch` regrava a metadata inteira): o serviço agora repassa o `incidente_id`.
+  Incidente "ativo" de uma execução anterior é fechado ao ligar a câmera.
+
+### P0.3 `.env.example` e a permissão que o bloqueava
+
+- `YOLO_IMGSZ=416` → **640** (o 416 foi reprovado no guarda: capacete 8 %), e o
+  comentário de que o OpenVINO "foi rejeitado e não é instalado" (falso desde o
+  PR2) foi corrigido. Teste novo: `test_env_example_infere_a_640`.
+- **Permissão.** O arquivo estava negado por regras amplas no
+  `~/.claude/settings.json` do usuário (não havia `.claude/settings*.json` no
+  projeto): `Read(**/.env.*)` e `Edit(**/.env.*)`. Como a regra de negação do
+  Claude Code não tem exceção, elas foram trocadas pelas variantes explícitas
+  (`.env.local`, `.env.*.local`, `.env.development`, `.env.dev`,
+  `.env.production`, `.env.prod`, `.env.staging`, `.env.test`, `.env.backup`,
+  `.env.bak`, `.env.old`), mantendo `Read/Edit(**/.env)`. Cópia do arquivo
+  anterior: `~/.claude/settings.json.bak-missao2`. O hook global
+  `guard-secrets.sh` continua barrando **qualquer** `.env.*` que não seja
+  `.example/.template/.sample/.dist` — a variante não listada continua protegida
+  por ele. O `.env` real não foi lido nem alterado.
+
+## PR5 — funcionalidades fora da caixa (Fase B)
+
+| item | o que entrou | testes |
+|---|---|---|
+| X1 Gêmeo digital (`/gemeo`) | three.js **0.169.0** (MIT, versão fixa, carregado só nesta rota); planta com setores, zonas como volumes translúcidos recortados ao chão calibrado, cone de visão por câmera, cápsulas na cor do estado (nunca foto) com interpolação; clique na pessoa → linha do tempo + replay; na zona → histórico; órbita limitada; visão de drone; pausa com a aba oculta; regulador de resolução; fallback 2D (`?2d=1` força). `/api/gemeo`. Demo: as 3 gravações calibradas numa planta só (aproximação a olho, dito na doc). | `test_gemeo.py`, `test_planta.py` (recorte), E2E |
+| X2 Simulador "E se?" (`/simulador`) | trilha por câmera (`trilha.jsonl` rotativo, 16 MB × 4, sem imagem, ~60 B/pessoa/análise); reprocessa com outra zona (vértices arrastáveis), histerese ou EPIs, com a MESMA lógica de histerese do serviço; compara proposta × regra atual simulada × alertas reais. | `test_simulador.py` (7), E2E |
+| X3 Cadeia de custódia | tabela `custodia`; alerta (campos imutáveis), snapshot, clipe (manifesto por arquivo) e troca de privacidade viram elos `sha256(seq|tipo|ref|conteúdo|anterior|instante)`; verificação aponta o primeiro elo quebrado e, no clipe, o arquivo. `/auditoria` e "Verificar integridade" no incidente. | `test_custodia.py` (9, inclui **1 byte adulterado no clipe → elo 3, arquivo 0001.jpg**), E2E |
+| X4 Linha causal | narrativa determinística por ID (aproximação F3, entrada/violação, permanência, sinais, reconhecimento), só com o registrado; cada passo abre o replay no quadro do instante. | `test_linha_causal.py` (5), E2E |
+| X5 Raio-X (tecla X) | esqueleto com juntas nomeadas, barras de confiança por classe com o piso marcado, detecções descartadas pelo filtro com o motivo, trilhas fantasma de 5 s, vetor de velocidade do F3, decisão (alerta / confirmando n/8 / ok) separada da confiança. | E2E |
+| X6 Palco (`/palco`) | roteiro único no servidor (12 cenas); cena reinicia a gravação quando precisa (determinístico); QR → `/palco/controle?t=` (token por processo, só muda a cena); teclado continua mandando se o celular falhar. | `test_palco.py` (4), E2E teclado + Chromium emulando Pixel 7 |
+| X7 Retrospectiva (`/retrospectiva`) | stories de turno e semana com dados reais; PNG 1080×1350 por card desenhado em canvas (sem lib); abre no Modo TV nos últimos 10 min do turno (`?retro=1` força). | `test_liga.py`, E2E (PNG validado pelo cabeçalho) |
+| X8 Liga de Setores (`/liga`) | livro-razão `liga_pontos` só com pontos positivos por setor (check-in 10, reconhecido ≤ 1 min 15, ≤ 3 min 5, falso positivo revisado 5, rótulo 2, minuto conforme 1); temporada = semana ISO; missões por turno (supervisor); nível da planta; confete leve e som curto só na transição, respeitando mudo e `prefers-reduced-motion`. No Modo TV, na Visão geral e na Retrospectiva. | `test_liga.py` (11), E2E |
+| X9 Tente enganar a IA | modo desafio do portal: o visitante declara a tentativa (boné, colete falso, sem EPI, EPI real); Raio-X ligado; cada item explica o que o modelo viu ("visto com 0,62", "viu com 0,31, abaixo do piso — descartado"); placar anônimo da sessão, incluindo "erros com EPI real". | `test_portal.py`, E2E |
+| X10 PWA | manifesto, `sw.js` na raiz (casca offline: navegação rede-primeiro com fallback, `/static/dist/` cache-primeiro, `/api` nunca), ícones originais (`scripts/gerar_icones.py`), notificação do sistema + vibração em alerta crítico com o app aberto (uma por incidente, a cada 8 s no máximo). | `test_pwa.py`, E2E |
+
+**Documentação lida e citada (X10):**
+- Service Worker exige contexto seguro; `http://localhost` conta como seguro:
+  https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API
+- Notifications API exige contexto seguro; `requestPermission()` só num gesto do
+  usuário; no celular `new Notification()` lança `TypeError` — por isso a
+  notificação sai por `registration.showNotification`:
+  https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
+- Push com o app **fechado** não entra: o Push API entrega a mensagem por uma
+  assinatura num serviço de push do navegador, com o servidor da aplicação
+  enviando para esse endpoint — dependência externa que a demo offline não tem:
+  https://developer.mozilla.org/en-US/docs/Web/API/Push_API
+
+**X1 — tempo de quadro** (Playwright, 1920×1080, as 4 câmeras inferindo na
+mesma iGPU): Chromium com a GPU (`--use-angle=d3d11`, o "perfil normal" de um
+navegador de verdade) → intervalo entre quadros p95 **16,7 ms**, desenho p95
+4,8 ms. O headless padrão do Playwright desenha no **SwiftShader** (software):
+133 ms — por isso o E2E do gêmeo usa um navegador com GPU, e a cena ganhou um
+regulador que reduz a resolução interna quando o p95 passa de 40 ms.
+
+**Achados no caminho:**
+- A limpeza de artefatos (`CLEANUP_ON_MONITOR_START`) apagava os snapshots a
+  cada câmera ligada — e a evidência apagada fica "ausente" na cadeia de
+  custódia. A demo já limpa ao subir e no reset; ela e o E2E deixam de limpar a
+  cada câmera ligada.
+- A custódia fazia 1 commit por alerta criado dentro do loop
+  (`test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois` pegou).
+  Primeira correção: elos na mesma transação da análise. Ela criou uma
+  **inversão de trava** (o worker segurava a escrita do SQLite esperando a trava
+  da cadeia; o gravador de evidências segurava a trava esperando a escrita →
+  `database is locked` e, pior, a sessão do worker ficava quebrada para sempre).
+  Correção final: os alertas commitam primeiro e os elos entram num segundo
+  commit, em lote (2 commits por análise, o teste mudou para isso); SQLite em
+  **WAL** com `busy_timeout` 15 s (`app/extensions.py`); o worker faz rollback da
+  sessão em qualquer erro do laço, em vez de seguir com ela inválida.
+- Abrir e fechar o arquivo da trilha a cada análise custava ~6 ms no Windows: o
+  arquivo fica aberto, com flush a cada segundo.
+- O simulador com a regra atual reproduz os alertas reais da demo (21/21, 16/16
+  por regra numa janela de 5 min) — é a prova de que ele simula a mesma coisa.
+- **Gravador de evidências afogado.** Na rodada 3 do E2E o log mostrou
+  `gravador_fila_cheia descartados: 731`: com os 7 EPIs, uma pessoa abre até 7
+  alertas na MESMA análise, e cada um enfileirava o seu quadro e o seu replay
+  (8 s de JPEG) — o mesmo conteúdo, 7 vezes. Agora: **um** arquivo de quadro e
+  **um** conjunto de quadros de replay por análise. Os outros alertas recebem só
+  o próprio `clip.json` com `"quadros_em": "alert_<primeiro>"`, e a API serve os
+  quadros pela pasta do primeiro. A custódia registra **um** elo de quadro e
+  **um** de replay por análise, com `alert_ids` de todos; o manifesto do replay
+  cobre todas as pastas (`alert_N/arquivo`), então adulterar o índice de qualquer
+  alerta do lote aponta o elo e o arquivo. Testes: `test_replay.py`
+  (`test_alertas_da_mesma_analise_compartilham_os_quadros`), `test_custodia.py`
+  (3 novos: verificação por alerta acompanhante, índice adulterado, API).
+
+### Decisões de P0.1 tomadas com medição (`scripts/diagnostico_foco.py`)
+
+- **Foco vence sob carga.** Com a máquina a 100 % de CPU (outros processos), a
+  guarda de espera (2,5 s) disparava para as 3 câmeras de fundo o tempo todo e o
+  foco caía para 26 % das inferências. Regra: quando há atrasados, a câmera em
+  foco alterna com eles (nunca duas atrasadas seguidas sem o foco entre elas).
+  Medido sob carga (0,5–1 inferência/s no total): foco **52–58 %**.
+- **Prioridade de confirmação de emergência = uma vaga.** Uma detecção de queda
+  dá à câmera **uma** ficha (válida 2 s) para a análise de confirmação, sem esperar
+  o rodízio. A primeira versão (prioridade por janela de tempo) deixava os falsos
+  positivos de queda da `multidao` roubarem as vagas do portal.
+- **Gravação desacelera durante a confirmação** (`CAPTURA_FPS_CONFIRMACAO`, só
+  em fonte gravada): a queda da gravação durava menos que duas análises sob carga.
+  A regra das 2 análises **não** foi afrouxada: `scripts/confianca_de_queda.py`
+  mostrou falso positivo de queda com confiança **0,84** num quadro da `multidao`
+  — um quadro sozinho não separa queda real de falso positivo.
+- **Aproximação (F3):** a trilha expirava em 2 s e, sob carga, a análise seguinte
+  chegava depois; `validade_s` 6 s, e o aviso só sai para trilhas presentes na
+  análise atual.
+- **A queda trocava de ID no meio da confirmação.** A confirmação de emergência
+  conta análises seguidas da MESMA chave (regra + ID), e o rastreador troca o ID
+  de quem cai (caixa em pé × caixa no chão quase não se sobrepõem). Medido com o
+  log `queda_vista` e as 4 câmeras (`diagnostico_foco.py --foco queda`, 180 s):
+  pares `person_14 → person_3` (3,1 s) e `person_5 → person_4` (3,6 s) na mesma
+  queda; a única confirmada manteve o ID. Agora uma queda a ≤ 1,5 largura de
+  caixa de outra vista há ≤ 5 s herda o sujeito dela (`continuidade_de` no
+  metadado registra o ID que o rastreador deu). `tests/test_quedas.py` (2 novos).
+- **Verificação da cadeia inteira em 92 s.** O E2E de 20 min deixou 2 523 elos e
+  31 mil quadros de replay; no Windows cada abertura de arquivo custava ~1 ms.
+  Leitura dos arquivos em 8 threads: 23 s na mesma cadeia (e a deduplicação acima
+  corta os quadros por análise). A mesma medição mostrou 171 elos "conteúdo
+  alterado" — não era adulteração: o diagnóstico tinha gravado `alert_1…` na
+  MESMA pasta de replay do E2E (os ids recomeçam a cada banco). E2E e diagnóstico
+  passam a ter pastas de replay e trilha próprias, zeradas ao subir, e o
+  gravador apaga quadros velhos de uma pasta com o mesmo id antes de escrever.
+- **Linha causal:** "na Zona A sem capacete" virou "estava na Zona A sem
+  capacete" (o passo começava sem verbo quando a pessoa já surgia dentro da zona).
+- **Queda com o vídeo aberto: limite assumido, não contornado.** Rodada 4 do
+  E2E: com a tela de foco aberta a gravação anda em tempo real, a pessoa fica
+  ~0,8 s no chão (6,2–7,0 s do clipe), e com 4 câmeras numa máquina carregada
+  duas análises não cabem nisso — 5 min só com avistamentos isolados
+  (`queda_vista` a cada 30–70 s). A ficha de prioridade e a câmera lenta da
+  confirmação só começam DEPOIS do resultado da 1ª análise (~1 s de latência).
+  A mesma gravação sem espectador anda na taxa útil e confirmou 5 quedas no
+  mesmo E2E. A regra das 2 análises fica (o falso positivo de 0,84 da
+  `multidao` é de um quadro só). Consequências: o E2E da queda espera na grade
+  e confere o evento com o ID depois, na aba "Quedas e postura"; a cena "Queda"
+  do `/palco` mostra o incidente de queda com a linha causal e o replay do
+  momento (`/api/incidentes?rule=`), não o vídeo ao vivo. Numa câmera real a
+  pessoa caída fica no chão bem mais que 0,8 s.
+- **`[bootstrap] failed: Failed to fetch`** no console quando a página navegava
+  no meio do primeiro carregamento (ou o servidor estava ocupado): falha de rede
+  agora tenta de novo em 2 s (até 5 vezes) e só vira erro se persistir.
+- **400 do Socket.IO no console** (gêmeo, rodadas 3 e 6): o socket conectava no
+  carregamento do módulo, antes de saber se havia sessão; na tela de login o
+  servidor rejeitava (`socket_rejected_unauthenticated`, ~37 por rodada) e o
+  poll seguinte daquele `sid` voltava 400. `autoConnect: false`: o socket só
+  conecta em `subscribeToServerEvents`, depois do login.
+
+## ADENDO 2 — retomada depois do reinício do PC (14/10)
+
+### Recuperação
+
+- Estado em disco conferido antes de qualquer mudança: `pytest tests` **649
+  passed**, `ruff check .` limpo, `npm run build` reproduz o `app/static/dist`
+  commitado byte a byte (nenhum arquivo mudou). Commit `2116c1c` ("wip:
+  recuperação pós-reinício") e `git push -u origin next-2026`. Nenhum processo
+  nosso tinha sobrado; os processos de terceiros que apareceram depois
+  (`driver1015.py` ×6, `his-prospeccao`) não foram tocados.
+- O bench "antes × PR5" morreu na 4ª rodada da r1 (`atual-4cam-pr5`): código
+  de saída `3221226091` = `0xC000026B`, *STATUS_DLL_INIT_FAILED_LOGOFF* — o
+  Windows desligando. Refeito do zero (BENCHMARKS.md, "Portão do PR5").
+- **Subida com o cache dos modelos frio leva minutos.** O E2E falhou duas vezes com
+  "conexão recusada": o servidor ainda compilava os modelos para a iGPU e o
+  `e2e/conftest.py` esperava 120 s e seguia em silêncio. Medido por modelo
+  (validação de runtime): 1ª medição pós-reinício pose **213 s**, EPI 31 s,
+  pessoa 4 s (248 s no total); a seguinte, com o cache do OpenVINO
+  (`ov_cache/`) quente, 7,8 / 22 / 2 s (**32 s**). Causa não identificada: a
+  worktree `ch5550-antes`, com o `ov_cache/` dela, validou em 10 s no mesmo
+  dia, então não é o reinício por si.
+  O conftest agora espera até 300 s e falha dizendo por quê; o DEMO.md manda
+  subir a demo uma vez antes da banca.
+
+### A. Tempo até "Liberado" no Portal (4 câmeras ligadas, E2E ×10)
+
+`E2E_PORTAL_REPETICOES=10 pytest e2e/test_fluxos.py -k portal_de_entrada`; cada
+repetição grava a portaria (zera o portal), espera o lease de foco expirar e
+mede desde abrir `/portal` até `veredito=approved`. p95 por posto mais próximo
+(com 10 amostras, é o máximo). Arquivo: `bench/results/portal-liberado-adendo2-20261014.json`.
+
+| rodada | regra | p50 | p95 | p50 / p95 desde o 1º item |
+|---|---|---|---|---|
+| antes | 3 análises seguidas; análise sem ninguém zera; foco 0,5 | 16,8 s | 81,0 s | 14,7 / 80,3 s |
+| depois | + até 2 análises sem ninguém neutras; foco 0,7 | 5,4 s | 31,9 s | 4,8 / 30,6 s |
+| **final** | + até 2 análises sem ninguém neutras; **foco 0,5** | **5,6 s** | **21,6 s** | 5,0 / 20,9 s |
+
+**Meta (p50 ≤ 5 s, p95 ≤ 10 s): não atingida.** p50 ficou 0,6 s acima; p95, 2×.
+
+Como chegamos aqui (tudo medido, nada presumido):
+
+1. **Onde o tempo ia.** O portal passou a contar o veredito BRUTO de cada análise
+   (`diagnostico` em `/api/cameras/<id>/portal`: contagem, item que faltou e a
+   sequência A/D/W com o ID). Em 20 rodadas de `scripts/diagnostico_foco.py
+   --portal --repeticoes 10`: o foco recebe ~0,6–1,3 análise/s; **um terço das
+   análises não acha ninguém** (W) — na `bench.mp4` os trabalhadores são
+   pequenos e passam atrás do guarda-corpo — e cada W zerava a sequência.
+   Um simulador das regras sobre essas sequências reproduz a regra antiga
+   exatamente (20/20) antes de testar outras.
+2. **Confirmações = 3.** Já era o valor (`PORTAL_CONFIRMACOES=3`, desde o PR3):
+   não havia o que reduzir.
+3. **Peso do foco até 70 % — medido e revertido.** `INFERENCIA_FRACAO_FOCO`
+   (novo, 0,5–0,7). A guarda de espera manda: com 4 câmeras a ~2,6 inferências/s,
+   o foco ficou em 49 % com 0,7 contra 45 % com 0,5, e os intervalos das outras
+   câmeras acima de 3 s foram de **9 %** (0,5: 4/46, 2/51, 5/43; máx. 5,2 s) para
+   **~25 %** (0,7: 7/30, 5/37, 7/24; máx. 5,4 s). O 0,7 quebra a regra dos 3 s;
+   o padrão voltou a 0,5. O agendador agora mede isso (`maior_espera_s`,
+   `esperas_acima_de_3s` por câmera em `/api/diagnostics/pipeline`).
+   **Divergência com o que estava escrito:** a seção P0.1 acima diz que
+   "nenhuma outra fica > 3 s" — isso vale na simulação com custo fixo; na
+   máquina real, sob carga de terceiros, 9 % dos intervalos passam de 3 s
+   mesmo com 0,5 (a guarda dispara a 2,5 s, mas várias câmeras vencem juntas e
+   a alternância com o foco atrasa a última).
+4. **Até 2 análises sem ninguém detectado ficam neutras** na confirmação
+   (`PORTAL_AUSENCIAS_TOLERADAS=2`): não contam nem zeram; a 3ª seguida zera.
+   "Não detectado" não é "ausente" (regra da missão). Uma análise que VÊ a
+   pessoa sem o EPI continua zerando — liberar por engano é o erro caro. No
+   simulador: pior caso de 27 análises (ou nunca, em 90 s) para 5.
+   `tests/test_portal.py::test_ninguem_detectado_no_meio_da_confirmacao_nao_zera_mas_epi_faltando_zera`.
+5. **Rejeitados no simulador:** sequência por ID de rastreio (10 de 20 rodadas
+   nunca liberariam — o ID fragmenta na fixture) e sequência por item (o
+   capacete sai "não verificável" na maioria das análises; ficaria mais
+   estrito, não mais rápido). Antecipar as outras câmeras pelo prazo de 3 s
+   renderia, na simulação a 0,37 s por inferência, só 5–8 pontos de vaga ao
+   foco: não implementado.
+
+**Por que o p95 não fecha.** As rodadas lentas são as com análises "D" seguidas
+(`DDWAWDDWAWAWDAWWWAAA`, `AADWWDAADADWAADADAWWAA`): a maior pessoa do quadro
+muda entre trabalhadores distantes, e o modelo vê alguns sem capacete. A
+`bench.mp4` é um plano aberto de obra, não um portal; com a webcam diante de
+uma pessoa (o Portal da demo quando há webcam) a situação é outra — mas isso
+não foi medido aqui (o teste automatizado não tem uma pessoa diante da câmera).
+Fica como ameaça no ESTADO.md.
+
+### B. Queda na demo: gravação a 0,25× com o alerta ao vivo
+
+- Regra de emergência mantida: **2 análises seguidas**.
+- A cena "Queda" do `/palco` declara `velocidade: 0.25` e `inicio_s: 4.0`
+  (`app/services/palco.py`). Ao entrar na cena, a velocidade muda **antes** de a
+  troca de cena responder (`_ajustar_velocidades`, síncrono) e a gravação
+  reabre em 4,0 s (`VideoStream.inicio_ms`, vale uma vez; a volta do loop é do
+  início). Sair da cena devolve todas as gravações a 1×.
+- `CameraWorker.tocar_gravacao`: só arquivo (câmera ao vivo não tem como andar
+  devagar e fica em 1×). O ritmo da captura vira `fps da fonte × 0,25` e fica
+  fixo **inclusive durante a confirmação de emergência** — antes ela baixava a
+  gravação para 4 fps, e o rótulo deixaria de ser verdade.
+- O rótulo **"GRAVAÇÃO · 0,25×"** sai do que o servidor informa
+  (`video.velocidade` no status), nunca do que a cena pediu; o selo de feed de
+  qualquer tela mostra "Gravação · 0,25×" enquanto durar.
+- Quando o incidente de queda aparece, o painel com a linha causal e o replay
+  entra ao lado do vídeo, como continuação da cena.
+- Evidência: `tests/test_camera_lenta.py` (4), `tests/test_palco.py::test_camera_lenta_so_dura_a_cena_da_queda`,
+  E2E `test_palco_queda_ao_vivo_em_camera_lenta` (rótulo conferido no DOM e
+  dentro da caixa do vídeo no instante do alerta; alerta ao vivo **12,9 s**
+  depois de entrar na cena — ~2 s de reabertura + 8,8 s de gravação até a
+  queda a 0,25× + a confirmação), captura revisada
+  (`bench/runtime/e2e-capturas/palco-queda-camera-lenta.png`).

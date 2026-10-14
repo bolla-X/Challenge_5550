@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -7,6 +9,8 @@ from app.services.feature_manager import FeatureManager
 from app.vision.person_compliance_matcher import PPE_KEYS, PersonComplianceMatcher
 from app.vision.quedas import atribuir_quedas
 from app.vision.schemas import Detection, PoseResult
+
+logger = logging.getLogger(__name__)
 
 # feature -> (mensagem, severidade). Fonte única das regras de EPI: a mesma
 # lista de tuplas aparecia duplicada em dois pontos deste arquivo.
@@ -71,6 +75,27 @@ class RuleAlert:
         return f"{self.rule}:{self.feature}:{subject}"
 
 
+QUEDA_CONTINUIDADE_S = 5.0
+QUEDA_CONTINUIDADE_LARGURAS = 1.5
+
+
+def _chave_do_sujeito(sujeito: dict[str, Any]) -> str:
+    return str(sujeito.get("person_id") or sujeito.get("subject") or "global")
+
+
+def _queda_continua(queda: Detection, recentes: list[tuple[float, Detection, dict[str, Any]]]) -> dict[str, Any] | None:
+    """O sujeito da queda recente mais próxima, se estiver a ≤ 1,5 largura de caixa."""
+    melhor, menor = None, float("inf")
+    cx, cy = queda.box.center
+    for _t, antes, sujeito in reversed(recentes):
+        ax, ay = antes.box.center
+        limite = QUEDA_CONTINUIDADE_LARGURAS * max(queda.box.width, antes.box.width, 1)
+        d = ((cx - ax) ** 2 + (cy - ay) ** 2) ** 0.5
+        if d <= limite and d < menor:
+            melhor, menor = sujeito, d
+    return melhor
+
+
 class RuleEngine:
     def __init__(
         self,
@@ -84,6 +109,16 @@ class RuleEngine:
         self.risk_polygon = risk_polygon
         self.supported_ppe_getter = supported_ppe_getter
         self.person_matcher = PersonComplianceMatcher()
+        # Continuidade da queda: o rastreador troca o ID de quem cai (a caixa em
+        # pé e a caixa no chão quase não se sobrepõem) e a confirmação de
+        # emergência, que conta análises seguidas da MESMA chave, nunca fechava.
+        # Medido com as 4 câmeras (scripts/diagnostico_foco.py --foco queda):
+        # pares p14→p3 (3,1 s) e p5→p4 (3,6 s) na mesma queda; a única
+        # confirmada manteve o ID. Queda nova perto (≤ 1,5 largura) de uma
+        # queda vista há ≤ QUEDA_CONTINUIDADE_S herda o sujeito dela.
+        self.queda_continuidade_s = QUEDA_CONTINUIDADE_S
+        self.relogio: Callable[[], float] = time.monotonic
+        self._quedas_recentes: list[tuple[float, Detection, dict[str, Any]]] = []
 
     def analyze(
         self,
@@ -156,6 +191,8 @@ class RuleEngine:
                                 "person_box": person_state["box"],
                                 "present_labels": sorted(labels),
                                 "supported_ppe": sorted(supported_ppe),
+                                # Zona do incidente (P0.2): dentro da área de risco ou fora.
+                                "na_zona": person_state.get("risk_area", {}).get("status") == "inside",
                             },
                         )
                     )
@@ -228,13 +265,22 @@ class RuleEngine:
         if not self.feature_manager.is_enabled("falls"):
             return []
         alertas = []
+        agora = self.relogio()
+        recentes = [r for r in self._quedas_recentes if agora - r[0] <= self.queda_continuidade_s]
+        vistas: list[tuple[float, Detection, dict[str, Any]]] = []
         for queda, pessoa in atribuir_quedas(detections, people):
             if pessoa is not None:
                 sujeito = {"person_id": pessoa["id"], "person_label": pessoa["label"], "person_box": pessoa["box"]}
-                rotulo = f" — {pessoa['label']}"
             else:
                 sujeito = {"subject": "queda_sem_pessoa", "person_box": queda.box.to_dict()}
-                rotulo = ""
+            anterior = _queda_continua(queda, recentes)
+            if anterior is not None and _chave_do_sujeito(anterior) != _chave_do_sujeito(sujeito):
+                sujeito = {k: v for k, v in anterior.items() if k != "person_box"} | {
+                    "person_box": sujeito["person_box"], "continuidade_de": _chave_do_sujeito(sujeito)}
+            rotulo = f" — {sujeito['person_label']}" if sujeito.get("person_label") else ""
+            vistas.append((agora, queda, sujeito))
+            logger.info("queda_vista", extra={"sujeito": _chave_do_sujeito(sujeito), "confianca": round(queda.confidence, 2),
+                                              "continuidade_de": sujeito.get("continuidade_de")})
             alertas.append(
                 RuleAlert(
                     rule="fall_detected",
@@ -244,6 +290,7 @@ class RuleEngine:
                     metadata={**sujeito, "method": "modelo_epi_fall_detected", "confianca": round(queda.confidence, 2)},
                 )
             )
+        self._quedas_recentes = recentes + vistas
         return alertas
 
     @staticmethod

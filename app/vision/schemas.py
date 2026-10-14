@@ -149,6 +149,9 @@ class FrameAnalysis:
     # delas (ou a global, quando nao ha caixa de pessoa) para nao quebrar
     # clientes que ja liam esse campo.
     poses: list[PoseResult] = field(default_factory=list)
+    # Raio-X (X5): o que o modelo VIU e o filtro descartou, com o motivo.
+    # Só para mostrar "confiança bruta x decisão"; nenhuma regra lê isto.
+    descartadas: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         vazio = {"found": False, "person_id": None, "track_id": None, "landmarks": []}

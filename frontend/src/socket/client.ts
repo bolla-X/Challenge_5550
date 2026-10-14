@@ -21,4 +21,9 @@ type ClientEvents = {
 // ECONNRESET). Polling is plenty for this app's ~12 FPS analysis rate.
 // Revisit if a real WSGI/ASGI server (gunicorn+eventlet, etc.) replaces the
 // Werkzeug dev server in prod.
-export const socket: Socket<ServerEvents, ClientEvents> = io({ autoConnect: true, transports: ["polling"] });
+//
+// autoConnect: false — quem conecta é subscribeToServerEvents, depois que a
+// sessão é conhecida. Conectando no carregamento do módulo, a tela de login
+// abria um socket que o servidor rejeitava (socket_rejected_unauthenticated,
+// ~37 por rodada de E2E) e o poll seguinte daquele sid voltava 400 no console.
+export const socket: Socket<ServerEvents, ClientEvents> = io({ autoConnect: false, transports: ["polling"] });

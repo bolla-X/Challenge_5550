@@ -1,0 +1,709 @@
+{
+  "foco": "bench",
+  "segundos": 233,
+  "env": [],
+  "servidos": {
+    "multidao": 54,
+    "bench": 141,
+    "queda": 74,
+    "multidao2": 52
+  },
+  "fracao_foco": 0.439,
+  "inferencias_por_s": 1.38,
+  "pre_alertas_registrados": 1,
+  "alertas_de_queda": 2,
+  "portal_liberado_em_s": 20.7,
+  "portal": [
+    {
+      "liberado_em_s": 20.7,
+      "brutos": {
+        "approved": 7,
+        "denied": 2,
+        "waiting": 6
+      },
+      "faltas": {
+        "helmet": 2
+      },
+      "sequencia": [
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "D",
+          4
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          5
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          6
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 5.5,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          5
+        ],
+        [
+          "A",
+          3
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 4.5,
+      "brutos": {
+        "approved": 3,
+        "denied": 1,
+        "waiting": 1
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "D",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          5
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 5.2,
+      "brutos": {
+        "approved": 3,
+        "denied": 1,
+        "waiting": 0
+      },
+      "faltas": {
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "D",
+          2
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          3
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 18.5,
+      "brutos": {
+        "approved": 4,
+        "denied": 0,
+        "waiting": 3
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          5
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          5
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": null,
+      "brutos": {
+        "approved": 11,
+        "denied": 6,
+        "waiting": 12
+      },
+      "faltas": {
+        "helmet": 6
+      },
+      "sequencia": [
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          5
+        ],
+        [
+          "D",
+          2
+        ],
+        [
+          "D",
+          4
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          5
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          9
+        ],
+        [
+          "D",
+          4
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          9
+        ],
+        [
+          "D",
+          10
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 41.9,
+      "brutos": {
+        "approved": 13,
+        "denied": 5,
+        "waiting": 9
+      },
+      "faltas": {
+        "helmet": 5,
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          5
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          5
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 25.6,
+      "brutos": {
+        "approved": 9,
+        "denied": 5,
+        "waiting": 9
+      },
+      "faltas": {
+        "helmet": 5
+      },
+      "sequencia": [
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          9
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          9
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "A",
+          2
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 8.5,
+      "brutos": {
+        "approved": 6,
+        "denied": 2,
+        "waiting": 3
+      },
+      "faltas": {
+        "helmet": 2
+      },
+      "sequencia": [
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "A",
+          2
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 12.2,
+      "brutos": {
+        "approved": 8,
+        "denied": 2,
+        "waiting": 7
+      },
+      "faltas": {
+        "helmet": 2
+      },
+      "sequencia": [
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          5
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          10
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          3
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ]
+      ]
+    }
+  ]
+}

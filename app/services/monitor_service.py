@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -209,7 +210,12 @@ class MonitorService:
         # Um thread de inferência para todas as câmeras (ver
         # agendador_de_inferencia.py). None = loop síncrono de antes.
         self.agendador = (
-            AgendadorDeInferencia(lote=bool(app.config.get("INFERENCIA_LOTE", False)))
+            AgendadorDeInferencia(
+                lote=bool(app.config.get("INFERENCIA_LOTE", False)),
+                focadas=self.cameras_em_foco,
+                espera_max_s=float(app.config.get("INFERENCIA_ESPERA_MAX_S", 2.5)),
+                fracao_foco=float(app.config.get("INFERENCIA_FRACAO_FOCO", 0.5)),
+            )
             if app.config.get("INFERENCIA_ASSINCRONA", True)
             else None
         )
@@ -240,6 +246,9 @@ class MonitorService:
             else None
         )
         self.espectadores: dict[int, int] = {}
+        # Foco por consulta (portal, palco): câmera -> instante em que expira.
+        self._foco_lease: dict[int, float] = {}
+        self._foco_lease_s = float(app.config.get("FOCO_LEASE_S", 3.0))
 
         # ---- controlador adaptativo ("modo batata") -----------------------
         self.controlador = ControladorAdaptativo(
@@ -495,6 +504,10 @@ class MonitorService:
             subject=usuario.email,
             metadata={"ativa": bool(ativa), "motivo": motivo[:200], "usuario_id": usuario.id, "papel": usuario.role},
         )
+        if self.app.config.get("CUSTODIA_ATIVA", True):
+            from app.services.custodia import registrar_evento
+
+            registrar_evento(evento)
         payload = evento.to_dict()
         self.socketio.emit("timeline_event", payload, to=SALA_PARQUE)
         return {"camera_id": camera_id, "ativa": bool(ativa), "evento": payload}
@@ -506,6 +519,21 @@ class MonitorService:
             worker = self._workers.get(camera_id)
             if worker is not None:
                 worker.espectadores = self.espectadores[camera_id]
+
+    def marcar_foco(self, camera_id: int) -> None:
+        """Mantém a câmera em foco por `FOCO_LEASE_S` (o portal consulta a cada 0,6 s)."""
+        self._foco_lease[camera_id] = time.monotonic() + self._foco_lease_s
+
+    def cameras_em_foco(self) -> set[int]:
+        """Câmeras que alguém está olhando: vídeo ao vivo aberto ou consulta recente.
+
+        O vídeo ao vivo (`video_feed`) só é aberto pela tela de foco, pelo
+        portal, pelo quiosque do operador e pelo palco — a grade usa miniaturas.
+        """
+        agora = time.monotonic()
+        focadas = {cid for cid, n in list(self.espectadores.items()) if n > 0}
+        focadas |= {cid for cid, ate in list(self._foco_lease.items()) if ate > agora}
+        return focadas
 
     def worker_da_camera(self, camera_id: int | None = None) -> CameraWorker:
         """O worker em si — para o gerador do MJPEG e o diagnóstico do pipeline."""
@@ -610,6 +638,7 @@ class MonitorService:
         return self._get_worker(camera_id).gate_state()
 
     def portal_state(self, camera_id: int) -> dict[str, Any]:
+        self.marcar_foco(camera_id)
         return self._get_worker(camera_id).portal_state()
 
     def andon(self) -> list[dict[str, Any]]:

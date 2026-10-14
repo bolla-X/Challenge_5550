@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { subscribeToServerEvents, useDashboardStore, ROLE_ACCESS } from "./store/dashboardStore";
 import { Topbar, MessageBar, ScreenHead } from "./components/layout";
-import { CameraGrid, type EstadoDaCamera } from "./components/camera-grid";
+import { CameraGrid, totalDeIncidentes, type EstadoDaCamera } from "./components/camera-grid";
 import { OperatorKiosk } from "./components/operator-kiosk";
 import { GateKiosk } from "./components/gate";
 import { AccountsScreen, SupervisorHome } from "./components/accounts";
@@ -15,11 +15,27 @@ import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
 
+// Telas pesadas (three.js) só carregam quando abertas.
+const GemeoScreen = lazy(() => import("./components/gemeo/gemeo-screen"));
+const SimuladorScreen = lazy(() => import("./components/simulador"));
+const AuditoriaScreen = lazy(() => import("./components/auditoria"));
+const LigaScreen = lazy(() => import("./components/liga"));
+const PalcoScreen = lazy(() => import("./components/palco"));
+const PalcoControle = lazy(() => import("./components/palco").then((m) => ({ default: m.PalcoControle })));
+const RetrospectivaScreen = lazy(() => import("./components/retrospectiva"));
+
+function CarregandoTela() {
+  return <p className="centered-empty" aria-busy="true">Carregando…</p>;
+}
+
 // Visão geral do Supervisor: o mesmo painel por setor do Modo TV (G8), com
 // atalhos para as telas de tela cheia (abrem em outra aba, para a TV/totem).
 function SupervisorOverview({ onBack }: { onBack: () => void }) {
   const atalhos: [string, string][] = [
     ["/tv", "Modo TV"],
+    ["/gemeo", "Gêmeo digital"],
+    ["/liga", "Liga de Setores"],
+    ["/palco", "Apresentação"],
     ["/portal", "Portal de Entrada"],
     ["/desafio", "Você vs. a IA"],
     ["/rotular", "Rotular recortes"],
@@ -61,9 +77,9 @@ function GridScreen() {
     setEstados((prev) => (prev[id] === estado ? prev : { ...prev, [id]: estado }));
   }, []);
   const noAr = cameras.filter((c) => estados[c.id]?.running).length;
-  const alertas = cameras.reduce((n, c) => n + (estados[c.id]?.alertas.length ?? 0), 0);
+  const incidentes = cameras.reduce((n, c) => n + totalDeIncidentes(estados[c.id]), 0);
   const sub = cameras.length
-    ? `${noAr} de ${cameras.length} no ar, ${alertas} alerta${alertas === 1 ? "" : "s"} ativo${alertas === 1 ? "" : "s"}`
+    ? `${noAr} de ${cameras.length} no ar, ${incidentes} incidente${incidentes === 1 ? "" : "s"} ativo${incidentes === 1 ? "" : "s"}`
     : null;
 
   return (
@@ -106,6 +122,19 @@ export default function App() {
   const loadCameras = useDashboardStore((s) => s.loadCameras);
   const setScreen = useDashboardStore((s) => s.setScreen);
 
+  // Tecla X: Modo Raio-X (X5) em qualquer tela com vídeo ao vivo.
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key !== "x" && e.key !== "X") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(alvo.tagName))) return;
+      useDashboardStore.getState().alternarRaioX();
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, []);
+
   // Primeiro descobre QUEM está logado. Só depois vale a pena abrir socket e
   // buscar dados: sem sessão, tudo isso responderia 401.
   useEffect(() => {
@@ -116,11 +145,38 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const unsubscribe = subscribeToServerEvents();
-    bootstrap().catch((err) => console.error("[bootstrap] failed", err));
-    loadCameras().catch((err) => console.error("[loadCameras] failed", err));
-    return unsubscribe;
+    let ativo = true;
+    // Falha de REDE (fetch abortado por navegação, servidor ocupado) não é erro
+    // do app: tenta de novo em 2 s enquanto a tela estiver montada. Outras
+    // falhas continuam como erro no console.
+    const carregar = (nome: string, fn: () => Promise<unknown>, tentativa = 0): void => {
+      fn().catch((err) => {
+        const rede = err instanceof TypeError && /fetch/i.test(err.message);
+        if (rede && ativo && tentativa < 5) {
+          console.warn(`[${nome}] rede indisponível, tentando de novo`, err);
+          window.setTimeout(() => ativo && carregar(nome, fn, tentativa + 1), 2000);
+        } else if (!rede || ativo) {
+          console.error(`[${nome}] failed`, err);
+        }
+      });
+    };
+    carregar("bootstrap", bootstrap);
+    carregar("loadCameras", loadCameras);
+    return () => {
+      ativo = false;
+      unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  // Controle da apresentação pelo celular: sem login, só com o token do QR (X6).
+  if (window.location.pathname.startsWith("/palco/controle")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <PalcoControle />
+      </Suspense>
+    );
+  }
 
   if (!authChecked) {
     return <div className="login-shell" aria-busy="true" />;
@@ -138,6 +194,48 @@ export default function App() {
   }
   if (window.location.pathname.startsWith("/rotular")) {
     return <RotularScreen />;
+  }
+  if (window.location.pathname.startsWith("/gemeo")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <GemeoScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/palco")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <PalcoScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/liga")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <LigaScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/retrospectiva")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <RetrospectivaScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/auditoria")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <AuditoriaScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/simulador")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <SimuladorScreen />
+      </Suspense>
+    );
   }
   if (window.location.pathname.startsWith("/tv")) {
     return <TvScreen />;

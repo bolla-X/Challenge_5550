@@ -215,6 +215,9 @@ class VideoStream:
 
         self._capture: cv2.VideoCapture | None = None
         self.fps_da_fonte: float | None = None
+        # Posição pedida para a PRÓXIMA abertura de um arquivo (cena do palco
+        # que começa perto do evento). Vale uma vez; o loop volta ao início.
+        self.inicio_ms = 0.0
         self._lock = threading.RLock()
         self._latest_frame = None
 
@@ -308,6 +311,9 @@ class VideoStream:
             self.fps_da_fonte = float(capture.get(cv2.CAP_PROP_FPS) or 0.0) or None
         except Exception:  # noqa: BLE001
             self.fps_da_fonte = None
+        if self.inicio_ms > 0 and e_arquivo_local(self.source):
+            capture.set(cv2.CAP_PROP_POS_MSEC, self.inicio_ms)
+        self.inicio_ms = 0.0
         self._capture = capture
         self._last_error = None
         logger.info("video_stream_opened", extra={"source": redigir_segredos(str(self.source))})

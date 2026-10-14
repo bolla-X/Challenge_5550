@@ -456,7 +456,9 @@ def test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois(app, mon
         criados = service.process(violacoes)["created"]
 
         assert len(criados) == 12
-        assert ordem.count("commit") == 1
+        # Um commit para os 12 alertas e um para os 12 elos da cadeia de custódia
+        # (X3), nunca um por alerta.
+        assert ordem.count("commit") == 2
         primeiro_emit = next(i for i, x in enumerate(ordem) if x.startswith("emit:alert_created"))
         assert ordem.index("commit") < primeiro_emit, "evento antes do commit"
 

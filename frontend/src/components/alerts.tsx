@@ -2,8 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, PanelSkeleton } from "./common";
-import type { Alert } from "../api/types";
-import { acknowledgeAllAlerts, deleteResolvedAlerts, getCameraStatus, listAlerts, resolveActiveAlerts } from "../api/endpoints";
+import type { Alert, Incidente } from "../api/types";
+import {
+  acknowledgeAllAlerts,
+  deleteResolvedAlerts,
+  getCameraStatus,
+  listAlerts,
+  reconhecerIncidente,
+  resolveActiveAlerts,
+} from "../api/endpoints";
+import { pessoasDoIncidente, zonaDoIncidente } from "../utils/incidentes";
+import { IncidenteDetalhe } from "./incidente-detalhe";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { paraDate } from "../utils/datas";
 import { IncidentReplay } from "./replay";
@@ -97,8 +106,68 @@ function AlertRow({ alert, active, reduceMotion = false, animated = false }: { a
   );
 }
 
+/** Cabeçalho de um incidente: título, zona, IDs de rastreio e "Reconhecer". */
+function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null; total: number; podeReconhecer: boolean }) {
+  const showMessage = useDashboardStore((s) => s.showMessage);
+  const nomeDaCamera = useDashboardStore((s) => s.cameras.find((c) => c.id === inc?.camera_id)?.name);
+  const [ocupado, setOcupado] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  if (!inc) {
+    return (
+      <summary>
+        <strong>Outros alertas</strong> — {total}
+      </summary>
+    );
+  }
+  const reconhecer = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setOcupado(true);
+    reconhecerIncidente(inc.id)
+      .then((r) =>
+        showMessage(
+          r.primeira_vez ? `Incidente reconhecido em ${Math.round(r.incidente.reconhecido_em_s ?? 0)} s.` : "Este incidente já tinha sido reconhecido.",
+          "ok",
+        ),
+      )
+      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao reconhecer.", "error"))
+      .finally(() => setOcupado(false));
+  };
+  const zona = zonaDoIncidente(inc);
+  const pessoas = pessoasDoIncidente(inc, 6);
+  return (
+    <summary data-testid="incidente" data-incidente={inc.id}>
+      <span className={`alert-stripe ${inc.severity}`} style={{ display: "inline-block", width: 4, height: 14, marginRight: 8 }} />
+      <strong>{inc.titulo}</strong>
+      {zona ? ` · ${zona}` : ""}
+      {pessoas ? <span className="t-secondary"> · {pessoas}</span> : null}
+      {inc.reconhecido_em ? (
+        <span className="chip ok" style={{ marginLeft: 8 }}>Reconhecido</span>
+      ) : (
+        podeReconhecer && (
+          <button type="button" className="ghost small" style={{ marginLeft: 8 }} disabled={ocupado} onClick={reconhecer}>
+            Reconhecer
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        className="ghost small"
+        data-testid="incidente-abrir"
+        onClick={(e) => {
+          e.preventDefault();
+          setAberto(true);
+        }}
+      >
+        Linha causal
+      </button>
+      {aberto && <IncidenteDetalhe incidente={inc} nomeDaCamera={nomeDaCamera} onClose={() => setAberto(false)} />}
+    </summary>
+  );
+}
+
 export function AlertPanel() {
   const activeAlerts = useDashboardStore((s) => s.activeAlerts);
+  const activeIncidents = useDashboardStore((s) => s.activeIncidents);
   const bootstrapping = useDashboardStore((s) => s.bootstrapping);
   const shouldReduceMotion = useReducedMotion();
   const user = useDashboardStore((s) => s.user);
@@ -146,7 +215,11 @@ export function AlertPanel() {
       getCameraStatus(camId)
         .then((st) => {
           if (!cancelado && useDashboardStore.getState().camId === camId) {
-            useDashboardStore.setState({ activeAlerts: st.active_alerts ?? [] }, false, "poll:active_alerts");
+            useDashboardStore.setState(
+              { activeAlerts: st.active_alerts ?? [], activeIncidents: st.active_incidents ?? [] },
+              false,
+              "poll:active_alerts",
+            );
           }
         })
         .catch(() => undefined);
@@ -157,27 +230,28 @@ export function AlertPanel() {
     };
   }, [camId]);
 
-  const [pessoaFiltro, setPessoaFiltro] = useState<string | null>(null);
   const sorted = useMemo(
     () => [...activeAlerts].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9)),
     [activeAlerts],
   );
-  // Agrupa por pessoa: uma pessoa com 5 violações vira UM grupo, não 5 linhas soltas.
+  // Agrupa por INCIDENTE (regra + zona, P0.2): três pessoas sem capacete viram
+  // um grupo com os IDs, não três linhas — e uma troca de ID não abre outro.
   const grupos = useMemo(() => {
-    const mapa = new Map<string, Alert[]>();
+    const porIncidente = new Map<number, Alert[]>();
+    const soltos: Alert[] = [];
     for (const alert of sorted) {
-      const meta = alert.metadata || {};
-      const nome = (meta.person_label as string) || (meta.person_id as string) || "Geral";
-      mapa.set(nome, [...(mapa.get(nome) ?? []), alert]);
+      const id = Number((alert.metadata || {}).incidente_id);
+      if (Number.isFinite(id) && id > 0) porIncidente.set(id, [...(porIncidente.get(id) ?? []), alert]);
+      else soltos.push(alert);
     }
-    return [...mapa.entries()].sort(
-      (a, b) => (SEVERITY_ORDER[a[1][0].severity] ?? 9) - (SEVERITY_ORDER[b[1][0].severity] ?? 9) || b[1].length - a[1].length,
-    );
-  }, [sorted]);
-  const gruposVisiveis = pessoaFiltro ? grupos.filter(([nome]) => nome === pessoaFiltro) : grupos;
-  useEffect(() => {
-    if (pessoaFiltro && !grupos.some(([nome]) => nome === pessoaFiltro)) setPessoaFiltro(null);
-  }, [grupos, pessoaFiltro]);
+    const lista: [Incidente | null, Alert[]][] = [...activeIncidents]
+      .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9))
+      .map((inc) => [inc, porIncidente.get(inc.id) ?? []]);
+    const conhecidos = new Set(activeIncidents.map((i) => i.id));
+    for (const [id, itens] of porIncidente) if (!conhecidos.has(id)) soltos.push(...itens);
+    if (soltos.length) lista.push([null, soltos]);
+    return lista;
+  }, [sorted, activeIncidents]);
 
   if (bootstrapping) {
     return (
@@ -190,9 +264,9 @@ export function AlertPanel() {
   return (
     <Panel
       id="panel-alerts"
-      title="Alertas ativos"
-      description="Somem automaticamente quando a condição normal é confirmada."
-      action={sorted.length ? <span className="chip miss">{sorted.length}</span> : undefined}
+      title="Incidentes ativos"
+      description="Alertas agrupados por regra e zona. Somem quando a condição normal é confirmada."
+      action={grupos.length ? <span className="chip miss">{grupos.length}</span> : undefined}
     >
       {sorted.length > 0 && nivel >= 1 && (
         <div className="filter-row" style={{ marginBottom: 8 }}>
@@ -209,38 +283,12 @@ export function AlertPanel() {
       <div className="alert-list content-enter">
         {sorted.length ? (
           <>
-            {grupos.length > 1 && (
-              <div className="filter-row" style={{ marginBottom: 8, flexWrap: "wrap" }}>
-                <button type="button" className={`ghost small${pessoaFiltro === null ? " active" : ""}`} onClick={() => setPessoaFiltro(null)}>
-                  Todas ({grupos.length})
-                </button>
-                {grupos.map(([nome, itens]) => (
-                  <button
-                    key={nome}
-                    type="button"
-                    className={`ghost small${pessoaFiltro === nome ? " active" : ""}`}
-                    onClick={() => setPessoaFiltro(pessoaFiltro === nome ? null : nome)}
-                  >
-                    {nome} · {itens.length}
-                  </button>
-                ))}
-              </div>
-            )}
-            {gruposVisiveis.map(([nome, itens]) => (
-              <details key={nome} open={gruposVisiveis.length <= 3 || pessoaFiltro === nome} className="alert-group">
-                <summary>
-                  <span className={`alert-stripe ${itens[0].severity}`} style={{ display: "inline-block", width: 4, height: 14, marginRight: 8 }} />
-                  <strong>{nome}</strong> — {itens.length} alerta(s)
-                </summary>
+            {grupos.map(([inc, itens]) => (
+              <details key={inc ? inc.id : "soltos"} open={grupos.length <= 3} className="alert-group">
+                <IncidenteResumo inc={inc} total={itens.length} podeReconhecer={nivel >= 1} />
                 <AnimatePresence initial={false}>
                   {itens.map((alert) => (
-                    <AlertRow
-                      key={alert.id}
-                      alert={alert}
-                      active
-                      animated
-                      reduceMotion={Boolean(shouldReduceMotion)}
-                    />
+                    <AlertRow key={alert.id} alert={alert} active animated reduceMotion={Boolean(shouldReduceMotion)} />
                   ))}
                 </AnimatePresence>
               </details>

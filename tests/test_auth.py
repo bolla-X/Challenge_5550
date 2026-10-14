@@ -216,6 +216,10 @@ PUBLICAS = {
     # Coberto por tests/test_celular.py (token desconhecido → 404, sem quadro).
     "celular.pagina",
     "celular.receber_quadro",
+    # PWA (X10): o service worker e o manifesto são arquivos estáticos do build,
+    # sem dado nenhum; o navegador os pede antes de qualquer login.
+    "status.service_worker",
+    "status.manifesto",
 }
 
 

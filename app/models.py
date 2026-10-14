@@ -67,6 +67,145 @@ class Alert(db.Model):
         }
 
 
+class Incidente(db.Model):
+    """Alertas da mesma (câmera, regra, zona) agrupados (MISSÃO 2, P0.2).
+
+    O alerta continua sendo por pessoa rastreada (é a evidência: caixa,
+    clipe, replay). O incidente é o que o painel mostra: "Sem capacete na
+    Zona A — 3 pessoas (IDs 4, 7, 9)", em vez de uma linha por pessoa e outra
+    a cada troca de ID. Os IDs são de rastreio, nunca identidade.
+    """
+
+    __tablename__ = "incidentes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    camera_id = db.Column(db.Integer, nullable=True, index=True)  # sem FK, como Alert
+    rule = db.Column(db.String(80), nullable=False, index=True)
+    feature = db.Column(db.String(80), nullable=True, index=True)
+    zona = db.Column(db.String(120), nullable=False, default="Fora da zona")
+    severity = db.Column(db.String(30), nullable=False, index=True)
+    titulo = db.Column(db.String(160), nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="active", index=True)
+    pessoas = db.Column(db.JSON, nullable=False, default=list)  # todos os IDs de rastreio que passaram
+    alert_ids = db.Column(db.JSON, nullable=False, default=list)
+    pico_pessoas = db.Column(db.Integer, nullable=False, default=0)
+    aberto_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    atualizado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    fechado_em = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+    reconhecido_em = db.Column(db.DateTime(timezone=True), nullable=True)
+    reconhecido_papel = db.Column(db.String(20), nullable=True)
+
+    def to_dict(self, pessoas_ativas: list | None = None) -> dict:
+        reconhecido_s = None
+        if self.reconhecido_em is not None and self.aberto_em is not None:
+            reconhecido_s = round((_aware(self.reconhecido_em) - _aware(self.aberto_em)).total_seconds(), 1)
+        return {
+            "id": self.id,
+            "camera_id": self.camera_id,
+            "rule": self.rule,
+            "feature": self.feature,
+            "zona": self.zona,
+            "severity": self.severity,
+            "titulo": self.titulo,
+            "status": self.status,
+            "pessoas": list(self.pessoas or []),
+            "pessoas_ativas": list(pessoas_ativas) if pessoas_ativas is not None else None,
+            "alert_ids": list(self.alert_ids or []),
+            "pico_pessoas": self.pico_pessoas,
+            "aberto_em": self.aberto_em.isoformat() if self.aberto_em else None,
+            "atualizado_em": self.atualizado_em.isoformat() if self.atualizado_em else None,
+            "fechado_em": self.fechado_em.isoformat() if self.fechado_em else None,
+            "reconhecido_em": self.reconhecido_em.isoformat() if self.reconhecido_em else None,
+            "reconhecido_em_s": reconhecido_s,
+        }
+
+
+class ElodeCustodia(db.Model):
+    """Um elo da cadeia de custódia das evidências (X3, MISSÃO 2).
+
+    `elo_sha256 = sha256(seq | tipo | ref | conteudo_sha256 | anterior_sha256 | criado_em)`.
+    Mudar um byte da evidência muda o `conteudo_sha256` recalculado; mudar o
+    registro muda o `elo_sha256`; tirar ou reordenar um elo quebra o
+    `anterior_sha256` do seguinte. Ver app/services/custodia.py.
+    """
+
+    __tablename__ = "custodia"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.String(30), nullable=False, index=True)  # alerta | snapshot | clipe | privacidade
+    ref = db.Column(db.String(240), nullable=False)
+    camera_id = db.Column(db.Integer, nullable=True, index=True)
+    alert_id = db.Column(db.Integer, nullable=True, index=True)
+    descricao = db.Column(db.String(255), nullable=False, default="")
+    detalhe = db.Column(db.JSON, nullable=False, default=dict)  # caminho, manifesto de arquivos
+    conteudo_sha256 = db.Column(db.String(64), nullable=False)
+    anterior_sha256 = db.Column(db.String(64), nullable=False)
+    elo_sha256 = db.Column(db.String(64), nullable=False, unique=True)
+    criado_em = db.Column(db.String(40), nullable=False)  # ISO-8601 UTC, texto: entra no hash exatamente assim
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "tipo": self.tipo,
+            "ref": self.ref,
+            "camera_id": self.camera_id,
+            "alert_id": self.alert_id,
+            "descricao": self.descricao,
+            "conteudo_sha256": self.conteudo_sha256,
+            "anterior_sha256": self.anterior_sha256,
+            "elo_sha256": self.elo_sha256,
+            "criado_em": self.criado_em,
+        }
+
+
+class PontoDaLiga(db.Model):
+    """Um ponto da Liga de Setores (X8): SÓ indicador positivo, SÓ por setor.
+
+    Nunca há ponto negativo nem por pessoa: gerar ou reportar alerta não tira
+    ponto de ninguém, e "zero alertas" não ganha nada. `ref` evita contar o
+    mesmo fato duas vezes (único por tipo).
+    """
+
+    __tablename__ = "liga_pontos"
+    __table_args__ = (db.UniqueConstraint("tipo", "ref", name="uq_liga_tipo_ref"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    setor = db.Column(db.String(160), nullable=False, index=True)
+    camera_id = db.Column(db.Integer, nullable=True)
+    tipo = db.Column(db.String(40), nullable=False, index=True)
+    pontos = db.Column(db.Integer, nullable=False)
+    ref = db.Column(db.String(120), nullable=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "setor": self.setor, "tipo": self.tipo, "pontos": self.pontos,
+                "criado_em": self.criado_em.isoformat() if self.criado_em else None}
+
+
+class Missao(db.Model):
+    """Missão da equipe por turno (X8), configurada pelo supervisor."""
+
+    __tablename__ = "missoes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    titulo = db.Column(db.String(160), nullable=False)
+    tipo = db.Column(db.String(40), nullable=False)  # checkin_portal | rotulo | reconhecido_rapido | minuto_conforme
+    alvo = db.Column(db.Integer, nullable=False)
+    ate_hora = db.Column(db.String(5), nullable=True)  # "08:00": só conta o que acontecer até essa hora
+    setor = db.Column(db.String(160), nullable=True)  # None = planta inteira
+    ativa = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "titulo": self.titulo, "tipo": self.tipo, "alvo": self.alvo, "ate_hora": self.ate_hora,
+                "setor": self.setor, "ativa": self.ativa}
+
+
+def _aware(valor: datetime) -> datetime:
+    """SQLite devolve datetime sem fuso; tudo aqui é gravado em UTC."""
+    return valor if valor.tzinfo is not None else valor.replace(tzinfo=timezone.utc)
+
+
 class EventLog(db.Model):
     __tablename__ = "event_logs"
 

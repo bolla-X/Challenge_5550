@@ -1,0 +1,135 @@
+{
+ "modelo": "epi",
+ "quadros": 126,
+ "referencia": "pytorch:640",
+ "resultados": {
+  "pytorch:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "helmet": {
+     "batidas": 20,
+     "n_ref": 20,
+     "n_cand": 20,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 89,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 121,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    }
+   },
+   "bancada_ms_p50": 1609.5,
+   "bancada_ms_p95": 2726.4,
+   "erro": null
+  },
+  "onnx-dyn:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "helmet": {
+     "batidas": 20,
+     "n_ref": 20,
+     "n_cand": 20,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 89,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 121,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    }
+   },
+   "bancada_ms_p50": 994.6,
+   "bancada_ms_p95": 1720.7,
+   "erro": null,
+   "dispositivo_ativo": null
+  },
+  "openvino-dyn@gpu-fp32:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 5,
+     "n_ref": 6,
+     "n_cand": 5,
+     "recall_ref": 0.8333,
+     "concordancia": 0.9091
+    },
+    "helmet": {
+     "batidas": 20,
+     "n_ref": 20,
+     "n_cand": 21,
+     "recall_ref": 1.0,
+     "concordancia": 0.9756
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 89,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 120,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 0.9917,
+     "concordancia": 0.9917
+    }
+   },
+   "bancada_ms_p50": 212.6,
+   "bancada_ms_p95": 414.9,
+   "erro": null,
+   "dispositivo_ativo": "GPU"
+  }
+ }
+}

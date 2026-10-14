@@ -5,7 +5,7 @@ import { Panel } from "./common";
 type Pareamento = { caminho: string; url_lan: string | null; https: boolean; aviso: string | null };
 
 /** QR como SVG: um <path> com um quadradinho por módulo escuro, borda de 4 módulos (norma do QR). */
-function QrSvg({ texto }: { texto: string }) {
+export function QrSvg({ texto, rotulo = "QR code para abrir a câmera no celular" }: { texto: string; rotulo?: string }) {
   const caminho = useMemo(() => {
     const qr = qrcodegen.QrCode.encodeText(texto, qrcodegen.QrCode.Ecc.MEDIUM);
     const partes: string[] = [];
@@ -21,7 +21,7 @@ function QrSvg({ texto }: { texto: string }) {
       className="qr"
       viewBox={`0 0 ${caminho.lado} ${caminho.lado}`}
       role="img"
-      aria-label="QR code para abrir a câmera no celular"
+      aria-label={rotulo}
       shapeRendering="crispEdges"
     >
       <rect width="100%" height="100%" fill="#FFFFFF" />

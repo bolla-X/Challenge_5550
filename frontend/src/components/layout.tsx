@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { effectiveTheme, ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { Mark, Wordmark } from "./brand";
+import { pedirPermissao, permissaoDeNotificacao } from "../pwa";
 import { exportAlertsCsv } from "./export";
 
 // Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
@@ -53,6 +54,31 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
       <path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5H4z" />
       {muted ? <path d="M16 9.5l5 5M21 9.5l-5 5" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7" />}
     </svg>
+  );
+}
+
+/** X10: liga as notificações do sistema para alerta crítico (pedido só no clique, como a MDN orienta). */
+export function NotificacaoToggle() {
+  const [estado, setEstado] = useState(permissaoDeNotificacao);
+  if (estado === "indisponivel") return null;
+  const rotulo =
+    estado === "granted" ? "Notificações de alerta crítico ligadas" : estado === "denied" ? "Notificações bloqueadas no navegador" : "Ativar notificações de alerta crítico";
+  return (
+    <button
+      type="button"
+      className={`icon ${estado === "granted" ? "ligado" : ""}`}
+      aria-label={rotulo}
+      title={rotulo}
+      data-testid="notificacoes"
+      data-estado={estado}
+      disabled={estado !== "default"}
+      onClick={() => pedirPermissao().then(setEstado)}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
+        <path d="M10 20a2 2 0 0 0 4 0" />
+      </svg>
+    </button>
   );
 }
 
@@ -168,6 +194,7 @@ export function Topbar() {
           </button>
         )}
         <ThemeToggle />
+        <NotificacaoToggle />
         <MuteToggle />
         <UserMenu />
         {running ? (

@@ -59,6 +59,29 @@ export interface Alert extends CameraScoped {
   resolved_at: string | null;
 }
 
+// ---- app/models.py: Incidente.to_dict() (MISSÃO 2, P0.2) ------------------
+/** Alertas da mesma (câmera, regra, zona) agrupados. IDs são de rastreio, nunca identidade. */
+export interface Incidente {
+  id: number;
+  camera_id: number | null;
+  rule: string;
+  feature: string | null;
+  zona: string;
+  severity: "critical" | "high" | "medium" | "low" | "info" | string;
+  titulo: string;
+  status: "active" | "resolved" | string;
+  pessoas: (number | string)[];
+  /** Só nos snapshots ao vivo; na listagem do banco vem null. */
+  pessoas_ativas: (number | string)[] | null;
+  alert_ids: number[];
+  pico_pessoas: number;
+  aberto_em: string | null;
+  atualizado_em: string | null;
+  fechado_em: string | null;
+  reconhecido_em: string | null;
+  reconhecido_em_s: number | null;
+}
+
 // ---- app/models.py: EventLog.to_dict() -----------------------------------
 export interface TimelineEvent extends CameraScoped {
   id: number;
@@ -279,6 +302,8 @@ export interface VideoStreamStatus {
   modo?: "ao_vivo" | "reconectando" | "fixture";
   /** Fonte em uso, com a credencial já redigida pelo backend. */
   fonte?: string;
+  /** 1 = velocidade original; < 1 = gravação em câmera lenta (cena "Queda" do palco). */
+  velocidade?: number;
 }
 
 // ---- app/services/camera_worker.py: diagnostico() ------------------------
@@ -338,6 +363,7 @@ export interface MonitorStatus extends CameraScoped {
   features: Record<string, FeatureFlag>;
   model: ModelDiagnostics;
   active_alerts: Alert[];
+  active_incidents?: Incidente[];
   cleanup: Record<string, unknown> | null;
   overlay: OverlayOptions;
   settings: RuntimeSettings;
@@ -513,6 +539,8 @@ export interface PortalItem {
   key: string;
   estado: "confirmado" | "faltando" | "nao_verificavel";
   motivo: string | null;
+  /** O que o modelo viu e por quê (X9): "visto com 0,62", "viu com 0,31, abaixo do piso — descartado". */
+  explicacao?: string;
 }
 export interface PortalState {
   camera_id: number;

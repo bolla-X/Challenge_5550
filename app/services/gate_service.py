@@ -7,6 +7,7 @@ tem, região do corpo fora do quadro) conta como ausente.
 """
 from __future__ import annotations
 
+from collections import deque
 from typing import Any
 
 PPE_KEYS = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe", "ear_protection")
@@ -122,7 +123,28 @@ def _regiao_visivel(regiao: str, caixa: dict[str, Any], frame_shape, pose) -> bo
     return len(vistos) == len(nomes) if regiao in ("maos", "pes") else len(vistos) * 2 >= len(nomes)
 
 
-def avaliar_portal(compliance: dict[str, Any] | None, exigidos: list[str], frame_shape, poses=()) -> dict[str, Any]:
+def _explicar(chave: str, estado: dict[str, Any], status: str | None, caixa: dict[str, Any],
+              descartadas: list[dict[str, Any]], pisos: dict[str, float]) -> str:
+    """Por que o item ficou assim, em uma frase (Raio-X do portal, X9). Só o que o sistema registrou."""
+    conf = float(estado.get("confidence") or 0.0)
+    if status == "ok":
+        return f"visto com confiança {conf:.2f}".replace(".", ",")
+    if status == "incorrect":
+        return f"visto com {conf:.2f}, mas fora da posição esperada".replace(".", ",")
+    dentro = [
+        d for d in descartadas
+        if d.get("l") == chave and caixa
+        and caixa.get("x1", 0) <= (d["b"][0] + d["b"][2]) / 2 <= caixa.get("x2", 0)
+        and caixa.get("y1", 0) <= (d["b"][1] + d["b"][3]) / 2 <= caixa.get("y2", 0)
+    ]
+    if dentro:
+        melhor = max(dentro, key=lambda d: d.get("c", 0))
+        return f"o modelo viu com {melhor['c']:.2f}, {melhor['m']} — descartado".replace(".", ",", 1)
+    return "o modelo não viu este item na pessoa"
+
+
+def avaliar_portal(compliance: dict[str, Any] | None, exigidos: list[str], frame_shape, poses=(),
+                   descartadas: list[dict[str, Any]] | None = None, pisos: dict[str, float] | None = None) -> dict[str, Any]:
     """Estado bruto do portal num quadro, para a pessoa mais próxima (maior caixa)."""
     pessoas = (compliance or {}).get("people") or []
     if not pessoas:
@@ -139,15 +161,16 @@ def avaliar_portal(compliance: dict[str, Any] | None, exigidos: list[str], frame
         estado = (pessoa.get("ppe") or {}).get(chave) or {}
         status = estado.get("status")
         regiao = REGIAO_DO_EPI.get(chave, "tronco")
+        explicacao = _explicar(chave, estado, status, pessoa.get("box") or {}, descartadas or [], pisos or {})
         if status == "ok":
-            itens.append({"key": chave, "estado": CONFIRMADO, "motivo": None})
+            itens.append({"key": chave, "estado": CONFIRMADO, "motivo": None, "explicacao": explicacao})
         elif status in ("disabled", "unsupported"):
             itens.append({"key": chave, "estado": NAO_VERIFICAVEL, "motivo": "o modelo não verifica este EPI"})
         elif not _regiao_visivel(regiao, pessoa.get("box") or {}, frame_shape, pose):
             itens.append({"key": chave, "estado": NAO_VERIFICAVEL, "motivo": MOTIVO_DA_REGIAO[regiao]})
         else:
             motivo = "fora da posição esperada" if status == "incorrect" else None
-            itens.append({"key": chave, "estado": FALTANDO, "motivo": motivo})
+            itens.append({"key": chave, "estado": FALTANDO, "motivo": motivo, "explicacao": explicacao})
     verificaveis = [i for i in itens if i["estado"] != NAO_VERIFICAVEL]
     liberado = bool(verificaveis) and all(i["estado"] == CONFIRMADO for i in verificaveis)
     return {"verdict": "approved" if liberado else "denied", "itens": itens, "people": len(pessoas),
@@ -156,18 +179,46 @@ def avaliar_portal(compliance: dict[str, Any] | None, exigidos: list[str], frame
 
 class PortalState(GateState):
     """Mesmo debounce da portaria, contado em ANÁLISES novas (não em quadros
-    publicados, que repetem a mesma análise). Conta os check-ins liberados."""
+    publicados, que repetem a mesma análise). Conta os check-ins liberados.
 
-    def __init__(self, confirmacoes: int = 3) -> None:
+    Análise sem ninguém detectado no meio de uma confirmação ("não detectado"
+    não é "ausente") não zera a sequência: até `ausencias_toleradas` seguidas
+    ficam neutras — não contam como confirmação nem a interrompem. Uma análise
+    que VÊ a pessoa sem o EPI zera, como antes. Medido nas sequências brutas do
+    portal com 4 câmeras (ADENDO 2, CHANGELOG): o pior caso caiu de 27 para 5
+    análises.
+    """
+
+    def __init__(self, confirmacoes: int = 3, ausencias_toleradas: int = 2) -> None:
         self.CONFIRMACAO = {"approved": confirmacoes, "denied": 2, "waiting": 3}
+        self.ausencias_toleradas = max(0, int(ausencias_toleradas))
         self.checkins = 0
         super().__init__()
 
     def reset(self) -> None:
         super().reset()
         self.atual = {"verdict": "waiting", "itens": [], "people": 0, "track_id": None}
+        # Diagnóstico do tempo até "Liberado": veredito BRUTO de cada análise
+        # desde o último reset e, nas negadas, qual item faltou.
+        self.brutos = {"approved": 0, "denied": 0, "waiting": 0}
+        self.faltas: dict[str, int] = {}
+        # As últimas análises, em ordem: (veredito, track_id, itens confirmados) — A/D/W.
+        self.sequencia: deque[tuple[str, Any, list[str]]] = deque(maxlen=120)
+        self._ausencias = 0
 
     def atualizar(self, bruto: dict[str, Any]) -> dict[str, Any]:
+        self.brutos[bruto["verdict"]] = self.brutos.get(bruto["verdict"], 0) + 1
+        self.sequencia.append((bruto["verdict"], bruto.get("track_id"),
+                               [i["key"] for i in bruto.get("itens") or [] if i["estado"] == CONFIRMADO]))
+        for item in bruto.get("itens") or []:
+            if item["estado"] == FALTANDO:
+                self.faltas[item["key"]] = self.faltas.get(item["key"], 0) + 1
+        confirmando = self._candidato == "approved" and self._streak > 0
+        if bruto["verdict"] == "waiting" and confirmando and self._ausencias < self.ausencias_toleradas:
+            self._ausencias += 1
+            self.atual.pop("checkin_novo", None)
+            return self.atual
+        self._ausencias = 0
         antes = self.atual["verdict"]
         atual = super().atualizar(bruto)
         if atual["verdict"] == "approved" and antes != "approved":

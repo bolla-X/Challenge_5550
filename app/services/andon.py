@@ -50,6 +50,9 @@ class ContadorDeMinutos:
     """Minutos conformes de UMA câmera, alimentado a cada análise nova."""
 
     def __init__(self) -> None:
+        # Chamado com o índice do minuto (epoch // 60) quando um minuto COM
+        # pessoas fecha conforme — a Liga de Setores (X8) anota o ponto.
+        self.ao_fechar_conforme = None
         self.reset()
 
     def reset(self) -> None:
@@ -93,6 +96,8 @@ class ContadorDeMinutos:
             self.minutos_conformes += 1
             self.sequencia += 1
             self.melhor_sequencia = max(self.melhor_sequencia, self.sequencia)
+            if self.ao_fechar_conforme is not None:
+                self.ao_fechar_conforme(m.indice)
         else:
             self.sequencia = 0
 

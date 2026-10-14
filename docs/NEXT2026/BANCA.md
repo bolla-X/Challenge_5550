@@ -1,4 +1,4 @@
-# BANCA — as 15 perguntas mais difíceis
+# BANCA: as perguntas mais difíceis
 
 Respostas curtas, sustentadas por números medidos neste repositório. Onde o
 número veio de uma máquina saturada, a resposta diz isso. Fontes:
@@ -39,13 +39,16 @@ ausente, "não suportado pelo modelo" ou "não verificável neste enquadramento"
 (portal) — e não detectado não é tratado como ausente quando a parte do corpo
 não está no quadro.
 
-**5. "Quantos falsos alarmes?"**
-Ainda é o ponto fraco, e o número é este: no servidor do E2E (4 gravações em
-loop), ~1.000 alertas em 16 min. A causa é ter 5 alertas por pessoa (um por
-EPI) e um conjunto novo a cada troca de ID do rastreador numa multidão. A
-histerese segura o falso positivo de um quadro só (cria com 8 quadros OU 2 s
-com ≥ 2 confirmações; resolve com 20 OU 6 s com ≥ 3). O botão "Falso positivo"
-grava a marca, e o relatório conta quantos foram marcados.
+**5. "Quantos falsos alarmes? A tela não vira uma árvore de Natal?"**
+Era o ponto fraco: um alerta por EPI por pessoa, e um conjunto novo a cada
+troca de ID. Na MISSÃO 2 o painel passou a mostrar **incidentes** por (câmera,
+regra, zona), com os IDs envolvidos, e um track novo que surge perto de onde
+outro sumiu, em até 2 s, herda o ID. Medido na gravação da multidão com os 7
+EPIs ligados (150 s, servidor real): antes, até **64 alertas** ao mesmo tempo
+no painel; depois, no máximo **11 incidentes**, **1 por regra e zona**. O
+alerta por pessoa continua existindo como evidência (replay, custódia). A
+histerese segura o falso positivo de um quadro só, e o botão "Falso positivo"
+grava a marca.
 
 **6. "Queda: e se o modelo errar?"**
 Queda é emergência e é breve no vídeo. Medimos a 4 análises/s: na gravação de
@@ -53,6 +56,11 @@ queda, a classe aparece em sequência (até 4 análises seguidas); nas gravaçõ
 sem queda, só isolada (0 pares seguidos em 93 análises). Por isso a regra de
 emergência pede 2 análises seguidas, e não 8. A amostra é pequena (3
 gravações), e o risco de falso alarme numa planta real está registrado.
+Limite medido: na gravação a pessoa fica ~0,8 s no chão; com o vídeo aberto em
+tempo real e 4 câmeras numa máquina carregada, duas análises não cabem nisso.
+Não afrouxamos a regra (um falso positivo da `multidao` chegou a 0,84 num
+quadro só): no palco, a gravação da queda toca a 0,25×, com o rótulo na tela
+(ver a pergunta 21). Numa câmera real, quem cai fica no chão bem mais que 0,8 s.
 
 ## Gamificação
 
@@ -126,3 +134,69 @@ Cada momento do roteiro passou no E2E. O `flask demo reset` volta tudo em
 menos de 10 s, e o DEMO.md tem um plano B por falha (webcam ausente, câmera
 caindo, sem internet). A demo é offline: LLM desligado, gravações locais e
 banco isolado.
+
+
+## Funcionalidades da MISSÃO 2
+
+**16. "Pontos e níveis não viram pressão para esconder problema?"**
+A Liga só soma, e só por setor: check-in no portal (10), incidente reconhecido
+em até 1 min (15) ou 3 min (5), falso positivo revisado (5), rótulo
+contribuído (2), minuto conforme com gente na câmera (1). Não existe ponto
+negativo, "zero alertas" não vale nada e reportar um alerta nunca custa ponto.
+As missões são da equipe, configuradas pelo supervisor. A celebração é um
+confete de 1,4 s e três notas baixas, desligados pelo mudo e por
+`prefers-reduced-motion`. Regras e testes: `app/services/liga.py`,
+`tests/test_liga.py`.
+
+**17. "Essa cadeia de custódia vale como prova?"**
+Ela prova que nada mudou depois de entrar na cadeia: cada evidência (alerta,
+quadro, replay, troca de privacidade) tem um SHA-256 do conteúdo encadeado ao
+elo anterior, e a verificação aponta o primeiro elo que não fecha. O teste
+adultera 1 byte de um JPEG do replay e a verificação aponta exatamente aquele
+elo e aquele arquivo. Limite honesto: sem âncora externa, quem tem acesso de
+escrita ao banco e ao disco pode refazer a cadeia inteira. Por isso a tela
+mostra o hash do último elo para anotar no relatório do turno (âncora fora do
+sistema). Não é carimbo de tempo de autoridade certificadora.
+
+**18. "O simulador 'E se?' reroda o modelo?"**
+Não. Ele reprocessa as **trilhas** que o sistema gravou (posição dos pés, ID e
+estado de cada EPI a cada análise, sem imagem) com outra zona, outra histerese
+ou outros EPIs, usando a mesma lógica de histerese do serviço de alertas. É
+determinístico e nunca toca em alerta real. A prova de que ele simula a mesma
+coisa: com a regra de hoje, ele reproduz os alertas reais (21 de 21, 16 de 16
+por regra numa janela de 5 min da demo). Limite: o que o modelo não viu na
+época, o simulador também não vê.
+
+**19. "O 3D é só enfeite?"**
+É a planta de verdade alimentada pela homografia da calibração (4 cliques no
+chão do vídeo e 4 na planta): cada pessoa aparece onde o pé dela está, na cor
+do estado (conforme, sem EPI, na zona, possível queda), nunca como foto. Clicar
+na pessoa abre a linha do tempo e o replay; clicar na zona, o histórico de
+entradas. Sem WebGL, cai para a planta 2D. Medido com a GPU da máquina e as 4
+câmeras inferindo: 16,7 ms por quadro no p95 (60 fps). Na demo, as três
+gravações são de lugares diferentes; a calibração delas numa planta só é uma
+aproximação de demonstração.
+
+**20. "E se a IA for enganada com um boné?"**
+É uma cena da apresentação: o visitante declara a tentativa, fica diante da
+câmera com o Raio-X ligado e o sistema mostra o que viu e por quê ("viu com
+0,31, abaixo do piso de 0,40, descartado"). O placar da sessão conta quantas
+vezes a IA foi enganada, sem esconder. Cada caso desses é o que alimenta a
+fila de rótulos.
+
+**21. "Vocês detectam uma queda que dura menos de 1 segundo ao vivo?"**
+Nesta máquina, não com confiança — e por isso a demo mostra a gravação a
+0,25×, com "GRAVAÇÃO · 0,25×" escrito sobre o vídeo. Os números (14/10, 4
+câmeras ligadas, notebook sem GPU dedicada, com outros programas rodando):
+2,4–2,8 análises por segundo no total; a câmera que está na tela leva 43–49 %
+delas (~1,1–1,3 análise/s), as outras ~0,45/s cada. Na gravação de
+demonstração a pessoa fica **~0,8 s no chão** (6,2–7,0 s do clipe). A regra de
+emergência pede **2 análises seguidas** vendo a queda (um quadro sozinho já deu
+falso positivo com 0,84 numa gravação sem queda), e a primeira análise leva ~1 s
+para voltar — em tempo real cabe no máximo uma análise nesses 0,8 s. A 0,25×
+os 0,8 s viram ~3,2 s, cabem 3–4 análises, e o alerta sai ao vivo (medido no
+E2E: 12,9 s depois de entrar na cena, contando a gravação até a queda). O que
+melhoraria: mais análises por segundo por câmera — GPU dedicada, menos
+câmeras por máquina ou um modelo menor para a câmera de risco — sem afrouxar a
+regra. E numa planta de verdade quem cai fica no chão bem mais que 0,8 s; o
+caso difícil é a gravação, não o acidente.

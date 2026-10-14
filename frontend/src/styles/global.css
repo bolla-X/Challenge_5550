@@ -345,6 +345,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .tabs { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
 .tabs-list { display: flex; gap: 2px; padding: 3px; background: var(--sunken); border-radius: var(--r-chip); overflow-x: auto; scrollbar-width: none; }
 .tabs-list::-webkit-scrollbar { display: none; }
+.tabs-tablist { display: flex; gap: 2px; min-width: 0; }
 .tab {
   position: relative; height: 32px; padding: 0 14px; border: 0;
   border-radius: var(--r-chip); background: transparent; color: var(--text-2);
@@ -581,6 +582,12 @@ a.button.ghost {
   text-decoration: none; white-space: nowrap; transition: background-color var(--d-state) var(--ease-out);
 }
 a.button.ghost:hover { background: var(--sunken); color: var(--text); }
+a.button.primary {
+  display: inline-flex; align-items: center; height: var(--h-control); padding: 0 var(--s4);
+  border-radius: var(--r-control); background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 500;
+  text-decoration: none; white-space: nowrap; transition: background-color var(--d-state) var(--ease-out);
+}
+a.button.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
 
 /* Linha do tempo por ID de rastreio (F2) — texto, sem cor além do status. */
 .link-button { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }

@@ -1,0 +1,24 @@
+{
+  "rotulo": "antes-queda",
+  "raiz": "..\\ch5550-antes",
+  "fixture": "next_queda.mp4",
+  "segundos": 150.0,
+  "carga_de_fundo_pct": 98.8,
+  "inferencias": 146,
+  "alertas_criados": 150,
+  "alertas_por_regra": {
+    "fall_detected": 2,
+    "missing_glasses": 27,
+    "missing_gloves": 27,
+    "missing_helmet": 27,
+    "missing_mask": 27,
+    "missing_vest": 27,
+    "risk_area_presence": 13
+  },
+  "ids_de_pessoa_com_alerta": 9,
+  "incidentes_criados": null,
+  "max_itens_no_painel_antigo": 23,
+  "max_alertas_ativos_mesma_regra": 4,
+  "max_incidentes_ativos": null,
+  "max_incidentes_mesma_regra_e_zona": null
+}

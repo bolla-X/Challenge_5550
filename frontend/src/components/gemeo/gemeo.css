@@ -1,0 +1,97 @@
+/* Gêmeo digital (X1). Cores só dos tokens; cor só para estado. */
+
+.gemeo { min-height: 100vh; display: flex; flex-direction: column; background: var(--canvas); color: var(--text); }
+.gemeo.embutido { min-height: 0; height: 100%; }
+.gemeo-topo {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); flex-wrap: wrap;
+  padding: var(--s5) var(--s5) var(--s4);
+}
+.gemeo-topo h1 { font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -.024em; }
+.gemeo-acoes { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.gemeo-acoes button.active { background: var(--sunken); color: var(--text); }
+
+.gemeo-corpo {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--s4);
+  padding: 0 var(--s5) var(--s5);
+}
+.gemeo.embutido .gemeo-corpo { padding: 0; }
+.gemeo-viewport {
+  position: relative; min-height: 420px; border-radius: var(--r-card); overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow-1);
+}
+.gemeo-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.gemeo-rotulos { position: absolute; inset: 0; pointer-events: none; }
+.gemeo-id {
+  font: 600 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--on-overlay);
+  background: var(--overlay); padding: 3px 6px; border-radius: var(--r-chip);
+}
+.gemeo-setor { font: 600 12px/1.2 var(--font); color: var(--text-2); letter-spacing: .01em; white-space: nowrap; }
+.gemeo-zona { font: 600 12px/1.2 var(--font); color: var(--danger); white-space: nowrap; }
+.gemeo-selo {
+  position: absolute; left: var(--s3); bottom: var(--s3); font-size: 12px; color: var(--text-2);
+  background: var(--surface); padding: 4px 10px; border-radius: var(--r-chip); box-shadow: var(--shadow-1);
+}
+.gemeo-vazio {
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--s3);
+  text-align: center; padding: var(--s6); background: var(--surface);
+}
+.gemeo-vazio h2 { font-size: 20px; font-weight: 600; letter-spacing: -.012em; }
+.gemeo-vazio p { color: var(--text-2); max-width: 44ch; }
+
+.gemeo-legenda { list-style: none; display: flex; gap: var(--s4); margin: 0 var(--s3) 0 0; padding: 0; font-size: 13px; color: var(--text-2); }
+.gemeo-legenda li { display: inline-flex; align-items: center; gap: 6px; }
+.gemeo-legenda .dot { width: 8px; height: 8px; }
+.gemeo-legenda .conforme .dot, .gemeo-pessoa.conforme .dot, .gemeo-estado.conforme .dot { color: var(--ok); }
+.gemeo-legenda .sem_epi .dot, .gemeo-pessoa.sem_epi .dot, .gemeo-pessoa.zona .dot,
+.gemeo-estado.sem_epi .dot, .gemeo-estado.zona .dot { color: var(--danger); }
+.gemeo-legenda .emergencia .dot, .gemeo-pessoa.emergencia .dot, .gemeo-estado.emergencia .dot { color: var(--stop); }
+
+.gemeo-lado { display: flex; flex-direction: column; gap: var(--s4); min-height: 0; }
+.gemeo-detalhe { background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-1); padding: var(--s5); display: grid; gap: var(--s3); }
+.gemeo-detalhe h2 { font-size: 22px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
+.gemeo-detalhe h3 { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: var(--s2); }
+.gemeo-detalhe-kicker { font-size: 12px; color: var(--text-3); letter-spacing: .02em; }
+.gemeo-estado { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.gemeo-estado .dot { width: 8px; height: 8px; }
+.gemeo-nota { font-size: 12px; color: var(--text-3); }
+.gemeo-linha { list-style: none; margin: 0; padding: 0 0 0 var(--s3); border-left: 1px solid var(--hairline); display: grid; gap: var(--s2); }
+.gemeo-linha li { display: grid; grid-template-columns: 72px 1fr; gap: var(--s2); font-size: 13px; }
+.gemeo-linha time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-3); }
+.gemeo-numeros { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin: 0; }
+.gemeo-numeros dt { font-size: 12px; color: var(--text-3); }
+.gemeo-numeros dd { margin: 2px 0 0; font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+
+.gemeo-pessoas { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; overflow-y: auto; max-height: 40vh; }
+.gemeo-pessoa {
+  width: 100%; justify-content: flex-start; gap: 8px; background: transparent; border-color: transparent;
+  height: 34px; font-size: 13px; color: var(--text);
+}
+.gemeo-pessoa .dot { width: 8px; height: 8px; }
+
+/* Planta 2D (fallback sem WebGL) */
+.gemeo-2d { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gemeo-2d-piso { fill: var(--surface); }
+.gemeo-2d-setor { fill: var(--sunken); stroke: var(--hairline); stroke-width: 2; }
+.gemeo-2d-rotulo { font: 600 16px var(--font); fill: var(--text-2); }
+.gemeo-2d-zona { fill: var(--tint-danger); stroke: var(--danger); stroke-width: 2; cursor: pointer; }
+.gemeo-2d-pessoa { cursor: pointer; }
+.gemeo-2d-pessoa circle { stroke: var(--surface); stroke-width: 3; }
+.gemeo-2d-pessoa.ok circle { fill: var(--ok); }
+.gemeo-2d-pessoa.perigo circle { fill: var(--danger); }
+.gemeo-2d-pessoa.parada circle { fill: var(--stop); }
+.gemeo-2d-pessoa .anel { fill: none !important; stroke-width: 3; }
+.gemeo-2d-pessoa.perigo .anel { stroke: var(--danger); }
+.gemeo-2d-pessoa.parada .anel { stroke: var(--stop); }
+.gemeo-2d-pessoa.fora { opacity: .45; }
+.gemeo-2d-pessoa text { font: 600 14px var(--font-mono); fill: var(--text); }
+.gemeo-2d-pessoa:focus-visible { outline: none; }
+.gemeo-2d-pessoa:focus-visible circle { stroke: var(--accent); }
+
+@media (max-width: 900px) {
+  .gemeo-corpo { grid-template-columns: 1fr; padding: 0 var(--s4) var(--s4); }
+  .gemeo-topo { padding: var(--s4); }
+  .gemeo-viewport { min-height: 56vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gemeo-2d-pessoa { transition: none !important; }
+}

@@ -35,7 +35,18 @@ function formatarEvidencia(valor: unknown): string {
   return String(valor);
 }
 
-export function IncidentReplay({ alertId, cameraName, onClose }: { alertId: number; cameraName?: string; onClose: () => void }) {
+export function IncidentReplay({
+  alertId,
+  cameraName,
+  onClose,
+  irParaMs,
+}: {
+  alertId: number;
+  cameraName?: string;
+  onClose: () => void;
+  /** Abre parado no quadro mais próximo deste instante (epoch ms) — passo da linha causal (X4). */
+  irParaMs?: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [clipe, setClipe] = useState<Clipe | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -58,13 +69,19 @@ export function IncidentReplay({ alertId, cameraName, onClose }: { alertId: numb
           return img;
         });
         setClipe(dados);
-        setIndice(0);
+        if (irParaMs != null && dados.quadros.length) {
+          const alvo = dados.quadros.reduce((m, q, i) => (Math.abs(q.ts_ms - irParaMs) < Math.abs(dados.quadros[m].ts_ms - irParaMs) ? i : m), 0);
+          setIndice(alvo);
+          setTocando(false);
+        } else {
+          setIndice(0);
+        }
       })
       .catch((e: Error) => vivo && setErro(e.message));
     return () => {
       vivo = false;
     };
-  }, [alertId]);
+  }, [alertId, irParaMs]);
 
   // Toca no ritmo REAL da gravação: o intervalo até o próximo quadro é a
   // diferença dos instantes de captura, não um FPS fixo.

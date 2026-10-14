@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
-import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, ModoAdaptativo } from "../api/types";
+import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Incidente, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
 // /api/cameras/<id>, não o /video_feed legado (que só serve a câmera padrão).
@@ -9,11 +9,15 @@ export type EstadoDaCamera = {
   running: boolean;
   /** De qual fonte está lendo. `undefined` num backend que não manda o campo. */
   modo?: "ao_vivo" | "reconectando" | "fixture";
+  /** Velocidade da gravação (1 = original). Só o palco a reduz. */
+  velocidade?: number;
   tentativas: number;
   /** FPS do loop de captura e resolução do frame que CHEGOU (ver types.ts). */
   diagnostico?: CameraDiagnostico;
   /** Alertas ativos desta câmera, do mesmo GET /status. */
   alertas: Alert[];
+  /** Os mesmos alertas agrupados por (regra, zona) — o que a tela mostra (P0.2). */
+  incidentes?: Incidente[];
   /** Reduções do controlador adaptativo (banner DEGRADADO). */
   adaptativo?: ModoAdaptativo | null;
 };
@@ -33,9 +37,11 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
           setEstado({
             running: Boolean(status.running),
             modo: status.video?.modo,
+            velocidade: status.video?.velocidade,
             tentativas: status.video?.reconnect_attempts ?? 0,
             diagnostico: status.diagnostico,
             alertas: status.active_alerts ?? [],
+            incidentes: status.active_incidents,
             adaptativo: status.adaptativo ?? null,
           });
         })
@@ -57,7 +63,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
 /** Emergência com pessoa (queda, SOS) vem antes de EPI crítico, que vem antes de "alto". */
 const EMERGENCIAS = new Set(["fall_detected", "fallen_person", "sos_gesto"]);
 
-function prioridade(a: Alert): number {
+function prioridade(a: { rule: string; severity: string }): number {
   if (EMERGENCIAS.has(a.rule)) return 0;
   if (a.severity === "critical") return 1;
   if (a.severity === "high") return 2;
@@ -77,6 +83,19 @@ export function cobrePreAlerta(alerta: Alert | undefined): boolean {
 export function temAlertaCritico(estado: EstadoDaCamera): Alert | undefined {
   const candidatos = estado.alertas.filter((a) => prioridade(a) < 3);
   return candidatos.sort((x, y) => prioridade(x) - prioridade(y))[0];
+}
+
+/** O incidente que a pílula do vídeo mostra: emergência > EPI crítico > alto; mais pessoas desempata. */
+export function incidenteCritico(estado: EstadoDaCamera): Incidente | undefined {
+  const candidatos = (estado.incidentes ?? []).filter((i) => prioridade(i) < 3);
+  const pessoas = (i: Incidente) => (i.pessoas_ativas ?? i.pessoas).length;
+  return candidatos.sort((x, y) => prioridade(x) - prioridade(y) || pessoas(y) - pessoas(x))[0];
+}
+
+/** Quantos incidentes a câmera tem ativos (cai para alertas num backend sem incidentes). */
+export function totalDeIncidentes(estado: EstadoDaCamera | undefined): number {
+  if (!estado) return 0;
+  return estado.incidentes ? estado.incidentes.length : estado.alertas.length;
 }
 
 /** Uma linha de estado, em caixa normal. `fixture` NÃO é falha: é fallback

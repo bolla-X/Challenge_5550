@@ -1,36 +1,54 @@
-# ESTADO — missão NEXT 2026
+# ESTADO — MISSÃO 2
 
-Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a cada marco.
+Retomar lendo só este arquivo e `MISSAO-2.md` (incluindo o ADENDO 2 no fim).
+Reescrito a cada marco. (A missão anterior, PRs #10–#13, está em `MISSAO.md` e
+no CHANGELOG.)
 
-## Marco atual: PR4 no portão (Fase 4) — última etapa da missão
+## Rollback
 
-| PR | Situação | Evidência |
+- `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
+- `main-pre-release` = HEAD de `main` antes do release (`6c3ed61`).
+
+## Regra do ADENDO 2
+
+Commit + push de `next-2026` (`origin/next-2026`) a cada marco e antes de
+qualquer tarefa > 10 min em segundo plano.
+
+## Marco atual: PR5 no portão verde, aberto para squash merge
+
+| item | situação | evidência |
 |---|---|---|
-| PR1 performance + benchmark | **mergeado** (`3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
-| PR2 diferenciais + L1 | **mergeado** (`753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 |
-| PR3 funções criativas | **mergeado** (`b8de7ac`) | https://github.com/bolla-X/Challenge_5550/pull/12 |
-| PR4 demo, confiabilidade, docs | portão verde: pytest 569, ruff, tsc, E2E 18/18, soak 20 min (0 erros de console, RSS pico +6,1 %), reset 7,7–9,7 s | PR aberto a seguir |
+| Recuperação | pytest 649, ruff, build idênticos ao pré-reinício; wip `2116c1c` no remoto | CHANGELOG "ADENDO 2 / Recuperação" |
+| A. Portal "Liberado" | p50 **5,6 s**, p95 **21,6 s** (antes 16,8 / 81,0) — **meta não atingida** | `bench/results/portal-liberado-adendo2-20261014.json`, CHANGELOG "ADENDO 2 / A" |
+| B. Queda a 0,25× no palco | pronto; alerta ao vivo 12,9 s após entrar na cena | `test_camera_lenta.py`, `test_palco.py`, E2E `test_palco_queda_ao_vivo_em_camera_lenta`, BANCA 21 |
+| Bench antes × PR5 | passa (pior: +6 % CPU/análise, 1 câmera) | BENCHMARKS "Portão do PR5" |
+| Portão do PR5 (rodada única, 14/10) | pytest 658, ruff, build (dist idêntico), E2E 34/34 com 4 câmeras e axe claro/escuro | `bench/runtime/portao-pr5/` (local) |
 
 ## Decisões em vigor
 
-- Runtime padrão: `RUNTIME_ORDEM=openvino-gpu,onnx,pytorch` (sem GPU → ONNX).
-- `ONNX_SPINNING` desligado; tracker IoU; imgsz 640; adaptativo só N/pose/telemetria.
-- Gravação sem espectador avança a 4 quadros/s; câmera ao vivo em tempo real.
-- Histerese de alerta: 8 quadros OU 2 s com ≥ 2 confirmações (não afrouxar por fixture).
+- Portal: 3 análises seguidas com tudo confirmado; até 2 análises SEM ninguém
+  detectado no meio ficam neutras (`PORTAL_AUSENCIAS_TOLERADAS=2`); EPI faltando zera.
+- Foco: `INFERENCIA_FRACAO_FOCO=0,5` (0,7 medido: quebra a regra dos 3 s em ~25 % dos intervalos).
+- Queda: regra de 2 análises mantida; palco toca a gravação a 0,25× de 4 s em diante.
+- Foco = `video_feed` aberto ou consulta recente do portal (lease 3 s); foco alterna com atrasados.
+- Evidência: um quadro e um replay por análise, compartilhados (`quadros_em`).
+- SQLite em WAL; custódia em segundo commit, em lote.
 
-## Como medir (ADENDO 1)
+## Ameaças conhecidas (para o resumo final)
 
-- Bench destacado: `scripts/rodar_portao.py --liberar-docker`; progresso em `bench/runtime/<rótulo>.estado`.
-- Decisão por CPU: `python scripts/resumo_cpu.py <jsons> --base X --novo Y`.
-- E2E destacado: `Start-Process .venv\Scripts\python.exe -ArgumentList -m,pytest,e2e,-q -RedirectStandardOutput bench\runtime\e2e-X.out`.
+1. Portal com a gravação `bench.mp4`: p95 21,6 s (análises que veem trabalhador
+   distante sem capacete zeram a confirmação). Com webcam diante de uma pessoa: não medido.
+2. Subida com o cache dos modelos frio: ~4 min (compilação na iGPU; causa do cache frio não identificada).
+3. Regra dos 3 s sem inferência: 9 % dos intervalos passam de 3 s sob carga (máx. 5,2 s).
 
-## Pendências
+## Worktrees
 
-- `.env.example` negado pelas permissões desta máquina (ainda `YOLO_IMGSZ=416`; o código usa 640).
-- Ruído de alertas na multidão (5 por pessoa + troca de ID). A demo liga só 3 EPIs.
-- G3 (SOS) fora do roteiro: sem vídeo de licença livre para verificar.
-- Números absolutos sob carga de terceiros (13–77 %): rodar `scripts/bench.py --rapido` na máquina da banca.
+- `../ch5550-antes` (tag `pre-missao-2`): medições "antes" e bench de referência.
+- `../ch5550-pr6` (branch `pr6-wip`): edições da Fase C ainda não commitadas.
 
 ## Próximo passo exato
 
-Merge do PR4; depois, só manutenção.
+Squash merge do PR5 → recriar `next-2026` de `feat/completo-com-rebrand` →
+trazer a branch `pr6` (Fase C já rebaseada sobre o PR5, commit `6cb3f78` +
+capturas/galeria) → capturas r1 → revisão escrita → correções → r2 → galeria
+e README → portão → PR6.

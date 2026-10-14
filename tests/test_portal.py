@@ -91,3 +91,59 @@ def test_portal_libera_so_depois_de_n_analises_e_conta_um_checkin():
     assert terceiro["verdict"] == "approved" and terceiro.get("checkin_novo") is True
     assert "checkin_novo" not in estado.atualizar(ok)
     assert estado.checkins == 1
+
+
+def test_ninguem_detectado_no_meio_da_confirmacao_nao_zera_mas_epi_faltando_zera():
+    """ADENDO 2: até 2 análises sem ninguém detectado ficam neutras; a 3ª, ou um EPI faltando, zera."""
+    ok = avaliar_portal({"people": [_pessoa({"helmet": "ok"})]}, ["helmet"], QUADRO)
+    vazio = avaliar_portal({"people": []}, ["helmet"], QUADRO)
+    sem = avaliar_portal({"people": [_pessoa({"helmet": "missing"})]}, ["helmet"], QUADRO)
+    estado = PortalState(confirmacoes=3)
+    for bruto in (ok, vazio, vazio, ok):
+        assert estado.atualizar(bruto)["verdict"] == "waiting"
+    assert estado.atualizar(ok)["verdict"] == "approved"  # 3 confirmações com 2 ausências no meio
+
+    estado = PortalState(confirmacoes=3)
+    for bruto in (ok, ok, vazio, vazio, vazio, ok):  # 3 ausências seguidas: a sequência recomeça
+        estado.atualizar(bruto)
+    assert estado.atual["verdict"] == "waiting"
+
+    estado = PortalState(confirmacoes=3)
+    for bruto in (ok, ok, sem, ok):  # viu a pessoa sem capacete: zera
+        estado.atualizar(bruto)
+    assert estado.atual["verdict"] == "waiting"
+
+    estado = PortalState(confirmacoes=3, ausencias_toleradas=0)  # regra antiga
+    for bruto in (ok, vazio, ok, ok):
+        estado.atualizar(bruto)
+    assert estado.atual["verdict"] == "waiting"
+
+
+def test_portal_conta_os_vereditos_brutos_e_o_item_que_faltou():
+    estado = PortalState(confirmacoes=3)
+    ok = avaliar_portal({"people": [_pessoa({"helmet": "ok"})]}, ["helmet"], QUADRO)
+    sem = avaliar_portal({"people": [_pessoa({"helmet": "missing"})]}, ["helmet"], QUADRO)
+    for bruto in (ok, sem, ok, ok, sem):
+        estado.atualizar(bruto)
+    assert estado.brutos == {"approved": 3, "denied": 2, "waiting": 0}
+    assert estado.faltas == {"helmet": 2}
+    estado.reset()
+    assert estado.brutos == {"approved": 0, "denied": 0, "waiting": 0} and estado.faltas == {}
+
+
+
+def test_explicacao_diz_o_que_o_modelo_viu_e_o_que_foi_descartado():
+    """X9: o portal explica cada item — inclusive o "capacete" que o filtro descartou."""
+    from app.services.gate_service import avaliar_portal
+
+    pessoa = {"id": "person_1", "track_id": 1, "box": {"x1": 100, "y1": 50, "x2": 300, "y2": 500},
+              "ppe": {"helmet": {"status": "missing", "confidence": 0.0}, "vest": {"status": "ok", "confidence": 0.81}}}
+    descartadas = [{"l": "helmet", "c": 0.31, "b": [150, 60, 230, 120], "m": "abaixo do piso 0.40"},
+                   {"l": "helmet", "c": 0.9, "b": [600, 60, 700, 120], "m": "fora de qualquer pessoa"}]
+    r = avaliar_portal({"people": [pessoa]}, ["helmet", "vest"], (540, 960, 3), (), descartadas, {"helmet": 0.4})
+    itens = {i["key"]: i for i in r["itens"]}
+    assert itens["vest"]["explicacao"] == "visto com confiança 0,81"
+    assert itens["helmet"]["explicacao"].startswith("o modelo viu com 0,31, abaixo do piso")
+    assert "descartado" in itens["helmet"]["explicacao"]
+    sem = avaliar_portal({"people": [pessoa]}, ["helmet"], (540, 960, 3), (), [], {})
+    assert sem["itens"][0]["explicacao"] == "o modelo não viu este item na pessoa"

@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import time
 
-from conftest import entrar
+import pytest
+
+from conftest import RAIZ, entrar
+
+# ADENDO 2 da MISSÃO 2: o tempo até "Liberado" é medido com o portal repetido N
+# vezes (`E2E_PORTAL_REPETICOES=10`); cada repetição acrescenta uma linha em
+# bench/runtime/portal-liberado.jsonl.
+REPETICOES_PORTAL = max(1, int(os.environ.get("E2E_PORTAL_REPETICOES", "1")))
 
 
 def _abrir_camera(pagina, nome: str) -> None:
@@ -20,6 +29,14 @@ def _abrir_aba(pagina, rotulo: str) -> None:
         return
     pagina.locator(".tabs-more > button").click()
     pagina.get_by_role("menuitem", name=rotulo).click()
+
+
+def _todas_ligadas(servidor) -> None:
+    """Prova que o teste passou com as 4 câmeras de fixture ligadas (sem pausa de contorno)."""
+    tecnico = servidor.sessao("technical")
+    for nome in ("Multidão", "Canteiro", "Rede", "Queda"):
+        estado = tecnico.get(f"{servidor.base}/api/cameras/{servidor.cameras[nome]}/status", timeout=10).json()
+        assert estado.get("running"), f"câmera {nome} não estava ligada: {estado}"
 
 
 def _quadros_exibidos(pagina) -> int:
@@ -88,29 +105,37 @@ def test_queda_da_fonte_mostra_reconectando_e_volta(pagina, servidor):
 def test_queda_do_modelo_chega_ao_navegador_com_id(pagina, servidor):
     """F2: a classe `fall_detected` do Vyra vira alerta crítico atribuído a um ID de rastreio.
 
-    Fixture real (`next_queda`, domínio público): o modelo vê a pessoa caída em
-    janelas curtas (a maior, 6,0–6,9 s do clipe de 20 s). Com 4 câmeras
-    dividindo o agendador, a câmera "Queda" faz poucas análises nessa janela e a
-    histerese (que não é afrouxada para o teste) quase nunca confirma — por isso
-    as outras câmeras ficam paradas durante o teste e voltam no fim.
+    Fixture real (`next_queda`, domínio público): a pessoa fica no chão ~0,8 s
+    (6,2–7,0 s do clipe de 20 s). A regra de emergência exige DUAS análises
+    seguidas; com o vídeo aberto a gravação anda em tempo real e, com 4 câmeras
+    numa máquina carregada, duas análises não cabem nesse 0,8 s (medido na
+    rodada 4: 5 min, só avistamentos isolados). Sem ninguém vendo, a gravação
+    anda na taxa útil (comportamento padrão, CHANGELOG do PR2) e a queda
+    confirma. Por isso o teste espera na GRADE (sem tela de foco) e só depois
+    abre a câmera para conferir o evento, com o ID, na aba "Quedas e postura".
+    As 4 câmeras seguem ligadas o tempo todo.
     """
     tecnico = servidor.sessao("technical")
-    outras = [cid for nome, cid in servidor.cameras.items() if nome != "Queda"]
-    for cid in outras:
-        tecnico.post(f"{servidor.base}/api/cameras/{cid}/stop", timeout=30)
-    try:
-        entrar(pagina, servidor, "technical")
-        _abrir_camera(pagina, "Queda")
-        queda = servidor.cameras["Queda"]
-        tecnico.post(f"{servidor.base}/api/cameras/{queda}/stop", timeout=30)
-        tecnico.post(f"{servidor.base}/api/cameras/{queda}/start", timeout=60).raise_for_status()
-        alerta = pagina.locator(".over-pill.alert", has_text="Queda detectada")
-        alerta.wait_for(timeout=300_000)
-        texto = alerta.inner_text()
-        assert "Pessoa" in texto, texto
-    finally:
-        for cid in outras:
-            tecnico.post(f"{servidor.base}/api/cameras/{cid}/start", timeout=60)
+    entrar(pagina, servidor, "technical")
+    queda = servidor.cameras["Queda"]
+    tecnico.post(f"{servidor.base}/api/cameras/{queda}/stop", timeout=30)
+    tecnico.post(f"{servidor.base}/api/cameras/{queda}/start", timeout=60).raise_for_status()
+    limite = time.monotonic() + 300
+    quedas: list = []
+    while time.monotonic() < limite and not quedas:
+        r = tecnico.get(f"{servidor.base}/alerts", params={"camera_id": queda, "feature": "falls", "limit": 5}, timeout=30)
+        quedas = [a for a in r.json().get("items", []) if a.get("rule") == "fall_detected"]
+        if not quedas:
+            time.sleep(2)
+    assert quedas, "nenhuma queda confirmada em 5 min com as 4 câmeras ligadas"
+    _todas_ligadas(servidor)
+
+    _abrir_camera(pagina, "Queda")
+    _abrir_aba(pagina, "Quedas e postura")
+    painel = pagina.locator("#panel-safety-events")
+    linha = painel.get_by_text(re.compile(r"Queda detectada")).first
+    linha.wait_for(timeout=30_000)
+    assert "Pessoa" in painel.inner_text(), painel.inner_text()
 
 
 def test_celular_vira_camera_pelo_link_do_qr(navegador, servidor):
@@ -207,16 +232,11 @@ def test_pill_de_aproximacao_aparece(pagina, servidor):
     """F3: pessoa andando em direção à zona → pílula amarela de projeção antes de entrar.
 
     PPE desligado nesta câmera durante o teste: a pílula crítica de EPI tem
-    precedência sobre a de aproximação, como deve ser.
+    precedência sobre a de aproximação, como deve ser. As 4 câmeras seguem
+    ligadas (rodízio ponderado, P0.1).
     """
     tecnico = servidor.sessao("technical")
     cid = servidor.cameras["Multidão"]
-    # Como no teste de queda: com 4 câmeras dividindo o agendador, a multidão
-    # fica a ~0,5 análise/s (DEGRADADO na captura da falha) e o rastreio não
-    # sustenta a trajetória. As outras param durante o teste e voltam no fim.
-    outras = [c for nome, c in servidor.cameras.items() if nome != "Multidão"]
-    for c in outras:
-        tecnico.post(f"{servidor.base}/api/cameras/{c}/stop", timeout=30)
     tecnico.patch(f"{servidor.base}/features?camera_id={cid}", json={"features": {"ppe": False}}, timeout=10)
     zona = [{"x": 0.6, "y": 0.0}, {"x": 1.0, "y": 0.0}, {"x": 1.0, "y": 1.0}, {"x": 0.6, "y": 1.0}]
     antes = tecnico.get(f"{servidor.base}/api/cameras/{cid}/risk-area", timeout=10).json()
@@ -226,12 +246,11 @@ def test_pill_de_aproximacao_aparece(pagina, servidor):
         pill = pagina.locator("[data-testid=pre-alerta]")
         pill.wait_for(timeout=180_000)
         assert "projeção" in pill.inner_text()
+        _todas_ligadas(servidor)
     finally:
         tecnico.patch(f"{servidor.base}/features?camera_id={cid}", json={"features": {"ppe": True}}, timeout=10)
         poligono = (antes.get("risk_area") or antes).get("polygon") or []
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/risk-area", json={"polygon": poligono}, timeout=10)
-        for c in outras:
-            tecnico.post(f"{servidor.base}/api/cameras/{c}/start", timeout=60)
 
 
 def test_privacidade_so_o_supervisor_altera(pagina, servidor):
@@ -334,22 +353,24 @@ def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor
         contexto.close()
 
 
-def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
+@pytest.mark.parametrize("repeticao", range(REPETICOES_PORTAL))
+def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor, repeticao):
     """G1: `/portal` mostra só os EPIs exigidos, item a item, e libera quando confirma."""
     tecnico = servidor.sessao("technical")
     cid = servidor.cameras["Canteiro"]
+    # Partida a frio: o lease de foco (3 s) da repetição anterior expira antes.
+    time.sleep(4 if repeticao else 0)
+    # Gravar a portaria zera o estado do portal (nenhuma confirmação herdada).
     assert tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": ["helmet", "vest"]},
                        timeout=10).status_code == 200
-    # Liberar exige 3 análises seguidas com tudo confirmado: com 4 câmeras no
-    # agendador, a do portal fica lenta demais (falhou assim numa rodada completa).
-    outras = [c for nome, c in servidor.cameras.items() if nome != "Canteiro"]
-    for c in outras:
-        tecnico.post(f"{servidor.base}/api/cameras/{c}/stop", timeout=30)
+    # Liberar exige 3 análises seguidas com tudo confirmado. As 4 câmeras
+    # seguem ligadas: o portal mantém a câmera em foco (P0.1).
     contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
     try:
         pagina = contexto.new_page()
         entrar(pagina, servidor, "technical")
         pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+        aberto = time.monotonic()
         pagina.goto(f"{servidor.base}/portal?camera={cid}")
         portal = pagina.locator("[data-testid=portal]")
         portal.wait_for(timeout=30_000)
@@ -357,17 +378,27 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
         pagina.locator("[data-testid=portal-item-helmet]").wait_for(timeout=30_000)
         assert pagina.locator("[data-testid=portal-item-gloves]").count() == 0
         # Algum item chega a "confirmado" e, com tudo confirmado, "Liberado".
+        inicio = time.monotonic()
         pagina.locator("[data-testid^=portal-item-][data-estado=confirmado]").first.wait_for(timeout=180_000)
         pagina.wait_for_function(
             "document.querySelector('[data-testid=portal]')?.dataset.veredito === 'approved'", timeout=240_000
         )
+        # Tempo até "Liberado" com as 4 câmeras ligadas: desde abrir o portal
+        # (o que a pessoa diante da câmera espera) e desde o 1º item na tela.
+        fim = time.monotonic()
+        print(f"\n[portal] Liberado em {fim - aberto:.1f} s desde abrir ({fim - inicio:.1f} s desde o 1º item)"
+              " com 4 câmeras ligadas")
+        diag = tecnico.get(f"{servidor.base}/api/cameras/{cid}/portal", timeout=10).json().get("diagnostico") or {}
+        with (RAIZ / "bench" / "runtime" / "portal-liberado.jsonl").open("a", encoding="utf-8") as saida:
+            saida.write(json.dumps({"repeticao": repeticao, "desde_abrir_s": round(fim - aberto, 2),
+                                    "desde_item_s": round(fim - inicio, 2), "ts": round(time.time()),
+                                    "analises": "".join(x[0] for x in diag.get("sequencia", []))}) + "\n")
         assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
         assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
+        _todas_ligadas(servidor)
     finally:
         contexto.close()
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=10)
-        for c in outras:
-            tecnico.post(f"{servidor.base}/api/cameras/{c}/start", timeout=60)
 
 
 def test_modo_tv_mostra_setores_e_metas_do_supervisor(navegador, servidor):

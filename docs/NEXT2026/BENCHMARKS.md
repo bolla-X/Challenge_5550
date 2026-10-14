@@ -205,6 +205,29 @@ pressão de memória — a queda para 482 MB a partir de ~5 min é isso, não
 liberação real. Working set não é a melhor medida de vazamento; *private bytes*
 seria. Não houve crescimento monotônico no período.
 
+## Portão do PR5: antes (`906c81e`, tag `pre-missao-2`) × PR5 (14/10, 3 repetições intercaladas)
+
+`scripts/rodar_portao.py --rotulo pr5gate2 --reps 1,2,3 --perfis atual --cameras 1,4
+--arvores "antes=../ch5550-antes,pr5=."` (ordem invertida nas repetições pares) →
+`bench/results/*-pr5gate2-r{1,2,3}.json`; resumo por `scripts/resumo_cpu.py`.
+A 1ª tentativa (`pr5gate`, 13/10) morreu no reinício do PC e foi descartada.
+
+| câm. | métrica | antes (mediana [r1, r2, r3]) | PR5 | PR5/antes por repetição | regra |
+|---|---|---|---|---|---|
+| 1 | CPU-ms por análise | 1.903 [1.990, 1.903, 1.866] | 2.017 [2.094, 2.014, 2.017] | 1,05 · 1,06 · 1,08 | passa |
+| 1 | CPU-ms por quadro | 679 | 655 | 0,95 · 0,96 · 1,06 | passa |
+| 4 | CPU-ms por análise | 1.874 [1.888, 1.874, 1.832] | 1.881 [1.881, 1.630, 2.058] | 1,00 · 0,87 · 1,12 | passa |
+| 4 | CPU-ms por quadro | 345 | 329 | 0,96 · 0,94 · 1,05 | passa |
+| 1 e 4 | encodes por quadro | 1,0 / 0,6 | 1,0 / 0,6 | ~1,00 | passa |
+
+Regra da missão: reprova se a mediana piorar mais de 10 %. Nenhuma piorou. O
+único sinal consistente é **+6 % de CPU por análise com 1 câmera** (as três
+repetições na mesma direção): é o custo esperado do que o PR5 acrescenta a cada
+análise (incidentes, trilha do simulador, cadeia de custódia em lote, Raio-X,
+gêmeo) — abaixo do limite, registrado e não investigado (bench leve da
+MISSÃO 2). CPU de terceiros antes das rodadas: 27–69 % da máquina (antivírus,
+WSL, Java e outros Python): números absolutos só indicativos.
+
 ## Tracker
 
 ByteTrack não reduziu fragmentação de forma consistente e custou até 4,2 % da

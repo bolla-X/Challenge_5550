@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -50,7 +51,13 @@ class ServidorE2E:
         runtime = RAIZ / "bench" / "runtime"
         runtime.mkdir(parents=True, exist_ok=True)
         banco = runtime / "e2e.db"
-        banco.unlink(missing_ok=True)
+        for sufixo in ("", "-journal", "-wal", "-shm"):  # WAL: os arquivos auxiliares velhos corromperiam o banco novo
+            Path(str(banco) + sufixo).unlink(missing_ok=True)
+        # Replay e trilhas próprios e zerados: os ids de alerta recomeçam com o
+        # banco, e uma pasta alert_1 de outra rodada (ou da demo) quebraria a
+        # cadeia de custódia (X3) sem ninguém ter adulterado nada.
+        for pasta in ("e2e-clips", "e2e-trilhas"):
+            shutil.rmtree(runtime / pasta, ignore_errors=True)
         self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}
@@ -72,7 +79,10 @@ class ServidorE2E:
             "ALERT_CREATE_AFTER_FRAMES": "3",
             "RTSP_FIXTURE_FALLBACK": "",
             "SNAPSHOT_DIR": "bench/runtime/e2e-snapshots",
-            "CLEANUP_DIRECTORIES": "bench/runtime/e2e-snapshots",
+            "REPLAY_DIR": "bench/runtime/e2e-clips",
+            "TRILHAS_DIR": "bench/runtime/e2e-trilhas",
+            # Sem limpeza a cada câmera ligada: apagaria evidência da cadeia de custódia (X3).
+            "CLEANUP_ON_MONITOR_START": "false",
             "PYTHONUNBUFFERED": "1",
         }
         self.log = runtime / "e2e.log"
@@ -91,8 +101,10 @@ class ServidorE2E:
                        "--password", self.senhas[papel])
         self.proc = subprocess.Popen([PY, "run.py"], cwd=RAIZ, env=self.env, stdout=self.log.open("w", encoding="utf-8"),
                                      stderr=subprocess.STDOUT)
-        limite = time.monotonic() + 120
-        while time.monotonic() < limite:
+        # 300 s: a 1ª subida depois de reiniciar o PC compila o modelo para a
+        # iGPU (OpenVINO, ~1 min) antes de servir; com o cache quente são ~10 s.
+        limite = time.monotonic() + 300
+        while True:
             if self.proc.poll() is not None:
                 raise RuntimeError(f"servidor morreu; ver {self.log}")
             try:
@@ -100,6 +112,8 @@ class ServidorE2E:
                     break
             except requests.RequestException:
                 time.sleep(0.3)
+            if time.monotonic() > limite:
+                raise RuntimeError(f"servidor não respondeu em 300 s; ver {self.log}")
         tecnico = self.sessao("technical")
         for nome, tipo, fonte in (("Multidão", "Arquivo", str(self.fixtures["multidao"])),
                                   ("Canteiro", "Arquivo", str(self.fixtures["bench"])),
@@ -142,16 +156,35 @@ def servidor():
 
 
 @pytest.fixture(scope="session")
-def navegador():
+def playwright_sessao():
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
-        # Câmera falsa do Chromium para o F6 (celular como câmera): o
-        # getUserMedia recebe um vídeo sintético e a permissão é concedida
-        # sem diálogo. Não afeta os outros testes.
-        nav = pw.chromium.launch(headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"])
-        yield nav
-        nav.close()
+        yield pw
+
+
+@pytest.fixture(scope="session")
+def navegador(playwright_sessao):
+    # Câmera falsa do Chromium para o F6 (celular como câmera): o
+    # getUserMedia recebe um vídeo sintético e a permissão é concedida
+    # sem diálogo. Não afeta os outros testes.
+    nav = playwright_sessao.chromium.launch(
+        headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
+    )
+    yield nav
+    nav.close()
+
+
+@pytest.fixture(scope="session")
+def navegador_gpu(playwright_sessao):
+    """Chromium com a GPU da máquina (o "perfil normal" de um navegador de verdade).
+
+    O headless padrão desenha WebGL no SwiftShader (software): serve para
+    provar que funciona, não para medir tempo de quadro. Ver CHANGELOG (X1).
+    """
+    nav = playwright_sessao.chromium.launch(headless=True, args=["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"])
+    yield nav
+    nav.close()
 
 
 @pytest.fixture()

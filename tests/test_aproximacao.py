@@ -58,3 +58,19 @@ def test_track_sumido_expira():
     andar(est, 4, (0.40, 0.5), (0.1, 0.0), passos=5)
     est.atualizar([], 10.0)
     assert est.avisos(ZONA) == []
+
+
+def test_analises_espacadas_ainda_projetam():
+    """Máquina carregada: uma análise a cada 2 s ainda forma trilha (antes a trilha expirava em 2 s)."""
+    est = EstimadorDeAproximacao()
+    for i, x in enumerate((0.30, 0.42, 0.54, 0.66)):
+        est.atualizar([(5, (x, 0.5))], i * 2.0)
+    avisos = est.avisos(ZONA)
+    assert [a["track_id"] for a in avisos] == [5]
+
+
+def test_quem_nao_esta_na_analise_atual_nao_avisa():
+    est = EstimadorDeAproximacao()
+    andar(est, 4, (0.40, 0.5), (0.1, 0.0), passos=5)
+    est.atualizar([(99, (0.1, 0.1))], 10.0)  # a pessoa 4 não foi vista agora
+    assert all(a["track_id"] != 4 for a in est.avisos(ZONA))
