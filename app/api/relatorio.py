@@ -12,9 +12,8 @@ os números acima são os do banco.
 
 from __future__ import annotations
 
-import re
-
 import html
+import re
 import threading
 from collections import Counter, defaultdict
 from datetime import timedelta

@@ -7,6 +7,7 @@ tem, região do corpo fora do quadro) conta como ausente.
 """
 from __future__ import annotations
 
+import re
 from collections import deque
 from typing import Any
 
@@ -139,7 +140,7 @@ def _explicar(chave: str, estado: dict[str, Any], status: str | None, caixa: dic
     ]
     if dentro:
         melhor = max(dentro, key=lambda d: d.get("c", 0))
-        return f"o modelo viu com {melhor['c']:.2f} ({melhor['m']}) e descartou".replace(".", ",", 1)
+        return re.sub(r"(\d)\.(\d)", r",", f"o modelo viu com {melhor['c']:.2f} ({melhor['m']}) e descartou")
     return "o modelo não viu este item na pessoa"
 
 
