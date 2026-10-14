@@ -78,3 +78,17 @@ def test_recorte_desfoca_so_olhos_e_nariz_e_sem_keypoint_nao_recorta():
     # Cobre olhos e nariz, mas não sobe até o topo da caixa (onde fica o capacete).
     assert x1 <= 145 and x2 >= 155 and y1 <= 155 and y2 >= 160
     assert y1 > 120
+
+
+def test_decidir_depois_de_servir_a_imagem_nao_trava_o_arquivo(real_monitor_app, tmp_path):
+    """Regressão (E2E, 13/10): com `send_file`, o handle da imagem ficava aberto e o
+    Windows recusava mover o arquivo ao decidir (WinError 32 → HTTP 500)."""
+    monitor = real_monitor_app.extensions["monitor_service"]
+    fila = FilaDeRotulos(tmp_path, intervalo_s=0)
+    monitor.fila_de_rotulos = fila
+    ident = fila.talvez_coletar(1, QUADRO, [_det()], agora=0.0)
+    cliente = real_monitor_app.test_client()
+    resposta = cliente.get(f"/api/rotulos/{ident}.jpg")  # não consumida nem fechada
+    assert resposta.status_code == 200
+    assert cliente.post(f"/api/rotulos/{ident}", json={"decisao": "confirmar"}).status_code == 200
+    assert fila.contagem()["confirmados"] == 1

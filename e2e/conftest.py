@@ -172,3 +172,27 @@ def entrar(pagina, servidor, papel: str) -> None:
     pagina.get_by_label("E-mail").fill(servidor.emails[papel])
     pagina.get_by_label("Senha").fill(servidor.senhas[papel])
     pagina.get_by_role("button", name="Entrar").click()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Teste que falha deixa a tela e o texto da página em bench/runtime/e2e-falhas/.
+
+    Sem isto, falha por tempo esgotado só diz "não apareceu" — e não mostra o
+    que estava na tela no lugar.
+    """
+    resultado = yield
+    relatorio = resultado.get_result()
+    pagina = item.funcargs.get("pagina") if hasattr(item, "funcargs") else None
+    if relatorio.when != "call" or not relatorio.failed or pagina is None:
+        return
+    pasta = RAIZ / "bench" / "runtime" / "e2e-falhas"
+    pasta.mkdir(parents=True, exist_ok=True)
+    try:
+        pagina.screenshot(path=str(pasta / f"{item.name}.png"))
+        (pasta / f"{item.name}.txt").write_text(
+            f"url: {pagina.url}\nerros de console: {getattr(pagina, 'erros_console', [])}\n\n" + pagina.inner_text("body")[:5000],
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001  (diagnóstico nunca derruba o relatório)
+        pass

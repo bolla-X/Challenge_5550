@@ -211,6 +211,12 @@ def test_pill_de_aproximacao_aparece(pagina, servidor):
     """
     tecnico = servidor.sessao("technical")
     cid = servidor.cameras["Multidão"]
+    # Como no teste de queda: com 4 câmeras dividindo o agendador, a multidão
+    # fica a ~0,5 análise/s (DEGRADADO na captura da falha) e o rastreio não
+    # sustenta a trajetória. As outras param durante o teste e voltam no fim.
+    outras = [c for nome, c in servidor.cameras.items() if nome != "Multidão"]
+    for c in outras:
+        tecnico.post(f"{servidor.base}/api/cameras/{c}/stop", timeout=30)
     tecnico.patch(f"{servidor.base}/features?camera_id={cid}", json={"features": {"ppe": False}}, timeout=10)
     zona = [{"x": 0.6, "y": 0.0}, {"x": 1.0, "y": 0.0}, {"x": 1.0, "y": 1.0}, {"x": 0.6, "y": 1.0}]
     antes = tecnico.get(f"{servidor.base}/api/cameras/{cid}/risk-area", timeout=10).json()
@@ -224,6 +230,8 @@ def test_pill_de_aproximacao_aparece(pagina, servidor):
         tecnico.patch(f"{servidor.base}/features?camera_id={cid}", json={"features": {"ppe": True}}, timeout=10)
         poligono = (antes.get("risk_area") or antes).get("polygon") or []
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/risk-area", json={"polygon": poligono}, timeout=10)
+        for c in outras:
+            tecnico.post(f"{servidor.base}/api/cameras/{c}/start", timeout=60)
 
 
 def test_privacidade_so_o_supervisor_altera(pagina, servidor):
@@ -237,6 +245,10 @@ def test_privacidade_so_o_supervisor_altera(pagina, servidor):
     assert pagina.locator("[data-testid=privacidade-estado]").inner_text() == "ligado"
     assert pagina.locator("[data-testid=privacidade-botao]").is_disabled()
 
+    # Sai da página ANTES de limpar: uma requisição em andamento (polling) que
+    # termina depois da limpeza devolve o cookie de sessão — visto na captura
+    # da falha (a página voltou logada como técnico).
+    pagina.goto("about:blank")
     pagina.context.clear_cookies()
     _abrir_camera_como(pagina, servidor, "supervisor", "Canteiro")
     _abrir_aba(pagina, "Config. câmera")
@@ -306,7 +318,9 @@ def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor
         falas = pagina.evaluate("window.__falas")
         assert all(f["lang"] == "pt-BR" for f in falas), falas
         assert falas[0]["texto"].startswith("Atenção: "), falas[0]
-        assert "na câmera Multidão" in falas[0]["texto"], falas[0]
+        # Fala alertas críticos de QUALQUER câmera (a frase diz qual), não só da aberta.
+        nomes = tuple(servidor.cameras)
+        assert any(f"na câmera {n}." in falas[0]["texto"] for n in nomes), falas[0]
         intervalos = [b["t"] - a["t"] for a, b in zip(falas, falas[1:], strict=False)]
         assert all(i >= 3_900 for i in intervalos), intervalos
         assert len({f["texto"] for f in falas}) == len(falas), "a mesma frase repetiu dentro de 30 s"
@@ -326,6 +340,11 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
     cid = servidor.cameras["Canteiro"]
     assert tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": ["helmet", "vest"]},
                        timeout=10).status_code == 200
+    # Liberar exige 3 análises seguidas com tudo confirmado: com 4 câmeras no
+    # agendador, a do portal fica lenta demais (falhou assim numa rodada completa).
+    outras = [c for nome, c in servidor.cameras.items() if nome != "Canteiro"]
+    for c in outras:
+        tecnico.post(f"{servidor.base}/api/cameras/{c}/stop", timeout=30)
     contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
     try:
         pagina = contexto.new_page()
@@ -347,6 +366,8 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
     finally:
         contexto.close()
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=10)
+        for c in outras:
+            tecnico.post(f"{servidor.base}/api/cameras/{c}/start", timeout=60)
 
 
 def test_modo_tv_mostra_setores_e_metas_do_supervisor(navegador, servidor):

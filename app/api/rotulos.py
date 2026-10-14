@@ -8,7 +8,7 @@ Modo TV); quem decidiu não é gravado.
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, current_app, jsonify, request, send_file
+from flask import Blueprint, Response, current_app, jsonify, request
 
 from app.models import ROLE_TECHNICAL
 from app.utils.auth import require_role
@@ -39,7 +39,10 @@ def imagem(ident: str):
     caminho = fila.imagem(ident) if fila else None
     if caminho is None:
         return jsonify({"error": "recorte não encontrado"}), 404
-    return send_file(caminho, mimetype="image/jpeg", max_age=0)
+    # Bytes da memória, não `send_file`: o handle aberto durante o download
+    # impedia, no Windows, mover o arquivo quando o técnico decidia (WinError 32,
+    # HTTP 500 no E2E).
+    return Response(caminho.read_bytes(), mimetype="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 @rotulos_bp.post("/api/rotulos/<ident>")
