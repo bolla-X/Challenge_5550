@@ -59,8 +59,8 @@ gravações), e o risco de falso alarme numa planta real está registrado.
 Limite medido: na gravação a pessoa fica ~0,8 s no chão; com o vídeo aberto em
 tempo real e 4 câmeras numa máquina carregada, duas análises não cabem nisso.
 Não afrouxamos a regra (um falso positivo da `multidao` chegou a 0,84 num
-quadro só): no palco, a cena mostra o incidente confirmado com o replay do
-momento. Numa câmera real, quem cai fica no chão bem mais que 0,8 s.
+quadro só): no palco, a gravação da queda toca a 0,25×, com o rótulo na tela
+(ver a pergunta 21). Numa câmera real, quem cai fica no chão bem mais que 0,8 s.
 
 ## Gamificação
 
@@ -183,3 +183,20 @@ câmera com o Raio-X ligado e o sistema mostra o que viu e por quê ("viu com
 0,31, abaixo do piso de 0,40, descartado"). O placar da sessão conta quantas
 vezes a IA foi enganada, sem esconder. Cada caso desses é o que alimenta a
 fila de rótulos.
+
+**21. "Vocês detectam uma queda que dura menos de 1 segundo ao vivo?"**
+Nesta máquina, não com confiança — e por isso a demo mostra a gravação a
+0,25×, com "GRAVAÇÃO · 0,25×" escrito sobre o vídeo. Os números (14/10, 4
+câmeras ligadas, notebook sem GPU dedicada, com outros programas rodando):
+2,4–2,8 análises por segundo no total; a câmera que está na tela leva 43–49 %
+delas (~1,1–1,3 análise/s), as outras ~0,45/s cada. Na gravação de
+demonstração a pessoa fica **~0,8 s no chão** (6,2–7,0 s do clipe). A regra de
+emergência pede **2 análises seguidas** vendo a queda (um quadro sozinho já deu
+falso positivo com 0,84 numa gravação sem queda), e a primeira análise leva ~1 s
+para voltar — em tempo real cabe no máximo uma análise nesses 0,8 s. A 0,25×
+os 0,8 s viram ~3,2 s, cabem 3–4 análises, e o alerta sai ao vivo (medido no
+E2E: 12,9 s depois de entrar na cena, contando a gravação até a queda). O que
+melhoraria: mais análises por segundo por câmera — GPU dedicada, menos
+câmeras por máquina ou um modelo menor para a câmera de risco — sem afrouxar a
+regra. E numa planta de verdade quem cai fica no chão bem mais que 0,8 s; o
+caso difícil é a gravação, não o acidente.

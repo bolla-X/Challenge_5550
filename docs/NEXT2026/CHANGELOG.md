@@ -971,3 +971,110 @@ regulador que reduz a resolução interna quando o p95 passa de 40 ms.
   servidor rejeitava (`socket_rejected_unauthenticated`, ~37 por rodada) e o
   poll seguinte daquele `sid` voltava 400. `autoConnect: false`: o socket só
   conecta em `subscribeToServerEvents`, depois do login.
+
+## ADENDO 2 — retomada depois do reinício do PC (14/10)
+
+### Recuperação
+
+- Estado em disco conferido antes de qualquer mudança: `pytest tests` **649
+  passed**, `ruff check .` limpo, `npm run build` reproduz o `app/static/dist`
+  commitado byte a byte (nenhum arquivo mudou). Commit `2116c1c` ("wip:
+  recuperação pós-reinício") e `git push -u origin next-2026`. Nenhum processo
+  nosso tinha sobrado; os processos de terceiros que apareceram depois
+  (`driver1015.py` ×6, `his-prospeccao`) não foram tocados.
+- O bench "antes × PR5" morreu na 4ª rodada da r1 (`atual-4cam-pr5`): código
+  de saída `3221226091` = `0xC000026B`, *STATUS_DLL_INIT_FAILED_LOGOFF* — o
+  Windows desligando. Refeito do zero (BENCHMARKS.md, "Portão do PR5").
+- **A 1ª subida depois de reiniciar leva minutos.** O E2E falhou duas vezes com
+  "conexão recusada": o servidor ainda compilava os modelos para a iGPU e o
+  `e2e/conftest.py` esperava 120 s e seguia em silêncio. Medido por modelo
+  (validação de runtime): 1ª medição pós-reinício pose **213 s**, EPI 31 s,
+  pessoa 4 s (248 s no total); a seguinte, com o cache do OpenVINO
+  (`ov_cache/`) quente, 7,8 / 22 / 2 s (**32 s**). Hipótese (não verificada):
+  o cache de kernels da GPU é refeito por forma de entrada depois do reinício.
+  O conftest agora espera até 300 s e falha dizendo por quê; o DEMO.md manda
+  subir a demo uma vez antes da banca.
+
+### A. Tempo até "Liberado" no Portal (4 câmeras ligadas, E2E ×10)
+
+`E2E_PORTAL_REPETICOES=10 pytest e2e/test_fluxos.py -k portal_de_entrada`; cada
+repetição grava a portaria (zera o portal), espera o lease de foco expirar e
+mede desde abrir `/portal` até `veredito=approved`. p95 por posto mais próximo
+(com 10 amostras, é o máximo). Arquivo: `bench/results/portal-liberado-adendo2-20261014.json`.
+
+| rodada | regra | p50 | p95 | p50 / p95 desde o 1º item |
+|---|---|---|---|---|
+| antes | 3 análises seguidas; análise sem ninguém zera; foco 0,5 | 16,8 s | 81,0 s | 14,7 / 80,3 s |
+| depois | + até 2 análises sem ninguém neutras; foco 0,7 | 5,4 s | 31,9 s | 4,8 / 30,6 s |
+| **final** | + até 2 análises sem ninguém neutras; **foco 0,5** | **5,6 s** | **21,6 s** | 5,0 / 20,9 s |
+
+**Meta (p50 ≤ 5 s, p95 ≤ 10 s): não atingida.** p50 ficou 0,6 s acima; p95, 2×.
+
+Como chegamos aqui (tudo medido, nada presumido):
+
+1. **Onde o tempo ia.** O portal passou a contar o veredito BRUTO de cada análise
+   (`diagnostico` em `/api/cameras/<id>/portal`: contagem, item que faltou e a
+   sequência A/D/W com o ID). Em 20 rodadas de `scripts/diagnostico_foco.py
+   --portal --repeticoes 10`: o foco recebe ~0,6–1,3 análise/s; **um terço das
+   análises não acha ninguém** (W) — na `bench.mp4` os trabalhadores são
+   pequenos e passam atrás do guarda-corpo — e cada W zerava a sequência.
+   Um simulador das regras sobre essas sequências reproduz a regra antiga
+   exatamente (20/20) antes de testar outras.
+2. **Confirmações = 3.** Já era o valor (`PORTAL_CONFIRMACOES=3`, desde o PR3):
+   não havia o que reduzir.
+3. **Peso do foco até 70 % — medido e revertido.** `INFERENCIA_FRACAO_FOCO`
+   (novo, 0,5–0,7). A guarda de espera manda: com 4 câmeras a ~2,6 inferências/s,
+   o foco ficou em 49 % com 0,7 contra 45 % com 0,5, e os intervalos das outras
+   câmeras acima de 3 s foram de **9 %** (0,5: 4/46, 2/51, 5/43; máx. 5,2 s) para
+   **~25 %** (0,7: 7/30, 5/37, 7/24; máx. 5,4 s). O 0,7 quebra a regra dos 3 s;
+   o padrão voltou a 0,5. O agendador agora mede isso (`maior_espera_s`,
+   `esperas_acima_de_3s` por câmera em `/api/diagnostics/pipeline`).
+   **Divergência com o que estava escrito:** a seção P0.1 acima diz que
+   "nenhuma outra fica > 3 s" — isso vale na simulação com custo fixo; na
+   máquina real, sob carga de terceiros, 9 % dos intervalos passam de 3 s
+   mesmo com 0,5 (a guarda dispara a 2,5 s, mas várias câmeras vencem juntas e
+   a alternância com o foco atrasa a última).
+4. **Até 2 análises sem ninguém detectado ficam neutras** na confirmação
+   (`PORTAL_AUSENCIAS_TOLERADAS=2`): não contam nem zeram; a 3ª seguida zera.
+   "Não detectado" não é "ausente" (regra da missão). Uma análise que VÊ a
+   pessoa sem o EPI continua zerando — liberar por engano é o erro caro. No
+   simulador: pior caso de 27 análises (ou nunca, em 90 s) para 5.
+   `tests/test_portal.py::test_ninguem_detectado_no_meio_da_confirmacao_nao_zera_mas_epi_faltando_zera`.
+5. **Rejeitados no simulador:** sequência por ID de rastreio (10 de 20 rodadas
+   nunca liberariam — o ID fragmenta na fixture) e sequência por item (o
+   capacete sai "não verificável" na maioria das análises; ficaria mais
+   estrito, não mais rápido). Antecipar as outras câmeras pelo prazo de 3 s
+   renderia, na simulação a 0,37 s por inferência, só 5–8 pontos de vaga ao
+   foco: não implementado.
+
+**Por que o p95 não fecha.** As rodadas lentas são as com análises "D" seguidas
+(`DDWAWDDWAWAWDAWWWAAA`, `AADWWDAADADWAADADAWWAA`): a maior pessoa do quadro
+muda entre trabalhadores distantes, e o modelo vê alguns sem capacete. A
+`bench.mp4` é um plano aberto de obra, não um portal; com a webcam diante de
+uma pessoa (o Portal da demo quando há webcam) a situação é outra — mas isso
+não foi medido aqui (o teste automatizado não tem uma pessoa diante da câmera).
+Fica como ameaça no ESTADO.md.
+
+### B. Queda na demo: gravação a 0,25× com o alerta ao vivo
+
+- Regra de emergência mantida: **2 análises seguidas**.
+- A cena "Queda" do `/palco` declara `velocidade: 0.25` e `inicio_s: 4.0`
+  (`app/services/palco.py`). Ao entrar na cena, a velocidade muda **antes** de a
+  troca de cena responder (`_ajustar_velocidades`, síncrono) e a gravação
+  reabre em 4,0 s (`VideoStream.inicio_ms`, vale uma vez; a volta do loop é do
+  início). Sair da cena devolve todas as gravações a 1×.
+- `CameraWorker.tocar_gravacao`: só arquivo (câmera ao vivo não tem como andar
+  devagar e fica em 1×). O ritmo da captura vira `fps da fonte × 0,25` e fica
+  fixo **inclusive durante a confirmação de emergência** — antes ela baixava a
+  gravação para 4 fps, e o rótulo deixaria de ser verdade.
+- O rótulo **"GRAVAÇÃO · 0,25×"** sai do que o servidor informa
+  (`video.velocidade` no status), nunca do que a cena pediu; o selo de feed de
+  qualquer tela mostra "Gravação · 0,25×" enquanto durar.
+- Quando o incidente de queda aparece, o painel com a linha causal e o replay
+  entra ao lado do vídeo, como continuação da cena.
+- Evidência: `tests/test_camera_lenta.py` (4), `tests/test_palco.py::test_camera_lenta_so_dura_a_cena_da_queda`,
+  E2E `test_palco_queda_ao_vivo_em_camera_lenta` (rótulo conferido no DOM e
+  dentro da caixa do vídeo no instante do alerta; alerta ao vivo **12,9 s**
+  depois de entrar na cena — ~2 s de reabertura + 8,8 s de gravação até a
+  queda a 0,25× + a confirmação), captura revisada
+  (`bench/runtime/e2e-capturas/palco-queda-camera-lenta.png`).

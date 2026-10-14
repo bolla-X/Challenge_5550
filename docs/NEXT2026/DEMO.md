@@ -32,7 +32,10 @@ python run.py --demo --https
   Canteiro;
 - **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
 - quatro missões de turno da equipe (Liga de Setores);
-- tema claro (projetor); LLM desligado; boot até responder: ~70 s.
+- tema claro (projetor); LLM desligado; boot até responder: ~70 s com o cache
+  dos modelos quente. **Depois de reiniciar o notebook, a 1ª subida leva ~4
+  min** (compila os modelos para a iGPU; medido em 14/10): suba a demo uma vez
+  antes da banca e deixe no ar.
 
 Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 `/palco` (atalho na Visão geral: "Apresentação").
@@ -44,7 +47,8 @@ Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
   grandes de anterior/próxima e o nome da cena. O link vale só para mudar a cena.
 - **X** liga/desliga o Raio-X em qualquer vídeo.
 - Cada cena prepara o próprio estado: a câmera certa em foco, o Raio-X quando
-  pede, e a gravação da queda recomeça do início ao entrar na cena.
+  pede, e a gravação da queda recomeça (de 4 s) a **0,25×** ao entrar na cena,
+  com "GRAVAÇÃO · 0,25×" sobre o vídeo; ao sair, volta a 1×.
 
 ## Roteiro (≈ 7 min)
 
@@ -55,7 +59,7 @@ Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 | 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("viu com 0,31, abaixo do piso — descartado"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
 | 4 Raio-X | olhar o Pátio | esqueleto, barras de confiança por classe com o piso, detecções descartadas, trilhas de 5 s, vetor de velocidade, decisão separada da confiança | `test_raio_x_liga_pela_tecla_x` |
 | 5 Gêmeo digital | arrastar para orbitar; "Visão de drone"; tocar numa pessoa | cápsulas na cor do estado; linha do tempo e replay da pessoa | `test_gemeo_3d_mostra_pessoas_e_desenha_a_30_fps` |
-| 6 Queda | esperar até a 1ª volta da gravação (~20–60 s; a cena atualiza sozinha) | incidente "Queda detectada" com Pessoa N, linha causal e replay do momento | `test_queda_do_modelo_chega_ao_navegador_com_id` |
+| 6 Queda | esperar ~13 s (a gravação toca a 0,25×; dizer em voz alta que é câmera lenta e por quê — BANCA 21) | a queda AO VIVO com "GRAVAÇÃO · 0,25×" sobre o vídeo, a pílula "Queda detectada · Pessoa N" e, ao lado, o incidente com linha causal e replay | `test_palco_queda_ao_vivo_em_camera_lenta` |
 | 7 Incidente e linha causal | trocar de ID nas abas; "ver quadro"; **Reconhecer** | "13:02:10 aproximou-se… → entrou na zona sem capacete → permaneceu 38 s → reconhecido em 6 s"; reconhecer rápido dá ponto ao setor | `test_incidente_linha_causal_e_custodia_integra` |
 | 8 Cadeia de custódia | **Verificar integridade** | "Evidências íntegras" e o hash do último elo | `test_auditoria_verifica_a_cadeia_inteira` |
 | 9 Simulador "E se?" | arrastar um vértice da zona, **Reprocessar** | quantos alertas teriam disparado, lado a lado com os reais | `test_simulador_reprocessa_e_nunca_muda_alerta_real` |

@@ -1,33 +1,44 @@
 # ESTADO — MISSÃO 2
 
-Retomar lendo só este arquivo e `MISSAO-2.md`. Reescrito a cada marco.
-(A missão anterior, PRs #10–#13, está em `MISSAO.md` e no CHANGELOG.)
+Retomar lendo só este arquivo e `MISSAO-2.md` (incluindo o ADENDO 2 no fim).
+Reescrito a cada marco. (A missão anterior, PRs #10–#13, está em `MISSAO.md` e
+no CHANGELOG.)
 
 ## Rollback
 
 - `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
 - `main-pre-release` = HEAD de `main` antes do release (`6c3ed61`).
 
-## Marco atual: PR5 (Fases A + B) no portão
+## Regra do ADENDO 2
+
+Commit + push de `next-2026` (`origin/next-2026`) a cada marco e antes de
+qualquer tarefa > 10 min em segundo plano.
+
+## Marco atual: ADENDO 2, itens A e B prontos; próximo: bench do portão do PR5
 
 | item | situação | evidência |
 |---|---|---|
-| P0.1 rodízio ponderado | pronto; foco 52–58 % sob carga | `test_agendador_ponderado.py` (11), `diagnostico_foco.py`, E2E sem pausas |
-| P0.2 incidentes + re-associação | pronto; multidão: máx. 1 incidente por regra+zona | `test_incidentes.py`, `test_reassociacao.py`, `contar_incidentes.py` |
-| P0.3 `.env.example` 640 | pronto | `test_onboarding.py` |
-| X1–X10 | código + unitários + E2E (ver tabela no CHANGELOG) | `e2e/test_missao2.py` |
-
-Rodada 3 do E2E: 28/33; as 5 falhas levaram a quatro consertos (evidência por
-análise, continuidade da queda, verificação paralela, pastas isoladas) — ver
-CHANGELOG "Achados no caminho". Rodada 4 em execução.
+| Recuperação | pytest 649, ruff, build idênticos ao pré-reinício; wip `2116c1c` no remoto | CHANGELOG "ADENDO 2 / Recuperação" |
+| A. Portal "Liberado" | p50 **5,6 s**, p95 **21,6 s** (antes 16,8 / 81,0) — **meta não atingida** | `bench/results/portal-liberado-adendo2-20261014.json`, CHANGELOG "ADENDO 2 / A" |
+| B. Queda a 0,25× no palco | pronto; alerta ao vivo 12,9 s após entrar na cena | `test_camera_lenta.py`, `test_palco.py`, E2E `test_palco_queda_ao_vivo_em_camera_lenta`, BANCA 21 |
+| P0.1–P0.3, X1–X10 | como antes (ver CHANGELOG); E2E 33/33 na rodada 8 pré-reinício | `e2e/` |
 
 ## Decisões em vigor
 
+- Portal: 3 análises seguidas com tudo confirmado; até 2 análises SEM ninguém
+  detectado no meio ficam neutras (`PORTAL_AUSENCIAS_TOLERADAS=2`); EPI faltando zera.
+- Foco: `INFERENCIA_FRACAO_FOCO=0,5` (0,7 medido: quebra a regra dos 3 s em ~25 % dos intervalos).
+- Queda: regra de 2 análises mantida; palco toca a gravação a 0,25× de 4 s em diante.
 - Foco = `video_feed` aberto ou consulta recente do portal (lease 3 s); foco alterna com atrasados.
-- Emergência: 1 ficha de 2 s por detecção de queda; gravação a 4 fps durante a confirmação; regra de 2 análises mantida.
-- Queda herda o sujeito de queda vista há ≤ 5 s a ≤ 1,5 largura.
 - Evidência: um quadro e um replay por análise, compartilhados (`quadros_em`).
 - SQLite em WAL; custódia em segundo commit, em lote.
+
+## Ameaças conhecidas (para o resumo final)
+
+1. Portal com a gravação `bench.mp4`: p95 21,6 s (análises que veem trabalhador
+   distante sem capacete zeram a confirmação). Com webcam diante de uma pessoa: não medido.
+2. 1ª subida depois de reiniciar o notebook: ~4 min (compilação dos modelos na iGPU).
+3. Regra dos 3 s sem inferência: 9 % dos intervalos passam de 3 s sob carga (máx. 5,2 s).
 
 ## Worktrees
 
@@ -36,5 +47,7 @@ CHANGELOG "Achados no caminho". Rodada 4 em execução.
 
 ## Próximo passo exato
 
-E2E verde → bench `--rapido` ×3 intercalado com `../ch5550-antes` → commit →
-PR5 → squash merge → recriar `next-2026` → aplicar a worktree do PR6.
+Bench intercalado "antes × PR5" (`scripts/rodar_portao.py --rotulo pr5gate
+--reps 1,2,3 --perfis atual --cameras 1,4 --arvores "antes=../ch5550-antes,pr5=."`)
+→ BENCHMARKS.md → portão completo numa rodada (pytest, ruff, build, E2E com 4
+câmeras, axe) → PR5 → squash merge → recriar `next-2026` → Fase C (PR6).
