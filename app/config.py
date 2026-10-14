@@ -338,7 +338,7 @@ class Config:
     INFERENCIA_ESPERA_MAX_S = env_float("INFERENCIA_ESPERA_MAX_S", 2.5)
     # Fração das vagas da câmera em foco quando ninguém está atrasado (0,5–0,7;
     # ADENDO 2). A guarda de espera acima continua valendo para as outras.
-    INFERENCIA_FRACAO_FOCO = env_float("INFERENCIA_FRACAO_FOCO", 0.7)
+    INFERENCIA_FRACAO_FOCO = env_float("INFERENCIA_FRACAO_FOCO", 0.5)
     # Quanto tempo uma consulta do portal (polling) mantém a câmera em foco.
     FOCO_LEASE_S = env_float("FOCO_LEASE_S", 3.0)
     # Prioridade de confirmação: análise que vê um destes rótulos pede a próxima

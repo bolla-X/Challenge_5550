@@ -202,13 +202,14 @@ class PortalState(GateState):
         # desde o último reset e, nas negadas, qual item faltou.
         self.brutos = {"approved": 0, "denied": 0, "waiting": 0}
         self.faltas: dict[str, int] = {}
-        # As últimas análises, em ordem: (veredito, track_id) — A/D/W.
-        self.sequencia: deque[tuple[str, Any]] = deque(maxlen=120)
+        # As últimas análises, em ordem: (veredito, track_id, itens confirmados) — A/D/W.
+        self.sequencia: deque[tuple[str, Any, list[str]]] = deque(maxlen=120)
         self._ausencias = 0
 
     def atualizar(self, bruto: dict[str, Any]) -> dict[str, Any]:
         self.brutos[bruto["verdict"]] = self.brutos.get(bruto["verdict"], 0) + 1
-        self.sequencia.append((bruto["verdict"], bruto.get("track_id")))
+        self.sequencia.append((bruto["verdict"], bruto.get("track_id"),
+                               [i["key"] for i in bruto.get("itens") or [] if i["estado"] == CONFIRMADO]))
         for item in bruto.get("itens") or []:
             if item["estado"] == FALTANDO:
                 self.faltas[item["key"]] = self.faltas.get(item["key"], 0) + 1

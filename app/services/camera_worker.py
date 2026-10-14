@@ -2284,7 +2284,7 @@ class CameraWorker:
         estado = {k: v for k, v in self._portal.atual.items() if k not in ("checkin_novo", "track_id")}
         return base | estado | {"checkins": self._portal.checkins,
                                  "diagnostico": {"brutos": dict(self._portal.brutos), "faltas": dict(self._portal.faltas),
-                                                 "sequencia": [[v[0].upper(), t] for v, t in self._portal.sequencia]}}
+                                                 "sequencia": [[v[0].upper(), t, ok] for v, t, ok in self._portal.sequencia]}}
 
     def set_gate(self, required: list[str] | None) -> None:
         self.gate_required = list(required) if required else None
