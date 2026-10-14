@@ -220,55 +220,45 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
     ctx.close()
 
     # Estados FORÇADOS (o nome do arquivo diz): carregando, vazio, degradado.
-    ctx, pg = logado("technical")
-    lentas = re.compile(r".*/api/(liga|missoes|retrospectiva).*")
+    # Sem interceptar rota no Playwright (handler em voo derrubava a rodada):
+    # "carregando" = latência de rede pelo DevTools; "vazio" e "degradado" =
+    # `fetch` da própria página devolvendo o dado de teste. Cada estado num
+    # contexto próprio.
+    def forcado(nome: str, script: str | None, rota: str, preparar=None, espera_ms: int = 2500, depois=None) -> None:
+        ctx, pg = logado("technical")
+        try:
+            if script:
+                pg.add_init_script(script)
+            if preparar:
+                preparar(ctx, pg)
+            pg.goto(base + rota, wait_until="commit")
+            if depois:
+                depois(pg)
+            _foto(pg, pasta, nome, feitas, espera_ms)
+        finally:
+            ctx.close()
 
-    def carregando():
-        # As respostas ficam RETIDAS (o handler não responde) até a foto; depois seguem.
-        retidas = []
-        pg.route(lentas, lambda rota: retidas.append(rota))
-        pg.goto(base + "/liga", wait_until="commit")
-        _foto(pg, pasta, "26-forcado-carregando-liga", feitas, 900)
-        pg.unroute(lentas)
-        for rota in retidas:
-            _tentar("liberar rota", rota.continue_)
+    def lenta(ctx, pg) -> None:
+        cdp = ctx.new_cdp_session(pg)
+        cdp.send("Network.enable")
+        cdp.send("Network.emulateNetworkConditions",
+                 {"offline": False, "latency": 8000, "downloadThroughput": -1, "uploadThroughput": -1})
 
-    def vazio():
-        incidentes = re.compile(r".*/api/incidentes.*")
-        def vazia(rota):
-            _tentar("rota vazia", lambda: rota.fulfill(status=200, content_type="application/json",
-                                                      body=json.dumps({"items": [], "total": 0})))
+    def troca_fetch(trecho: str, corpo_js: str) -> str:
+        return ("(() => { const original = window.fetch; window.fetch = async (...a) => {"
+                " const r = await original(...a); const u = String(a[0] && a[0].url ? a[0].url : a[0]);"
+                f" if (!u.includes({json.dumps(trecho)})) return r;"
+                f" const j = await r.clone().json(); const novo = ({corpo_js})(j);"
+                " return new Response(JSON.stringify(novo), { status: 200, headers: { 'Content-Type': 'application/json' } }); }; })();")
 
-        pg.route(incidentes, vazia)
-        pg.goto(base + "/auditoria")
-        _foto(pg, pasta, "27-forcado-vazio-auditoria", feitas, 2500)
-        pg.unroute(incidentes)
-
-    def degradado():
-        status = re.compile(rf".*/api/cameras/{canteiro}/status.*")
-
-        def trocar(rota):
-            try:
-                resposta = rota.fetch()
-            except Exception:  # noqa: BLE001  (página já fechou)
-                return
-            corpo = resposta.json()
-            corpo["adaptativo"] = {"degradado": True, "reducoes": ["análise a cada 3 quadros", "inferência em 480 px"]}
-            _tentar("rota degradada", lambda: rota.fulfill(response=resposta, body=json.dumps(corpo)))
-
-        pg.route(status, trocar)
-        pg.goto(base + "/")
-        pg.get_by_role("button", name=f"Configurar {nome_portal}").click(timeout=30_000)
-        pg.locator("[data-testid=aviso-degradado]").first.wait_for(timeout=15_000)
-        _foto(pg, pasta, "28-forcado-degradado", feitas, 2000)
-        pg.unroute(status)
-
-    _tentar("carregando", carregando)
-    _tentar("vazio", vazio)
-    _tentar("degradado", degradado)
-    # Uma resposta interceptada ainda em voo derrubaria o próximo contexto.
-    pg.unroute_all(behavior="ignoreErrors")
-    ctx.close()
+    _tentar("carregando", lambda: forcado("26-forcado-carregando-liga", None, "/liga", lenta, 1500))
+    vazia = troca_fetch("/api/custodia", "(j) => ({ ...j, items: [], total: 0 })")
+    _tentar("vazio", lambda: forcado("27-forcado-vazio-auditoria", vazia, "/auditoria"))
+    degradar = ("(j) => ({ ...j, adaptativo: { degradado: true, reducoes: "
+                "['análise a cada 3 quadros', 'inferência em 480 px'] } })")
+    _tentar("degradado", lambda: forcado("28-forcado-degradado", troca_fetch(f"/api/cameras/{canteiro}/status", degradar),
+                                         "/", None, 3000,
+                                         lambda pg: pg.get_by_role("button", name=f"Configurar {nome_portal}").click(timeout=30_000)))
 
     # Sem sinal (REAL): uma câmera de rede cuja fonte não responde.
     tecnico = servidor.sessao("technical")
