@@ -1079,3 +1079,41 @@ Fica como ameaça no ESTADO.md.
   depois de entrar na cena — ~2 s de reabertura + 8,8 s de gravação até a
   queda a 0,25× + a confirmação), captura revisada
   (`bench/runtime/e2e-capturas/palco-queda-camera-lenta.png`).
+
+## PR6 — Experiência SSS+++ (Fase C)
+
+Sistema de design em `docs/NEXT2026/DESIGN.md` (fonte da verdade:
+`frontend/src/styles/tokens.css`).
+
+- **Tokens:** cor só para estado, tipografia com tamanho/entrelinha/tracking
+  juntos, espaço em grade de 4/8, raios e sombras nomeados, movimento com
+  durações e curvas nomeadas. Claro é o padrão da demo; o escuro tem valores
+  próprios.
+- **Fontes self-hosted:** Geist e Geist Mono (SIL OFL 1.1,
+  https://github.com/vercel/geist-font), em `frontend/public/fonts`, offline.
+- **Ícones:** um conjunto só, Phosphor (MIT, `@phosphor-icons/react` 2.1.10
+  fixado), peso regular, via `components/icones.tsx`; nenhum SVG de ícone à mão.
+- **Componentes únicos** (botão, cartão, badge de estado, tabela, modal, toast,
+  skeleton, estado vazio com ilustração SVG original e uma ação) e o teste
+  `e2e/test_estados.py`, que procura "em construção", TODO, lorem,
+  placeholder e travessão no texto visível de todas as rotas.
+- **Movimento:** View Transitions entre telas (`document.startViewTransition`)
+  e entre rotas (`@view-transition { navigation: auto }`); sem a API o
+  navegador troca a tela sem animação (MDN:
+  https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API). Tudo
+  respeita `prefers-reduced-motion` (só troca de opacidade curta).
+- **Revisão visual** em quatro rodadas de capturas (`e2e/capturas_de_tela.py`:
+  29 telas e estados × 3 tamanhos × 2 temas, pela própria demo), crítica
+  escrita com nota por item em `docs/NEXT2026/galeria/index.md`. O que ela
+  achou e virou regra está em DESIGN.md ("O que a revisão visual mudou"); os
+  maiores: os ícones dos botões estavam invisíveis (uma regra CSS antiga
+  apagava ícones preenchidos), o Início e Contas eram dois cartões vazios, a
+  barra superior ocupava um terço da tela do celular, alertas mostravam código
+  interno (`missing_vest`), o Modo TV quebrava "0 min" em duas linhas e o Raio-X
+  virava uma parede de painéis numa multidão (agora: 3 maiores, sem sobrepor).
+- **Capturas pela demo** (`run.py --demo`) com `DEMO_WEBCAM=0` (novo), para a
+  galeria nunca fotografar a webcam de quem roda; as senhas da demo ficam só
+  na memória do script de captura.
+- **README de vitrine** com GIF do palco, duas imagens, destaques e "como rodar
+  em 3 comandos"; `scripts/preparar.py` baixa os pesos conferindo o SHA-256
+  (os `.pt` são pickle), as gravações e aprova os runtimes rápidos.
