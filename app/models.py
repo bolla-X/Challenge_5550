@@ -67,6 +67,64 @@ class Alert(db.Model):
         }
 
 
+class Incidente(db.Model):
+    """Alertas da mesma (câmera, regra, zona) agrupados (MISSÃO 2, P0.2).
+
+    O alerta continua sendo por pessoa rastreada (é a evidência: caixa,
+    clipe, replay). O incidente é o que o painel mostra: "Sem capacete na
+    Zona A — 3 pessoas (IDs 4, 7, 9)", em vez de uma linha por pessoa e outra
+    a cada troca de ID. Os IDs são de rastreio, nunca identidade.
+    """
+
+    __tablename__ = "incidentes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    camera_id = db.Column(db.Integer, nullable=True, index=True)  # sem FK, como Alert
+    rule = db.Column(db.String(80), nullable=False, index=True)
+    feature = db.Column(db.String(80), nullable=True, index=True)
+    zona = db.Column(db.String(120), nullable=False, default="Fora da zona")
+    severity = db.Column(db.String(30), nullable=False, index=True)
+    titulo = db.Column(db.String(160), nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="active", index=True)
+    pessoas = db.Column(db.JSON, nullable=False, default=list)  # todos os IDs de rastreio que passaram
+    alert_ids = db.Column(db.JSON, nullable=False, default=list)
+    pico_pessoas = db.Column(db.Integer, nullable=False, default=0)
+    aberto_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    atualizado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    fechado_em = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+    reconhecido_em = db.Column(db.DateTime(timezone=True), nullable=True)
+    reconhecido_papel = db.Column(db.String(20), nullable=True)
+
+    def to_dict(self, pessoas_ativas: list | None = None) -> dict:
+        reconhecido_s = None
+        if self.reconhecido_em is not None and self.aberto_em is not None:
+            reconhecido_s = round((_aware(self.reconhecido_em) - _aware(self.aberto_em)).total_seconds(), 1)
+        return {
+            "id": self.id,
+            "camera_id": self.camera_id,
+            "rule": self.rule,
+            "feature": self.feature,
+            "zona": self.zona,
+            "severity": self.severity,
+            "titulo": self.titulo,
+            "status": self.status,
+            "pessoas": list(self.pessoas or []),
+            "pessoas_ativas": list(pessoas_ativas) if pessoas_ativas is not None else None,
+            "alert_ids": list(self.alert_ids or []),
+            "pico_pessoas": self.pico_pessoas,
+            "aberto_em": self.aberto_em.isoformat() if self.aberto_em else None,
+            "atualizado_em": self.atualizado_em.isoformat() if self.atualizado_em else None,
+            "fechado_em": self.fechado_em.isoformat() if self.fechado_em else None,
+            "reconhecido_em": self.reconhecido_em.isoformat() if self.reconhecido_em else None,
+            "reconhecido_em_s": reconhecido_s,
+        }
+
+
+def _aware(valor: datetime) -> datetime:
+    """SQLite devolve datetime sem fuso; tudo aqui é gravado em UTC."""
+    return valor if valor.tzinfo is not None else valor.replace(tzinfo=timezone.utc)
+
+
 class EventLog(db.Model):
     __tablename__ = "event_logs"
 

@@ -10,6 +10,7 @@ import type {
   EventsResponse,
   FeaturesResponse,
   GateState,
+  Incidente,
   PortalState,
   TvEstado,
   TvSetor,
@@ -175,3 +176,15 @@ export const putGate = (camId: number, required: string[] | null) =>
     method: "PUT",
     body: JSON.stringify({ required }),
   });
+
+// ---- incidentes (MISSÃO 2, P0.2): app/api/incidentes.py -------------------
+export const listarIncidentes = (params: { cameraId?: number | null; status?: "active" | "resolved"; limit?: number } = {}) => {
+  const q = new URLSearchParams();
+  if (params.cameraId != null) q.set("camera_id", String(params.cameraId));
+  if (params.status) q.set("status", params.status);
+  if (params.limit) q.set("limit", String(params.limit));
+  return apiFetch<{ items: Incidente[]; count: number }>(`/api/incidentes?${q.toString()}`);
+};
+export const detalheDoIncidente = (id: number) => apiFetch<{ incidente: Incidente; alertas: Alert[] }>(`/api/incidentes/${id}`);
+export const reconhecerIncidente = (id: number) =>
+  apiFetch<{ incidente: Incidente; primeira_vez: boolean }>(`/api/incidentes/${id}/reconhecer`, { method: "POST" });

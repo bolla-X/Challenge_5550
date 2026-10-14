@@ -1,4 +1,4 @@
-import type { Alert, AnalysisPayload, ComplianceState, FeatureFlag, ModelDiagnostics, MonitorStatus, OverlayOptions, PreAlerta, RiskAreaState, RiskScore, RuntimeSettings, TimelineEvent } from "../api/types";
+import type { Alert, AnalysisPayload, Incidente, ComplianceState, FeatureFlag, ModelDiagnostics, MonitorStatus, OverlayOptions, PreAlerta, RiskAreaState, RiskScore, RuntimeSettings, TimelineEvent } from "../api/types";
 
 /**
  * Every event the Flask backend emits, and its payload shape.
@@ -16,7 +16,8 @@ export interface ServerEvents {
   timeline_event: TimelineEvent;
   compliance_state: ComplianceState;
   analysis: AnalysisPayload;
-  active_alerts: { camera_id?: number | null; items: Alert[]; count: number };
+  active_alerts: { camera_id?: number | null; items: Alert[]; count: number; incidentes?: Incidente[] };
+  incident_updated: Incidente;
   pre_alertas: { camera_id?: number | null; items: PreAlerta[] };
   alert_created: Alert;
   alert: Alert; // legacy alias of alert_created, same payload

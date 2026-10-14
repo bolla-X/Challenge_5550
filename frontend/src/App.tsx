@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { subscribeToServerEvents, useDashboardStore, ROLE_ACCESS } from "./store/dashboardStore";
 import { Topbar, MessageBar, ScreenHead } from "./components/layout";
-import { CameraGrid, type EstadoDaCamera } from "./components/camera-grid";
+import { CameraGrid, totalDeIncidentes, type EstadoDaCamera } from "./components/camera-grid";
 import { OperatorKiosk } from "./components/operator-kiosk";
 import { GateKiosk } from "./components/gate";
 import { AccountsScreen, SupervisorHome } from "./components/accounts";
@@ -61,9 +61,9 @@ function GridScreen() {
     setEstados((prev) => (prev[id] === estado ? prev : { ...prev, [id]: estado }));
   }, []);
   const noAr = cameras.filter((c) => estados[c.id]?.running).length;
-  const alertas = cameras.reduce((n, c) => n + (estados[c.id]?.alertas.length ?? 0), 0);
+  const incidentes = cameras.reduce((n, c) => n + totalDeIncidentes(estados[c.id]), 0);
   const sub = cameras.length
-    ? `${noAr} de ${cameras.length} no ar, ${alertas} alerta${alertas === 1 ? "" : "s"} ativo${alertas === 1 ? "" : "s"}`
+    ? `${noAr} de ${cameras.length} no ar, ${incidentes} incidente${incidentes === 1 ? "" : "s"} ativo${incidentes === 1 ? "" : "s"}`
     : null;
 
   return (

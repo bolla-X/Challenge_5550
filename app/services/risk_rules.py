@@ -156,6 +156,8 @@ class RuleEngine:
                                 "person_box": person_state["box"],
                                 "present_labels": sorted(labels),
                                 "supported_ppe": sorted(supported_ppe),
+                                # Zona do incidente (P0.2): dentro da área de risco ou fora.
+                                "na_zona": person_state.get("risk_area", {}).get("status") == "inside",
                             },
                         )
                     )

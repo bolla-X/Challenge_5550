@@ -9,6 +9,7 @@ from flask_socketio import SocketIO
 
 from app.models import Alert
 from app.repositories.alert_repository import AlertRepository
+from app.services.incidentes import AgrupadorDeIncidentes
 from app.services.risk_rules import RuleAlert
 from app.utils.salas import emitir_para_camera
 from app.vision.schemas import BoundingBox
@@ -49,6 +50,8 @@ class AlertRuntimeState:
     # e da 1ª da sequência atual de normalidade (histerese por tempo).
     violacao_desde: float | None = None
     normal_desde: float | None = None
+    # Incidente (câmera, regra, zona) a que o alerta pertence (P0.2).
+    incidente_id: int | None = None
 
 
 class AlertStateService:
@@ -73,6 +76,7 @@ class AlertStateService:
         min_confirmacoes_resolver: int = 3,
         regras_de_emergencia: frozenset[str] = frozenset(),
         confirmacoes_emergencia: int = 2,
+        nome_da_zona=None,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
@@ -126,6 +130,9 @@ class AlertStateService:
         self._silenciados: dict[str, dict[str, Any]] = {}
         self._ultima_assinatura_ativos: tuple | None = None
         self._ultimo_emit_ativos = 0.0
+        # Incidentes (MISSÃO 2, P0.2): o painel mostra (câmera, regra, zona),
+        # não uma linha por pessoa.
+        self.incidentes = AgrupadorDeIncidentes(camera_id, nome_da_zona)
 
     @staticmethod
     def _caixa_da_pessoa(metadata: dict[str, Any] | None) -> BoundingBox | None:
@@ -177,10 +184,13 @@ class AlertStateService:
             if state.rule_alert.feature not in desligadas:
                 continue
             if state.alert is not None and state.alert.status == "active":
+                incidente = self.incidentes.desanexar(key)
                 state.alert = self.repository.resolve(
                     state.alert,
                     metadata=(state.alert.metadata_json or {}) | {"resolution_reason": "feature_disabled"},
                 )
+                if incidente is not None:
+                    self._emitir("incident_updated", incidente)
                 payload = state.alert.to_dict()
                 state.snapshot = payload
                 resolved.append(payload)
@@ -269,6 +279,10 @@ class AlertStateService:
                     metadata=item.metadata | {"confirmation_frames": state.violation_frames},
                     status="active",
                 )
+                incidente = self.incidentes.anexar(state.alert, item, key)
+                state.incidente_id = incidente["id"]
+                state.alert.metadata_json = {**(state.alert.metadata_json or {}), "incidente_id": incidente["id"]}
+                emitir("incident_updated", incidente)
                 payload = state.alert.to_dict()
                 state.snapshot = payload
                 # Acabou de ser gravado: o relógio do espaçamento começa aqui.
@@ -289,7 +303,7 @@ class AlertStateService:
                     continue
                 state.alert = self.repository.touch(
                     state.alert,
-                    metadata=item.metadata | {"confirmation_frames": state.violation_frames},
+                    metadata=item.metadata | {"confirmation_frames": state.violation_frames, "incidente_id": state.incidente_id},
                     incremento=state.ocorrencias_pendentes,
                     commit=False,
                 )
@@ -318,6 +332,9 @@ class AlertStateService:
                         metadata=(state.alert.metadata_json or {}) | {"resolution_frames": state.normal_frames},
                         commit=False,
                     )
+                    incidente = self.incidentes.desanexar(key)
+                    if incidente is not None:
+                        emitir("incident_updated", incidente)
                     payload = state.alert.to_dict()
                     state.snapshot = payload
                     resolved.append(payload)
@@ -356,13 +373,22 @@ class AlertStateService:
         long-polling, cada emit é serializado e enfileirado por cliente. A
         pulsação garante que um painel que perdeu um evento se acerte sozinho.
         """
-        assinatura = tuple((a.get("id"), a.get("status"), a.get("occurrences"), a.get("last_seen_at")) for a in active)
+        incidentes = self.incidentes.ativos()
+        assinatura = tuple((a.get("id"), a.get("status"), a.get("occurrences"), a.get("last_seen_at")) for a in active) + tuple(
+            (i.get("id"), tuple(i.get("pessoas_ativas") or ())) for i in incidentes
+        )
         agora = monotonic()
         if assinatura == self._ultima_assinatura_ativos and agora - self._ultimo_emit_ativos < PULSACAO_ATIVOS_S:
             return
         self._ultima_assinatura_ativos = assinatura
         self._ultimo_emit_ativos = agora
-        self._emitir("active_alerts", {"camera_id": self.camera_id, "items": active, "count": len(active)})
+        self._emitir(
+            "active_alerts",
+            {"camera_id": self.camera_id, "items": active, "count": len(active), "incidentes": incidentes},
+        )
+
+    def active_incidents(self) -> list[dict[str, Any]]:
+        return self.incidentes.ativos()
 
     def active_alerts(self) -> list[dict[str, Any]]:
         """Alertas ativos como dados puros.
@@ -398,6 +424,7 @@ class AlertStateService:
                 # foi criado na sessão da thread do worker.
                 state.alert = self.repository.na_sessao(state.alert)
             if state.alert is not None and state.alert.status == "active":
+                self.incidentes.desanexar(key)
                 state.alert = self.repository.resolve(
                     state.alert,
                     metadata=(state.alert.metadata_json or {}) | {"resolution_reason": reason},
@@ -406,6 +433,11 @@ class AlertStateService:
                 state.snapshot = payload
                 resolved.append(payload)
                 self._emitir("alert_resolved", payload)
+        fechados = self.incidentes.fechar_todos()
+        if fechados:
+            self.repository.salvar()
+        for incidente in fechados:
+            self._emitir("incident_updated", incidente)
         self._states.clear()
         self._emit_active([])
         return resolved
@@ -413,4 +445,5 @@ class AlertStateService:
     def reset(self) -> None:
         self._states.clear()
         self._silenciados.clear()
+        self.incidentes.reset()
         self._ultima_assinatura_ativos = None

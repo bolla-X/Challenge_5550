@@ -15,6 +15,7 @@ from app.api.desafio import desafio_bp
 from app.api.diagnostics import runtime_bp
 from app.api.escala import escala_bp
 from app.api.features import features_bp
+from app.api.incidentes import incidentes_bp
 from app.api.lab import lab_bp
 from app.api.monitor import monitor_bp
 from app.api.relatorio import relatorio_bp
@@ -114,6 +115,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
         app.register_blueprint(demo_bp)
     app.register_blueprint(alerts_bp)
+    app.register_blueprint(incidentes_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
     app.register_blueprint(features_bp)

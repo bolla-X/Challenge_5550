@@ -30,6 +30,7 @@ import {
 } from "../api/endpoints";
 import type {
   Alert,
+  Incidente,
   AuthUser,
   CameraFeatureSet,
   CameraRecord,
@@ -131,6 +132,8 @@ interface DashboardState {
   model: ModelDiagnostics | null;
   compliance: ComplianceState | null;
   activeAlerts: Alert[];
+  /** Incidentes ativos da câmera em foco (alertas agrupados por regra e zona). */
+  activeIncidents: Incidente[];
   /** Pré-alertas de aproximação da câmera em foco (amarelo, projeção). */
   preAlertas: PreAlerta[];
   // Set only by the alert_created socket event (never alert_updated) — lets
@@ -296,6 +299,7 @@ const ESTADO_LIMPO: Partial<DashboardState> = {
   camId: null,
   operatorCam: null,
   activeAlerts: [],
+  activeIncidents: [],
       preAlertas: [],
   alertHistory: [],
   lastAlertCreatedId: null,
@@ -411,6 +415,7 @@ export const useDashboardStore = create<DashboardState>()(
       model: null,
       compliance: null,
       activeAlerts: [],
+      activeIncidents: [],
       preAlertas: [],
       lastAlertCreatedId: null,
       alertHistory: [],
@@ -591,6 +596,7 @@ export const useDashboardStore = create<DashboardState>()(
             videoStream: statusValue?.video ?? null,
             model: statusValue?.model ?? null,
             activeAlerts: statusValue?.active_alerts ?? [],
+            activeIncidents: statusValue?.active_incidents ?? [],
             features: value(featuresRes)?.features ?? [],
             settings: value(settingsRes)?.settings ?? null,
             overlay: value(overlayRes)?.overlay ?? null,
@@ -796,6 +802,7 @@ export function subscribeToServerEvents(): () => void {
         videoStream: status.video ?? null,
         model: status.model,
         activeAlerts: status.active_alerts,
+        activeIncidents: status.active_incidents ?? [],
         overlay: status.overlay,
         settings: status.settings,
         riskArea: status.risk_area,
@@ -835,7 +842,8 @@ export function subscribeToServerEvents(): () => void {
     if (belongsToFocusedCamera(payload)) set({ preAlertas: payload.items }, false, "ws:pre_alertas");
   });
   on("active_alerts", (payload) => {
-    if (belongsToFocusedCamera(payload)) set({ activeAlerts: payload.items }, false, "ws:active_alerts");
+    if (belongsToFocusedCamera(payload))
+      set({ activeAlerts: payload.items, activeIncidents: payload.incidentes ?? [] }, false, "ws:active_alerts");
   });
   on("analysis", (payload) => {
     if (!belongsToFocusedCamera(payload)) return;

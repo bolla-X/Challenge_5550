@@ -12,7 +12,8 @@ import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
-import { cobrePreAlerta, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { cobrePreAlerta, incidenteCritico, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { rotuloDoIncidente } from "../utils/incidentes";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
 import { PipelinePanel } from "./pipeline-panel";
 import { PlantaPanel } from "./planta-panel";
@@ -58,6 +59,8 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const [agora, setAgora] = useState(() => Date.now());
   const [stream, setStream] = useState<EstadoDoStream>("conectando");
   const critico = temAlertaCritico(estado);
+  // A pílula mostra o INCIDENTE (regra + zona + IDs), não um alerta por pessoa (P0.2).
+  const incidente = incidenteCritico(estado);
   const preAlertas = useDashboardStore((s) => s.preAlertas);
 
   // O relógio do alerta anda sozinho; sem isso o "decorrido" congelava entre
@@ -108,17 +111,20 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
               <AnimatePresence initial={false}>
                 {critico && (
                   <motion.span
-                    key={critico.id}
+                    key={incidente ? `inc-${incidente.id}` : critico.id}
                     className="over-pill alert"
                     role="status"
+                    data-testid="pilula-incidente"
                     initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
                   >
                     <span className="dot" />
-                    {critico.message}
-                    <span className="t-data">{decorrido(critico.first_seen_at ?? critico.created_at, agora)}</span>
+                    {incidente ? rotuloDoIncidente(incidente) : critico.message}
+                    <span className="t-data">
+                      {decorrido(incidente ? incidente.aberto_em : (critico.first_seen_at ?? critico.created_at), agora)}
+                    </span>
                   </motion.span>
                 )}
               </AnimatePresence>

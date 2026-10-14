@@ -39,6 +39,7 @@ from app.vision.captura_continua import CapturaContinua
 from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
+from app.vision.reassociacao import RastreadorComReassociacao, ReassociadorDeIds
 from app.vision.planta import pes_na_planta
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
@@ -293,6 +294,17 @@ class CameraWorker:
             if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack"
             else PersonTracker()
         )
+        # Re-associação (MISSÃO 2, P0.2): track novo perto de onde outro sumiu,
+        # em até 2 s, herda o ID — a pessoa não vira "Pessoa N+1" (nem abre
+        # alertas novos) a cada oclusão curta.
+        if app.config.get("REASSOCIAR_IDS", True):
+            self.person_tracker = RastreadorComReassociacao(
+                self.person_tracker,
+                ReassociadorDeIds(
+                    distancia_larguras=float(app.config.get("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)),
+                    janela_s=float(app.config.get("REASSOCIAR_JANELA_S", 2.0)),
+                ),
+            )
         # Detecção intercalada (ver Config.DETECTION_EVERY_N_FRAMES). Contador
         # e último resultado são POR câmera: cada uma tem seu próprio ritmo, e
         # misturar as caixas de uma com as da outra seria pior que o lag.
@@ -355,6 +367,8 @@ class CameraWorker:
                 r.strip() for r in str(app.config.get("ALERT_EMERGENCY_RULES", "fall_detected")).split(",") if r.strip()
             ),
             confirmacoes_emergencia=int(app.config.get("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)),
+            # Zona do incidente (P0.2): o nome da área de risco, se houver uma desenhada.
+            nome_da_zona=lambda: self.risk_area_name if self.rule_engine.risk_polygon else None,
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -412,6 +426,13 @@ class CameraWorker:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("stale_alert_cleanup_failed", extra={"error": str(exc)})
             self.alert_state_service.reset()
+            try:
+                # Incidentes "ativos" de uma execução anterior fecham junto (P0.2).
+                self.alert_state_service.incidentes.fechar_orfaos()
+                db.session.commit()
+            except Exception as exc:  # noqa: BLE001
+                db.session.rollback()
+                logger.warning("stale_incident_cleanup_failed", extra={"error": str(exc)})
             self._emitir("active_alerts", {"camera_id": self.camera_id, "items": [], "count": 0})
             self._latest_jpeg = None
             self._latest_capture_ts_ms = None
@@ -506,6 +527,7 @@ class CameraWorker:
             "features": self.feature_manager.as_dict(),
             "model": self._safe_model_diagnostics(),
             "active_alerts": self.alert_state_service.active_alerts(),
+            "active_incidents": self.alert_state_service.active_incidents(),
             "cleanup": self._last_cleanup,
             "overlay": self.overlay_options,
             "settings": self.settings(),
