@@ -31,7 +31,27 @@ sys.path.insert(0, str(RAIZ / "e2e"))
 from capturas_de_tela import ServidorDemo  # noqa: E402
 
 
+def esperar_banco_livre(limite_s: float = 60.0) -> None:
+    """O servidor da rodada anterior solta o SQLite da demo alguns segundos depois de morto.
+
+    `taskkill /T` volta antes de o filho fechar o arquivo; a rodada seguinte
+    encontrava "o banco da demo está em uso". Renomear (e desfazer) só passa
+    com o arquivo livre no Windows.
+    """
+    banco = RAIZ / "instance" / "demo" / "demo.db"
+    fim = time.monotonic() + limite_s
+    while banco.exists() and time.monotonic() < fim:
+        try:
+            temporario = banco.with_suffix(".livre")
+            banco.rename(temporario)
+            temporario.rename(banco)
+            return
+        except OSError:
+            time.sleep(1.0)
+
+
 def uma_rodada(cache: Path, rotulo: str, limite_s: float = 600.0) -> dict:
+    esperar_banco_livre()
     os.environ["OV_CACHE_DIR"] = str(cache)
     servidor = ServidorDemo()
     inicio = time.monotonic()
