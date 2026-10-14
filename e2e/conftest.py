@@ -101,8 +101,10 @@ class ServidorE2E:
                        "--password", self.senhas[papel])
         self.proc = subprocess.Popen([PY, "run.py"], cwd=RAIZ, env=self.env, stdout=self.log.open("w", encoding="utf-8"),
                                      stderr=subprocess.STDOUT)
-        limite = time.monotonic() + 120
-        while time.monotonic() < limite:
+        # 300 s: a 1ª subida depois de reiniciar o PC compila o modelo para a
+        # iGPU (OpenVINO, ~1 min) antes de servir; com o cache quente são ~10 s.
+        limite = time.monotonic() + 300
+        while True:
             if self.proc.poll() is not None:
                 raise RuntimeError(f"servidor morreu; ver {self.log}")
             try:
@@ -110,6 +112,8 @@ class ServidorE2E:
                     break
             except requests.RequestException:
                 time.sleep(0.3)
+            if time.monotonic() > limite:
+                raise RuntimeError(f"servidor não respondeu em 300 s; ver {self.log}")
         tecnico = self.sessao("technical")
         for nome, tipo, fonte in (("Multidão", "Arquivo", str(self.fixtures["multidao"])),
                                   ("Canteiro", "Arquivo", str(self.fixtures["bench"])),

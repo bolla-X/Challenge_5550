@@ -7,6 +7,7 @@ tem, região do corpo fora do quadro) conta como ausente.
 """
 from __future__ import annotations
 
+from collections import deque
 from typing import Any
 
 PPE_KEYS = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe", "ear_protection")
@@ -188,8 +189,19 @@ class PortalState(GateState):
     def reset(self) -> None:
         super().reset()
         self.atual = {"verdict": "waiting", "itens": [], "people": 0, "track_id": None}
+        # Diagnóstico do tempo até "Liberado": veredito BRUTO de cada análise
+        # desde o último reset e, nas negadas, qual item faltou.
+        self.brutos = {"approved": 0, "denied": 0, "waiting": 0}
+        self.faltas: dict[str, int] = {}
+        # As últimas análises, em ordem: (veredito, track_id) — A/D/W.
+        self.sequencia: deque[tuple[str, Any]] = deque(maxlen=120)
 
     def atualizar(self, bruto: dict[str, Any]) -> dict[str, Any]:
+        self.brutos[bruto["verdict"]] = self.brutos.get(bruto["verdict"], 0) + 1
+        self.sequencia.append((bruto["verdict"], bruto.get("track_id")))
+        for item in bruto.get("itens") or []:
+            if item["estado"] == FALTANDO:
+                self.faltas[item["key"]] = self.faltas.get(item["key"], 0) + 1
         antes = self.atual["verdict"]
         atual = super().atualizar(bruto)
         if atual["verdict"] == "approved" and antes != "approved":

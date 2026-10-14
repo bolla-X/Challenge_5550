@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import time
 
-from conftest import entrar
+from conftest import RAIZ, entrar
 
 CALIBRACAO = {"pontos_camera": [[0.05, 0.55], [0.95, 0.55], [0.98, 0.98], [0.02, 0.98]],
               "pontos_planta": [[0.42, 0.08], [0.95, 0.08], [0.95, 0.62], [0.42, 0.62]]}
@@ -275,6 +275,48 @@ def test_palco_pelo_teclado_e_pelo_celular(navegador, playwright_sessao, servido
             pagina.keyboard.press("ArrowLeft")
         pagina.wait_for_function("document.querySelector('[data-testid=palco]')?.dataset.cena === '0'", timeout=15_000)
     finally:
+        contexto.close()
+
+
+def test_palco_queda_ao_vivo_em_camera_lenta(navegador, servidor):
+    """ADENDO 2: a cena "Queda" toca a gravação a 0,25× com o rótulo sobre o vídeo, e o alerta sai ao vivo."""
+    contexto, pagina = _logado(navegador, servidor)
+    tecnico = servidor.sessao("technical")
+    try:
+        roteiro = tecnico.get(f"{servidor.base}/api/palco/roteiro", timeout=10).json()
+        indice = next(i for i, c in enumerate(roteiro["cenas"]) if c["chave"] == "queda")
+        assert roteiro["cenas"][indice]["camera_id"] == servidor.cameras["Queda"]
+        pagina.goto(f"{servidor.base}/palco")
+        pagina.locator("[data-testid=palco]").wait_for(timeout=30_000)
+        inicio = time.monotonic()
+        assert tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": indice}, timeout=10).ok
+        pagina.wait_for_function("document.querySelector('[data-testid=palco]')?.dataset.chave === 'queda'", timeout=15_000)
+        rotulo = pagina.locator("[data-testid=palco-velocidade]")
+        rotulo.wait_for(timeout=15_000)
+        assert rotulo.inner_text() == "GRAVAÇÃO · 0,25×"
+        # O alerta de queda aparece AO VIVO, na pílula sobre o vídeo da cena.
+        pilula = pagina.locator("[data-testid=pilula-incidente]", has_text="Queda")
+        pilula.wait_for(timeout=120_000)
+        segundos = time.monotonic() - inicio
+        print(f"\n[palco] queda ao vivo a 0,25× em {segundos:.1f} s desde entrar na cena")
+        # O rótulo continua sobre o vídeo no instante do alerta.
+        assert rotulo.is_visible() and rotulo.inner_text() == "GRAVAÇÃO · 0,25×"
+        caixa_video = pagina.locator("[data-testid=palco-video]").bounding_box()
+        caixa_rotulo = rotulo.bounding_box()
+        assert caixa_video["x"] <= caixa_rotulo["x"]
+        assert caixa_rotulo["y"] + caixa_rotulo["height"] <= caixa_video["y"] + caixa_video["height"]
+        # Continuação da cena: o replay do incidente entra ao lado.
+        pagina.locator(".palco-queda-replay").wait_for(timeout=15_000)
+        pasta = RAIZ / "bench" / "runtime" / "e2e-capturas"
+        pasta.mkdir(parents=True, exist_ok=True)
+        pagina.screenshot(path=str(pasta / "palco-queda-camera-lenta.png"))
+        # Saindo da cena, a gravação volta a 1×.
+        tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "proxima"}, timeout=10)
+        video = tecnico.get(f"{servidor.base}/api/cameras/{servidor.cameras['Queda']}/status", timeout=10).json()["video"]
+        assert video["velocidade"] == 1.0
+        assert not [e for e in pagina.erros_console if "Error" in e], pagina.erros_console
+    finally:
+        tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": 0}, timeout=10)
         contexto.close()
 
 

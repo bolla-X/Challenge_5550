@@ -302,6 +302,8 @@ export interface VideoStreamStatus {
   modo?: "ao_vivo" | "reconectando" | "fixture";
   /** Fonte em uso, com a credencial já redigida pelo backend. */
   fonte?: string;
+  /** 1 = velocidade original; < 1 = gravação em câmera lenta (cena "Queda" do palco). */
+  velocidade?: number;
 }
 
 // ---- app/services/camera_worker.py: diagnostico() ------------------------

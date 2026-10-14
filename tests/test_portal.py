@@ -93,6 +93,18 @@ def test_portal_libera_so_depois_de_n_analises_e_conta_um_checkin():
     assert estado.checkins == 1
 
 
+def test_portal_conta_os_vereditos_brutos_e_o_item_que_faltou():
+    estado = PortalState(confirmacoes=3)
+    ok = avaliar_portal({"people": [_pessoa({"helmet": "ok"})]}, ["helmet"], QUADRO)
+    sem = avaliar_portal({"people": [_pessoa({"helmet": "missing"})]}, ["helmet"], QUADRO)
+    for bruto in (ok, sem, ok, ok, sem):
+        estado.atualizar(bruto)
+    assert estado.brutos == {"approved": 3, "denied": 2, "waiting": 0}
+    assert estado.faltas == {"helmet": 2}
+    estado.reset()
+    assert estado.brutos == {"approved": 0, "denied": 0, "waiting": 0} and estado.faltas == {}
+
+
 
 def test_explicacao_diz_o_que_o_modelo_viu_e_o_que_foi_descartado():
     """X9: o portal explica cada item — inclusive o "capacete" que o filtro descartou."""

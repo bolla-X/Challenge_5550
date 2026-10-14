@@ -191,6 +191,10 @@ class CameraWorker:
         # CRUD de câmera) veria "mudou" e reconstruiria o worker, derrubando o
         # modo fixture no meio do demo.
         self.fonte_configurada = source
+        # Câmera lenta de gravação (cena "Queda" do palco, ADENDO 2): fração
+        # da velocidade original. Só arquivo; a tela mostra o valor (ver
+        # `tocar_gravacao`).
+        self.velocidade_gravacao = 1.0
         reserva = str(app.config.get("RTSP_FIXTURE_FALLBACK", "") or "")
         self.fonte_reserva = str(Path(BASE_DIR) / reserva) if reserva and not Path(reserva).is_absolute() else reserva
         self.tentativas_antes_da_reserva = max(1, int(app.config.get("RTSP_MAX_TENTATIVAS", 5)))
@@ -1084,6 +1088,12 @@ class CameraWorker:
         mais lenta, docs/NEXT2026/BENCHMARKS.md). A tela já rotula fixture como
         GRAVAÇÃO; ao abrir o foco, volta ao tempo real a partir de onde está.
         """
+        # Câmera lenta pedida pelo palco: ritmo fixo, também durante a
+        # confirmação de emergência — o rótulo "GRAVAÇÃO · 0,25×" na tela tem
+        # de continuar verdadeiro.
+        if self.velocidade_gravacao < 1.0:
+            fps = getattr(self.video_stream, "fps_da_fonte", None)
+            return float(fps) * self.velocidade_gravacao if fps else None
         # Confirmação de emergência em curso: a GRAVAÇÃO anda devagar por ~2 s
         # para a 2ª análise ver o mesmo evento (a queda gravada fica no chão
         # ~1 s; com a máquina carregada uma análise leva mais que isso). A
@@ -1094,6 +1104,20 @@ class CameraWorker:
         if self.espectadores > 0 or not self.app.config.get("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True):
             return None
         return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
+
+    def tocar_gravacao(self, velocidade: float = 1.0, inicio_s: float = 0.0) -> bool:
+        """Toca a gravação a `velocidade` × a original; `inicio_s` vale na próxima abertura.
+
+        Só arquivo: câmera ao vivo não tem como andar devagar (devolve False e
+        fica em 1×). A posição inicial só pega quando a fonte reabre — o palco
+        para e liga a câmera logo depois.
+        """
+        if not e_arquivo_local(self.video_stream.source):
+            self.velocidade_gravacao = 1.0
+            return False
+        self.velocidade_gravacao = min(1.0, max(0.05, float(velocidade)))
+        self.video_stream.inicio_ms = max(0.0, float(inicio_s)) * 1000.0
+        return True
 
     def _preparar_quadro(self, frame):
         """Resolução da câmera e rotação: o mesmo para o quadro publicado e o inferido."""
@@ -1809,6 +1833,8 @@ class CameraWorker:
             # A fonte em uso, redigida: e o que distingue "fixture" de "ao
             # vivo" na tela sem obrigar o operador a abrir o banco.
             "fonte": redigir_segredos(str(self.video_stream.source)),
+            # 1.0 = velocidade original; < 1 = câmera lenta de gravação (palco).
+            "velocidade": self.velocidade_gravacao,
         }
 
     def _assumir_fonte_reserva(self) -> None:
@@ -2255,7 +2281,9 @@ class CameraWorker:
         if not self.gate_required:
             return base | {"verdict": "off", "itens": [], "people": 0, "checkins": 0}
         estado = {k: v for k, v in self._portal.atual.items() if k not in ("checkin_novo", "track_id")}
-        return base | estado | {"checkins": self._portal.checkins}
+        return base | estado | {"checkins": self._portal.checkins,
+                                 "diagnostico": {"brutos": dict(self._portal.brutos), "faltas": dict(self._portal.faltas),
+                                                 "sequencia": [[v[0].upper(), t] for v, t in self._portal.sequencia]}}
 
     def set_gate(self, required: list[str] | None) -> None:
         self.gate_required = list(required) if required else None

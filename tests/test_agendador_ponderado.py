@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+import pytest
 from app.services.agendador_de_inferencia import AgendadorDeInferencia, _Slot
 
 
@@ -174,3 +175,15 @@ def test_em_prioridade_acaba_sozinha():
     assert ag.em_prioridade(7) and not ag.em_prioridade(8)
     relogio.t = 2.01
     assert not ag.em_prioridade(7)
+
+
+def test_fracao_do_foco_configuravel_ate_70_por_cento():
+    """ADENDO 2: o foco pode levar até 70 % das vagas quando ninguém está atrasado."""
+    ag = AgendadorDeInferencia(focadas=lambda: {1}, fracao_foco=0.7)
+    for cid in (1, 2, 3, 4):
+        ag.registrar(cid, lambda f, m: None, lambda r, t: None)
+    ag.parar()
+    pesos = ag.pesos({1})
+    assert pesos[1] / sum(pesos.values()) == pytest.approx(0.7)
+    assert AgendadorDeInferencia(fracao_foco=0.95).fracao_foco == 0.7  # teto
+    assert AgendadorDeInferencia(fracao_foco=0.1).fracao_foco == 0.5  # piso: o foco nunca abaixo de 50 %

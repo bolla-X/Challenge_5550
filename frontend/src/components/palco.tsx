@@ -4,6 +4,8 @@ import { useDashboardStore } from "../store/dashboardStore";
 import type { Incidente } from "../api/types";
 import { listarIncidentes } from "../api/endpoints";
 import { incidenteCritico, useCameraEstado } from "./camera-grid";
+import type { EstadoDaCamera } from "./camera-grid";
+import { formatarVelocidade } from "./feed-status";
 import { rotuloDoIncidente } from "../utils/incidentes";
 import { LiveVideo } from "./live-video";
 import { PortalScreen } from "./portal";
@@ -45,11 +47,22 @@ function maisNovo(atual: Estado | null, d: Estado): Estado {
 }
 
 function VideoDaCena({ cameraId }: { cameraId: number }) {
-  const estado = useCameraEstado(cameraId);
+  return <QuadroDaCena cameraId={cameraId} estado={useCameraEstado(cameraId)} />;
+}
+
+/** Vídeo da cena com a pílula do incidente e, em câmera lenta, a velocidade
+ * que o SERVIDOR informa (`video.velocidade`) — nunca a que a cena pediu. */
+function QuadroDaCena({ cameraId, estado }: { cameraId: number; estado: EstadoDaCamera }) {
   const inc = incidenteCritico(estado);
+  const lenta = estado.velocidade !== undefined && estado.velocidade < 1;
   return (
     <div className="palco-video" data-testid="palco-video">
       <LiveVideo cameraId={cameraId} label="Vídeo da cena" />
+      {lenta && (
+        <span className="over-pill palco-velocidade" data-testid="palco-velocidade">
+          {`GRAVAÇÃO · ${formatarVelocidade(estado.velocidade as number)}`}
+        </span>
+      )}
       {inc && (
         <span className="over-pill alert palco-pilula" role="status" data-testid="pilula-incidente">
           <span className="dot" />
@@ -120,6 +133,33 @@ function IncidenteDaCena({ cameraId, regra }: { cameraId: number | null; regra?:
   return <IncidenteDetalhe incidente={inc} inline onClose={() => undefined} />;
 }
 
+/**
+ * Cena "Queda" (ADENDO 2): a gravação da queda toca AO VIVO a 0,25× (o
+ * servidor reduz e informa; o rótulo fica sobre o vídeo) e o alerta aparece
+ * na hora. A queda da gravação fica ~0,8 s no chão: em tempo real, duas
+ * análises seguidas (a regra de emergência) não cabem nisso numa máquina sem
+ * GPU dedicada. Quando o alerta chega, o replay do incidente entra ao lado,
+ * como continuação da cena.
+ */
+function CenaDaQueda({ cameraId }: { cameraId: number }) {
+  const estado = useCameraEstado(cameraId);
+  const queda = (estado.incidentes ?? []).some((i) => i.rule === "fall_detected");
+  const [viu, setViu] = useState(false);
+  useEffect(() => {
+    if (queda) setViu(true);
+  }, [queda]);
+  return (
+    <div className={`palco-queda${viu ? " com-replay" : ""}`} data-testid="palco-queda">
+      <QuadroDaCena cameraId={cameraId} estado={estado} />
+      {viu && (
+        <div className="palco-queda-replay">
+          <IncidenteDaCena cameraId={cameraId} regra="fall_detected" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConteudoDaCena({ cena }: { cena: Cena }) {
   switch (cena.chave) {
     case "abertura":
@@ -135,12 +175,7 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
     case "enganar":
       return <PortalScreen cameraId={cena.camera_id} desafioInicial={cena.chave === "enganar"} />;
     case "queda":
-      // Incidente com o replay do momento, não o vídeo ao vivo: com o vídeo
-      // aberto a gravação anda em tempo real, e a queda da gravação fica
-      // ~0,8 s no chão, menos que duas análises numa máquina carregada (a
-      // regra de emergência exige duas). Sem espectador a gravação anda na
-      // taxa útil e a queda confirma. Ver CHANGELOG (Missão 2, PR5).
-      return <IncidenteDaCena cameraId={cena.camera_id} regra="fall_detected" />;
+      return cena.camera_id != null ? <CenaDaQueda cameraId={cena.camera_id} /> : <IncidenteDaCena cameraId={null} regra="fall_detected" />;
     case "raiox":
       return cena.camera_id != null ? <VideoDaCena cameraId={cena.camera_id} /> : <p className="palco-vazio">Câmera da cena não cadastrada.</p>;
     case "gemeo":

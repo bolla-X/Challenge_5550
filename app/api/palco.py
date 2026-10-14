@@ -59,8 +59,27 @@ def estado():
     return jsonify(_palco().publico())
 
 
+def _ajustar_velocidades(cena: dict) -> None:
+    """Câmera lenta só dura a cena: a câmera dela toca na velocidade pedida, as outras a 1×.
+
+    Síncrono (é só um atributo): quando a tela da cena consulta o status, a
+    velocidade já é a nova — o rótulo nunca mostra 1× com o vídeo lento, nem o contrário.
+    """
+    por_nome = _cameras_por_nome()
+    alvo = camera_da_cena(cena, por_nome)
+    monitor = current_app.extensions["monitor_service"]
+    for camera_id in por_nome.values():
+        try:
+            worker = monitor.worker_da_camera(camera_id)
+        except LookupError:
+            continue
+        velocidade = float(cena.get("velocidade", 1.0)) if camera_id == alvo else 1.0
+        if velocidade != worker.velocidade_gravacao:
+            worker.tocar_gravacao(velocidade, cena.get("inicio_s", 0.0) if camera_id == alvo else 0.0)
+
+
 def _preparar(app, cena: dict) -> None:
-    """Gatilho determinístico da cena: a gravação recomeça do início."""
+    """Gatilho determinístico da cena: a gravação recomeça (do início ou de `inicio_s`)."""
     if not cena.get("reiniciar"):
         return
     with app.app_context():
@@ -73,6 +92,9 @@ def _preparar(app, cena: dict) -> None:
         except LookupError:
             return
         worker.stop()
+        # O stop solta a fonte; a posição inicial vale na reabertura.
+        if cena.get("inicio_s"):
+            worker.tocar_gravacao(worker.velocidade_gravacao, cena["inicio_s"])
         worker.start()
 
 
@@ -89,6 +111,7 @@ def ir():
     except (ValueError, TypeError) as exc:
         return jsonify({"error": str(exc)}), 400
     if novo.cena != anterior:
+        _ajustar_velocidades(ROTEIRO[novo.cena])
         # Em thread: reiniciar a gravação leva ~1–2 s e o celular não espera.
         threading.Thread(target=_preparar, args=(current_app._get_current_object(), ROTEIRO[novo.cena]), daemon=True).start()
     return jsonify(palco.publico())

@@ -16,6 +16,11 @@ import type { EstadoDoStream } from "./live-video";
  * DEGRADADO não substitui nenhum destes: é um aviso À PARTE (o vídeo pode estar
  * AO VIVO e degradado ao mesmo tempo), e diz o que foi reduzido.
  */
+/** 0.25 → "0,25×": a velocidade da gravação como a tela escreve. */
+export function formatarVelocidade(v: number): string {
+  return `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}×`;
+}
+
 export type ChaveDoFeed = "parado" | "sem_sinal" | "reconectando" | "gravacao" | "ao_vivo";
 
 export function estadoDoFeed(
@@ -28,7 +33,10 @@ export function estadoDoFeed(
   if (estado.modo === "reconectando" || stream === "reconectando") {
     return { chave: "reconectando", rotulo: `Reconectando${estado.tentativas ? ` · tentativa ${estado.tentativas + 1}` : ""}` };
   }
-  if (estado.modo === "fixture" || camera?.source_type === "Arquivo") return { chave: "gravacao", rotulo: "Gravação" };
+  if (estado.modo === "fixture" || camera?.source_type === "Arquivo") {
+    const lenta = estado.velocidade !== undefined && estado.velocidade < 1;
+    return { chave: "gravacao", rotulo: lenta ? `Gravação · ${formatarVelocidade(estado.velocidade as number)}` : "Gravação" };
+  }
   return { chave: "ao_vivo", rotulo: "Ao vivo" };
 }
 

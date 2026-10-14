@@ -9,6 +9,8 @@ export type EstadoDaCamera = {
   running: boolean;
   /** De qual fonte está lendo. `undefined` num backend que não manda o campo. */
   modo?: "ao_vivo" | "reconectando" | "fixture";
+  /** Velocidade da gravação (1 = original). Só o palco a reduz. */
+  velocidade?: number;
   tentativas: number;
   /** FPS do loop de captura e resolução do frame que CHEGOU (ver types.ts). */
   diagnostico?: CameraDiagnostico;
@@ -35,6 +37,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
           setEstado({
             running: Boolean(status.running),
             modo: status.video?.modo,
+            velocidade: status.video?.velocidade,
             tentativas: status.video?.reconnect_attempts ?? 0,
             diagnostico: status.diagnostico,
             alertas: status.active_alerts ?? [],

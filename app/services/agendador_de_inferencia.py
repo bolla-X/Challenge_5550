@@ -104,6 +104,7 @@ class AgendadorDeInferencia:
         lote_max: int = 4,
         focadas: Callable[[], set[int]] | None = None,
         espera_max_s: float = 2.5,
+        fracao_foco: float = 0.5,
         relogio: Callable[[], float] = time.monotonic,
     ) -> None:
         self.lote = bool(lote)
@@ -111,6 +112,8 @@ class AgendadorDeInferencia:
         # Quem está em foco na UI agora (ver MonitorService.cameras_em_foco).
         self._focadas = focadas or (lambda: set())
         self.espera_max_s = max(0.1, float(espera_max_s))
+        # Fração das vagas do foco quando ninguém está atrasado: 0,5 a 0,7.
+        self.fracao_foco = min(0.7, max(0.5, float(fracao_foco)))
         self._relogio = relogio
         self._slots: dict[int, _Slot] = {}
         self._ordem: list[int] = []
@@ -179,6 +182,7 @@ class AgendadorDeInferencia:
                 "cameras": list(self._ordem),
                 "em_foco": sorted(self._focadas_registradas()),
                 "espera_max_s": self.espera_max_s,
+                "fracao_foco": self.fracao_foco,
                 "inferencias": self.inferencias,
                 "ultimo_erro": self.ultimo_erro,
                 "por_camera": {
@@ -216,12 +220,12 @@ class AgendadorDeInferencia:
         return focadas & set(self._slots)
 
     def pesos(self, focadas: set[int]) -> dict[int, float]:
-        """Peso de cada câmera registrada: em foco somam o número das outras (≥ 50 %)."""
+        """Peso de cada câmera registrada: as em foco somam `fracao_foco` do total (≥ 50 %)."""
         ids = list(self._slots)
         outras = [c for c in ids if c not in focadas]
         if not focadas or not outras:
             return {c: 1.0 for c in ids}
-        peso_foco = len(outras) / len(focadas)
+        peso_foco = len(outras) / len(focadas) * self.fracao_foco / (1.0 - self.fracao_foco)
         return {c: (peso_foco if c in focadas else 1.0) for c in ids}
 
     def _escolher(self) -> list[_Slot]:

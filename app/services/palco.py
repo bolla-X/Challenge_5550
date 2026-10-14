@@ -9,7 +9,11 @@ Cada cena declara como se prepara, de forma determinística:
 - `camera`: qual câmera fica em foco (nome; a primeira que existir);
 - `reiniciar`: a gravação recomeça do início ao entrar na cena (o evento da
   gravação — a queda, a aproximação — acontece sempre no mesmo segundo);
-- `raiox`: a cena liga o Modo Raio-X.
+- `raiox`: a cena liga o Modo Raio-X;
+- `velocidade` e `inicio_s`: a gravação toca em câmera lenta, a partir desse
+  segundo (cena "Queda", ADENDO 2 da MISSÃO 2). A queda da gravação fica
+  ~0,8 s no chão; a 0,25× são ~3 s, e a regra de emergência (2 análises
+  seguidas) confirma ao vivo. A tela mostra "GRAVAÇÃO · 0,25×" sobre o vídeo.
 """
 
 from __future__ import annotations
@@ -31,8 +35,8 @@ ROTEIRO: list[dict[str, Any]] = [
     {"chave": "raiox", "titulo": "Raio-X", "legenda": "O que o modelo viu, separado do que o sistema decidiu.",
      "camera": ["Pátio"], "raiox": True},
     {"chave": "gemeo", "titulo": "Gêmeo digital", "legenda": "A planta inteira ao vivo: cada pessoa na cor do seu estado, nunca foto."},
-    {"chave": "queda", "titulo": "Queda", "legenda": "Emergência atribuída a um ID de rastreio, com replay do momento.",
-     "camera": ["Escada"], "reiniciar": True},
+    {"chave": "queda", "titulo": "Queda", "legenda": "Emergência atribuída a um ID de rastreio, ao vivo e com replay do momento.",
+     "camera": ["Escada", "Queda"], "reiniciar": True, "velocidade": 0.25, "inicio_s": 4.0},
     {"chave": "incidente", "titulo": "Incidente e linha causal",
      "legenda": "Alertas agrupados por regra e zona; a história contada só com o que foi registrado.",
      "camera": ["Pátio"]},

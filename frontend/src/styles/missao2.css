@@ -216,6 +216,12 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-video { position: relative; height: 100%; min-height: 0; border-radius: var(--r-card); overflow: hidden; background: var(--overlay); }
 .palco-video canvas.live-video { width: 100%; height: 100%; display: block; }
 .palco-pilula { position: absolute; top: var(--s4); right: var(--s4); max-width: 60%; }
+/* Câmera lenta da cena "Queda": legível a 5 m, sempre sobre o vídeo. */
+.palco-velocidade { position: absolute; top: var(--s4); left: var(--s4); z-index: 3; font-size: 18px; font-weight: 600; letter-spacing: .04em; padding: 8px 14px; }
+.palco-queda { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s5); height: 100%; min-height: 0; }
+.palco-queda.com-replay { grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr); }
+.palco-queda-replay { min-height: 0; overflow: auto; }
+.palco-queda-replay .incidente-inline { max-width: none; }
 .palco-vazio { font-size: 20px; color: var(--text-2); text-align: center; padding: var(--s7); }
 .palco-cartao { max-width: 900px; margin: 0 auto; }
 .palco-qr { position: fixed; right: var(--s5); bottom: 96px; width: 132px; display: grid; gap: 4px; justify-items: center; font-size: 12px; color: var(--text-2); background: var(--surface); padding: var(--s3); border-radius: var(--r-control); box-shadow: var(--shadow-2); }

@@ -65,3 +65,34 @@ def test_operador_nao_comanda_o_palco(app_auth):
     op.post("/api/auth/login", json={"email": "op@x.local", "password": SENHA})
     assert op.post("/api/palco/ir", json={"acao": "proxima"}).status_code == 403
     assert op.get("/api/palco/controle").status_code == 403
+
+
+def test_camera_lenta_so_dura_a_cena_da_queda(app_auth, tmp_path, monkeypatch):
+    """Entrar na cena "Queda" põe a gravação dela a 0,25× ANTES de responder; sair volta a 1×."""
+    import cv2
+    import numpy as np
+    from app.api import palco as api_palco
+    from app.models import Camera
+
+    gravacao = tmp_path / "queda.avi"
+    escritor = cv2.VideoWriter(str(gravacao), cv2.VideoWriter_fourcc(*"MJPG"), 10, (64, 48))
+    for _ in range(10):
+        escritor.write(np.zeros((48, 64, 3), dtype=np.uint8))
+    escritor.release()
+    with app_auth.app_context():
+        db.session.add(Camera(name="Queda", source_type="Arquivo", source=str(gravacao), fps=12, width=64, height=48))
+        db.session.commit()
+        monitor = app_auth.extensions["monitor_service"]
+        monitor.load_cameras_from_db()
+        worker = monitor.worker_da_camera(Camera.query.filter_by(name="Queda").one().id)
+    preparadas = []
+    monkeypatch.setattr(api_palco, "_preparar", lambda app, cena: preparadas.append(cena["chave"]))  # sem ligar câmera
+    tecnico = app_auth.test_client()
+    tecnico.post("/api/auth/login", json={"email": "tec@x.local", "password": SENHA})
+    queda = next(i for i, c in enumerate(ROTEIRO) if c["chave"] == "queda")
+
+    assert tecnico.post("/api/palco/ir", json={"acao": "ir", "indice": queda}).status_code == 200
+    assert worker.velocidade_gravacao == 0.25
+    assert worker.video_state()["velocidade"] == 0.25
+    tecnico.post("/api/palco/ir", json={"acao": "proxima"})
+    assert worker.velocidade_gravacao == 1.0

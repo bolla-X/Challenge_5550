@@ -214,6 +214,7 @@ class MonitorService:
                 lote=bool(app.config.get("INFERENCIA_LOTE", False)),
                 focadas=self.cameras_em_foco,
                 espera_max_s=float(app.config.get("INFERENCIA_ESPERA_MAX_S", 2.5)),
+                fracao_foco=float(app.config.get("INFERENCIA_FRACAO_FOCO", 0.5)),
             )
             if app.config.get("INFERENCIA_ASSINCRONA", True)
             else None

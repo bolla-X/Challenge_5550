@@ -44,6 +44,7 @@ def main() -> None:
     ap.add_argument("--segundos", type=float, default=90)
     ap.add_argument("--zona", action="store_true", help="zona na metade direita da câmera em foco (como o E2E do F3)")
     ap.add_argument("--portal", action="store_true", help="liga o portal (capacete+colete) na câmera em foco e mede até 'Liberado'")
+    ap.add_argument("--repeticoes", type=int, default=1, help="com --portal: zera o portal e mede de novo N vezes")
     ap.add_argument("--env", action="append", default=[])
     a = ap.parse_args()
     porta = _porta_livre()
@@ -104,14 +105,25 @@ def main() -> None:
 
         threading.Thread(target=assistir, daemon=True).start()
         liberado_em = None
+        portal: list[dict] = []
         if a.portal:
-            s.put(f"{base}/api/cameras/{foco}/gate", json={"required": ["helmet", "vest"]}, timeout=10)
-            inicio = time.monotonic()
-            while time.monotonic() - inicio < a.segundos:
-                estado = s.get(f"{base}/api/cameras/{foco}/portal", timeout=10).json()
-                if estado.get("verdict") == "approved" and liberado_em is None:
-                    liberado_em = round(time.monotonic() - inicio, 1)
-                time.sleep(0.6)
+            comeco = time.monotonic()
+            for _ in range(max(1, a.repeticoes)):
+                # Gravar a portaria zera o estado e os contadores brutos do portal.
+                s.put(f"{base}/api/cameras/{foco}/gate", json={"required": ["helmet", "vest"]}, timeout=10)
+                inicio = time.monotonic()
+                medida = {"liberado_em_s": None}
+                while time.monotonic() - inicio < a.segundos:
+                    estado = s.get(f"{base}/api/cameras/{foco}/portal", timeout=10).json()
+                    if estado.get("verdict") == "approved":
+                        medida["liberado_em_s"] = round(time.monotonic() - inicio, 1)
+                        break
+                    time.sleep(0.2)
+                medida |= estado.get("diagnostico") or {}
+                portal.append(medida)
+                print(json.dumps(medida, ensure_ascii=False), flush=True)
+            liberado_em = portal[0]["liberado_em_s"]
+            a.segundos = round(time.monotonic() - comeco)
         else:
             time.sleep(a.segundos)
         d = s.get(f"{base}/api/diagnostics/pipeline?janela_s={int(a.segundos)}", timeout=10).json()
@@ -135,6 +147,7 @@ def main() -> None:
         "pre_alertas_registrados": sum(1 for e in eventos if e.get("event_type") == "approach_risk_area"),
         "alertas_de_queda": sum(1 for e in eventos if "Queda" in (e.get("message") or "")),
         "portal_liberado_em_s": liberado_em if a.portal else None,
+        "portal": portal,
     }
     destino = RAIZ / "bench" / "results" / f"diagnostico-foco-{datetime.now():%Y%m%d-%H%M%S}.json"
     destino.write_text(json.dumps(saida, indent=2, ensure_ascii=False), encoding="utf-8")
