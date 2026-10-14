@@ -62,7 +62,8 @@ def medir(raiz: Path, fixture: Path, segundos: float, rotulo: str) -> dict:
     runtime = RAIZ / "bench" / "runtime"
     runtime.mkdir(parents=True, exist_ok=True)
     banco = runtime / f"incidentes-{rotulo}.db"
-    banco.unlink(missing_ok=True)
+    for sufixo in ("", "-journal", "-wal", "-shm"):  # WAL: os arquivos auxiliares velhos corromperiam o banco novo
+        Path(str(banco) + sufixo).unlink(missing_ok=True)
     senha = secrets.token_urlsafe(16)
     env = os.environ.copy() | {
         "VISIONEPI_DOTENV": "0",

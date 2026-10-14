@@ -30,6 +30,17 @@ servida e paga o total. As câmeras em foco somam peso igual ao número das
 outras — pelo menos 50 % das vagas — e as demais dividem o resto. Uma guarda
 de espera máxima (`espera_max_s`, padrão 2,5 s) serve primeiro a câmera
 pendente há mais tempo sem inferência, para nenhuma ficar sem análise.
+
+Quando a máquina não dá conta das duas metas ao mesmo tempo (vazão abaixo de
+~2 análises/s com 4 câmeras, medido com a CPU a 100 % por outros processos), o
+foco vence: depois de uma vaga fora do foco, a próxima é do foco. As outras
+continuam sendo servidas em rodízio, só mais devagar.
+
+**Prioridade de confirmação.** Uma análise que vê sinal de emergência (a
+classe de queda) pede `priorizar(camera, s)`: por alguns segundos essa câmera
+é servida primeiro sempre que tiver quadro novo. A regra de emergência continua
+exigindo 2 análises seguidas — o que muda é que a 2ª vem logo, em vez de
+esperar a vez no rodízio (a queda da gravação fica no chão ~1 s).
 """
 
 from __future__ import annotations
@@ -103,6 +114,10 @@ class AgendadorDeInferencia:
         self._relogio = relogio
         self._slots: dict[int, _Slot] = {}
         self._ordem: list[int] = []
+        # câmera -> até quando (relógio) ela passa à frente (prioridade de confirmação)
+        self._prioridade_ate: dict[int, float] = {}
+        # A última vaga foi de uma câmera em foco? (garante ≥ 1 de cada 2 ao foco)
+        self._ultima_foi_foco = False
         self._cond = threading.Condition()
         self._rodando = threading.Event()
         self._thread: threading.Thread | None = None
@@ -138,6 +153,11 @@ class AgendadorDeInferencia:
                     slot.stats.contar("inferencias_descartadas")
             slot.frame, slot.ts_ms, slot.pendente = frame, ts_ms, True
             self._cond.notify()
+
+    def priorizar(self, camera_id: int, segundos: float = 2.0) -> None:
+        """Serve esta câmera primeiro por `segundos` (sinal de emergência a confirmar)."""
+        with self._cond:
+            self._prioridade_ate[camera_id] = self._relogio() + max(0.0, float(segundos))
 
     def pendentes(self) -> int:
         with self._cond:
@@ -207,7 +227,15 @@ class AgendadorDeInferencia:
         escolhidos: list[_Slot] = []
         while pendentes and len(escolhidos) < limite:
             atrasados = [s for s in pendentes if agora - s.ultimo_servico >= self.espera_max_s]
-            if atrasados:
+            urgentes = [s for s in pendentes if self._prioridade_ate.get(s.camera_id, 0.0) > agora]
+            em_foco = [s for s in pendentes if s.camera_id in focadas]
+            if urgentes:
+                slot = urgentes[0]
+            elif atrasados and em_foco and not self._ultima_foi_foco and len(em_foco) < len(pendentes):
+                # Máquina lenta: a guarda das outras dispararia sempre e o foco
+                # cairia a 1/N. A vaga alterna — o foco nunca fica abaixo de 50 %.
+                slot = min(em_foco, key=lambda s: s.ultimo_servico)
+            elif atrasados:
                 slot = min(atrasados, key=lambda s: s.ultimo_servico)
             else:
                 total = sum(pesos.get(s.camera_id, 1.0) for s in pendentes)
@@ -217,6 +245,7 @@ class AgendadorDeInferencia:
                 slot.credito -= total
             pendentes.remove(slot)
             escolhidos.append(slot)
+            self._ultima_foi_foco = slot.camera_id in focadas
         for slot in escolhidos:
             slot.pendente = False
             slot.ultimo_servico = agora

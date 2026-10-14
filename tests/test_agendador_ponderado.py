@@ -77,12 +77,17 @@ def test_nenhuma_camera_fica_mais_de_3_s_sem_inferencia():
         assert _maior_espera(ordem, cid) <= 3.0, (cid, _maior_espera(ordem, cid))
 
 
-def test_guarda_de_espera_vence_o_peso_quando_a_inferencia_e_lenta():
-    # Com 0,9 s por inferência o ciclo ponderado (6 vagas = 5,4 s) deixaria as
-    # outras 5,4 s sem análise; a guarda (2,5 s) corta isso.
+def test_inferencia_lenta_foco_vence_e_as_outras_tem_espera_limitada():
+    """Com 0,9 s por inferência não dá para ter foco ≥ 50 % E cada outra a cada 3 s.
+
+    Decisão (CHANGELOG, P0.1): o foco vence; as outras continuam em rodízio,
+    com espera limitada a uma volta (2 × 3 vagas), nunca paradas.
+    """
     ordem, _ = _simular({1}, custo_s=0.9)
+    contagem = Counter(c for _, c in ordem)
+    assert contagem[1] / len(ordem) >= 0.5, contagem
     for cid in (2, 3, 4):
-        assert _maior_espera(ordem, cid) <= 2.5 + 0.9 * 3, cid
+        assert _maior_espera(ordem, cid) <= 2 * 3 * 0.9 + 1e-6, cid
 
 
 def test_duas_cameras_em_foco_dividem_a_metade_do_foco():
@@ -131,3 +136,37 @@ def test_monitor_considera_video_aberto_e_consulta_do_portal():
     monitor.espectadores[7] = 0
     monitor._foco_lease[9] = 0.0  # lease vencido
     assert MonitorService.cameras_em_foco(monitor) == set()
+
+
+def test_prioridade_de_confirmacao_serve_a_camera_da_emergencia_logo():
+    """Análise com sinal de queda: a próxima vaga é da câmera dela, mesmo fora de foco."""
+    relogio = _Relogio()
+    ag = AgendadorDeInferencia(focadas=lambda: {1}, relogio=relogio)
+    for cid in (1, 2, 3, 4):
+        slot = _Slot(cid, _nada, _nada)
+        ag._slots[cid] = slot
+        ag._ordem.append(cid)
+    ag.priorizar(3, 2.0)
+    servidos = []
+    for _ in range(4):
+        for slot in ag._slots.values():
+            slot.pendente = True
+        with ag._cond:
+            servidos.append(ag._escolher()[0].camera_id)
+        relogio.t += 0.4
+    assert servidos[:4] == [3, 3, 3, 3]  # 1,6 s dentro da janela de 2 s
+    # Depois da janela, volta o rodízio ponderado (a câmera 1, em foco, é a próxima).
+    relogio.t = 2.1
+    for slot in ag._slots.values():
+        slot.pendente = True
+    with ag._cond:
+        assert ag._escolher()[0].camera_id == 1
+
+
+def test_maquina_lenta_o_foco_ainda_fica_com_metade():
+    """Com 1,4 s por inferência a guarda das outras dispararia sempre; o foco não cai a 1/4."""
+    ordem, _ = _simular({2}, custo_s=1.4)
+    contagem = Counter(c for _, c in ordem)
+    assert contagem[2] / len(ordem) >= 0.5, contagem
+    outras = [contagem[c] for c in (1, 3, 4)]
+    assert min(outras) > 0 and max(outras) - min(outras) <= 1, contagem  # ninguém para de ser servido

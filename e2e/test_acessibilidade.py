@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 import pytest
+
 from conftest import RAIZ, entrar
 
 AXE = RAIZ / "frontend" / "node_modules" / "axe-core" / "axe.min.js"

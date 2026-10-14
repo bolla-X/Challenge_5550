@@ -338,6 +338,10 @@ class Config:
     INFERENCIA_ESPERA_MAX_S = env_float("INFERENCIA_ESPERA_MAX_S", 2.5)
     # Quanto tempo uma consulta do portal (polling) mantém a câmera em foco.
     FOCO_LEASE_S = env_float("FOCO_LEASE_S", 3.0)
+    # Prioridade de confirmação: análise que vê um destes rótulos pede a próxima
+    # análise da câmera logo (a regra de emergência continua exigindo 2 seguidas).
+    ROTULOS_DE_EMERGENCIA = os.getenv("ROTULOS_DE_EMERGENCIA", "fall_detected")
+    PRIORIDADE_EMERGENCIA_S = env_float("PRIORIDADE_EMERGENCIA_S", 2.0)
     # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
     # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
     # Modo privacidade (F4): desfoque de rosto em tudo que sai do worker.

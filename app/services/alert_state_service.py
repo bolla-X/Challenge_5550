@@ -348,13 +348,18 @@ class AlertStateService:
                     logger.info("alert_resolved", extra={"alert": payload})
                 del self._states[key]
 
-        if pendentes and self.custodia and novos:
+        if pendentes:
+            self.repository.salvar()
+        if self.custodia and novos:
+            # Elos dos alertas DEPOIS do commit deles, numa transação curta e
+            # sob a trava da cadeia. Na mesma transação dos alertas o worker
+            # segurava a escrita do SQLite esperando a trava, enquanto o
+            # gravador segurava a trava esperando o SQLite: inversão de ordem
+            # de travas, "database is locked" no E2E com 4 câmeras.
             with lote_de_alertas() as anexar:
                 for alerta in novos:
                     anexar(alerta)
                 self.repository.salvar()
-        elif pendentes:
-            self.repository.salvar()
         for evento, payload in pendentes:
             self._emitir(evento, payload)
         active = self.active_alerts()

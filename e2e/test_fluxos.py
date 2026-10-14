@@ -357,10 +357,8 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
         )
         # Tempo até "Liberado" com as 4 câmeras ligadas (resumo da MISSÃO 2).
         segundos = time.monotonic() - inicio
-        print(f"
-[portal] Liberado em {segundos:.1f} s com 4 câmeras ligadas")
-        (RAIZ / "bench" / "runtime" / "portal-liberado.txt").write_text(f"{segundos:.1f}
-", encoding="utf-8")
+        print(f"\n[portal] Liberado em {segundos:.1f} s com 4 câmeras ligadas")
+        (RAIZ / "bench" / "runtime" / "portal-liberado.txt").write_text(f"{segundos:.1f}\n", encoding="utf-8")
         assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
         assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
         _todas_ligadas(servidor)

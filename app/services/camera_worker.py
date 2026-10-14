@@ -422,6 +422,9 @@ class CameraWorker:
         self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
         # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
         self.andon = ContadorDeMinutos()
+        self._rotulos_de_emergencia = frozenset(
+            r.strip() for r in str(app.config.get("ROTULOS_DE_EMERGENCIA", "fall_detected")).split(",") if r.strip()
+        )
         if app.config.get("LIGA_ATIVA", True) and camera_id is not None:
             self.andon.ao_fechar_conforme = self._minuto_conforme_na_liga
         # Aprendizado ativo (G9): fila compartilhada, injetada pelo MonitorService.
@@ -1169,6 +1172,7 @@ class CameraWorker:
                 except Exception as exc:  # noqa: BLE001
                     self._last_error = redigir_segredos(str(exc))
                     logger.exception("monitor_loop_error", extra={"camera_id": self.camera_id, "error": str(exc)})
+                    self._recuperar_sessao()
                     time.sleep(1.0)
 
                 elapsed = time.perf_counter() - start_time
@@ -1257,6 +1261,10 @@ class CameraWorker:
                     except Exception as exc:  # noqa: BLE001
                         self._last_error = redigir_segredos(str(exc))
                         logger.exception("monitor_loop_error", extra={"camera_id": self.camera_id, "error": str(exc)})
+                        # Sem rollback, uma falha de banco (ex.: "database is locked")
+                        # deixava a sessão desta thread inutilizável e o worker
+                        # repetia o mesmo erro para sempre (E2E da MISSÃO 2).
+                        self._recuperar_sessao()
                         time.sleep(0.5)
                     self.stats.duracao("loop_total", (time.perf_counter() - inicio) * 1000.0)
         finally:
@@ -1330,6 +1338,13 @@ class CameraWorker:
                     self._gravar_clipe(pendente, quadros)
         self.stats.duracao("replay", (time.perf_counter() - inicio) * 1000.0)
 
+    @staticmethod
+    def _recuperar_sessao() -> None:
+        try:
+            db.session.rollback()
+        except Exception:  # noqa: BLE001  (a sessão já pode estar sem conexão; a próxima volta abre outra)
+            pass
+
     def _minuto_conforme_na_liga(self, indice_do_minuto: int) -> None:
         """X8: um minuto com gente na câmera e todo mundo conforme vale 1 ponto ao setor."""
         from datetime import datetime, timezone
@@ -1345,6 +1360,12 @@ class CameraWorker:
 
     def _receber_analise(self, analise: FrameAnalysis, ts_ms: float) -> None:
         """Callback do agendador (thread dele): guarda a análise pronta."""
+        # Sinal de emergência: a próxima análise desta câmera vem logo, para a
+        # regra de 2 análises seguidas caber na janela curta do evento.
+        if self.agendador is not None and self.camera_id is not None and any(
+            d.label in self._rotulos_de_emergencia for d in analise.detections
+        ):
+            self.agendador.priorizar(self.camera_id, float(self.app.config.get("PRIORIDADE_EMERGENCIA_S", 2.0)))
         with self._thread_lock:
             self._analise_recente = analise
             self._versao_analise += 1

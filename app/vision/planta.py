@@ -133,7 +133,9 @@ def recortar(poligono: list[Ponto], recorte: list[Ponto]) -> list[Ponto]:
                 saida.append(cruzamento(anterior, atual, a, b))
         if not saida:
             return []
-    return saida
+    # Vértice repetido (a zona encosta num canto do recorte) não vira lado de tamanho zero.
+    unicos = [p for i, p in enumerate(saida) if abs(p[0] - saida[i - 1][0]) > 1e-9 or abs(p[1] - saida[i - 1][1]) > 1e-9]
+    return unicos if len(unicos) >= 3 else []
 
 
 def poligono_na_planta(poligono: list[Ponto], calibracao: dict[str, Any]) -> list[Ponto]:

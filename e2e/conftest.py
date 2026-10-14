@@ -50,7 +50,8 @@ class ServidorE2E:
         runtime = RAIZ / "bench" / "runtime"
         runtime.mkdir(parents=True, exist_ok=True)
         banco = runtime / "e2e.db"
-        banco.unlink(missing_ok=True)
+        for sufixo in ("", "-journal", "-wal", "-shm"):  # WAL: os arquivos auxiliares velhos corromperiam o banco novo
+            Path(str(banco) + sufixo).unlink(missing_ok=True)
         self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}

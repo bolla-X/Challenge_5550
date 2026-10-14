@@ -1,9 +1,8 @@
-# DEMO — roteiro de 5 minutos
+# DEMO: roteiro da final
 
-Só entra aqui o que passou no E2E (`e2e/test_fluxos.py`), na ordem
-**antes → durante → depois**. O teste que sustenta cada momento está indicado.
-O SOS por gesto (G3) **não** entra: não há vídeo de licença livre com alguém
-erguendo os braços para verificá-lo com vídeo real.
+Só entra aqui o que passou no E2E (`e2e/test_fluxos.py`, `e2e/test_missao2.py`),
+com as **4 câmeras ligadas** e sem pausa de contorno. O teste que sustenta cada
+momento está indicado.
 
 ## Antes da banca (uma vez, com internet)
 
@@ -17,57 +16,65 @@ offline.
 ## Subir
 
 ```bash
-python run.py --demo
+python run.py --demo --https
 ```
 
+- `--https` é o que deixa o **celular** alcançar o notebook (controle do palco
+  e celular como câmera). Aceite o aviso do certificado autoassinado uma vez,
+  no notebook e no celular. Sem `--https` tudo funciona no notebook; só o
+  celular fica de fora (o teclado continua mandando no palco);
 - cria `instance/demo/demo.db` do zero, isolado do banco do dia a dia;
 - imprime **só no terminal** três contas (`supervisor@`, `tecnico@`,
   `operador@demo.local`) com senha gerada agora — anote antes de projetar;
-- câmeras:
-  - Canteiro (setor Obra), Pátio (Expedição) e Escada (Manutenção), da
-    gravação, com o rótulo **GRAVAÇÃO**;
-  - a webcam do notebook vira **Portal** (Portaria), com o rótulo **AO VIVO**;
-- sem webcam, o Portal usa a gravação do Canteiro;
-- EPIs ligados: capacete, colete e luvas — óculos, máscara, calçado e protetor
-  auricular ficam desligados na demo para não encher a tela de alertas;
-- tema claro (melhor no projetor); LLM desligado;
-- boot até responder: ~70 s nesta máquina (aquecimento dos modelos na iGPU).
+- câmeras: Canteiro (Obra), Pátio (Expedição) e Escada (Manutenção), das
+  gravações, rotuladas **GRAVAÇÃO**, calibradas na mesma planta (gêmeo 3D); a
+  webcam vira **Portal** (Portaria), **AO VIVO**; sem webcam, o Portal usa o
+  Canteiro;
+- **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
+- quatro missões de turno da equipe (Liga de Setores);
+- tema claro (projetor); LLM desligado; boot até responder: ~70 s.
 
-Abra `http://127.0.0.1:5000` e entre como **supervisor**.
+Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
+`/palco` (atalho na Visão geral: "Apresentação").
 
-## Roteiro (5 min)
+## O palco
 
-| min | momento | o que fazer | o que deve aparecer | E2E |
-|---|---|---|---|---|
-| 0:00 | **Portal de Entrada** (G1) — *antes* | em outra aba: `/portal`; um jurado para diante da webcam | checklist só com Capacete e Colete; cada item confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado; contador de check-ins sobe | `test_portal_de_entrada_confirma_itens_e_libera` |
-| 0:40 | **Tracking e EPI** — *durante* | Câmeras → Pátio | caixas "Pessoa N" (número de rastreio, não identidade); pílula de alerta "Sem capacete — Pessoa N"; rosto desfocado | `test_alerta_surge_para_pessoa_sem_epi`, `test_login_e_video_aparece` |
-| 1:20 | **Aproximação e zona** (F3) | no Pátio, olhar a faixa da direita | pílula amarela "Aproximação · Pessoa N · ~X s (projeção cinemática)" antes de entrar; depois "Pessoa em área de risco" | `test_pill_de_aproximacao_aparece` |
-| 1:50 | **Planta baixa** (G5) | aba Planta (já calibrada) | pontos de cada pessoa na planta, zona vermelha, calor | `test_planta_baixa_calibra_com_8_cliques_e_mostra_pes` |
-| 2:20 | **Replay com privacidade** (F1/F4) | aba Alertas → abrir o grupo de uma pessoa → Ver replay | clipe de ~8 s com a caixa e o rosto desfocado; a privacidade só o supervisor desliga | `test_replay_do_incidente_abre_e_toca`, `test_privacidade_so_o_supervisor_altera` |
-| 2:50 | **Diagnóstico** (F5) — *depois* | aba Diagnóstico | "OPENVINO em GPU" nos três modelos; FPS e idade da análise medidos | `test_diagnostico_mostra_o_runtime_ativo` |
-| 3:20 | **Prova de escala** (F10) | grade → Prova de escala → 4 → Iniciar | tabela com vídeo e análise por câmera virtual, números desta máquina; "Encerrar e remover" | `test_prova_de_escala_sobe_cameras_virtuais_e_remove` |
-| 3:50 | **Você vs. a IA** (G2) | `/desafio`, um jurado joga 1 rodada | depois do tempo: gabarito, acertos/erros da pessoa e da IA com a mesma regra | `test_voce_vs_ia_mostra_placar_honesto` |
-| 4:30 | **Modo TV** (G8) | `/tv` (ou Visão geral) | um bloco por setor: conformidade agora, minutos seguidos com 100 %, metas, check-ins do portal | `test_modo_tv_mostra_setores_e_metas_do_supervisor` |
+- **Espaço** ou **→** avança, **←** volta; **Q** mostra/esconde o QR.
+- O QR (canto inferior direito) abre `/palco/controle` no celular: botões
+  grandes de anterior/próxima e o nome da cena. O link vale só para mudar a cena.
+- **X** liga/desliga o Raio-X em qualquer vídeo.
+- Cada cena prepara o próprio estado: a câmera certa em foco, o Raio-X quando
+  pede, e a gravação da queda recomeça do início ao entrar na cena.
 
-Se sobrar tempo: Relatório do turno (com a NR-6) e `/rotular`.
+## Roteiro (≈ 7 min)
+
+| cena | o que fazer | o que aparece | E2E |
+|---|---|---|---|
+| 1 VisionEPI | abrir | câmeras no ar, pessoas na planta e incidentes ativos **agora**, nesta máquina | `test_palco_pelo_teclado_e_pelo_celular` |
+| 2 Portal de Entrada | um jurado diante da webcam | só os EPIs exigidos; confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado; check-in conta para a Liga | `test_portal_de_entrada_confirma_itens_e_libera` |
+| 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("viu com 0,31, abaixo do piso — descartado"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
+| 4 Raio-X | olhar o Pátio | esqueleto, barras de confiança por classe com o piso, detecções descartadas, trilhas de 5 s, vetor de velocidade, decisão separada da confiança | `test_raio_x_liga_pela_tecla_x` |
+| 5 Gêmeo digital | arrastar para orbitar; "Visão de drone"; tocar numa pessoa | cápsulas na cor do estado; linha do tempo e replay da pessoa | `test_gemeo_3d_mostra_pessoas_e_desenha_a_30_fps` |
+| 6 Queda | esperar ~6 s | pílula "Queda detectada · Pessoa N" | `test_queda_do_modelo_chega_ao_navegador_com_id` |
+| 7 Incidente e linha causal | trocar de ID nas abas; "ver quadro"; **Reconhecer** | "13:02:10 aproximou-se… → entrou na zona sem capacete → permaneceu 38 s → reconhecido em 6 s"; reconhecer rápido dá ponto ao setor | `test_incidente_linha_causal_e_custodia_integra` |
+| 8 Cadeia de custódia | **Verificar integridade** | "Evidências íntegras" e o hash do último elo | `test_auditoria_verifica_a_cadeia_inteira` |
+| 9 Simulador "E se?" | arrastar um vértice da zona, **Reprocessar** | quantos alertas teriam disparado, lado a lado com os reais | `test_simulador_reprocessa_e_nunca_muda_alerta_real` |
+| 10 Liga de Setores | olhar o placar | pontos que entraram na demo (check-in, reconhecimento), missões do turno, nível da planta | `test_liga_missao_cumprida_celebra_e_pontua_o_setor` |
+| 11 Retrospectiva | deixar rodar ou → | stories do turno com dados reais; **Baixar PNG** | `test_retrospectiva_exporta_card_em_png` |
+| 12 Obrigado | — | os números do momento, de novo | — |
+
+Se sobrar tempo: Modo TV (`/tv`), relatório do turno (NR-6), `/rotular`,
+celular como câmera.
 
 ## Reset entre apresentações (< 10 s)
-
-Em outro terminal, na pasta do projeto:
 
 ```bash
 flask --app wsgi demo reset
 ```
 
-Medido nesta máquina: 7,7–9,7 s o comando inteiro, dos quais 0,6–2,6 s no
-servidor. O comando:
-
-- limpa alertas, eventos, clipes e a fila de rótulos;
-- recria os workers (zera histerese, Andon, portal e sinais);
-- religa as câmeras.
-
-As contas continuam as mesmas. Sem servidor no ar, o comando limpa direto o
-banco da demo.
+Limpa alertas, incidentes, eventos, clipes, a cadeia de custódia, os pontos da
+Liga e a fila de rótulos; recria os workers e religa as câmeras. As contas e as
+missões continuam. Sem servidor no ar, limpa direto o banco da demo.
 
 ## Números ao vivo (≤ 5 min)
 
@@ -75,19 +82,16 @@ banco da demo.
 python scripts/bench.py --rapido
 ```
 
-Perfil atual, 1 e 4 câmeras, 60 s cada. Os números do BENCHMARKS.md vieram de
-uma máquina com 13–42 % de CPU de terceiros; este comando mede **na máquina da
-banca**.
-
 ## Plano B por falha
 
 | falha | o que acontece | o que fazer |
 |---|---|---|
-| webcam não abre | o Portal usa a gravação do Canteiro (mensagem no terminal) | seguir o roteiro; o Portal mostra itens da gravação |
-| câmera para / some | pílula "Reconectando, tentativa N"; volta sozinha | esperar ~10 s ou "Iniciar câmera" na tela dela |
-| tela travada / estranha | — | `flask --app wsgi demo reset` (< 10 s) e recarregar a página |
+| tudo falhou | — | tocar o **vídeo de backup** da demo (seção abaixo) |
+| celular não abre o controle | sem `--https`, ou outra rede | seguir pelo teclado do notebook (→ / ←) |
+| webcam não abre | o Portal usa a gravação do Canteiro | seguir; o portal mostra itens da gravação |
+| câmera para / some | pílula "Reconectando, tentativa N"; volta sozinha | esperar ~10 s ou "Iniciar câmera" |
+| tela estranha | — | `flask --app wsgi demo reset` e recarregar |
+| sem WebGL no projetor | o gêmeo cai para a planta 2D sozinho | seguir |
 | sem internet | nada muda: a demo é offline | — |
-| porta 5000 ocupada | `run.py` não sobe | `PORT=5050 python run.py --demo` (e `PORT=5050` também no reset) |
-| "o banco da demo está em uso" | outra demo já está rodando | fechar a outra (Ctrl+C) |
+| porta 5000 ocupada | `run.py` não sobe | `PORT=5050` nos dois comandos |
 | GPU Intel indisponível | runtime cai para ONNX/CPU (aparece no Diagnóstico) | seguir; a análise fica mais lenta, o vídeo não |
-| queda não aparece na Escada | a queda da gravação dura ~1 s; o alerta exige 2 análises seguidas | não está no roteiro; se perguntarem, mostrar o E2E `test_queda_do_modelo_chega_ao_navegador_com_id` |

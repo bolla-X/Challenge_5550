@@ -69,7 +69,7 @@ def preparar_ambiente() -> None:
         raise SystemExit(f"[demo] gravações ausentes em tests/fixtures: {', '.join(faltando)}. "
                          "Rode uma vez, com internet: python scripts/fetch_fixtures.py")
     PASTA.mkdir(parents=True, exist_ok=True)
-    for arquivo in (BANCO, Path(str(BANCO) + "-journal")):
+    for arquivo in (BANCO, Path(str(BANCO) + "-journal"), Path(str(BANCO) + "-wal"), Path(str(BANCO) + "-shm")):
         try:
             if arquivo.exists():
                 arquivo.unlink()

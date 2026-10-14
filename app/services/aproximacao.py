@@ -70,14 +70,20 @@ class EstimadorDeAproximacao:
     velocidade_minima: float = 0.02
     suavizacao: float = 0.5
     amostras_minimas: int = 3
-    validade_s: float = 2.0
+    # Uma trilha sobrevive a este tempo sem análise. Era 2 s: com 4 câmeras numa
+    # máquina carregada a câmera em foco recebe ~0,5 análise/s (medido,
+    # scripts/diagnostico_foco.py) e a trilha recomeçava antes da 3ª amostra —
+    # a projeção nunca saía. 6 s cobre 3 análises a 0,5/s.
+    validade_s: float = 6.0
     _trilhas: dict[int, _Trilha] = field(default_factory=dict)
+    _ultima_analise: float = -1.0
 
     def reset(self) -> None:
         self._trilhas.clear()
 
     def atualizar(self, pessoas: list[tuple[int, Ponto]], agora: float) -> None:
         """`pessoas`: (track_id, ponto dos pés normalizado), uma vez por inferência."""
+        self._ultima_analise = agora
         for track_id, pos in pessoas:
             trilha = self._trilhas.get(track_id)
             if trilha is None or agora - trilha.t > self.validade_s:
@@ -104,6 +110,8 @@ class EstimadorDeAproximacao:
             return []
         saida = []
         for track_id, trilha in self._trilhas.items():
+            if trilha.t != self._ultima_analise:
+                continue  # não está na análise atual: saiu de cena ou foi encoberta
             if trilha.amostras < self.amostras_minimas or ponto_no_poligono(trilha.pos, poligono):
                 continue
             rapidez = (trilha.vel[0] ** 2 + trilha.vel[1] ** 2) ** 0.5
