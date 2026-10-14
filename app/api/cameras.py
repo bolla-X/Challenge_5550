@@ -352,7 +352,7 @@ def camera_video_feed(camera_id: int):
                         overlay = worker.overlay_do_quadro()
                 ultima_versao = versao
                 ultimo_envio = agora
-                body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
+                body = jpeg or placeholder_jpeg("Sem sinal")
                 # X-Capture-Ts: instante de captura (epoch ms). Quem le o stream
                 # por fetch (bench, player em canvas) mede a idade do quadro na tela.
                 carimbo = f"X-Frame-Id: {versao}\r\nX-Capture-Ts: {capturado_em:.1f}\r\n" if jpeg and capturado_em else ""
@@ -519,7 +519,7 @@ def camera_frame(camera_id: int):
         jpeg, _versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
     except LookupError:
         jpeg = None
-    resposta = Response(jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame"), mimetype="image/jpeg")
+    resposta = Response(jpeg or placeholder_jpeg("Sem sinal"), mimetype="image/jpeg")
     resposta.headers["Cache-Control"] = "no-store"
     return resposta
 

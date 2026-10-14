@@ -423,7 +423,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 /* ---------------- Login ------------------------------------------------- */
 .login-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; justify-items: center; gap: var(--s6); padding: var(--s5); background: var(--canvas); }
 .login-marca { align-self: stretch; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: var(--s6); padding: var(--s7); border-radius: 28px; background: var(--v-fundo); color: var(--v-texto); }
-.login-marca-titulo { margin: 0; max-width: 16ch; font-size: clamp(36px, 3.6vw, 56px); line-height: 1.06; font-weight: 600; letter-spacing: -.035em; }
+.login-marca-titulo { margin: 0; color: var(--v-texto); max-width: 16ch; font-size: clamp(36px, 3.6vw, 56px); line-height: 1.06; font-weight: 600; letter-spacing: -.035em; }
 .login-fatos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s4); font-size: 17px; color: color-mix(in srgb, var(--v-texto) 82%, transparent); }
 .login-fatos li { display: flex; align-items: center; gap: var(--s3); }
 .login-fatos svg { color: var(--v-info); }
@@ -494,7 +494,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .home-tile svg { color: var(--accent); margin-bottom: auto; }
 .home-tile strong { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
 .home-tile > span, .home-tile-texto > span { font-size: 14px; color: var(--text-2); max-width: 36ch; }
-.home-tile-cameras { grid-column: span 2; grid-row: span 2; justify-content: space-between; gap: var(--s4); }
+.home-tile-cameras { grid-column: span 2; grid-row: span 2; align-items: stretch; justify-content: space-between; gap: var(--s4); }
 .home-tile-cameras strong { font-size: 28px; letter-spacing: -.02em; }
 .home-tile-texto { display: grid; gap: var(--s1); }
 .home-miniaturas { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); width: 100%; }
@@ -722,7 +722,7 @@ a.button.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(-
 .desafio-cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
 .desafio-cabeca h1 { margin: 0; font-size: 32px; letter-spacing: -.02em; }
 .desafio-cabeca .t-data { font-size: 20px; }
-.desafio-inicio { display: grid; gap: var(--s3); padding: var(--s5); max-width: 640px; }
+.desafio-inicio { display: grid; gap: var(--s4); padding: var(--s6); max-width: 640px; width: 100%; margin: var(--s6) auto 0; font-size: 16px; }
 .desafio-inicio label { display: grid; gap: 6px; font-size: 14px; color: var(--text-2); }
 .desafio-pergunta { margin: 0; font-size: 22px; font-weight: 600; }
 .desafio-quadro { width: 100%; height: auto; border-radius: 14px; background: var(--v-fundo); cursor: crosshair; display: block; }

@@ -150,7 +150,7 @@ export function DesafioScreen() {
       <header className="desafio-cabeca">
         <h1>Você vs. a IA</h1>
         <span className="t-data" data-testid="desafio-placar">
-          {apelido || "Você"} {placar.humano} × {placar.ia} IA · {placar.rodadas} rodada(s)
+          {apelido || "Você"} {placar.humano} × {placar.ia} IA · {placar.rodadas === 1 ? "1 rodada" : `${placar.rodadas} rodadas`}
         </span>
       </header>
       {fase === "inicio" ? (

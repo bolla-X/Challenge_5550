@@ -126,7 +126,7 @@ export function PortalScreen({ cameraId, desafioInicial }: { cameraId?: number |
 }
 
 /** "Iniciar câmera" só aparece com a câmera parada: ligada, o vídeo fala por si. */
-function IniciarSeParada({ camId }: { camId: number }) {
+export function IniciarSeParada({ camId }: { camId: number }) {
   const estado = useCameraEstado(camId);
   const [iniciando, setIniciando] = useState(false);
   if (estado.running) return null;
