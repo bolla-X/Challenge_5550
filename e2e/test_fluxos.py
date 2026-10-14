@@ -385,9 +385,15 @@ def test_portal_no_palco_pausa_as_outras_e_libera(navegador, servidor, repeticao
         fim = time.monotonic()
         print(f"\n[portal-palco] Liberado em {fim - aberto:.1f} s desde entrar na cena")
         diag = tecnico.get(f"{servidor.base}/api/cameras/{cid}/portal", timeout=10).json().get("diagnostico") or {}
+        janela = max(5, int(fim - aberto))
+        pipeline = tecnico.get(f"{servidor.base}/api/diagnostics/pipeline?janela_s={janela}", timeout=10).json()
+        taxas = {nome: (((pipeline.get("cameras") or {}).get(str(c)) or {}).get("stats") or {}).get("taxas_por_s", {})
+                 .get("analises_publicadas") for nome, c in servidor.cameras.items()}
+        etapas = (((pipeline.get("cameras") or {}).get(str(cid)) or {}).get("stats") or {}).get("etapas") or {}
         with (RAIZ / "bench" / "runtime" / "portal-palco.jsonl").open("a", encoding="utf-8") as saida:
             saida.write(json.dumps({"repeticao": repeticao, "desde_cena_s": round(fim - aberto, 2), "ts": round(time.time()),
-                                    "fixture": "portal.mp4",
+                                    "fixture": "portal.mp4", "analises_por_s": taxas,
+                                    "etapas_ms_p50": {k: (v or {}).get("p50") for k, v in etapas.items()},
                                     "analises": "".join(x[0] for x in diag.get("sequencia", []))}) + "\n")
         # Sair da cena devolve as câmeras (a próxima cena do roteiro também é do portal).
         tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": 0}, timeout=10).raise_for_status()
