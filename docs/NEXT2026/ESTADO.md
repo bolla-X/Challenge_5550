@@ -37,9 +37,13 @@ Feito e commitado em `next-2026`:
   Doc: https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html
   Hipótese a medir: o ultralytics compila com `device_name="AUTO"` sem cache a cada subida.
 
-Em andamento: E2E do portal (no palco e fora), 1 repetição de fumaça, depois 10.
-A 1ª rodada de 10 falhou no palco (o teste ia ao `/palco` antes da sessão
-pronta); corrigido esperando o painel.
+- Números: portal no palco **p50 3,5 s / p95 5,9 s** (meta atingida, depois de
+  descartar o quadro pendente das pausadas); fora do palco p50 13,4 / p95 24,2 s
+  (`bench/results/portal-adendo3-20261014.json`). Partida até a 1ª análise: frio
+  mediana 67,8 s, cache aquecido 53,2 s (`bench/results/partida-adendo3-20261014.json`).
+  CHANGELOG, DEMO e BANCA atualizados.
+
+Em andamento: regravação do vídeo do palco (`e2e/video_do_palco.py`).
 
 ## Decisões em vigor
 
@@ -62,7 +66,10 @@ pronta); corrigido esperando o painel.
 
 ## Próximo passo exato
 
-E2E portal 10+10 → CHANGELOG/DEMO/BANCA com p50/p95 → medir partida (3 frio,
-preparar --so-cache, 3 quente) → regravar vídeo do palco (GIF a partir do palco)
-→ copiar GIF para `docs/NEXT2026/galeria/readme/palco.gif` → portão completo do
-PR6 → capturas das telas alteradas → PR6 squash → Fase D.
+Vídeo regravado → conferir cenas → GIF para `docs/NEXT2026/galeria/readme/palco.gif`
+→ portão completo do PR6 numa rodada (pytest, ruff, build+tsc, `pytest e2e`, bench
+`--rapido`) → capturas só das telas alteradas (cartões com "Pausada pela
+apresentação", rodapé do palco, Portal com portal.mp4) → galeria/notas → PR6 squash
+→ Fase D: clone limpo, Release, `release-main` com merge manual da main
+(plano: `PPE_MISSING_POLICY` da main entra com padrão `ausencia`; peso padrão
+continua o Vyra; `visionepi_cppe_n416.pt` vira opção documentada).
