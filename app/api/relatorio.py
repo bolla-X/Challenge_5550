@@ -21,6 +21,7 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from app.models import Alert, Camera, EventLog, utc_now
+from app.services.nr6 import FONTE_NR6, mapear
 from app.utils.auth import camera_scope, login_required
 
 relatorio_bp = Blueprint("relatorio", __name__)
@@ -72,6 +73,10 @@ def montar_relatorio(horas: float, camera_id: int | None) -> dict[str, Any]:
             "por_hora": dict(sorted(por_hora.items())),
             "duracao_mediana_s": duracoes[len(duracoes) // 2] if duracoes else None,
         },
+        # G10: cada infração de EPI ligada ao item da NR-6 que o texto sustenta.
+        # Falso positivo não é infração: fica fora.
+        "nr6": {"fonte": FONTE_NR6, "linhas": mapear(Counter(
+            a.rule for a in alertas if not (a.metadata_json or {}).get("false_positive")))},
         "eventos": {
             "pre_alertas_de_aproximacao": tipos.get("approach_risk_area", 0),
             "quedas_de_sinal": tipos.get("camera_disconnected", 0),
@@ -96,6 +101,27 @@ def _parametros():
 def relatorio_json():
     horas, camera_id = _parametros()
     return jsonify(montar_relatorio(horas, camera_id))
+
+
+_NOMES_EPI = {"helmet": "Capacete", "vest": "Colete", "gloves": "Luvas", "glasses": "Óculos", "mask": "Máscara",
+              "safety_shoe": "Calçado", "ear_protection": "Protetor auricular"}
+
+
+def _secao_nr6(nr6: dict[str, Any]) -> str:
+    if not nr6["linhas"]:
+        return ""
+    linhas = []
+    for linha in nr6["linhas"]:
+        nome = html.escape(_NOMES_EPI.get(linha["epi"], linha["epi"]))
+        if linha["itens"]:
+            itens = "<br>".join(f"<b>{html.escape(i['item'])}</b> — “{html.escape(i['texto'])}”" for i in linha["itens"])
+        else:
+            itens = f"<i>sem item sustentado pelo texto</i>: {html.escape(linha['sem_item'] or '')}"
+        linhas.append(f"<tr><td>{nome}</td><td class=nr6>{itens}</td><td>{linha['alertas']}</td></tr>")
+    return (f"<h2>Infrações × NR-6</h2><table>{''.join(linhas)}</table>"
+            f"<p class=nota>Trechos literais da NR-6 (Portaria MTE nº 57/2025): "
+            f"<a href=\"{html.escape(nr6['fonte'])}\">texto no gov.br</a>. O PDF não substitui o publicado no DOU. "
+            f"Indicação do requisito relacionado, não parecer jurídico.</p>")
 
 
 @relatorio_bp.get("/relatorio/turno")
@@ -124,6 +150,7 @@ def relatorio_html():
  table {{ width: 100%; border-collapse: collapse; }} td {{ padding: 6px 4px; border-bottom: 1px solid #E5E5EA; }}
  td:last-child {{ text-align: right; font-variant-numeric: tabular-nums; }}
  .nota {{ color: #5E5E64; font-size: 12px; margin-top: 24px; }}
+ td.nr6 {{ text-align: left; font-size: 12px; color: #3A3A3F; }}
  @media print {{ .nao-imprimir {{ display: none; }} }}
 </style></head><body>
 <h1>Relatório de turno</h1>
@@ -136,6 +163,7 @@ def relatorio_html():
 <h2>Por tipo</h2><table>{linhas(a['por_regra'])}</table>
 <h2>Por câmera</h2><table>{linhas(a['por_camera'])}</table>
 <h2>Por hora</h2><table>{linhas(a['por_hora'])}</table>
+{_secao_nr6(r["nr6"])}
 <h2>Eventos</h2><table>{linhas({'Pré-alertas de aproximação (projeção cinemática)': e['pre_alertas_de_aproximacao'],
                                  'Quedas de sinal de câmera': e['quedas_de_sinal'],
                                  'Vezes que a privacidade foi desligada': e['privacidade_desligada']})}</table>

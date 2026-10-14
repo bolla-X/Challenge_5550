@@ -640,3 +640,86 @@ resolução, e o `MonitorService` real no nível máximo mantém EPI e pessoa em
 - https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
 - https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts
 - https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html
+
+## PR3 — funções criativas (G1–G10 + laboratório)
+
+Princípios de gamificação aplicados em todo o PR: só indicador positivo (minuto
+conforme, check-in, alerta reconhecido, rótulo revisado); minuto sem ninguém na
+câmera é neutro (nunca se premia "zero alerta"); pontuação só por setor/câmera,
+nenhum número por pessoa ou por ID.
+
+| item | o que entrou | teste | onde |
+|---|---|---|---|
+| G1 Portal de Entrada | `/portal?camera=N`: só os EPIs exigidos (os da portaria da câmera), cada um confirmado / faltando / "não verificável neste enquadramento" (pés ou mãos fora do quadro pela borda da caixa e pelos keypoints; EPI que o modelo não detecta). Libera com todo item verificável confirmado por 3 análises seguidas; check-in vira evento (meta do setor). Sem foto. | `test_portal.py` (9), E2E | `gate_service.avaliar_portal`, `components/portal.tsx` |
+| G2 Você vs. a IA | `/desafio`: 3 rodadas, ~1,6 s de clipe desfocado e congela; mesma regra de pontuação para a pessoa e a IA contra gabarito curado à mão; placar só na sessão do navegador | `test_desafio.py` (4), E2E | `services/desafio.py`, `GABARITO.md` |
+| G3 SOS por gesto | punhos acima da cabeça ≥ 3 s, por ID, alerta crítico (com histerese) | `test_sinais_por_id.py` (keypoints sintéticos) | `vision/sinais_por_id.py` |
+| G4 Pessoa imóvel | pé desloca < 8 % da altura da caixa por ≥ 20 s dentro da zona → alerta "não é diagnóstico" | idem | idem |
+| G5 Planta baixa | aba Planta: 4 cliques no chão do vídeo + 4 na planta padrão → homografia; pés ao vivo, zona e calor na planta; pé fora da área calibrada sai vazado | `test_planta.py` (10, pontos conhecidos), E2E | `vision/planta.py`, `planta-panel.tsx` |
+| G6 Alerta falado | crítico vira frase pt-BR (`speechSynthesis`, voz local primeiro), respeita o mudo, uma frase esperando no máximo, ≥ 4 s entre inícios, mesma frase não repete em 30 s; sem voz pt-BR → bipe | E2E com Web Speech falsa | `audio/fala.ts` |
+| G7 Ergonomia (estimativa) | flexão do tronco 2D por ID; tempo acumulado acima de 45° e 60°; alerta após 10 s acima de 45°; texto diz que não é RULA/REBA/NR-17 | `test_sinais_por_id.py` | `vision/sinais_por_id.py` |
+| G8 Modo TV | `/tv` legível a 5 m e "Visão geral" do supervisor: por setor (`Camera.location`), conformidade agora, sequência de minutos 100 %, metas do supervisor (tabela `metas_setor`), conquistas positivas; `prefers-reduced-motion` | `test_andon.py` (8), `test_tv.py`, E2E | `services/andon.py`, `api/tv.py` |
+| G9 Aprendizado ativo | EPI com confiança 0,25–0,5 → recorte do quadro público (desfocado), ≤ 1 por câmera a cada 5 s, fila ≤ 300; `/rotular` com ← →; zip YOLO só com confirmados, README com origem e licença; total da equipe no Modo TV | `test_aprendizado_ativo.py` (4), E2E | `services/aprendizado_ativo.py` |
+| G10 NR-6 | relatório de turno liga cada infração ao item da NR-6 com trecho literal (6.5.1 e, 6.6.1 a, Anexo I A.1/B.1/C.1/F.1/G.1); colete e máscara ficam "sem item sustentado", com o motivo | `test_nr6.py` (6) | `services/nr6.py` |
+| Laboratório | "Pergunte à planta": desligado (`LAB_PERGUNTE_ATIVO`); o LLM só escolhe uma agregação de um catálogo fixo (nunca SQL), o servidor valida e executa, resposta rotulada como gerada | `test_pergunte_a_planta.py` (9) | `services/pergunte_a_planta.py` |
+
+Custo por análise (`scripts/custo_dos_prototipos.py`, 4 câmeras, 120 s,
+`bench/results/custo-prototipos-20261013-185753.json`), p95 sobre o orçamento
+do quadro (p50 das inferências da câmera, 371–528 ms): G1 0,03 %, G3/G4/G7
+≤ 0,16 %, G5 0,28 %, G8 0,03 %, G9 ≤ 3,4 % (≈ 10 ms quando recorta, no máximo a
+cada 5 s). Todos abaixo do limite de 10 %.
+
+Limites honestos:
+- G2 usa 3 rodadas com caixas marcadas a olho; é exercício, não métrica.
+- G3 entra no app, mas **não** no roteiro da demo: não achei vídeo de licença
+  livre com alguém erguendo os braços para verificar (regra da missão).
+- G5 tem só a planta padrão (SVG gerado); upload de planta e planta
+  multicâmera ficaram de fora.
+- A câmera padrão (menor id) usa `DEFAULT_FEATURES` do ambiente; quem tem `.env`
+  antigo precisa acrescentar `sos,ergonomia,imobilidade` para ligar G3/G4/G7 nela.
+
+Achado na revisão visual (G9): os recortes de capacete saíam inteiros
+pixelados — o desfoque de privacidade cobre a cabeça, e o capacete está nela.
+Agora o recorte desfoca só olhos e nariz (keypoints da pose); sem keypoints de
+alguma pessoa, não recorta; com a privacidade ligada, óculos, máscara e
+protetor auricular (só visíveis no rosto) não são coletados. Recorte mínimo de
+96 px (capacete a distância tem ~20 px). Na mesma revisão: o vídeo do `/portal`
+saía sem proporção (corrigido no CSS).
+
+Erro meu corrigido antes do merge: a primeira versão do gancho do G9 caiu
+dentro do bloco `with self._thread_lock` e tirou dele o contador de quadros
+(`_frame_counter`/`_latest_capture_ts_ms` só atualizavam quando havia fila de
+rótulos). Achado lendo o diff; a suíte não pegava.
+
+Queda breve nunca virava alerta (achado ao investigar o E2E de queda, que
+falhou nas duas rodadas completas do PR3 e passava isolado): a histerese comum
+(8 quadros OU 2 s com ≥ 2 confirmações) não acontece num evento que o modelo vê
+por ~1 s. Medido a 4 análises/s com o Vyra (classe `Fall-Detected`, conf 0,35):
+
+| gravação | análises com queda | maior sequência | pares seguidos |
+|---|---|---|---|
+| queda | 9 de 84 | 4 (~1 s) | 3 |
+| multidão (sem queda) | 2 de 63 | 1 | 0 |
+| canteiro (sem queda) | 0 de 30 | 0 | 0 |
+
+A queda real aparece em análises seguidas; o falso positivo, isolado. Regra
+nova só para emergência (`ALERT_EMERGENCY_RULES=fall_detected`): 2 análises
+NOVAS seguidas criam o alerta. EPI e área de risco seguem a histerese comum
+(teste garante). Amostra pequena (3 gravações): o risco de falso alarme de
+queda numa planta real fica registrado para a banca.
+
+Corrida benigna no Socket.IO (`join_room` de cliente que acabou de
+desconectar, `KeyError` no log do E2E) tratada no handler de foco.
+
+### E2E do PR3 — o que as rodadas completas acharam
+
+As rodadas completas (17 fluxos, 4 câmeras) falharam em testes diferentes a
+cada vez. Para parar de adivinhar, o `e2e/conftest.py` passou a gravar a tela e
+o texto da página de todo teste que falha (`bench/runtime/e2e-falhas/`). Com
+isso:
+
+| falha | o que a captura mostrou | correção |
+|---|---|---|
+| `/rotular` não avançava | erro 500 no console; no log, `WinError 32`: a imagem era servida com `send_file`, o handle ficava aberto e o Windows recusava mover o arquivo ao decidir | **bug do produto**: imagem servida da memória; teste de regressão falha no código antigo |
+| privacidade | depois de `clear_cookies()` a página voltou logada como técnico: uma requisição em andamento devolveu o cookie | teste sai da página antes de limpar |
+| pílula de aproximação, portal | multidão a ~0,5 análise/s (DEGRADADO) com 4 câmeras; o rastreio/histerese não fecha a tempo | como no teste de queda: as outras câmeras param durante o teste e voltam no fim |
+| fala | a 1ª frase veio do Canteiro — o produto fala alertas críticos de qualquer câmera, como a especificação pede | teste aceita qualquer câmera e exige o nome dela na frase |

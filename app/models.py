@@ -118,7 +118,27 @@ DEFAULT_CAMERA_FEATURES = {
     "falls": True,
     "posture": True,
     "risk_area": True,
+    "sos": True,
+    "ergonomia": True,
+    "imobilidade": True,
 }
+
+
+class MetaDoSetor(db.Model):
+    """Metas do Modo TV (G8), só no nível de SETOR — nunca por pessoa.
+
+    `setor` é o `location` da câmera (ou o nome, quando não há local).
+    """
+
+    __tablename__ = "metas_setor"
+
+    setor = db.Column(db.String(160), primary_key=True)
+    minutos_conformes = db.Column(db.Integer, nullable=True)
+    checkins_portal = db.Column(db.Integer, nullable=True)
+    atualizado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    def to_dict(self) -> dict:
+        return {"setor": self.setor, "minutos_conformes": self.minutos_conformes, "checkins_portal": self.checkins_portal}
 
 
 class Camera(db.Model):
@@ -155,6 +175,8 @@ class Camera(db.Model):
     risk_polygon = db.Column(db.JSON, nullable=True)
     # Modo portaria: EPIs obrigatórios. NULL = câmera fora do modo portaria.
     gate_required = db.Column(db.JSON, nullable=True)
+    # Planta baixa (G5): {pontos_camera: 4x[x,y], pontos_planta: 4x[x,y]}, normalizados.
+    planta = db.Column(db.JSON, nullable=True)
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     features_json = db.Column(db.JSON, nullable=False, default=lambda: dict(DEFAULT_CAMERA_FEATURES))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
@@ -173,6 +195,7 @@ class Camera(db.Model):
             "rotation": self.rotation,
             "risk_polygon": self.risk_polygon,
             "gate_required": self.gate_required,
+            "planta": self.planta,
             "enabled": self.enabled,
             # Merge com os defaults, não substituição: uma câmera cadastrada
             # ANTES de uma feature nova existir tem o JSON sem aquela chave, e

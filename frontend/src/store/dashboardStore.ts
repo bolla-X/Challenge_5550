@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
+import { calarFala, falarAlerta } from "../audio/fala";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
@@ -364,6 +365,7 @@ export const useDashboardStore = create<DashboardState>()(
         set(
           (state) => {
             const next = !state.muted;
+            if (next) calarFala();
             const nextByProfile = { ...state.mutedByProfile, [state.mode]: next };
             persistMutedByProfile(nextByProfile);
             return { muted: next, mutedByProfile: nextByProfile };
@@ -872,7 +874,12 @@ export function subscribeToServerEvents(): () => void {
   on("alert_created", (alert) => {
     if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
     set({ lastAlertCreatedId: alert.id }, false, "ws:alert_created:lastId");
-    if (!useDashboardStore.getState().muted && SEVERITIES_WITH_CHIME.has(alert.severity)) playAlertChime();
+    const estado = useDashboardStore.getState();
+    if (!estado.muted && SEVERITIES_WITH_CHIME.has(alert.severity)) {
+      // Crítico: falado em pt-BR (G6); sem voz pt-BR na máquina, o bipe de sempre.
+      const camera = estado.cameras.find((c) => c.id === alert.camera_id);
+      if (!falarAlerta(alert, camera?.name) || alert.severity !== "critical") playAlertChime();
+    }
   });
   on("alert", upsertActiveAlert); // legacy alias, same payload as alert_created
   on("alert_updated", (alert) => {

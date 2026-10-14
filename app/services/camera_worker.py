@@ -20,15 +20,16 @@ from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.alert_state_service import AlertStateService
+from app.services.andon import ContadorDeMinutos
 from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
 from app.services.feature_manager import FeatureManager
-from app.services.gate_service import GateState, avaliar_quadro
+from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
 from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
 from app.services.pipeline_stats import EstatisticasDoPipeline
 from app.services.replay import BufferDeReplay, ClipePendente, gravar_clipe
-from app.services.risk_rules import RuleEngine
+from app.services.risk_rules import RuleAlert, RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
@@ -38,13 +39,18 @@ from app.vision.captura_continua import CapturaContinua
 from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
+from app.vision.planta import pes_na_planta
 from app.vision.pose_estimator import MediaPipePoseEstimator
-from app.vision.privacidade import desfocar, regioes_de_rosto
+from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
+from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
+
+# G9: EPIs que só se vê no rosto — não viram recorte com a privacidade ligada.
+EPIS_DO_ROSTO = frozenset({"glasses", "mask", "ear_protection"})
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +246,18 @@ class CameraWorker:
             else None
         )
         self._pre_alertas: list[dict[str, Any]] = []
+        # Sinais que dependem de duração, por ID (G3 SOS, G4 imóvel, G7 ergonomia).
+        # Atualizados só em análise nova; valem até a próxima.
+        self.sinais = SinaisPorId(
+            ConfigSinais(
+                sos_segundos=float(app.config.get("SOS_SEGUNDOS", 3.0)),
+                imovel_segundos=float(app.config.get("IMOVEL_SEGUNDOS", 20.0)),
+                imovel_limiar=float(app.config.get("IMOVEL_LIMIAR", 0.08)),
+                ergonomia_graus=float(app.config.get("ERGONOMIA_GRAUS", 45.0)),
+                ergonomia_segundos=float(app.config.get("ERGONOMIA_SEGUNDOS", 10.0)),
+            )
+        )
+        self._alertas_temporais: list[RuleAlert] = []
         # Modo privacidade (F4). Por câmera, em memória: volta ao padrão (ligado)
         # a cada reinício — o estado seguro é o default, não o último clique.
         self.privacidade_ativa = bool(app.config.get("PRIVACIDADE_PADRAO", True))
@@ -330,6 +348,10 @@ class CameraWorker:
             min_confirmacoes=app.config.get("ALERT_MIN_CONFIRMATIONS", 2),
             resolve_after_seconds=float(app.config.get("ALERT_RESOLVE_AFTER_SECONDS", 0)) or None,
             min_confirmacoes_resolver=app.config.get("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3),
+            regras_de_emergencia=frozenset(
+                r.strip() for r in str(app.config.get("ALERT_EMERGENCY_RULES", "fall_detected")).split(",") if r.strip()
+            ),
+            confirmacoes_emergencia=int(app.config.get("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -363,6 +385,15 @@ class CameraWorker:
         self._ler_config()
         self.gate_required: list[str] | None = list(gate_required) if gate_required else None
         self._gate = GateState()
+        # Portal de Entrada (G1): mesmos EPIs exigidos da portaria, contado em análises.
+        self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
+        # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
+        self.andon = ContadorDeMinutos()
+        # Aprendizado ativo (G9): fila compartilhada, injetada pelo MonitorService.
+        self.fila_de_rotulos = None
+        # Planta baixa (G5): calibração (do banco) e os pés da última análise.
+        self.planta: dict[str, Any] | None = None
+        self.pes_na_planta: list[dict[str, Any]] = []
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -411,6 +442,8 @@ class CameraWorker:
                 self.aproximacao.reset()
             self._pre_alertas = []
             self._pre_alerta_registrado.clear()
+            self.sinais = SinaisPorId(self.sinais.config)
+            self._alertas_temporais = []
             self.linha_do_tempo.limpar()
             if self.replay is not None:
                 self.replay.limpar()
@@ -628,6 +661,13 @@ class CameraWorker:
         publico = desfocar(quadro, regioes_de_rosto(estado[0], quadro.shape, idade_s=idade_s))
         self.stats.duracao("privacidade", (time.perf_counter() - inicio) * 1000.0)
         return publico
+
+    def _quadro_para_recorte(self, frame, analysis):
+        """G9: rosto (olhos e nariz) desfocado, capacete visível. None = não recorta."""
+        if not self.privacidade_ativa:
+            return frame
+        regioes = regioes_de_olhos_e_nariz(analysis.detections, frame.shape)
+        return None if regioes is None else desfocar(frame, regioes)
 
     def quadro_publico(self):
         return self._sob_demanda("publico", self._quadro_publico)
@@ -1151,6 +1191,17 @@ class CameraWorker:
                     metadata=aviso,
                 )
 
+    def _atualizar_sinais(self, evaluation, frame_shape) -> None:
+        """G3/G4/G7: sinais por ID que só existem no tempo (app/vision/sinais_por_id.py)."""
+        ligados = {k for k in ("sos", "imobilidade", "ergonomia") if self.feature_manager.is_enabled(k)}
+        if not self.feature_manager.is_enabled("pose"):
+            ligados -= {"sos", "ergonomia"}
+        if not ligados:
+            self._alertas_temporais = []
+            return
+        brutos = self.sinais.atualizar(evaluation.poses, evaluation.people, frame_shape, time.monotonic(), ligados)
+        self._alertas_temporais = [RuleAlert(**a) for a in brutos]
+
     def _alimentar_replay(self, ts_captura_ms: float, alert_state: dict[str, Any]) -> None:
         """Grava o quadro público (desfocado) no buffer e fecha clipes vencidos."""
         if self.replay is None:
@@ -1233,10 +1284,13 @@ class CameraWorker:
         self._perf_marca("regras")
         if nova:
             self._atualizar_aproximacao(analysis, frame.shape)
+            inicio = time.perf_counter()
+            self._atualizar_sinais(evaluation, frame.shape)
+            self.stats.duracao("g3_g4_g7_sinais", (time.perf_counter() - inicio) * 1000.0)
         # `deteccao_nova` impede que uma inferência reaproveitada conte como
         # confirmação nova na histerese.
         alert_state = self.alert_state_service.process(
-            evaluation.alerts,
+            evaluation.alerts + self._alertas_temporais if self._alertas_temporais else evaluation.alerts,
             deteccao_nova=nova,
             features_desligadas=self._features_desligadas(),
         )
@@ -1264,7 +1318,27 @@ class CameraWorker:
 
         if self.gate_required:
             self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
+            if nova:
+                inicio = time.perf_counter()
+                portal = self._portal.atualizar(
+                    avaliar_portal(compliance_state, self.gate_required, frame.shape, analysis.poses)
+                )
+                self.stats.duracao("g1_portal", (time.perf_counter() - inicio) * 1000.0)
+                if portal.get("checkin_novo"):
+                    # Conta para a meta do SETOR (G8); sem foto, sem nome, sem ID salvo.
+                    self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
+                                              metadata={"exigidos": list(self.gate_required)})
         if nova:
+            inicio = time.perf_counter()
+            self.andon.registrar(compliance_state.get("people") or [], self.epis_exigidos(), time.time())
+            self.stats.duracao("g8_andon", (time.perf_counter() - inicio) * 1000.0)
+            if self.planta:
+                inicio = time.perf_counter()
+                try:
+                    self.pes_na_planta = pes_na_planta(compliance_state.get("people") or [], frame.shape, self.planta)
+                except (ValueError, KeyError):
+                    self.pes_na_planta = []
+                self.stats.duracao("g5_planta", (time.perf_counter() - inicio) * 1000.0)
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
             self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
 
@@ -1273,6 +1347,14 @@ class CameraWorker:
             self._quadro_estado = (analysis, compliance_state, enabled_map)
             self._latest_capture_ts_ms = ts_captura_ms
             self._frame_counter += 1
+        if nova and self.fila_de_rotulos is not None:
+            # G9: recorte do quadro PÚBLICO (desfocado) da detecção mais duvidosa.
+            inicio = time.perf_counter()
+            if self.fila_de_rotulos.talvez_coletar(
+                self.camera_id, lambda: self._quadro_para_recorte(frame, analysis), analysis.detections,
+                excluir=EPIS_DO_ROSTO if self.privacidade_ativa else frozenset(),
+            ):
+                self.stats.duracao("g9_rotulos", (time.perf_counter() - inicio) * 1000.0)
         self.stats.contar("frames_publicados")
         self.stats.duracao("idade_publicacao", time.time() * 1000.0 - ts_captura_ms)
         self._perf_marca("conformidade")
@@ -1997,9 +2079,30 @@ class CameraWorker:
             return base | {"verdict": "off", "missing": [], "people": 0}
         return base | self._gate.atual
 
+    def epis_exigidos(self) -> list[str]:
+        """O que o setor exige: os da portaria, se houver; senão os EPIs ligados que o modelo verifica."""
+        if self.gate_required:
+            return list(self.gate_required)
+        suportados = self.rule_engine.supported_ppe()
+        return [k for k in PPE_KEYS if k in suportados and self.feature_manager.is_enabled("ppe")
+                and self.feature_manager.is_enabled(k)]
+
+    def andon_resumo(self) -> dict[str, Any]:
+        resumo = self.andon.resumo()
+        return {"camera_id": self.camera_id, "running": self._running.is_set(), **resumo,
+                "checkins_portal": self._portal.checkins, "_ok": self.andon.ultimo_ok, "_total": self.andon.ultimo_total}
+
+    def portal_state(self) -> dict[str, Any]:
+        base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}
+        if not self.gate_required:
+            return base | {"verdict": "off", "itens": [], "people": 0, "checkins": 0}
+        estado = {k: v for k, v in self._portal.atual.items() if k not in ("checkin_novo", "track_id")}
+        return base | estado | {"checkins": self._portal.checkins}
+
     def set_gate(self, required: list[str] | None) -> None:
         self.gate_required = list(required) if required else None
         self._gate.reset()
+        self._portal.reset()
 
     def get_overlay(self) -> dict[str, Any]:
         return {"camera_id": self.camera_id, **self.overlay_options}

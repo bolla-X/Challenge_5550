@@ -464,3 +464,31 @@ def test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois(app, mon
         resolvidos = service.process([])["resolved"]
         assert len(resolvidos) == 12
         assert ordem.count("commit") == 1
+
+
+def _queda():
+    return RuleAlert(rule="fall_detected", severity="critical", message="Queda detectada — Pessoa 1", feature="falls",
+                     metadata={"person_id": "person_1"})
+
+
+def test_emergencia_breve_cria_com_duas_analises_seguidas(app):
+    """Queda vista por ~1 s: com a histerese comum (8 quadros OU 2 s) nunca viraria alerta."""
+    with app.app_context():
+        service = AlertStateService(AlertRepository(), DummySocket(), create_after_frames=8, create_after_seconds=2.0,
+                                    min_confirmacoes=2, regras_de_emergencia=frozenset({"fall_detected"}),
+                                    confirmacoes_emergencia=2)
+        assert service.process([_queda()])["active"] == []
+        assert len(service.process([_queda()])["active"]) == 1
+
+
+def test_emergencia_isolada_nao_cria_e_epi_segue_a_regra_comum(app):
+    with app.app_context():
+        service = AlertStateService(AlertRepository(), DummySocket(), create_after_frames=8, create_after_seconds=2.0,
+                                    min_confirmacoes=2, regras_de_emergencia=frozenset({"fall_detected"}),
+                                    confirmacoes_emergencia=2)
+        service.process([_queda()])
+        service.process([])  # análise sem queda no meio: a contagem recomeça
+        assert service.process([_queda()])["active"] == []
+        # EPI: duas análises seguidas NÃO bastam (regra comum).
+        service.process([missing_helmet()])
+        assert all(a["rule"] != "missing_helmet" for a in service.process([missing_helmet()])["active"])

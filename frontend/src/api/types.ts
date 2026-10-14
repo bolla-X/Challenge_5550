@@ -507,3 +507,45 @@ export interface GateState {
   missing: string[];
   people: number;
 }
+
+/** Portal de Entrada (G1): um estado por EPI exigido. */
+export interface PortalItem {
+  key: string;
+  estado: "confirmado" | "faltando" | "nao_verificavel";
+  motivo: string | null;
+}
+export interface PortalState {
+  camera_id: number;
+  enabled: boolean;
+  required: string[];
+  verdict: "off" | "waiting" | "approved" | "denied";
+  itens: PortalItem[];
+  people: number;
+  checkins: number;
+}
+
+/** Modo TV / Andon (G8): tudo por setor, nada por pessoa. */
+export interface TvCamera {
+  camera_id: number;
+  nome: string;
+  running: boolean;
+  conformidade_atual: number | null;
+  sequencia_min: number;
+}
+export interface TvSetor {
+  setor: string;
+  cameras: TvCamera[];
+  conformidade_atual: number | null;
+  sequencia_min: number;
+  minutos_com_pessoas: number;
+  minutos_conformes: number;
+  checkins_portal: number;
+  alertas_criticos: number;
+  alertas_reconhecidos: number;
+  metas: { setor: string; minutos_conformes: number | null; checkins_portal: number | null };
+  conquistas: { id: string; texto: string }[];
+}
+export interface TvEstado {
+  setores: TvSetor[];
+  janela_h: number;
+}

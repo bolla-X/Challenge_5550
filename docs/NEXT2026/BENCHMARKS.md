@@ -173,6 +173,19 @@ entre 12,7 e 42,1 %. Só a r1 ficou (quase toda) abaixo de 15 %; nela: 1 câm.
 0,69 → 2,74 FPS de análise e 4.713 → 1.764 ms de latência de alerta; 4 câm.
 0,14 → 0,46 FPS (a rodada do PR2 4 câm. começou com 15,5 % de terceiros).
 
+## Portão do PR3: PR2 (`753daa0`) × PR3 (13/10, 3 repetições intercaladas)
+
+`scripts/rodar_portao.py --rotulo pr3gate` (base = worktree em `753daa0`).
+CPU-ms do servidor por análise, mediana [r1, r2, r3]: 1 câm. PR2 **1.407**
+[1.407, 709, 1.553] × PR3 **1.163** [1.037, 1.163, 1.810]; 4 câm. PR2 **2.050**
+[1.239, 2.050, 2.473] × PR3 **1.145** [1.145, 962, 2.079]. Por quadro: 278 × 245
+(1 câm.) e 145 × 136 (4 câm.). Regra do ADENDO 1: **passa** (nenhuma métrica
+mais de 10 % pior com as 3 repetições na mesma direção). Ruído alto: CPU de
+terceiros entre 13,6 e 70,3 % antes das rodadas — números só indicativos; a
+diferença a favor do PR3 não é ganho atribuível (o PR3 não mexe no caminho de
+inferência). Custo isolado de cada protótipo: `bench/results/custo-prototipos-*.json`
+(todos ≤ 3,4 % do orçamento do quadro, ver CHANGELOG "PR3").
+
 ## Tracker
 
 ByteTrack não reduziu fragmentação de forma consistente e custou até 4,2 % da

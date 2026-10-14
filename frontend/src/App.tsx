@@ -7,30 +7,42 @@ import { GateKiosk } from "./components/gate";
 import { AccountsScreen, SupervisorHome } from "./components/accounts";
 import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
-import { Panel } from "./components/common";
 import { LoginScreen } from "./components/login";
 import { ScaleProof } from "./components/scale-proof";
 import { AboutScreen } from "./components/about";
+import { PortalScreen } from "./components/portal";
+import { TvScreen } from "./components/tv";
+import { RotularScreen } from "./components/rotular";
+import { DesafioScreen } from "./components/desafio";
 
-// Placeholder do dashboard agregado do Supervisor. O conteúdo de verdade
-// (risco consolidado, ranking por criticidade, feed combinado, auditoria de
-// falso positivo, exportação) é o próximo passo. Existir aqui evita a tela
-// ficar em branco se alguém clicar em "Visão geral" antes disso.
-function SupervisorOverviewPlaceholder({ onBack }: { onBack: () => void }) {
+// Visão geral do Supervisor: o mesmo painel por setor do Modo TV (G8), com
+// atalhos para as telas de tela cheia (abrem em outra aba, para a TV/totem).
+function SupervisorOverview({ onBack }: { onBack: () => void }) {
+  const atalhos: [string, string][] = [
+    ["/tv", "Modo TV"],
+    ["/portal", "Portal de Entrada"],
+    ["/desafio", "Você vs. a IA"],
+    ["/rotular", "Rotular recortes"],
+  ];
   return (
     <div className="screen">
       <ScreenHead
         title="Visão geral"
-        sub="Todas as câmeras"
+        sub="Por setor, nunca por pessoa"
         actions={
-          <button type="button" className="ghost" onClick={onBack}>
-            Voltar para a grade
-          </button>
+          <>
+            {atalhos.map(([href, rotulo]) => (
+              <a key={href} className="button ghost" href={href} target="_blank" rel="noopener noreferrer">
+                {rotulo}
+              </a>
+            ))}
+            <button type="button" className="ghost" onClick={onBack}>
+              Voltar para a grade
+            </button>
+          </>
         }
       />
-      <Panel title="Dashboard agregado" description="Consolidado do Supervisor.">
-        <p className="empty-state">Em construção, é o próximo passo.</p>
-      </Panel>
+      <TvScreen embutido />
     </div>
   );
 }
@@ -120,6 +132,20 @@ export default function App() {
   // Roteamento por papel: Operador sempre kiosk (trava aplicada em setMode
   // no store, screen já chega como "kiosk"); Técnico/Supervisor navegam
   // entre grid/foco/overview livremente dentro do próprio `screen`.
+  // Telas de tela cheia por endereço (PR3): sem barra superior, para TV/totem.
+  if (window.location.pathname.startsWith("/desafio")) {
+    return <DesafioScreen />;
+  }
+  if (window.location.pathname.startsWith("/rotular")) {
+    return <RotularScreen />;
+  }
+  if (window.location.pathname.startsWith("/tv")) {
+    return <TvScreen />;
+  }
+  if (window.location.pathname.startsWith("/portal")) {
+    return camerasLoading ? <p className="centered-empty">Carregando câmeras…</p> : <PortalScreen />;
+  }
+
   let content;
   if (camerasLoading) {
     content = <p className="centered-empty">Carregando câmeras…</p>;
@@ -141,7 +167,7 @@ export default function App() {
   } else if (screen === "focus" && hasCameras) {
     content = <CameraFocus />;
   } else if (screen === "overview" && ROLE_ACCESS[mode].hasOverview) {
-    content = <SupervisorOverviewPlaceholder onBack={() => setScreen("grid")} />;
+    content = <SupervisorOverview onBack={() => setScreen("grid")} />;
   } else {
     content = (
       <>

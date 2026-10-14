@@ -211,6 +211,12 @@ def test_pill_de_aproximacao_aparece(pagina, servidor):
     """
     tecnico = servidor.sessao("technical")
     cid = servidor.cameras["Multidão"]
+    # Como no teste de queda: com 4 câmeras dividindo o agendador, a multidão
+    # fica a ~0,5 análise/s (DEGRADADO na captura da falha) e o rastreio não
+    # sustenta a trajetória. As outras param durante o teste e voltam no fim.
+    outras = [c for nome, c in servidor.cameras.items() if nome != "Multidão"]
+    for c in outras:
+        tecnico.post(f"{servidor.base}/api/cameras/{c}/stop", timeout=30)
     tecnico.patch(f"{servidor.base}/features?camera_id={cid}", json={"features": {"ppe": False}}, timeout=10)
     zona = [{"x": 0.6, "y": 0.0}, {"x": 1.0, "y": 0.0}, {"x": 1.0, "y": 1.0}, {"x": 0.6, "y": 1.0}]
     antes = tecnico.get(f"{servidor.base}/api/cameras/{cid}/risk-area", timeout=10).json()
@@ -224,6 +230,8 @@ def test_pill_de_aproximacao_aparece(pagina, servidor):
         tecnico.patch(f"{servidor.base}/features?camera_id={cid}", json={"features": {"ppe": True}}, timeout=10)
         poligono = (antes.get("risk_area") or antes).get("polygon") or []
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/risk-area", json={"polygon": poligono}, timeout=10)
+        for c in outras:
+            tecnico.post(f"{servidor.base}/api/cameras/{c}/start", timeout=60)
 
 
 def test_privacidade_so_o_supervisor_altera(pagina, servidor):
@@ -237,6 +245,10 @@ def test_privacidade_so_o_supervisor_altera(pagina, servidor):
     assert pagina.locator("[data-testid=privacidade-estado]").inner_text() == "ligado"
     assert pagina.locator("[data-testid=privacidade-botao]").is_disabled()
 
+    # Sai da página ANTES de limpar: uma requisição em andamento (polling) que
+    # termina depois da limpeza devolve o cookie de sessão — visto na captura
+    # da falha (a página voltou logada como técnico).
+    pagina.goto("about:blank")
     pagina.context.clear_cookies()
     _abrir_camera_como(pagina, servidor, "supervisor", "Canteiro")
     _abrir_aba(pagina, "Config. câmera")
@@ -270,3 +282,170 @@ def test_relatorio_de_turno_abre(pagina, servidor):
     pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.wait_for(timeout=30_000)  # login concluído
     pagina.goto(servidor.base + "/relatorio/turno")
     pagina.get_by_role("heading", name="Relatório de turno").wait_for(timeout=30_000)
+
+
+# Web Speech falsa (G6): grava o que seria falado. Headless não tem voz, e o
+# teste precisa provar a frase, a voz pt-BR e o limite de taxa — não o áudio.
+_FALA_FALSA = """
+window.__falas = [];
+const voz = {name: "Falsa pt-BR", lang: "pt-BR", localService: true, default: true, voiceURI: "falsa"};
+const falsa = {
+  speaking: false, pending: false, paused: false,
+  getVoices() { return [voz]; },
+  speak(u) {
+    window.__falas.push({texto: u.text, lang: u.lang, t: Date.now()});
+    this.speaking = true;
+    setTimeout(() => { this.speaking = false; u.onend && u.onend(); }, 1500);
+  },
+  cancel() { this.speaking = false; },
+  addEventListener() {}, removeEventListener() {},
+};
+Object.defineProperty(window, "speechSynthesis", {value: falsa, configurable: true});
+window.SpeechSynthesisUtterance = function (texto) { this.text = texto; };
+"""
+
+
+def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor):
+    """G6: alerta crítico vira frase pt-BR com a câmera; intervalo mínimo entre frases."""
+    contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
+    contexto.add_init_script(_FALA_FALSA)
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "technical")
+        _abrir_camera(pagina, "Multidão")
+        pagina.wait_for_function("window.__falas.length >= 1", timeout=180_000)
+        time.sleep(20)
+        falas = pagina.evaluate("window.__falas")
+        assert all(f["lang"] == "pt-BR" for f in falas), falas
+        assert falas[0]["texto"].startswith("Atenção: "), falas[0]
+        # Fala alertas críticos de QUALQUER câmera (a frase diz qual), não só da aberta.
+        nomes = tuple(servidor.cameras)
+        assert any(f"na câmera {n}." in falas[0]["texto"] for n in nomes), falas[0]
+        intervalos = [b["t"] - a["t"] for a, b in zip(falas, falas[1:], strict=False)]
+        assert all(i >= 3_900 for i in intervalos), intervalos
+        assert len({f["texto"] for f in falas}) == len(falas), "a mesma frase repetiu dentro de 30 s"
+
+        # Mudo: nada mais é falado.
+        pagina.get_by_role("button", name="Silenciar som de alertas").click()
+        antes = pagina.evaluate("window.__falas.length")
+        time.sleep(15)
+        assert pagina.evaluate("window.__falas.length") == antes
+    finally:
+        contexto.close()
+
+
+def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
+    """G1: `/portal` mostra só os EPIs exigidos, item a item, e libera quando confirma."""
+    tecnico = servidor.sessao("technical")
+    cid = servidor.cameras["Canteiro"]
+    assert tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": ["helmet", "vest"]},
+                       timeout=10).status_code == 200
+    # Liberar exige 3 análises seguidas com tudo confirmado: com 4 câmeras no
+    # agendador, a do portal fica lenta demais (falhou assim numa rodada completa).
+    outras = [c for nome, c in servidor.cameras.items() if nome != "Canteiro"]
+    for c in outras:
+        tecnico.post(f"{servidor.base}/api/cameras/{c}/stop", timeout=30)
+    contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "technical")
+        pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+        pagina.goto(f"{servidor.base}/portal?camera={cid}")
+        portal = pagina.locator("[data-testid=portal]")
+        portal.wait_for(timeout=30_000)
+        # Só os exigidos aparecem.
+        pagina.locator("[data-testid=portal-item-helmet]").wait_for(timeout=30_000)
+        assert pagina.locator("[data-testid=portal-item-gloves]").count() == 0
+        # Algum item chega a "confirmado" e, com tudo confirmado, "Liberado".
+        pagina.locator("[data-testid^=portal-item-][data-estado=confirmado]").first.wait_for(timeout=180_000)
+        pagina.wait_for_function(
+            "document.querySelector('[data-testid=portal]')?.dataset.veredito === 'approved'", timeout=240_000
+        )
+        assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
+        assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
+    finally:
+        contexto.close()
+        tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=10)
+        for c in outras:
+            tecnico.post(f"{servidor.base}/api/cameras/{c}/start", timeout=60)
+
+
+def test_modo_tv_mostra_setores_e_metas_do_supervisor(navegador, servidor):
+    """G8: `/tv` mostra um bloco por setor; meta só o supervisor define (técnico: 403)."""
+    assert servidor.sessao("technical").put(f"{servidor.base}/api/tv/metas/Canteiro",
+                                            json={"minutos_conformes": 5}, timeout=10).status_code == 403
+    r = servidor.sessao("supervisor").put(f"{servidor.base}/api/tv/metas/Canteiro",
+                                          json={"minutos_conformes": 120, "checkins_portal": 10}, timeout=10)
+    assert r.status_code == 200, r.text
+    contexto = navegador.new_context(viewport={"width": 1920, "height": 1080})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "supervisor")
+        pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.wait_for(timeout=30_000)
+        pagina.goto(f"{servidor.base}/tv")
+        bloco = pagina.locator('[data-testid="tv-setor-Canteiro"]')
+        bloco.wait_for(timeout=30_000)
+        assert "/ 120" in bloco.inner_text()
+        texto = pagina.locator("[data-testid=tv]").inner_text()
+        assert "Pessoa " not in texto, "o Modo TV não mostra nada por pessoa"
+    finally:
+        contexto.close()
+
+
+def test_rotular_recorte_com_teclado_e_exportar_zip(pagina, servidor):
+    """G9: recorte duvidoso chega à fila, → confirma, e o zip YOLO traz o rótulo."""
+    import io
+    import zipfile
+
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+    pagina.goto(f"{servidor.base}/rotular")
+    item = pagina.locator("[data-testid=rotular-item]")
+    item.wait_for(timeout=240_000)
+    ident = item.get_attribute("data-id")
+    pagina.keyboard.press("ArrowRight")
+    pagina.wait_for_function(
+        f"document.querySelector('[data-testid=rotular-item]')?.dataset.id !== '{ident}'", timeout=30_000
+    )
+    zipado = servidor.sessao("technical").get(f"{servidor.base}/api/rotulos/dataset.zip", timeout=30)
+    assert zipado.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(zipado.content)) as z:
+        assert f"labels/train/{ident}.txt" in z.namelist()
+        assert "data.yaml" in z.namelist()
+    assert servidor.sessao("operator").get(f"{servidor.base}/api/rotulos/proximo", timeout=10).status_code == 403
+
+
+def test_planta_baixa_calibra_com_8_cliques_e_mostra_pes(pagina, servidor):
+    """G5: 4 cliques no chão do vídeo + 4 na planta → pés das pessoas ao vivo na planta."""
+    cid = servidor.cameras["Multidão"]
+    try:
+        _abrir_camera_como(pagina, servidor, "technical", "Multidão")
+        _abrir_aba(pagina, "Planta")
+        video = pagina.locator("[data-testid=planta-video]")
+        mapa = pagina.locator("[data-testid=planta-mapa-calibracao]")
+        video.wait_for(timeout=30_000)
+        for alvo, pontos in ((video, [(0.05, 0.55), (0.95, 0.55), (0.98, 0.98), (0.02, 0.98)]),
+                             (mapa, [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)])):
+            caixa = alvo.bounding_box()
+            for x, y in pontos:
+                pagina.mouse.click(caixa["x"] + x * caixa["width"], caixa["y"] + y * caixa["height"])
+        pagina.get_by_role("button", name="Salvar calibração").click()
+        pagina.locator("[data-testid=planta-ao-vivo]").wait_for(timeout=30_000)
+        pagina.locator("[data-testid=planta-pe]").first.wait_for(timeout=120_000)
+    finally:
+        servidor.sessao("technical").put(f"{servidor.base}/api/cameras/{cid}/planta",
+                                         json={"pontos_camera": None}, timeout=10)
+
+
+def test_voce_vs_ia_mostra_placar_honesto(pagina, servidor):
+    """G2: rodada "pegadinha" (ninguém sem capacete): sem clicar, a pessoa acerta tudo; o placar mostra a IA também."""
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+    pagina.goto(f"{servidor.base}/desafio")
+    pagina.locator("[data-testid=desafio-comecar]").click(timeout=30_000)
+    pagina.locator("[data-testid=desafio-responder]").click(timeout=60_000)
+    pagina.locator("[data-testid=desafio-resultado]").wait_for(timeout=120_000)
+    humano = pagina.locator("[data-testid=desafio-linha-humano]").inner_text()
+    assert "0 / 0" in humano, humano  # canteiro-94: ninguém sem capacete
+    assert pagina.locator("[data-testid=desafio-linha-ia]").count() == 1
+    assert "1 rodada" in pagina.locator("[data-testid=desafio-placar]").inner_text()

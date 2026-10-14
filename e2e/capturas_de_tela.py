@@ -127,6 +127,21 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
     feitas.append("11-operador-quiosque")
     ctx.close()
 
+    # Telas de tela cheia do PR3 (técnico).
+    ctx = contexto()
+    pg = ctx.new_page()
+    entrar(pg, servidor, "technical")
+    pg.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+    for nome, rota in [("17-tv", "/tv"), ("18-portal", "/portal"), ("19-desafio", "/desafio"), ("20-rotular", "/rotular")]:
+        try:
+            pg.goto(servidor.base + rota)
+            pg.wait_for_timeout(2500)
+            _foto(pg, pasta, nome)
+            feitas.append(nome)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {nome}: {exc}")
+    ctx.close()
+
     # Página do celular (sem login).
     ctx = contexto()
     pg = ctx.new_page()

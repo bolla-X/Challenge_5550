@@ -11,14 +11,18 @@ from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
 from app.api.cameras import cameras_bp
 from app.api.celular import celular_bp
+from app.api.desafio import desafio_bp
 from app.api.diagnostics import runtime_bp
 from app.api.escala import escala_bp
 from app.api.features import features_bp
+from app.api.lab import lab_bp
 from app.api.monitor import monitor_bp
 from app.api.relatorio import relatorio_bp
 from app.api.risk import risk_bp
+from app.api.rotulos import rotulos_bp
 from app.api.status import status_bp
 from app.api.stream import stream_bp
+from app.api.tv import tv_bp
 from app.cli import register_cli
 from app.config import Config
 from app.extensions import db, migrate, socketio
@@ -101,6 +105,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(status_bp)
+    app.register_blueprint(tv_bp)
+    app.register_blueprint(rotulos_bp)
+    app.register_blueprint(desafio_bp)
+    app.register_blueprint(lab_bp)
     app.register_blueprint(alerts_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
@@ -166,10 +174,15 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                 return {"ok": False}
             if usuario.role == "operator" and usuario.camera_id != camera_id:
                 return {"ok": False}
-        for sala in list(rooms()):
-            if str(sala).startswith("foco:"):
-                leave_room(sala)
-        join_room(sala_de_foco(camera_id))
+        try:
+            for sala in list(rooms()):
+                if str(sala).startswith("foco:"):
+                    leave_room(sala)
+            join_room(sala_de_foco(camera_id))
+        except KeyError:
+            # O cliente desconectou entre o evento e o join (corrida vista no
+            # log do E2E): não há sala para entrar, e não é erro do servidor.
+            return {"ok": False}
         return {"ok": True}
 
     @socketio.on("revalidate")

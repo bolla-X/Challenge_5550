@@ -349,6 +349,23 @@ class Config:
     # Pré-alerta de aproximação da zona de risco (projeção cinemática, F3).
     APROXIMACAO_ATIVA = env_bool("APROXIMACAO_ATIVA", True)
     APROXIMACAO_LIMITE_S = env_float("APROXIMACAO_LIMITE_S", 3.0)
+    # Sinais por duração (PR3): SOS por gesto (G3), pessoa imóvel na zona (G4),
+    # ergonomia estimada (G7). Ver app/vision/sinais_por_id.py.
+    SOS_SEGUNDOS = env_float("SOS_SEGUNDOS", 3.0)
+    IMOVEL_SEGUNDOS = env_float("IMOVEL_SEGUNDOS", 20.0)
+    IMOVEL_LIMIAR = env_float("IMOVEL_LIMIAR", 0.08)
+    ERGONOMIA_GRAUS = env_float("ERGONOMIA_GRAUS", 45.0)
+    ERGONOMIA_SEGUNDOS = env_float("ERGONOMIA_SEGUNDOS", 10.0)
+    # Portal de Entrada (G1): análises seguidas com tudo confirmado para liberar.
+    PORTAL_CONFIRMACOES = env_int("PORTAL_CONFIRMACOES", 3)
+    # Aprendizado ativo (G9): recortes de EPI com confiança no meio da faixa.
+    APRENDIZADO_ATIVO = env_bool("APRENDIZADO_ATIVO", True)
+    ROTULOS_LIMITE = env_int("ROTULOS_LIMITE", 300)
+    ROTULOS_CONF_MIN = env_float("ROTULOS_CONF_MIN", 0.25)
+    ROTULOS_CONF_MAX = env_float("ROTULOS_CONF_MAX", 0.5)
+    ROTULOS_INTERVALO_S = env_float("ROTULOS_INTERVALO_S", 5.0)
+    # Laboratório "Pergunte à planta": desligado por padrão; exige também LLM ligado e chave.
+    LAB_PERGUNTE_ATIVO = env_bool("LAB_PERGUNTE_ATIVO", False)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
@@ -403,6 +420,10 @@ class Config:
     ALERT_MIN_CONFIRMATIONS = env_int("ALERT_MIN_CONFIRMATIONS", 2)
     ALERT_RESOLVE_AFTER_SECONDS = env_float("ALERT_RESOLVE_AFTER_SECONDS", 6.0)
     ALERT_MIN_RESOLVE_CONFIRMATIONS = env_int("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3)
+    # Emergência breve (queda pelo modelo): N análises novas seguidas criam o
+    # alerta, sem esperar o tempo mínimo (ver AlertStateService, PR3).
+    ALERT_EMERGENCY_RULES = os.getenv("ALERT_EMERGENCY_RULES", "fall_detected")
+    ALERT_EMERGENCY_MIN_CONFIRMATIONS = env_int("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
@@ -424,7 +445,7 @@ class Config:
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",
-        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area",
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area,sos,ergonomia,imobilidade",
     )
     RISK_AREA_POLYGON = os.getenv("RISK_AREA_POLYGON", "0.70,0.10;0.98,0.10;0.98,0.95;0.70,0.95")
 
@@ -472,7 +493,9 @@ class TestConfig(Config):
     # sobe com AUTH_REQUIRED=True e verifica rota por rota — inclusive uma
     # varredura que falha se aparecer rota nova desprotegida.
     AUTH_REQUIRED = False
-    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area"
+    DEFAULT_FEATURES = (
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area,sos,ergonomia,imobilidade"
+    )
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
