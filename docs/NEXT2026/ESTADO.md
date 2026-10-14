@@ -14,14 +14,15 @@ no CHANGELOG.)
 Commit + push de `next-2026` (`origin/next-2026`) a cada marco e antes de
 qualquer tarefa > 10 min em segundo plano.
 
-## Marco atual: ADENDO 2, itens A e B prontos; próximo: bench do portão do PR5
+## Marco atual: PR5 no portão verde, aberto para squash merge
 
 | item | situação | evidência |
 |---|---|---|
 | Recuperação | pytest 649, ruff, build idênticos ao pré-reinício; wip `2116c1c` no remoto | CHANGELOG "ADENDO 2 / Recuperação" |
 | A. Portal "Liberado" | p50 **5,6 s**, p95 **21,6 s** (antes 16,8 / 81,0) — **meta não atingida** | `bench/results/portal-liberado-adendo2-20261014.json`, CHANGELOG "ADENDO 2 / A" |
 | B. Queda a 0,25× no palco | pronto; alerta ao vivo 12,9 s após entrar na cena | `test_camera_lenta.py`, `test_palco.py`, E2E `test_palco_queda_ao_vivo_em_camera_lenta`, BANCA 21 |
-| P0.1–P0.3, X1–X10 | como antes (ver CHANGELOG); E2E 33/33 na rodada 8 pré-reinício | `e2e/` |
+| Bench antes × PR5 | passa (pior: +6 % CPU/análise, 1 câmera) | BENCHMARKS "Portão do PR5" |
+| Portão do PR5 (rodada única, 14/10) | pytest 658, ruff, build (dist idêntico), E2E 34/34 com 4 câmeras e axe claro/escuro | `bench/runtime/portao-pr5/` (local) |
 
 ## Decisões em vigor
 
@@ -47,7 +48,7 @@ qualquer tarefa > 10 min em segundo plano.
 
 ## Próximo passo exato
 
-Bench intercalado "antes × PR5" (`scripts/rodar_portao.py --rotulo pr5gate
---reps 1,2,3 --perfis atual --cameras 1,4 --arvores "antes=../ch5550-antes,pr5=."`)
-→ BENCHMARKS.md → portão completo numa rodada (pytest, ruff, build, E2E com 4
-câmeras, axe) → PR5 → squash merge → recriar `next-2026` → Fase C (PR6).
+Squash merge do PR5 → recriar `next-2026` de `feat/completo-com-rebrand` →
+trazer a branch `pr6` (Fase C já rebaseada sobre o PR5, commit `6cb3f78` +
+capturas/galeria) → capturas r1 → revisão escrita → correções → r2 → galeria
+e README → portão → PR6.
