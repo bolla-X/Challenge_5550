@@ -1,5 +1,59 @@
 # VisionEPI
 
+**Segurança do trabalho que enxerga a planta inteira. Por setor, nunca por pessoa.**
+
+Câmeras comuns viram um sistema que vê EPI, queda e zona de risco ao vivo, agrupa
+o que vê em incidentes, prova a integridade de cada evidência e roda inteiro num
+notebook, sem internet. Feito para o FIAP NEXT 2026 (Challenge Metaindústria, SPI
+Integração).
+
+<p align="center">
+  <img src="docs/NEXT2026/galeria/readme/palco.gif" alt="Modo Apresentação percorrendo as cenas da demo: abertura com os números da planta e o Portal de Entrada" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/NEXT2026/galeria/1920x1080-claro/10-gemeo-3d.webp" alt="Gêmeo digital 3D: a planta com as zonas de risco e cada pessoa como uma cápsula na cor do seu estado" width="49%">
+  <img src="docs/NEXT2026/galeria/1920x1080-escuro/07-foco-alerta-critico.webp" alt="Tela de foco de uma câmera com o incidente ativo sobre o vídeo e a lista de incidentes ao lado" width="49%">
+</p>
+
+### Destaques
+
+- **Gêmeo digital 3D** da planta, ao vivo: cada pessoa é uma cápsula na cor do estado, nunca uma foto.
+- **Incidentes, não ruído:** alertas agrupados por câmera, regra e zona, com a linha causal contada só com o que foi registrado.
+- **Cadeia de custódia SHA-256:** mudar um byte de um clipe aponta exatamente o elo quebrado.
+- **Simulador "E se?":** mude a zona ou a regra e veja quantos alertas teriam disparado, sem tocar nos reais.
+- **Raio-X:** o que o modelo viu, separado do que o sistema decidiu (tecla X).
+- **Portal de Entrada e "Tente enganar a IA":** cada EPI confirmado, faltando ou não verificável, com o porquê.
+- **Liga de Setores e Retrospectiva:** gamificação só com indicadores positivos e só por equipe.
+- **Modo Apresentação** com controle pelo celular, Modo TV e PWA do supervisor.
+- **Privacidade por padrão:** rosto desfocado em tudo que sai do servidor; sem reconhecimento facial, sem nome ligado a ID.
+
+Galeria completa, nos dois temas e em três tamanhos: [docs/NEXT2026/galeria](docs/NEXT2026/galeria/index.md).
+
+### Como rodar em 3 comandos (Windows, Python 3.11)
+
+```bash
+py -3.11 -m venv .venv && .venv\Scripts\python -m pip install -r requirements.txt
+```
+
+```bash
+.venv\Scripts\python scripts\preparar.py
+```
+
+```bash
+.venv\Scripts\python run.py --demo
+```
+
+O 2º baixa os pesos (conferindo o SHA-256), as gravações de demonstração e
+aprova os runtimes rápidos; é o único que precisa de internet. O 3º imprime no
+terminal as contas da demo e o endereço. Roteiro da apresentação em
+[docs/NEXT2026/DEMO.md](docs/NEXT2026/DEMO.md). macOS/Linux: troque
+`.venv\Scripts\python` por `.venv/bin/python`.
+
+---
+
+## Sobre o projeto
+
 Sistema de monitoramento de segurança industrial em tempo real, desenvolvido para o **Challenge 2026 — Metaindústria** (FIAP × SPI Integração). Usa visão computacional para detectar uso de EPIs, analisar postura e comportamento, e sinalizar risco antes que o incidente aconteça — não apenas registrar a infração depois do fato.
 
 ## O problema
