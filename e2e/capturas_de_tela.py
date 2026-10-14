@@ -42,12 +42,19 @@ from conftest import PY, ServidorE2E, _porta_livre, encerrar_arvore, entrar  # n
 DESTINO = RAIZ / "bench" / "runtime" / "capturas"
 TAMANHOS = {"1920x1080": (1920, 1080), "1366x768": (1366, 768), "390x844": (390, 844)}
 TEMAS = {"claro": "light", "escuro": "dark"}
+# `--telas 07-,17-`: só as capturas cujo nome começa com um destes prefixos
+# (rodada parcial, só as telas que mudaram). Vazio = todas.
+TELAS: tuple[str, ...] = ()
+
+
+def _quer(nome: str) -> bool:
+    return not TELAS or nome.startswith(TELAS)
 
 
 class ServidorDemo:
     """`run.py --demo` numa porta livre; a mesma interface do ServidorE2E que este script usa."""
 
-    foco, portal = "Pátio", "Canteiro"
+    foco, portal = "Pátio", "Portal"
 
     def __init__(self) -> None:
         self.porta = _porta_livre()
@@ -106,6 +113,8 @@ class ServidorDemo:
 
 
 def _foto(pagina, pasta: Path, nome: str, feitas: list[str], espera_ms: int = 1500) -> None:
+    if not _quer(nome):
+        return
     pagina.wait_for_timeout(espera_ms)  # animações curtas e o primeiro quadro do vídeo
     pagina.screenshot(path=str(pasta / f"{nome}.png"), full_page=False)
     feitas.append(nome)
@@ -198,7 +207,23 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
         ("22-palco", "/palco", 3000),
     ]
     for nome, rota, espera in rotas:
-        _tentar(nome, lambda nome=nome, rota=rota, espera=espera: (pg.goto(base + rota), _foto(pg, pasta, nome, feitas, espera)))
+        if _quer(nome):
+            _tentar(nome, lambda nome=nome, rota=rota, espera=espera: (pg.goto(base + rota), _foto(pg, pasta, nome, feitas, espera)))
+
+    def palco_no_portal() -> None:
+        """Cena do Portal: só a câmera dela analisa; o rodapé diz quais pausaram (ADENDO 3)."""
+        pg.goto(base + "/palco")
+        pg.locator("[data-testid=palco]").wait_for(timeout=30_000)
+        for _ in range(15):
+            pg.keyboard.press("ArrowLeft")
+        pg.wait_for_function("document.querySelector('[data-testid=palco]')?.dataset.cena === '0'", timeout=15_000)
+        pg.keyboard.press("ArrowRight")
+        pg.locator("[data-testid=palco-pausadas]").wait_for(timeout=15_000)
+        _foto(pg, pasta, "30-palco-portal-pausadas", feitas, 9000)
+        pg.keyboard.press("ArrowLeft")  # devolve as câmeras
+
+    if _quer("30-palco-portal-pausadas"):
+        _tentar("30-palco-portal", palco_no_portal)
     ctx.close()
 
     # Operador: quiosque da câmera do setor.
@@ -319,7 +344,10 @@ def main() -> int:
     ap.add_argument("--folhas", action="store_true")
     ap.add_argument("--e2e", action="store_true", help="servidor do E2E em vez da demo")
     ap.add_argument("--aquecer", type=float, default=180.0, help="segundos de demo no ar antes de capturar")
+    ap.add_argument("--telas", default="", help="prefixos separados por vírgula, ex.: 07-,17-")
     args = ap.parse_args()
+    global TELAS
+    TELAS = tuple(t.strip() for t in args.telas.split(",") if t.strip())
     rodada = DESTINO / args.rodada
     servidor = ServidorE2E() if args.e2e else ServidorDemo()
     try:
