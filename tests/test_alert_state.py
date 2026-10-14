@@ -469,7 +469,7 @@ def test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois(app, mon
 
 
 def _queda():
-    return RuleAlert(rule="fall_detected", severity="critical", message="Queda detectada — Pessoa 1", feature="falls",
+    return RuleAlert(rule="fall_detected", severity="critical", message="Queda detectada · Pessoa 1", feature="falls",
                      metadata={"person_id": "person_1"})
 
 

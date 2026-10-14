@@ -62,7 +62,7 @@ export function AccountsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const nomeDaCamera = (id: number | null) => (id == null ? "—" : cameras.find((c) => c.id === id)?.name ?? `câmera ${id}`);
+  const nomeDaCamera = (id: number | null) => (id == null ? "sem setor" : cameras.find((c) => c.id === id)?.name ?? `câmera ${id}`);
   const precisaCamera = papel === "operator";
 
   const criar = (e: React.FormEvent) => {

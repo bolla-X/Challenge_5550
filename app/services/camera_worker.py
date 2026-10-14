@@ -1331,7 +1331,7 @@ class CameraWorker:
                 self._pre_alerta_registrado[aviso["track_id"]] = agora
                 self._emit_timeline_event(
                     "approach_risk_area",
-                    f"Aproximação da área de risco — Pessoa {aviso['track_id']} "
+                    f"Aproximação da área de risco · Pessoa {aviso['track_id']} "
                     f"(projeção cinemática: ~{aviso['segundos_ate_entrar']:.1f} s)",
                     "warning",
                     subject=f"Pessoa {aviso['track_id']}",
@@ -1881,7 +1881,7 @@ class CameraWorker:
         )
         self._emit_timeline_event(
             "camera_modo_fixture",
-            f"Modo fixture — fonte de demonstração após {self.tentativas_antes_da_reserva} tentativas",
+            f"Modo fixture: fonte de demonstração após {self.tentativas_antes_da_reserva} tentativas",
             "warning",
             metadata=self.video_state(),
         )
@@ -1911,7 +1911,7 @@ class CameraWorker:
             if estado.state in ("reconnecting", "unavailable"):
                 self._emit_timeline_event(
                     "camera_disconnected",
-                    f"Sinal perdido — tentando reconectar (tentativa {estado.reconnect_attempts + 1})",
+                    f"Sinal perdido, tentando reconectar (tentativa {estado.reconnect_attempts + 1})",
                     "warning",
                     metadata=estado.to_dict(),
                 )

@@ -21,7 +21,7 @@ def sem(feature: str, pessoa: int, *, na_zona: bool = False) -> RuleAlert:
     return RuleAlert(
         rule=f"missing_{feature}",
         severity="critical",
-        message=f"{nomes[feature]} — Pessoa {pessoa}",
+        message=f"{nomes[feature]} · Pessoa {pessoa}",
         feature=feature,
         metadata={"person_id": pessoa, "person_label": f"Pessoa {pessoa}", "na_zona": na_zona},
     )

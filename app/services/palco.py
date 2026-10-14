@@ -26,7 +26,7 @@ from typing import Any
 
 ROTEIRO: list[dict[str, Any]] = [
     {"chave": "abertura", "titulo": "VisionEPI",
-     "legenda": "Segurança do trabalho que enxerga a planta inteira — por setor, nunca por pessoa."},
+     "legenda": "Segurança do trabalho que enxerga a planta inteira. Por setor, nunca por pessoa."},
     {"chave": "portal", "titulo": "Portal de Entrada",
      "legenda": "Antes de entrar: cada EPI exigido confirmado, faltando ou não verificável.",
      "camera": ["Portal", "Canteiro"]},
@@ -44,7 +44,7 @@ ROTEIRO: list[dict[str, Any]] = [
      "legenda": "Cada evidência com SHA-256 encadeado: mudar um byte quebra a cadeia."},
     {"chave": "simulador", "titulo": "Simulador “E se?”",
      "legenda": "Mudar a regra e ver, antes de aplicar, quantos alertas teriam disparado."},
-    {"chave": "liga", "titulo": "Liga de Setores", "legenda": "Gamificação só com indicadores positivos — nunca premiar “zero alertas”."},
+    {"chave": "liga", "titulo": "Liga de Setores", "legenda": "Gamificação só com indicadores positivos. Nunca premia “zero alertas”."},
     {"chave": "retrospectiva", "titulo": "Retrospectiva", "legenda": "O turno em stories, com dados reais da equipe."},
     {"chave": "encerramento", "titulo": "Obrigado", "legenda": "Tudo o que você viu roda offline nesta máquina."},
 ]

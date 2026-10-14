@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { IlustracaoEscudo, IlustracaoGrafico } from "./ilustracoes";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel, PanelSkeleton } from "./common";
+import { EmptyState, Panel, PanelSkeleton } from "./common";
 import type { Alert, Incidente } from "../api/types";
 import {
   acknowledgeAllAlerts,
@@ -115,7 +116,7 @@ function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null
   if (!inc) {
     return (
       <summary>
-        <strong>Outros alertas</strong> — {total}
+        <strong>Outros alertas</strong> ({total})
       </summary>
     );
   }
@@ -135,11 +136,13 @@ function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null
   const zona = zonaDoIncidente(inc);
   const pessoas = pessoasDoIncidente(inc, 6);
   return (
-    <summary data-testid="incidente" data-incidente={inc.id}>
-      <span className={`alert-stripe ${inc.severity}`} style={{ display: "inline-block", width: 4, height: 14, marginRight: 8 }} />
-      <strong>{inc.titulo}</strong>
-      {zona ? ` · ${zona}` : ""}
-      {pessoas ? <span className="t-secondary"> · {pessoas}</span> : null}
+    <summary data-testid="incidente" data-incidente={inc.id} data-titulo={inc.titulo} data-zona={inc.zona}>
+      <span className={`alert-stripe ${inc.severity}`} />
+      <span className="incidente-resumo">
+        <strong>{inc.titulo}</strong>
+        {zona && <span className="incidente-zona">{zona}</span>}
+        {pessoas && <span className="t-secondary">{pessoas}</span>}
+      </span>
       {inc.reconhecido_em ? (
         <span className="chip ok" style={{ marginLeft: 8 }}>Reconhecido</span>
       ) : (
@@ -295,10 +298,9 @@ export function AlertPanel() {
             ))}
           </>
         ) : (
-          <div className="all-clear">
-            <span className="dot" />
-            Nenhum alerta ativo nesta câmera.
-          </div>
+          <EmptyState ilustracao={<IlustracaoEscudo />} titulo="Nenhum incidente ativo">
+            Quando uma regra for confirmada nesta câmera, o incidente aparece aqui, com os IDs envolvidos.
+          </EmptyState>
         )}
       </div>
     </Panel>
@@ -361,10 +363,9 @@ export function SafetyEventsPanel() {
         {itens.length ? (
           itens.map((alert) => <AlertRow key={alert.id} alert={alert} active={alert.status === "active"} />)
         ) : (
-          <div className="all-clear">
-            <span className="dot" />
-            Nenhuma queda ou postura suspeita registrada recentemente.
-          </div>
+          <EmptyState ilustracao={<IlustracaoEscudo />} titulo="Nenhuma queda ou postura suspeita">
+            Eventos de queda e de postura ficam aqui por alguns minutos, mesmo depois de resolvidos.
+          </EmptyState>
         )}
       </div>
     </Panel>
@@ -478,10 +479,30 @@ export function AlertHistoryPanel() {
         {itens.length ? (
           itens.map((alert) => <AlertRow key={alert.id} alert={alert} active={false} />)
         ) : (
-          <div className="all-clear">
-            <span className="dot" />
-            {carregando ? "Carregando…" : "Nenhum registro."}
-          </div>
+          carregando ? (
+            <PanelSkeleton lines={4} />
+          ) : (
+            <EmptyState
+              ilustracao={<IlustracaoGrafico />}
+              titulo="Nenhum registro com esses filtros"
+              acao={
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() => {
+                    setStatusFilter("");
+                    setSeverityFilter("");
+                    setCameraFilter("");
+                    setTipoFilter("");
+                  }}
+                >
+                  Limpar filtros
+                </button>
+              }
+            >
+              O histórico guarda todos os alertas, inclusive os resolvidos.
+            </EmptyState>
+          )
         )}
       </div>
     </Panel>

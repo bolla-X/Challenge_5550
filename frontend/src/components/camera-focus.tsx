@@ -398,7 +398,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
           </label>
         </div>
         <p className="status-text">
-          Corrige câmera montada de lado ou invertida — a imagem gira antes de qualquer detecção
+          Corrige câmera montada de lado ou invertida: a imagem gira antes de qualquer detecção
           (pessoa, EPI e pose), não é só um efeito visual.
         </p>
         {message && <p className="status-text">{message}</p>}

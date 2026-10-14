@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PanelSkeleton } from "./common";
 import { getTv } from "../api/endpoints";
 import type { TvSetor, TvEstado } from "../api/types";
 import { LigaResumo, useLiga } from "./liga";
@@ -12,7 +13,7 @@ import { RetrospectivaStories } from "./retrospectiva";
  */
 
 function pct(v: number | null): string {
-  return v == null ? "—" : `${Math.round(v * 100)}%`;
+  return v == null ? "sem dado" : `${Math.round(v * 100)}%`;
 }
 
 function Progresso({ rotulo, valor, meta }: { rotulo: string; valor: number; meta: number | null }) {
@@ -153,7 +154,13 @@ export function TvScreen({ embutido = false }: { embutido?: boolean }) {
       )}
       {erro && <p className="status-text error">{erro}</p>}
       {!estado ? (
-        <p className="centered-empty">Carregando…</p>
+        <div className="tv-grade" aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <section key={i} className="tv-setor">
+              <PanelSkeleton lines={4} />
+            </section>
+          ))}
+        </div>
       ) : (
         <div className="tv-grade">
           {estado.setores.map((s) => (

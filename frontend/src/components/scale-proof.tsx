@@ -100,7 +100,7 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
                   <td>#{l.camera_id}</td>
                   <td className="t-data">{l.fps_publicado.toFixed(1)}</td>
                   <td className="t-data">{l.fps_analisado.toFixed(2)}</td>
-                  <td className="t-data">{l.idade_analise_p95_ms == null ? "—" : `${Math.round(l.idade_analise_p95_ms)} ms`}</td>
+                  <td className="t-data">{l.idade_analise_p95_ms == null ? "sem dado" : `${Math.round(l.idade_analise_p95_ms)} ms`}</td>
                 </tr>
               ))}
               <tr className="escala-media">

@@ -51,7 +51,7 @@ export function avisarAlertaCritico(alerta: Alert, nomeDaCamera?: string): boole
   const incidente = (alerta.metadata || {}).incidente_id;
   const titulo = `Alerta crítico${nomeDaCamera ? ` · ${nomeDaCamera}` : ""}`;
   const opcoes: NotificationOptions = {
-    body: alerta.message.split(" — ")[0],
+    body: alerta.message.split(/ [·—] /)[0],
     tag: incidente ? `incidente-${incidente}` : `alerta-${alerta.id}`,
     icon: "/static/dist/icons/icone-192.png",
     badge: "/static/dist/icons/icone-192.png",

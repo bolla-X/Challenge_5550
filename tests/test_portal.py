@@ -144,6 +144,6 @@ def test_explicacao_diz_o_que_o_modelo_viu_e_o_que_foi_descartado():
     itens = {i["key"]: i for i in r["itens"]}
     assert itens["vest"]["explicacao"] == "visto com confiança 0,81"
     assert itens["helmet"]["explicacao"].startswith("o modelo viu com 0,31, abaixo do piso")
-    assert "descartado" in itens["helmet"]["explicacao"]
+    assert "descartou" in itens["helmet"]["explicacao"]
     sem = avaliar_portal({"people": [pessoa]}, ["helmet"], (540, 960, 3), (), [], {})
     assert sem["itens"][0]["explicacao"] == "o modelo não viu este item na pessoa"

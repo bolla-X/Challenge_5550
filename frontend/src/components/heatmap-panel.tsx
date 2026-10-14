@@ -63,7 +63,7 @@ export function HeatmapPanel({ cameraId }: { cameraId: number }) {
       description={
         mapa
           ? `${mapa.eventos} registro(s) de violação ou entrada na zona; o peso cai à metade a cada ${Math.round(mapa.meia_vida_s / 60)} min.`
-          : "Carregando…"
+          : ""
       }
     >
       <div className="heatmap-frame">

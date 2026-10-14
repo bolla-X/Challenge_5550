@@ -28,10 +28,10 @@ function PlantaPadrao() {
     <g>
       <rect x="0" y="0" width="1000" height="625" fill="var(--sunken)" />
       {linhasV.map((x) => (
-        <line key={`v${x}`} x1={x} y1="0" x2={x} y2="625" stroke="var(--border)" strokeWidth="1" />
+        <line key={`v${x}`} x1={x} y1="0" x2={x} y2="625" stroke="var(--hairline)" strokeWidth="1" />
       ))}
       {linhasH.map((y) => (
-        <line key={`h${y}`} x1="0" y1={y} x2="1000" y2={y} stroke="var(--border)" strokeWidth="1" />
+        <line key={`h${y}`} x1="0" y1={y} x2="1000" y2={y} stroke="var(--hairline)" strokeWidth="1" />
       ))}
       <rect x="2" y="2" width="996" height="621" fill="none" stroke="var(--text-2)" strokeWidth="4" />
       <text x="12" y="610" fontSize="18" fill="var(--text-2)">
