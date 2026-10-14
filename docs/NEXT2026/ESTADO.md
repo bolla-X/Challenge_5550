@@ -2,20 +2,14 @@
 
 Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a cada marco.
 
-## Marco atual: PR4 em construção (Fase 4)
+## Marco atual: PR4 no portão (Fase 4) — última etapa da missão
 
 | PR | Situação | Evidência |
 |---|---|---|
 | PR1 performance + benchmark | **mergeado** (`3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
 | PR2 diferenciais + L1 | **mergeado** (`753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 |
-| PR3 funções criativas | **mergeado** (`b8de7ac`) | https://github.com/bolla-X/Challenge_5550/pull/12 — pytest 559, E2E 17/17, protótipos ≤ 3,4 % do orçamento |
-| PR4 demo, confiabilidade, docs | em andamento na `next-2026` | ver abaixo |
-
-### PR4 — plano
-1. Câmera "Arquivo" pela API com `em_loop` (rebobina em vez de reconectar).
-2. `python run.py --demo` (banco isolado, senhas só no terminal, GRAVAÇÃO/AO VIVO, tema claro) e `flask demo reset` < 10 s.
-3. Soak 20 min 4 câmeras (RSS < +10 %, console limpo) e testes de falha (modelo ausente, fonte inválida, webcam ausente, LLM fora, banco indisponível).
-4. `scripts/bench.py --rapido` (≤ 5 min); DEMO.md, BANCA.md (rascunho no scratchpad da sessão), README, CHANGELOG final.
+| PR3 funções criativas | **mergeado** (`b8de7ac`) | https://github.com/bolla-X/Challenge_5550/pull/12 |
+| PR4 demo, confiabilidade, docs | portão verde: pytest 569, ruff, tsc, E2E 18/18, soak 20 min (0 erros de console, RSS pico +6,1 %), reset 7,7–9,7 s | PR aberto a seguir |
 
 ## Decisões em vigor
 
@@ -32,11 +26,11 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ## Pendências
 
-- `.env.example` negado pelas permissões (ainda `YOLO_IMGSZ=416`).
-- Câmera "Arquivo" pela API não usa `em_loop` (15 falhas a cada volta) → PR4.
-- BENCHMARKS sem rodada com terceiros < 15 % → `scripts/bench.py --rapido` no PR4.
-- Ruído: 5 alertas por pessoa (um por EPI).
+- `.env.example` negado pelas permissões desta máquina (ainda `YOLO_IMGSZ=416`; o código usa 640).
+- Ruído de alertas na multidão (5 por pessoa + troca de ID). A demo liga só 3 EPIs.
+- G3 (SOS) fora do roteiro: sem vídeo de licença livre para verificar.
+- Números absolutos sob carga de terceiros (13–77 %): rodar `scripts/bench.py --rapido` na máquina da banca.
 
 ## Próximo passo exato
 
-Seguir o plano do PR4 acima, na ordem; portão: pytest, ruff, build, E2E, soak.
+Merge do PR4; depois, só manutenção.
