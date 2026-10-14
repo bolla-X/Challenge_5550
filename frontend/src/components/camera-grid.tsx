@@ -4,6 +4,7 @@ import { IlustracaoCamera } from "./ilustracoes";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
 import { IconeAvancar, IconeMais } from "./icones";
+import { estadoDoFeed } from "./feed-status";
 import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Incidente, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
@@ -156,7 +157,8 @@ function CameraCard({
   }, [camera.id, estado, onEstado]);
 
   const critico = Boolean(temAlertaCritico(estado));
-  const linha = [camera.location, textoDeEstado(estado)].filter(Boolean).join(" · ");
+  const feed = estadoDoFeed(estado, camera);
+  const incidentes = totalDeIncidentes(estado);
 
   return (
     <button
@@ -175,8 +177,18 @@ function CameraCard({
       <div className="cam-body">
         <span className="cam-text">
           <span className="cam-name">{camera.name}</span>
-          <span className="cam-state">{linha}</span>
+          <span className="cam-state">
+            {camera.location && <>{camera.location}, </>}
+            <span className="cam-feed" data-estado={feed.chave}>
+              {feed.rotulo.toLowerCase()}
+            </span>
+          </span>
         </span>
+        {incidentes > 0 && (
+          <span className="cam-incidentes" data-testid="cam-incidentes">
+            {incidentes === 1 ? "1 incidente" : `${incidentes} incidentes`}
+          </span>
+        )}
         <ChevronIcon />
       </div>
     </button>

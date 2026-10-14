@@ -99,10 +99,12 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                   </span>
                 )}
               </span>
-              <span className="over-pill">
-                <span className={`dot ${connected ? "ok" : "off"}`} />
-                {connected ? "Conectado" : "Sem conexão"}
-              </span>
+              {!connected && (
+                <span className="over-pill">
+                  <span className="dot off" />
+                  Sem conexão com o servidor
+                </span>
+              )}
               <button
                 type="button"
                 className={`over-pill raiox-botao ${raioX ? "on" : ""}`}
@@ -114,6 +116,9 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
               >
                 Raio-X <kbd>X</kbd>
               </button>
+            </div>
+            {/* Alertas numa segunda linha, à direita: não disputam espaço com o estado do vídeo. */}
+            <div className="over-alertas">
               {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
                 <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
                   <span className="dot" />
@@ -432,13 +437,12 @@ function LogsPanel() {
 
 const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
   technical: [
-    { key: "checklist", label: "Checklist", content: <ChecklistPanel /> },
     { key: "alerts", label: "Alertas", content: <AlertPanel /> },
     { key: "safety", label: "Quedas e postura", content: <SafetyEventsPanel /> },
     { key: "compliance", label: "Conformidade", content: <ComplianceCard /> },
     { key: "people", label: "Pessoas", content: <PersonCard /> },
-    { key: "timeline", label: "Timeline", content: <TimelineCard /> },
-    { key: "overlay", label: "Overlay", content: <OverlayControls /> },
+    { key: "timeline", label: "Linha do tempo", content: <TimelineCard /> },
+    { key: "overlay", label: "Camadas do vídeo", content: <OverlayControls /> },
     { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
     { key: "gate", label: "Portaria", content: <></> },
     { key: "llm", label: "Segunda opinião", content: <></> },
@@ -450,16 +454,16 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
+    { key: "checklist", label: "Checklist técnico", content: <ChecklistPanel /> },
   ],
   supervisor: [
     { key: "trend", label: "Gráficos", content: <RiskScoreCard /> },
-    { key: "checklist", label: "Checklist", content: <ChecklistPanel /> },
     { key: "alerts", label: "Alertas", content: <AlertPanel /> },
     { key: "safety", label: "Quedas e postura", content: <SafetyEventsPanel /> },
     { key: "compliance", label: "Conformidade", content: <ComplianceCard /> },
     { key: "people", label: "Pessoas", content: <PersonCard /> },
-    { key: "timeline", label: "Timeline", content: <TimelineCard /> },
-    { key: "overlay", label: "Overlay", content: <OverlayControls /> },
+    { key: "timeline", label: "Linha do tempo", content: <TimelineCard /> },
+    { key: "overlay", label: "Camadas do vídeo", content: <OverlayControls /> },
     { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
     { key: "gate", label: "Portaria", content: <></> },
     { key: "llm", label: "Segunda opinião", content: <></> },
@@ -471,6 +475,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
     { key: "logs", label: "Logs", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
+    { key: "checklist", label: "Checklist técnico", content: <ChecklistPanel /> },
     { key: "export", label: "Exportação", content: <ExportPanel /> },
   ],
 };
@@ -504,7 +509,7 @@ export function CameraFocus() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const mode = useDashboardStore((s) => s.mode);
   const camera = cameras.find((c) => c.id === camId);
-  const [activeTab, setActiveTab] = useState<string>(mode === "supervisor" ? "trend" : "checklist");
+  const [activeTab, setActiveTab] = useState<string>(mode === "supervisor" ? "trend" : "alerts");
 
   if (!camera || mode === "operator") return null;
 
@@ -569,7 +574,7 @@ export function CameraFocus() {
               active={activeTab}
               onChange={setActiveTab}
               idPrefix={`focus-${camId}`}
-              primary={["trend", "checklist", "alerts", "compliance", "people"]}
+              primary={["trend", "alerts", "safety", "compliance", "people"]}
             />
           </div>
         </div>

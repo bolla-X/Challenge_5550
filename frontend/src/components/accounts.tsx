@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { Panel } from "./common";
+import { Numero, Panel } from "./common";
+import { Miniatura } from "./camera-grid";
+import { useLiga } from "./liga";
+import {
+  IconeApresentacao,
+  IconeContas,
+  IconeCubo,
+  IconeEscudo,
+  IconeFrasco,
+  IconeStories,
+  IconeTrofeu,
+  IconeTv,
+} from "./icones";
 import { ScreenHead } from "./layout";
 import { apiFetch } from "../api/client";
 import type { AuthUser, UserRole } from "../api/types";
@@ -14,21 +26,107 @@ const patchUser = (id: number, body: Record<string, unknown>) =>
   apiFetch<{ user: AuthUser }>(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(body) });
 const deleteUser = (id: number) => apiFetch<{ deleted: boolean }>(`/api/users/${id}`, { method: "DELETE" });
 
-/** Tela inicial do supervisor: dois blocos grandes. */
+type Agora = { noAr: number; total: number; pessoas: number; incidentes: number };
+
+/** O que está acontecendo na planta agora, do mesmo `/api/gemeo` do palco. */
+function useAgora(): Agora | null {
+  const [agora, setAgora] = useState<Agora | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    const tick = () =>
+      apiFetch<{ cameras: { rodando: boolean; pes: unknown[]; incidentes: unknown[] }[] }>("/api/gemeo")
+        .then((d) => {
+          if (!vivo) return;
+          setAgora({
+            noAr: d.cameras.filter((c) => c.rodando).length,
+            total: d.cameras.length,
+            pessoas: d.cameras.reduce((n, c) => n + c.pes.length, 0),
+            incidentes: d.cameras.reduce((n, c) => n + c.incidentes.length, 0),
+          });
+        })
+        .catch(() => vivo && setAgora(null));
+    tick();
+    const id = window.setInterval(tick, 5000);
+    return () => {
+      vivo = false;
+      window.clearInterval(id);
+    };
+  }, []);
+  return agora;
+}
+
+function saudacao(): string {
+  const h = new Date().getHours();
+  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+}
+
+const ATALHOS: { href: string; titulo: string; texto: string; Icone: (p: { size?: number }) => JSX.Element }[] = [
+  { href: "/palco", titulo: "Apresentação", texto: "O roteiro da demo, com controle pelo celular.", Icone: IconeApresentacao },
+  { href: "/gemeo", titulo: "Gêmeo digital", texto: "A planta em 3D, cada pessoa na cor do estado.", Icone: IconeCubo },
+  { href: "/liga", titulo: "Liga de Setores", texto: "Pontos da equipe e missões do turno.", Icone: IconeTrofeu },
+  { href: "/auditoria", titulo: "Cadeia de custódia", texto: "Verificar a integridade das evidências.", Icone: IconeEscudo },
+  { href: "/simulador", titulo: "Simulador", texto: "Testar uma regra nas últimas horas.", Icone: IconeFrasco },
+  { href: "/retrospectiva", titulo: "Retrospectiva", texto: "O turno em stories, com dados reais.", Icone: IconeStories },
+  { href: "/tv", titulo: "Modo TV", texto: "Setores e metas para a parede.", Icone: IconeTv },
+];
+
+/** Início do supervisor: a planta agora, as câmeras ao vivo e as portas de entrada. */
 export function SupervisorHome() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const cameras = useDashboardStore((s) => s.cameras);
+  const user = useDashboardStore((s) => s.user);
+  const agora = useAgora();
+  const { liga } = useLiga(15000);
+  const primeiroNome = (user?.name ?? "").split(" ")[0];
   return (
-    <div className="screen">
-      <ScreenHead title="Início" sub="O que você quer fazer?" />
-      <div className="home-tiles">
-        <button type="button" className="home-tile" onClick={() => setScreen("grid")}>
-          <strong>Câmeras</strong>
-          <span>{cameras.length} câmera(s) cadastrada(s). Monitoramento, alertas, zonas e portaria.</span>
+    <div className="screen home">
+      <ScreenHead title={`${saudacao()}${primeiroNome ? `, ${primeiroNome}` : ""}`} sub="A planta agora, nesta máquina." />
+      <dl className="home-agora" aria-label="Agora na planta">
+        <div>
+          <dt>câmeras no ar</dt>
+          <dd className="t-data">{agora ? `${agora.noAr}/${agora.total}` : "–"}</dd>
+        </div>
+        <div>
+          <dt>pessoas na planta</dt>
+          <dd className="t-data">{agora ? <Numero valor={agora.pessoas} /> : "–"}</dd>
+        </div>
+        <div className={agora && agora.incidentes > 0 ? "alerta" : ""}>
+          <dt>incidentes ativos</dt>
+          <dd className="t-data">{agora ? <Numero valor={agora.incidentes} /> : "–"}</dd>
+        </div>
+        <div>
+          <dt>nível da planta</dt>
+          <dd className="t-data">{liga ? <Numero valor={liga.planta.nivel} /> : "–"}</dd>
+        </div>
+      </dl>
+      <div className="home-bento">
+        <button type="button" className="home-tile home-tile-cameras" onClick={() => setScreen("grid")}>
+          <span className="home-miniaturas" aria-hidden="true">
+            {cameras.slice(0, 4).map((c) => (
+              <span key={c.id} className="home-miniatura">
+                <Miniatura cameraId={c.id} />
+                <small>{c.name}</small>
+              </span>
+            ))}
+          </span>
+          <span className="home-tile-texto">
+            <strong>Câmeras</strong>
+            <span>
+              {cameras.length === 1 ? "1 câmera" : `${cameras.length} câmeras`}: monitoramento, incidentes, zonas e portaria.
+            </span>
+          </span>
         </button>
+        {ATALHOS.map(({ href, titulo, texto, Icone }) => (
+          <a key={href} className="home-tile" href={href}>
+            <Icone size={22} />
+            <strong>{titulo}</strong>
+            <span>{texto}</span>
+          </a>
+        ))}
         <button type="button" className="home-tile" onClick={() => setScreen("accounts")}>
+          <IconeContas size={22} />
           <strong>Contas</strong>
-          <span>Crie o acesso de cada operador e gerencie as contas existentes.</span>
+          <span>Acesso de operadores e técnicos.</span>
         </button>
       </div>
     </div>

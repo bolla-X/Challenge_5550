@@ -178,7 +178,7 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 .side-profiles { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--s3); }
 
 /* ---------------- Grade de câmeras -------------------------------------- */
-.camera-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s4); }
+.camera-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--s5); }
 .cam-card { display: flex; flex-direction: column; align-items: stretch; overflow: hidden; cursor: pointer; text-align: left; padding: 0; height: auto; border: 0; white-space: normal; line-height: 1.4; }
 .cam-card svg { width: 16px; height: 16px; color: var(--text-3); }
 .cam-card:hover { background: var(--surface); }
@@ -190,6 +190,8 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 .cam-body .cam-text { min-width: 0; flex: 1; }
 .cam-name { display: block; font-size: 15px; font-weight: 500; letter-spacing: -.006em; }
 .cam-state { display: block; font-size: 13px; letter-spacing: 0; color: var(--text-3); margin-top: 2px; }
+.cam-feed[data-estado="sem_sinal"], .cam-feed[data-estado="reconectando"] { color: var(--danger); }
+.cam-incidentes { flex: none; padding: 2px 10px; border-radius: var(--r-chip); background: var(--tint-danger); color: var(--danger); font-size: 13px; font-weight: 500; }
 .cam-add {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s2);
   min-height: 200px; height: auto; border-radius: var(--r-card); border: 1px dashed var(--control-line);
@@ -228,7 +230,8 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
   font-size: 13px; font-weight: 500; letter-spacing: 0; white-space: nowrap; pointer-events: auto;
 }
 .over-pill .t-data { font-size: 13px; }
-.over-pill.alert { margin-left: auto; min-width: 0; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
+.over-alertas { position: absolute; top: 52px; right: var(--s3); z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s2); max-width: min(70%, 640px); pointer-events: none; }
+.over-pill.alert { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .over-pill.alert .dot { color: var(--danger); }
 .over-pill .dot.ok { color: var(--ok); }
 .over-pill .dot.off { color: var(--on-overlay); opacity: .5; }
@@ -459,11 +462,28 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .gate-video.denied { box-shadow: var(--shadow-1), inset 0 0 0 3px var(--danger); }
 
 /* Início do supervisor e contas. */
-.home-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s4); margin-top: var(--s4); }
-.home-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--s2); min-height: 220px; padding: 28px; text-align: left; border-radius: 14px; background: var(--surface); border: 1px solid var(--hairline); cursor: pointer; }
+/* Início do supervisor: a planta agora + bento de entradas (cada célula tem conteúdo). */
+.home-agora { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); margin: var(--s4) 0 var(--s5); }
+.home-agora div { display: grid; gap: 2px; padding: var(--s4) var(--s5); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-1); }
+.home-agora dt { order: 2; font-size: 13px; color: var(--text-2); }
+.home-agora dd { margin: 0; font-size: 40px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.home-agora .alerta dd { color: var(--danger); }
+.home-bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(150px, auto); gap: var(--s4); }
+.home-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: var(--s1); padding: var(--s5); text-align: left; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--hairline); color: var(--text); text-decoration: none; cursor: pointer; transition: border-color var(--d-state) var(--ease-out), transform var(--d-press) var(--ease-out); }
 .home-tile:hover { border-color: var(--accent); }
-.home-tile strong { font-size: 28px; font-weight: 650; letter-spacing: -.02em; }
-.home-tile span { font-size: 15px; color: var(--text-2); max-width: 36ch; }
+.home-tile:active { transform: scale(.98); }
+.home-tile svg { color: var(--accent); margin-bottom: auto; }
+.home-tile strong { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.home-tile > span, .home-tile-texto > span { font-size: 14px; color: var(--text-2); max-width: 36ch; }
+.home-tile-cameras { grid-column: span 2; grid-row: span 2; justify-content: space-between; gap: var(--s4); }
+.home-tile-cameras strong { font-size: 28px; letter-spacing: -.02em; }
+.home-tile-texto { display: grid; gap: var(--s1); }
+.home-miniaturas { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); width: 100%; }
+.home-miniatura { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--r-control); background: var(--overlay); }
+.home-miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.home-miniatura small { position: absolute; left: var(--s2); bottom: var(--s2); padding: 2px 8px; border-radius: var(--r-chip); background: var(--overlay); color: var(--on-overlay); font-size: 12px; }
+@media (max-width: 1100px) { .home-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } .home-agora { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .home-bento { grid-template-columns: 1fr; } .home-tile-cameras { grid-column: auto; grid-row: auto; } .home-agora dd { font-size: 30px; } }
 .account-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s3); align-items: end; }
 .account-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-2); }
 .account-form .actions { grid-column: 1 / -1; }
@@ -515,7 +535,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .aviso-degradado strong { text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
 
 /* Pré-alerta de aproximação (F3): amarelo, à parte do alerta crítico. */
-.over-pill.pre-alerta { margin-left: auto; background: color-mix(in srgb, var(--v-aproximacao) 94%, transparent); color: var(--v-texto-escuro); }
+.over-pill.pre-alerta { background: color-mix(in srgb, var(--v-aproximacao) 94%, transparent); color: var(--v-texto-escuro); }
 .over-pill.pre-alerta .dot { color: var(--v-texto-escuro); }
 .over-pill.pre-alerta .t-data { opacity: .75; }
 

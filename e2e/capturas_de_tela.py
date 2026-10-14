@@ -170,8 +170,6 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
                                   _foto(pg, pasta, "04-supervisor-contas", feitas)))
     _tentar("05-sobre", lambda: (pg.goto(base + "/"), pg.get_by_role("button", name="Sobre", exact=True).first.click(timeout=20_000),
                                  _foto(pg, pasta, "05-sobre", feitas)))
-    _tentar("06-escala", lambda: (pg.goto(base + "/"), pg.get_by_role("button", name="Prova de escala").first.click(timeout=20_000),
-                                  _foto(pg, pasta, "06-prova-de-escala", feitas)))
     ctx.close()
 
     # Técnico: foco na multidão (alerta crítico), as abas e o Raio-X.
@@ -194,6 +192,8 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
 
     # Telas de tela cheia (técnico).
     ctx, pg = logado("technical")
+    _tentar("06-escala", lambda: (pg.get_by_role("button", name="Prova de escala").first.click(timeout=20_000),
+                                  _foto(pg, pasta, "06-prova-de-escala", feitas)))
     rotas = [
         ("10-gemeo-3d", "/gemeo", 4000), ("11-gemeo-2d", "/gemeo?2d=1", 2500),
         ("12-simulador", f"/simulador?camera={multidao}", 3000), ("13-auditoria", "/auditoria", 2500),
@@ -224,15 +224,22 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
     lentas = re.compile(r".*/api/(liga|missoes|retrospectiva).*")
 
     def carregando():
-        pg.route(lentas, lambda rota: (time.sleep(6), rota.continue_()))
+        # As respostas ficam RETIDAS (o handler não responde) até a foto; depois seguem.
+        retidas = []
+        pg.route(lentas, retidas.append)
         pg.goto(base + "/liga", wait_until="commit")
         _foto(pg, pasta, "26-forcado-carregando-liga", feitas, 900)
         pg.unroute(lentas)
+        for rota in retidas:
+            _tentar("liberar rota", rota.continue_)
 
     def vazio():
         incidentes = re.compile(r".*/api/incidentes.*")
-        pg.route(incidentes, lambda rota: rota.fulfill(status=200, content_type="application/json",
-                                                       body=json.dumps({"items": [], "total": 0})))
+        def vazia(rota):
+            _tentar("rota vazia", lambda: rota.fulfill(status=200, content_type="application/json",
+                                                      body=json.dumps({"items": [], "total": 0})))
+
+        pg.route(incidentes, vazia)
         pg.goto(base + "/auditoria")
         _foto(pg, pasta, "27-forcado-vazio-auditoria", feitas, 2500)
         pg.unroute(incidentes)
@@ -247,7 +254,7 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
                 return
             corpo = resposta.json()
             corpo["adaptativo"] = {"degradado": True, "reducoes": ["análise a cada 3 quadros", "inferência em 480 px"]}
-            rota.fulfill(response=resposta, body=json.dumps(corpo))
+            _tentar("rota degradada", lambda: rota.fulfill(response=resposta, body=json.dumps(corpo)))
 
         pg.route(status, trocar)
         pg.goto(base + "/")

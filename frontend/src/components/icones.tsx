@@ -25,6 +25,12 @@ import {
   WarningOctagonIcon,
   XIcon,
   DownloadSimpleIcon,
+  FlaskIcon,
+  FilmStripIcon,
+  PresentationChartIcon,
+  TelevisionSimpleIcon,
+  TrophyIcon,
+  UsersThreeIcon,
   type IconProps,
 } from "@phosphor-icons/react";
 
@@ -50,3 +56,9 @@ export const IconeEscudo = (p: IconProps) => <ShieldCheckIcon {...BASE} {...p} /
 export const IconeCubo = (p: IconProps) => <CubeIcon {...BASE} {...p} />;
 export const IconeDrone = (p: IconProps) => <DroneIcon {...BASE} {...p} />;
 export const IconeMais = (p: IconProps) => <PlusIcon {...BASE} {...p} />;
+export const IconeApresentacao = (p: IconProps) => <PresentationChartIcon {...BASE} {...p} />;
+export const IconeTrofeu = (p: IconProps) => <TrophyIcon {...BASE} {...p} />;
+export const IconeFrasco = (p: IconProps) => <FlaskIcon {...BASE} {...p} />;
+export const IconeStories = (p: IconProps) => <FilmStripIcon {...BASE} {...p} />;
+export const IconeTv = (p: IconProps) => <TelevisionSimpleIcon {...BASE} {...p} />;
+export const IconeContas = (p: IconProps) => <UsersThreeIcon {...BASE} {...p} />;
