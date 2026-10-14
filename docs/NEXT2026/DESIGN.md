@@ -110,3 +110,26 @@ teste `e2e/test_estados.py` procura essas palavras em todas as rotas.
 - Teclado: tudo alcançável por Tab com foco visível (`--accent`, 2 px);
   atalhos: **X** (Raio-X), **→ / ← / Espaço** (palco e stories), **Esc** (modal),
   **Ctrl K** (busca).
+
+## O que a revisão visual mudou (Fase C, item 7)
+
+Achados das capturas `r1` e `r2` (rubrica em `galeria/index.md`) que viraram regra:
+
+- **Ícone de botão é Phosphor puro.** Uma regra antiga (`button svg { fill: none; stroke: currentColor }`),
+  feita para os ícones de traço desenhados à mão, apagava os ícones Phosphor (que são preenchidos):
+  tema, som e notificação pareciam vazios. A regra saiu; nenhum SVG de conteúdo vive dentro de botão.
+- **Bloco clicável que é `<button>` declara `height: auto; white-space: normal`.** O botão base tem
+  altura fixa e `nowrap`; sem isso o conteúdo de um bloco (Início, cartão de câmera) vaza.
+- **Grade com cartões não usa `.card + .card`.** A margem entre cartões empilhados desalinha cartões
+  lado a lado; dentro de grade, `margin: 0` (simulador).
+- **Início = a planta agora + entradas.** Quatro números ao vivo (câmeras no ar, pessoas, incidentes,
+  nível da planta) e um bento em que cada célula tem conteúdo: as câmeras com miniatura real ocupam
+  2×2; as outras portas, 1×1.
+- **Celular:** a barra superior cabe numa linha (atalhos secundários num menu "Menu", nome do usuário
+  e marca por escrito somem); tabela larga rola dentro do cartão e esconde a coluna de hash; o palco,
+  feito para projetor, não transborda e não mostra o QR (no celular, o celular já é o controle).
+- **Texto visível nunca mostra código interno** (`missing_vest`, `rule`): o contexto de um alerta é a
+  câmera; plural de verdade, nunca "alerta(s)"; decimal com vírgula; data curta `14/10 08:17:30`.
+- **Número grande é sans com algarismos tabulares**, também no Modo TV ("12 min" numa linha só, a
+  unidade menor ao lado).
+- **Skeleton tem o formato do conteúdo final** (Liga: placar à esquerda, nível e missões à direita).
