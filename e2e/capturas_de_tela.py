@@ -89,7 +89,9 @@ class ServidorDemo:
             except requests.RequestException:
                 time.sleep(0.5)
         s = self.sessao("technical")
-        self.cameras = {c["name"]: c["id"] for c in s.get(self.base + "/api/cameras", timeout=10).json()}
+        corpo = s.get(self.base + "/api/cameras", timeout=10).json()
+        lista = corpo if isinstance(corpo, list) else corpo.get("items") or corpo.get("cameras") or []
+        self.cameras = {c["name"]: c["id"] for c in lista}
         print(f"[capturas] demo no ar; {int(aquecer_s)} s para acumular dados reais", flush=True)
         time.sleep(aquecer_s)
 
