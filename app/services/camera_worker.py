@@ -23,6 +23,7 @@ from app.services.alert_state_service import AlertStateService
 from app.services.andon import ContadorDeMinutos
 from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
+from app.services.custodia import registrar_clipe
 from app.services.feature_manager import FeatureManager
 from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
 from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
@@ -39,11 +40,11 @@ from app.vision.captura_continua import CapturaContinua
 from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
 from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
-from app.vision.reassociacao import RastreadorComReassociacao, ReassociadorDeIds
 from app.vision.planta import pes_na_planta
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
+from app.vision.reassociacao import RastreadorComReassociacao, ReassociadorDeIds
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream, e_arquivo_local
@@ -369,6 +370,7 @@ class CameraWorker:
             confirmacoes_emergencia=int(app.config.get("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)),
             # Zona do incidente (P0.2): o nome da área de risco, se houver uma desenhada.
             nome_da_zona=lambda: self.risk_area_name if self.rule_engine.risk_polygon else None,
+            custodia=bool(app.config.get("CUSTODIA_ATIVA", True)),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -384,6 +386,7 @@ class CameraWorker:
             snapshot_dir=str(app.config.get("SNAPSHOT_DIR", "runtime/snapshots")),
             enabled=bool(app.config.get("SNAPSHOT_ENABLED", True)),
             jpeg_quality=int(app.config.get("SNAPSHOT_JPEG_QUALITY", 86)),
+            custodia=bool(app.config.get("CUSTODIA_ATIVA", True)),
         )
         self.event_repository = EventRepository()
         self._last_cleanup: dict[str, Any] | None = None
@@ -1253,6 +1256,8 @@ class CameraWorker:
 
     def _gravar_clipe(self, pendente: ClipePendente, quadros) -> None:
         clipe = gravar_clipe(self.replay_dir, pendente, quadros, self.camera_id)
+        if self.app.config.get("CUSTODIA_ATIVA", True):
+            registrar_clipe(pendente.alert_id, self.camera_id, self.replay_dir / f"alert_{pendente.alert_id}")
         self._emitir("clip_pronto", {"camera_id": self.camera_id, "alert_id": pendente.alert_id, "total": clipe["total"]})
 
     def _receber_analise(self, analise: FrameAnalysis, ts_ms: float) -> None:

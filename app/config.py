@@ -417,6 +417,8 @@ class Config:
     # Re-associação de ID (MISSÃO 2, P0.2): track novo a até N larguras de
     # caixa de onde outro sumiu, em até J s, herda o ID antigo.
     REASSOCIAR_IDS = env_bool("REASSOCIAR_IDS", True)
+    # Cadeia de custódia das evidências (X3): alerta, snapshot, clipe e privacidade.
+    CUSTODIA_ATIVA = env_bool("CUSTODIA_ATIVA", True)
     REASSOCIAR_DISTANCIA_LARGURAS = env_float("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)
     REASSOCIAR_JANELA_S = env_float("REASSOCIAR_JANELA_S", 2.0)
     POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)

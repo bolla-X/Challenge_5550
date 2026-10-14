@@ -30,17 +30,27 @@ GRAVACOES = [
     ("Pátio", "Expedição", "next_multidao.mp4"),
     ("Escada", "Manutenção", "next_queda.mp4"),
 ]
-# EPIs ligados nas câmeras da demo: capacete, colete e luvas. Óculos, máscara,
-# calçado e protetor auricular ficam desligados — nas gravações eles não
-# aparecem de forma útil, e cada um somaria um alerta por pessoa na tela.
-EPIS_DESLIGADOS_NA_DEMO = ("glasses", "mask", "safety_shoe", "ear_protection")
+# Todos os EPIs exigidos ligados na demo (MISSÃO 2, P0.2). Antes eram só
+# capacete, colete e luvas: cada EPI somava UM alerta por pessoa na tela. Com os
+# alertas agrupados em incidentes por (câmera, regra, zona), a multidão com os 7
+# EPIs mostra no máximo 1 incidente por regra e zona (medido:
+# bench/results/incidentes-depois-multidao-*.json). Calçado e protetor auricular
+# não são detectados pelo modelo: aparecem como "não suportado", nunca como falta.
+EPIS_DESLIGADOS_NA_DEMO: tuple[str, ...] = ()
 
 
 # Zona de risco do Pátio: faixa da direita (onde os pedestres entram).
 ZONA_PATIO = [[0.62, 0.30], [0.98, 0.30], [0.98, 0.98], [0.62, 0.98]]
-PLANTA_PATIO = {
-    "pontos_camera": [[0.05, 0.55], [0.95, 0.55], [0.98, 0.98], [0.02, 0.98]],
-    "pontos_planta": [[0.10, 0.10], [0.90, 0.10], [0.90, 0.90], [0.10, 0.90]],
+# Calibração de DEMONSTRAÇÃO das três gravações numa planta só (G5/X1): o
+# trapézio do chão de cada vídeo vai para um setor diferente do galpão. É uma
+# aproximação feita a olho (as gravações não são da mesma fábrica), e a tela
+# do gêmeo mostra posições, não medidas.
+_CHAO_NO_VIDEO = [[0.05, 0.55], [0.95, 0.55], [0.98, 0.98], [0.02, 0.98]]
+PLANTA_PATIO = {"pontos_camera": _CHAO_NO_VIDEO, "pontos_planta": [[0.42, 0.08], [0.95, 0.08], [0.95, 0.62], [0.42, 0.62]]}
+PLANTAS = {
+    "Canteiro": {"pontos_camera": _CHAO_NO_VIDEO, "pontos_planta": [[0.05, 0.08], [0.37, 0.08], [0.37, 0.52], [0.05, 0.52]]},
+    "Pátio": PLANTA_PATIO,
+    "Escada": {"pontos_camera": _CHAO_NO_VIDEO, "pontos_planta": [[0.05, 0.60], [0.37, 0.60], [0.37, 0.92], [0.05, 0.92]]},
 }
 METAS = {"Obra": {"minutos_conformes": 30, "checkins_portal": 5}, "Portaria": {"minutos_conformes": 30, "checkins_portal": 10}}
 
@@ -73,7 +83,8 @@ def preparar_ambiente() -> None:
         "CLEANUP_DIRECTORIES": str(PASTA / "snapshots"),
         "ROTULOS_DIR": str(PASTA / "rotulos"),
         "RTSP_FIXTURE_FALLBACK": "",
-        "DEFAULT_FEATURES": "ppe,helmet,vest,gloves,pose,falls,posture,risk_area,sos,ergonomia,imobilidade",
+        "DEFAULT_FEATURES": "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,"
+                            "pose,falls,posture,risk_area,sos,ergonomia,imobilidade",
     })
     TOKEN.write_text(secrets.token_urlsafe(32), encoding="utf-8")
 
@@ -95,6 +106,9 @@ def resetar_pelo_terminal(porta: int) -> dict[str, Any]:
     with sqlite3.connect(BANCO) as conexao:
         conexao.execute("DELETE FROM alerts")
         conexao.execute("DELETE FROM event_logs")
+        for tabela in ("incidentes", "custodia"):
+            if conexao.execute("SELECT name FROM sqlite_master WHERE name=?", (tabela,)).fetchone():
+                conexao.execute(f"DELETE FROM {tabela}")
     for sub in ("clips", "snapshots"):
         shutil.rmtree(PASTA / sub, ignore_errors=True)
     return {"ok": True, "segundos": round(time.monotonic() - inicio, 2), "via": "banco (servidor fora do ar)"}

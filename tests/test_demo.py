@@ -67,9 +67,11 @@ def test_reset_pelo_terminal_sem_servidor_limpa_o_banco(tmp_path, monkeypatch):
         assert c.execute("SELECT COUNT(*) FROM event_logs").fetchone()[0] == 0
 
 
-def test_demo_desliga_os_epis_que_so_fazem_ruido():
+def test_demo_liga_todos_os_epis_exigidos():
+    """P0.2: com os alertas agrupados em incidentes, a demo volta a exigir todos os EPIs."""
     from app.demo import EPIS_DESLIGADOS_NA_DEMO, _features_da_demo
+    from app.models import DEFAULT_CAMERA_FEATURES
 
     f = _features_da_demo()
-    assert all(not f[k] for k in EPIS_DESLIGADOS_NA_DEMO)
-    assert f["helmet"] and f["vest"] and f["falls"]
+    assert EPIS_DESLIGADOS_NA_DEMO == ()
+    assert f == DEFAULT_CAMERA_FEATURES

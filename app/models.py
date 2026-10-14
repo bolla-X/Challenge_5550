@@ -120,6 +120,44 @@ class Incidente(db.Model):
         }
 
 
+class ElodeCustodia(db.Model):
+    """Um elo da cadeia de custódia das evidências (X3, MISSÃO 2).
+
+    `elo_sha256 = sha256(seq | tipo | ref | conteudo_sha256 | anterior_sha256 | criado_em)`.
+    Mudar um byte da evidência muda o `conteudo_sha256` recalculado; mudar o
+    registro muda o `elo_sha256`; tirar ou reordenar um elo quebra o
+    `anterior_sha256` do seguinte. Ver app/services/custodia.py.
+    """
+
+    __tablename__ = "custodia"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.String(30), nullable=False, index=True)  # alerta | snapshot | clipe | privacidade
+    ref = db.Column(db.String(240), nullable=False)
+    camera_id = db.Column(db.Integer, nullable=True, index=True)
+    alert_id = db.Column(db.Integer, nullable=True, index=True)
+    descricao = db.Column(db.String(255), nullable=False, default="")
+    detalhe = db.Column(db.JSON, nullable=False, default=dict)  # caminho, manifesto de arquivos
+    conteudo_sha256 = db.Column(db.String(64), nullable=False)
+    anterior_sha256 = db.Column(db.String(64), nullable=False)
+    elo_sha256 = db.Column(db.String(64), nullable=False, unique=True)
+    criado_em = db.Column(db.String(40), nullable=False)  # ISO-8601 UTC, texto: entra no hash exatamente assim
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "tipo": self.tipo,
+            "ref": self.ref,
+            "camera_id": self.camera_id,
+            "alert_id": self.alert_id,
+            "descricao": self.descricao,
+            "conteudo_sha256": self.conteudo_sha256,
+            "anterior_sha256": self.anterior_sha256,
+            "elo_sha256": self.elo_sha256,
+            "criado_em": self.criado_em,
+        }
+
+
 def _aware(valor: datetime) -> datetime:
     """SQLite devolve datetime sem fuso; tudo aqui é gravado em UTC."""
     return valor if valor.tzinfo is not None else valor.replace(tzinfo=timezone.utc)

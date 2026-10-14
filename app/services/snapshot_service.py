@@ -23,12 +23,14 @@ class SnapshotService:
         snapshot_dir: str = "runtime/snapshots",
         enabled: bool = True,
         jpeg_quality: int = 86,
+        custodia: bool = True,
     ) -> None:
         self.base_dir = Path(base_dir or BASE_DIR)
         self.snapshot_dir = snapshot_dir.strip() or "runtime/snapshots"
         self.enabled = bool(enabled)
         self.jpeg_quality = max(40, min(100, int(jpeg_quality)))
         self.repository = AlertRepository()
+        self.custodia = bool(custodia)
 
     @property
     def absolute_dir(self) -> Path:
@@ -48,7 +50,12 @@ class SnapshotService:
             if not ok:
                 logger.warning("snapshot_write_failed", extra={"alert_id": alert.id, "path": str(filepath)})
                 return alert
-            return self.repository.update_frame_ref(alert, f"/snapshots/{filename}")
+            alert = self.repository.update_frame_ref(alert, f"/snapshots/{filename}")
+            if self.custodia:
+                from app.services.custodia import registrar_snapshot
+
+                registrar_snapshot(alert, filepath)
+            return alert
         except Exception as exc:  # noqa: BLE001
             logger.warning("snapshot_attach_failed", extra={"alert_id": alert.id, "error": str(exc)})
             return alert

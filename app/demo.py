@@ -35,6 +35,7 @@ from app.demo_ambiente import (  # noqa: F401  (reexportados para quem importa a
     METAS,
     PASTA,
     PLANTA_PATIO,
+    PLANTAS,
     TOKEN,
     ZONA_PATIO,
     preparar_ambiente,
@@ -79,7 +80,8 @@ def semear(app) -> dict[str, Any]:
         else:
             cameras["Canteiro"].gate_required = ["helmet", "vest"]
         cameras["Pátio"].risk_polygon = ZONA_PATIO
-        cameras["Pátio"].planta = PLANTA_PATIO
+        for nome, calibracao in PLANTAS.items():
+            cameras[nome].planta = calibracao
         for setor, meta in METAS.items():
             db.session.add(MetaDoSetor(setor=setor, **meta))
         db.session.commit()
@@ -112,7 +114,7 @@ def resetar_no_servidor(app) -> dict[str, Any]:
     """Executado DENTRO do servidor da demo: para tudo, limpa o histórico e religa
     com workers NOVOS (zera histerese, Andon, portal e sinais, que vivem na memória)."""
     from app.extensions import db
-    from app.models import Alert, EventLog
+    from app.models import Alert, ElodeCustodia, EventLog, Incidente
 
     inicio = time.monotonic()
     monitor = app.extensions["monitor_service"]
@@ -132,6 +134,9 @@ def resetar_no_servidor(app) -> dict[str, Any]:
         marca("parou")
         Alert.query.delete()
         EventLog.query.delete()
+        Incidente.query.delete()
+        # A cadeia de custódia acompanha as evidências que a demo apaga.
+        ElodeCustodia.query.delete()
         db.session.commit()
         for sub in ("clips", "snapshots"):
             shutil.rmtree(PASTA / sub, ignore_errors=True)

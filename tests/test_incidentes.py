@@ -61,6 +61,15 @@ def test_regra_e_zona_diferentes_separam_incidentes(app):
         assert chaves == [("Sem capacete", "Fora da zona"), ("Sem capacete", "Zona A"), ("Sem colete", "Fora da zona")]
 
 
+def test_id_do_rastreador_vira_o_numero_mostrado(app):
+    with app.app_context():
+        s = servico(DummySocket())
+        item = sem("helmet", 1)
+        item = RuleAlert(item.rule, item.severity, item.message, item.feature, item.metadata | {"person_id": "person_38"})
+        s.process([item])
+        assert s.active_incidents()[0]["pessoas_ativas"] == [38]
+
+
 def test_sem_zona_desenhada_a_zona_e_a_camera_toda(app):
     with app.app_context():
         s = servico(DummySocket(), zona=None)

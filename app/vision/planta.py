@@ -80,8 +80,24 @@ def pes_na_planta(people: list[dict[str, Any]], frame_shape, calibracao: dict[st
             "y": round(py, 4),
             "dentro_da_calibracao": dentro(pe, calibracao["pontos_camera"]),
             "na_zona": (pessoa.get("risk_area") or {}).get("status") == "inside",
+            **estado_de_conformidade(pessoa),
         })
     return saida
+
+
+def estado_de_conformidade(pessoa: dict[str, Any]) -> dict[str, Any]:
+    """Cor do avatar no gêmeo digital (X1): sem EPI exigido > na zona > conforme.
+
+    "Não verificável" (fora do enquadramento) NÃO conta como faltando: não
+    detectado não é ausente.
+    """
+    faltando = sorted(
+        chave for chave, item in (pessoa.get("ppe") or {}).items() if (item or {}).get("status") in ("missing", "incorrect")
+    )
+    na_zona = (pessoa.get("risk_area") or {}).get("status") == "inside"
+    caida = bool((pessoa.get("pose") or {}).get("fallen"))
+    estado = "emergencia" if caida else "sem_epi" if faltando else "zona" if na_zona else "conforme"
+    return {"estado": estado, "faltando": faltando}
 
 
 def poligono_na_planta(poligono: list[Ponto], calibracao: dict[str, Any]) -> list[Ponto]:

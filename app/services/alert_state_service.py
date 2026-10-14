@@ -9,6 +9,7 @@ from flask_socketio import SocketIO
 
 from app.models import Alert
 from app.repositories.alert_repository import AlertRepository
+from app.services.custodia import lote_de_alertas
 from app.services.incidentes import AgrupadorDeIncidentes
 from app.services.risk_rules import RuleAlert
 from app.utils.salas import emitir_para_camera
@@ -77,6 +78,7 @@ class AlertStateService:
         regras_de_emergencia: frozenset[str] = frozenset(),
         confirmacoes_emergencia: int = 2,
         nome_da_zona=None,
+        custodia: bool = True,
     ) -> None:
         self.repository = repository
         self.socketio = socketio
@@ -133,6 +135,8 @@ class AlertStateService:
         # Incidentes (MISSÃO 2, P0.2): o painel mostra (câmera, regra, zona),
         # não uma linha por pessoa.
         self.incidentes = AgrupadorDeIncidentes(camera_id, nome_da_zona)
+        # Cadeia de custódia (X3): cada alerta criado vira um elo.
+        self.custodia = bool(custodia)
 
     @staticmethod
     def _caixa_da_pessoa(metadata: dict[str, Any] | None) -> BoundingBox | None:
@@ -246,6 +250,7 @@ class AlertStateService:
             elif agora - self._silenciados[key]["visto"] >= SONECA_AUSENCIA_S:
                 del self._silenciados[key]
         created: list[dict[str, Any]] = []
+        novos: list[Alert] = []  # para a cadeia de custódia, depois do commit
         updated: list[dict[str, Any]] = []
         created_or_updated: list[dict[str, Any]] = []
         resolved: list[dict[str, Any]] = list(encerrados_por_desligar)
@@ -285,6 +290,7 @@ class AlertStateService:
                 emitir("incident_updated", incidente)
                 payload = state.alert.to_dict()
                 state.snapshot = payload
+                novos.append(state.alert)
                 # Acabou de ser gravado: o relógio do espaçamento começa aqui.
                 state.ultimo_touch = monotonic()
                 state.ocorrencias_pendentes = 0
@@ -342,7 +348,12 @@ class AlertStateService:
                     logger.info("alert_resolved", extra={"alert": payload})
                 del self._states[key]
 
-        if pendentes:
+        if pendentes and self.custodia and novos:
+            with lote_de_alertas() as anexar:
+                for alerta in novos:
+                    anexar(alerta)
+                self.repository.salvar()
+        elif pendentes:
             self.repository.salvar()
         for evento, payload in pendentes:
             self._emitir(evento, payload)

@@ -30,6 +30,13 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def numero_da_pessoa(person_id: Any) -> Any:
+    """"person_38" → 38 (o número que a tela mostra como "Pessoa 38"); outros valores passam."""
+    if isinstance(person_id, str) and person_id.startswith("person_") and person_id[7:].isdigit():
+        return int(person_id[7:])
+    return person_id
+
+
 def titulo_do_alerta(mensagem: str) -> str:
     """"Sem capacete — Pessoa 3" → "Sem capacete" (o incidente não é de uma pessoa)."""
     return (mensagem or "").split(" — ")[0].strip() or "Alerta"
@@ -99,7 +106,7 @@ class AgrupadorDeIncidentes:
             db.session.flush()
             aberto = self._abertos[chave] = _Aberto(incidente_id=inc.id)
         assert aberto is not None
-        pessoa = item.metadata.get("person_id")
+        pessoa = numero_da_pessoa(item.metadata.get("person_id"))
         aberto.ativos[chave_alerta] = pessoa
         # Listas NOVAS (o JSON puro não detecta mutação in-place).
         if pessoa is not None and pessoa not in (inc.pessoas or []):

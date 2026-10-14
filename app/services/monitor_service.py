@@ -503,6 +503,10 @@ class MonitorService:
             subject=usuario.email,
             metadata={"ativa": bool(ativa), "motivo": motivo[:200], "usuario_id": usuario.id, "papel": usuario.role},
         )
+        if self.app.config.get("CUSTODIA_ATIVA", True):
+            from app.services.custodia import registrar_evento
+
+            registrar_evento(evento)
         payload = evento.to_dict()
         self.socketio.emit("timeline_event", payload, to=SALA_PARQUE)
         return {"camera_id": camera_id, "ativa": bool(ativa), "evento": payload}

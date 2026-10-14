@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { subscribeToServerEvents, useDashboardStore, ROLE_ACCESS } from "./store/dashboardStore";
 import { Topbar, MessageBar, ScreenHead } from "./components/layout";
 import { CameraGrid, totalDeIncidentes, type EstadoDaCamera } from "./components/camera-grid";
@@ -14,6 +14,13 @@ import { PortalScreen } from "./components/portal";
 import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
+
+// Telas pesadas (three.js) só carregam quando abertas.
+const GemeoScreen = lazy(() => import("./components/gemeo/gemeo-screen"));
+
+function CarregandoTela() {
+  return <p className="centered-empty" aria-busy="true">Carregando…</p>;
+}
 
 // Visão geral do Supervisor: o mesmo painel por setor do Modo TV (G8), com
 // atalhos para as telas de tela cheia (abrem em outra aba, para a TV/totem).
@@ -138,6 +145,13 @@ export default function App() {
   }
   if (window.location.pathname.startsWith("/rotular")) {
     return <RotularScreen />;
+  }
+  if (window.location.pathname.startsWith("/gemeo")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <GemeoScreen />
+      </Suspense>
+    );
   }
   if (window.location.pathname.startsWith("/tv")) {
     return <TvScreen />;
