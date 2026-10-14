@@ -21,6 +21,12 @@ def index():
     # O caminho Jinja antigo (app/templates/ + app/static/app.js|styles.css)
     # foi removido do disco — nenhuma rota o referenciava desde a migração.
     dist_dir = Path(current_app.static_folder) / "dist"
+    if current_app.config.get("DEMO_MODE"):
+        # Demo em tema claro (projetor), salvo se a pessoa já escolheu um tema.
+        html = (dist_dir / "index.html").read_text(encoding="utf-8")
+        script = ("<script>try{if(!localStorage.getItem('visionepi-theme'))"
+                  "localStorage.setItem('visionepi-theme','light')}catch(e){}</script>")
+        return current_app.response_class(html.replace("<head>", "<head>" + script, 1), mimetype="text/html")
     return send_from_directory(dist_dir, "index.html")
 
 

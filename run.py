@@ -9,9 +9,23 @@ if os.getenv("VISIONEPI_CPUS", "").strip():
 
     psutil.Process().cpu_affinity([int(c) for c in os.environ["VISIONEPI_CPUS"].split(",") if c.strip().isdigit()])
 
-from app import create_app
-from app.config import Config
-from app.extensions import socketio
+import sys
+
+# Modo demonstração: o ambiente (banco isolado etc.) precisa existir ANTES do
+# create_app(), que roda abaixo no import. Ver app/demo.py.
+DEMO = "--demo" in sys.argv
+if DEMO:
+    import importlib.util
+    from pathlib import Path as _Path
+
+    _spec = importlib.util.spec_from_file_location("demo_ambiente", _Path(__file__).parent / "app" / "demo_ambiente.py")
+    _modulo = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_modulo)
+    _modulo.preparar_ambiente()
+
+from app import create_app  # noqa: E402
+from app.config import Config  # noqa: E402
+from app.extensions import socketio  # noqa: E402
 
 app = create_app()
 
@@ -35,10 +49,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VisionEPI (servidor de desenvolvimento)")
     parser.add_argument("--https", action="store_true",
                         help="HTTPS com certificado autoassinado na rede local (celular como câmera exige contexto seguro)")
+    parser.add_argument("--demo", action="store_true",
+                        help="modo demonstração: banco isolado, contas e câmeras de demo, offline (ver docs/NEXT2026/DEMO.md)")
     args = parser.parse_args()
+    if args.demo:
+        from app.demo import imprimir_acessos, semear
+
+        info = semear(app)
+        with app.app_context():
+            app.extensions["monitor_service"].load_cameras_from_db()
+        imprimir_acessos(info, Config.PORT)
 
     if Config.AQUECER_MODELOS_NO_BOOT:
         app.extensions["monitor_service"].aquecer()
+    if args.demo:
+        with app.app_context():
+            app.extensions["monitor_service"].start_all()
     host, ssl_context = Config.HOST, None
     if args.https:
         from pathlib import Path

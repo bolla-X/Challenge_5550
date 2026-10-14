@@ -164,6 +164,20 @@ def list_cameras() -> None:
         )
 
 
+demo_cli = AppGroup("demo", help="Modo demonstração (python run.py --demo).")
+
+
+@demo_cli.command("reset")
+def demo_reset() -> None:
+    """Volta a demo ao começo (< 10 s): histórico limpo, câmeras religadas."""
+    from app.config import Config
+    from app.demo_ambiente import resetar_pelo_terminal
+
+    resultado = resetar_pelo_terminal(int(Config.PORT))
+    click.echo(f"[demo] reset em {resultado['segundos']} s ({resultado.get('via', 'servidor')}).")
+
+
 def register_cli(app: Flask) -> None:
     app.cli.add_command(users_cli)
     app.cli.add_command(cameras_cli)
+    app.cli.add_command(demo_cli)

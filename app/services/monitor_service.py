@@ -193,11 +193,16 @@ class MonitorService:
                          "pessoa": {"pedido": app.config.get("PERSON_RUNTIME"), "motivo": motivo_pessoa}}
         if self.pose_detector is not None:
             self.runtimes["pose"] = {"pedido": app.config.get("POSE_RUNTIME"), "motivo": escolha_pose["motivo"]}
-        if not app.config.get("TESTING"):
-            self.runtimes["epi"]["ativo"] = garantir_runtime(detector_principal, peso_epi)
-            self.runtimes["pessoa"]["ativo"] = garantir_runtime(self.person_detector, peso_pessoa)
-            if self.pose_detector is not None:
-                self.runtimes["pose"]["ativo"] = garantir_runtime(self.pose_detector, peso_pose)
+        # A validação (carregar + 1 inferência, volta ao .pt se falhar) fica para
+        # o aquecimento ou para a 1ª câmera ligada: feita aqui, todo comando
+        # `flask` (que cria o app) compilava os modelos na GPU — o `flask demo
+        # reset` levava ~2 min só para chamar a API do servidor.
+        self._runtimes_a_validar = [] if app.config.get("TESTING") else [
+            ("epi", detector_principal, peso_epi),
+            ("pessoa", self.person_detector, peso_pessoa),
+            *([("pose", self.pose_detector, peso_pose)] if self.pose_detector is not None else []),
+        ]
+        self._validacao_lock = threading.Lock()
         self.aquecimento_ms: dict[str, float] = {}
         # Serializa chamadas de inferência entre workers (ver CameraWorker).
         self._inference_lock = threading.Lock()
@@ -225,7 +230,7 @@ class MonitorService:
         # Aprendizado ativo (G9): UMA fila no disco para todas as câmeras.
         self.fila_de_rotulos = (
             FilaDeRotulos(
-                Path(app.instance_path) / "rotulos",
+                Path(app.config.get("ROTULOS_DIR") or Path(app.instance_path) / "rotulos"),
                 limite=int(app.config.get("ROTULOS_LIMITE", 300)),
                 conf_min=float(app.config.get("ROTULOS_CONF_MIN", 0.25)),
                 conf_max=float(app.config.get("ROTULOS_CONF_MAX", 0.5)),
@@ -262,6 +267,13 @@ class MonitorService:
         self._default_camera_id: int | None = None
 
     # ---- ciclo de vida dos workers -----------------------------------------
+    def validar_runtimes(self) -> None:
+        """Uma vez por processo: garante que cada runtime escolhido carrega e infere."""
+        with self._validacao_lock:
+            pendentes, self._runtimes_a_validar = self._runtimes_a_validar, []
+            for nome, detector, peso in pendentes:
+                self.runtimes[nome]["ativo"] = garantir_runtime(detector, peso)
+
     def aquecer(self) -> dict[str, float]:
         """Uma inferência em cada modelo (EPI, pessoa, pose) antes de servir.
 
@@ -269,6 +281,7 @@ class MonitorService:
         importado pelos comandos `flask users ...`, que não precisam de modelo.
         Ver `aquecer_modelos` para o número que motivou isto.
         """
+        self.validar_runtimes()
         self.aquecimento_ms = aquecer_modelos([self.detector, self.person_detector, self.pose_detector])
         return self.aquecimento_ms
 
@@ -394,6 +407,7 @@ class MonitorService:
         return self._get_worker(camera_id).feature_manager
 
     def start_all(self) -> dict[int, dict[str, Any]]:
+        self.validar_runtimes()
         with self._workers_lock:
             workers = dict(self._workers)
         return {camera_id: worker.start() for camera_id, worker in workers.items()}
@@ -410,6 +424,7 @@ class MonitorService:
 
     # ---- delegação por câmera (camera_id=None => câmera padrão) -----------
     def start(self, camera_id: int | None = None) -> dict[str, Any]:
+        self.validar_runtimes()
         return self._get_worker(camera_id).start()
 
     def stop(self, camera_id: int | None = None) -> dict[str, Any]:

@@ -109,6 +109,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(rotulos_bp)
     app.register_blueprint(desafio_bp)
     app.register_blueprint(lab_bp)
+    if app.config.get("DEMO_MODE"):
+        from app.api.demo import demo_bp
+
+        app.register_blueprint(demo_bp)
     app.register_blueprint(alerts_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
