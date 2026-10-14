@@ -53,6 +53,24 @@ iterações intermediárias.
 | 28 Degradado (forçado) | 4 4 4 4 4 4 4 4 | 4 4 4 4 5 4 4 4 | — |
 | 29 Sem sinal (real) | 3 4 4 3 3 4 4 4 | 4 4 4 4 5 4 4 4 | quadro do servidor diz "Sem sinal" em português |
 | Celular, todas | 2 3 2 4 3 2 3 2 | 4 4 4 5 5 4 4 4 | barra numa linha com "Menu"; palco e tabelas sem transbordar |
+| 30 Palco, cena do Portal (nova, r7) | — | 5 4 4 5 5 4 4 5 | só a câmera do portal analisa; rodapé "Canteiro, Escada, Pátio: pausadas pela apresentação"; coluna reserva o espaço do QR abaixo de 1600 px |
+
+### Rodada r7 (ADENDO 3): só as telas que mudaram
+
+`python e2e/capturas_de_tela.py --rodada r7 --telas "02-,03-,07-,09-,17-,18-,22-,23-,30-"`
+(e `r7b` para a 30 depois da correção). O que mudou desde a r6 e a nota que ficou:
+
+| tela | mudança | nota final (H A E C S D T B) | achado da revisão |
+|---|---|---|---|
+| 02 Início | 4 câmeras (a "Portal" toca `portal.mp4`) | 5 4 4 5 5 4 4 5 | — |
+| 03 Câmeras | 4º cartão; estado "pausada pela apresentação" quando o palco pausa | 4 5 4 5 5 4 4 4 | — |
+| 07/09 Foco | aba que não cabe vai para o "Mais" | 4 4 4 4 5 4 4 5 | a 1280 px "Pessoas" pintava por cima do "Mais" (achado pelo E2E); corrigido |
+| 17/18 Portal | um trabalhador de capacete e colete, de perto | 5 4 4 5 5 4 4 5 | — |
+| 22 Palco | 4/4 câmeras | 5 5 5 5 5 4 5 5 | — |
+| 23 Quiosque | o operador é do Portal: "ENTRADA LIBERADA/NEGADA" com a pessoa de perto | 4 4 4 5 5 4 4 5 | — |
+| 30 Palco, Portal | nova | 5 4 4 5 5 4 4 5 | a 1366 px o QR cobria o fim da coluna (r7); corrigido na r7b |
+
+O antes/depois abaixo continua r0 × r6.
 
 Achados transversais que valeram para todas as telas (ícones invisíveis nos
 botões, `<button>` em bloco, `.card + .card` em grade, código interno em texto):
@@ -84,4 +102,5 @@ Destaques:
 ![Portal de Entrada](1920x1080-claro/17-portal.webp)
 ![Modo TV](1920x1080-claro/16-tv.webp)
 ![Palco](1920x1080-escuro/22-palco.webp)
+![Palco, cena do Portal com as outras câmeras pausadas](1366x768-escuro/30-palco-portal-pausadas.webp)
 ![Início no celular](390x844-claro/02-supervisor-inicio.webp)
