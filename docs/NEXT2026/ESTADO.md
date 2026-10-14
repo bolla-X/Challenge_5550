@@ -37,7 +37,7 @@ qualquer tarefa > 10 min em segundo plano.
 
 1. Portal com a gravação `bench.mp4`: p95 21,6 s (análises que veem trabalhador
    distante sem capacete zeram a confirmação). Com webcam diante de uma pessoa: não medido.
-2. 1ª subida depois de reiniciar o notebook: ~4 min (compilação dos modelos na iGPU).
+2. Subida com o cache dos modelos frio: ~4 min (compilação na iGPU; causa do cache frio não identificada).
 3. Regra dos 3 s sem inferência: 9 % dos intervalos passam de 3 s sob carga (máx. 5,2 s).
 
 ## Worktrees

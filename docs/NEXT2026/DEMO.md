@@ -33,9 +33,9 @@ python run.py --demo --https
 - **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
 - quatro missões de turno da equipe (Liga de Setores);
 - tema claro (projetor); LLM desligado; boot até responder: ~70 s com o cache
-  dos modelos quente. **Depois de reiniciar o notebook, a 1ª subida leva ~4
-  min** (compila os modelos para a iGPU; medido em 14/10): suba a demo uma vez
-  antes da banca e deixe no ar.
+  dos modelos quente. **Com o cache frio a subida levou ~4 min** (compila os
+  modelos para a iGPU; aconteceu em 14/10, causa não identificada): suba a
+  demo uma vez antes da banca e deixe no ar.
 
 Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 `/palco` (atalho na Visão geral: "Apresentação").

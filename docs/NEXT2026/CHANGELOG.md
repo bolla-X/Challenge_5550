@@ -985,13 +985,14 @@ regulador que reduz a resolução interna quando o p95 passa de 40 ms.
 - O bench "antes × PR5" morreu na 4ª rodada da r1 (`atual-4cam-pr5`): código
   de saída `3221226091` = `0xC000026B`, *STATUS_DLL_INIT_FAILED_LOGOFF* — o
   Windows desligando. Refeito do zero (BENCHMARKS.md, "Portão do PR5").
-- **A 1ª subida depois de reiniciar leva minutos.** O E2E falhou duas vezes com
+- **Subida com o cache dos modelos frio leva minutos.** O E2E falhou duas vezes com
   "conexão recusada": o servidor ainda compilava os modelos para a iGPU e o
   `e2e/conftest.py` esperava 120 s e seguia em silêncio. Medido por modelo
   (validação de runtime): 1ª medição pós-reinício pose **213 s**, EPI 31 s,
   pessoa 4 s (248 s no total); a seguinte, com o cache do OpenVINO
-  (`ov_cache/`) quente, 7,8 / 22 / 2 s (**32 s**). Hipótese (não verificada):
-  o cache de kernels da GPU é refeito por forma de entrada depois do reinício.
+  (`ov_cache/`) quente, 7,8 / 22 / 2 s (**32 s**). Causa não identificada: a
+  worktree `ch5550-antes`, com o `ov_cache/` dela, validou em 10 s no mesmo
+  dia, então não é o reinício por si.
   O conftest agora espera até 300 s e falha dizendo por quê; o DEMO.md manda
   subir a demo uma vez antes da banca.
 
