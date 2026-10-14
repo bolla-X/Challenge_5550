@@ -111,18 +111,21 @@ function FeatureRow({ feature }: { feature: FeatureFlag }) {
   const updateFeatures = useDashboardStore((s) => s.updateFeatures);
   const checked = feature.enabled;
   const live = checked && isFeatureLive(feature.key, compliance);
+  // Descrição longa vai para a dica: na lateral estreita ela quebrava em 5 linhas.
+  const descricao = SHORT_DESCRIPTION[feature.key] || feature.description || "";
+  const curta = descricao.length <= 32;
   return (
     <button
       type="button"
       className={`side-item ${checked ? "" : "off"} ${live ? "live" : ""}`.trim()}
       aria-pressed={checked}
-      title={supportMessage(feature.key, model)}
+      title={[curta ? "" : descricao, supportMessage(feature.key, model)].filter(Boolean).join(". ")}
       onClick={() => updateFeatures({ [feature.key]: !checked }).catch(console.error)}
     >
       <span className="dot" />
       <span className="side-item-body">
         {feature.label}
-        <small>{SHORT_DESCRIPTION[feature.key] || feature.description}</small>
+        {curta && <small>{descricao}</small>}
       </span>
       <span className="side-item-state">{checked ? "Ligado" : "Desligado"}</span>
     </button>

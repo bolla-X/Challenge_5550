@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Mark } from "./brand";
+import { IconeCubo, IconeEscudo, IconeOk } from "./icones";
 
 /**
  * Tela de entrada. Só aparece quando `GET /api/auth/me` responde `user: null`.
@@ -27,6 +28,23 @@ export function LoginScreen() {
 
   return (
     <div className="login-shell">
+      <aside className="login-marca">
+        <p className="login-marca-titulo">Segurança do trabalho que enxerga a planta inteira.</p>
+        <ul className="login-fatos">
+          <li>
+            <IconeEscudo size={20} />
+            Por setor, nunca por pessoa: sem reconhecimento facial.
+          </li>
+          <li>
+            <IconeCubo size={20} />
+            Roda inteiro nesta máquina, sem internet.
+          </li>
+          <li>
+            <IconeOk size={20} />
+            Cada evidência com SHA-256 encadeado.
+          </li>
+        </ul>
+      </aside>
       <form className="login-card" onSubmit={enviar}>
         <Mark size={32} />
         <h1>VisionEPI</h1>

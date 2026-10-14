@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { playGateApprovedChime } from "../audio/chime";
 import { LiveVideo } from "./live-video";
+import { useCameraEstado } from "./camera-grid";
 import { getPortal, startCamera } from "../api/endpoints";
 import type { PortalItem, PortalState } from "../api/types";
 import { PPE_LABELS } from "../api/ppe";
@@ -77,7 +78,6 @@ export function PortalScreen({ cameraId, desafioInicial }: { cameraId?: number |
   }, [cameras, cameraId]);
   const camera = cameras.find((c) => c.id === camId);
   const portal = usePortal(camId);
-  const [iniciando, setIniciando] = useState(false);
   // X9: `?desafio=1` (ou o botão) liga o modo "Tente enganar a IA" com o Raio-X.
   const [desafio, setDesafio] = useState(() => desafioInicial ?? new URLSearchParams(window.location.search).get("desafio") === "1");
   const raioX = useDashboardStore((s) => s.raioX);
@@ -104,17 +104,7 @@ export function PortalScreen({ cameraId, desafioInicial }: { cameraId?: number |
       <div className="portal-corpo">
         <div className="portal-video card">
           <LiveVideo cameraId={camId} label={`Vídeo de ${camera.name}`} />
-          <button
-            type="button"
-            className="ghost small portal-iniciar"
-            disabled={iniciando}
-            onClick={() => {
-              setIniciando(true);
-              startCamera(camId).finally(() => setIniciando(false));
-            }}
-          >
-            {iniciando ? "Iniciando…" : "Iniciar câmera"}
-          </button>
+          <IniciarSeParada camId={camId} />
         </div>
         <section className="portal-lado" aria-live="polite">
           <h1 className="portal-titulo" data-testid="portal-titulo">{titulo}</h1>
@@ -132,5 +122,25 @@ export function PortalScreen({ cameraId, desafioInicial }: { cameraId?: number |
         </section>
       </div>
     </div>
+  );
+}
+
+/** "Iniciar câmera" só aparece com a câmera parada: ligada, o vídeo fala por si. */
+function IniciarSeParada({ camId }: { camId: number }) {
+  const estado = useCameraEstado(camId);
+  const [iniciando, setIniciando] = useState(false);
+  if (estado.running) return null;
+  return (
+    <button
+      type="button"
+      className="ghost small portal-iniciar"
+      disabled={iniciando}
+      onClick={() => {
+        setIniciando(true);
+        startCamera(camId).finally(() => setIniciando(false));
+      }}
+    >
+      {iniciando ? "Iniciando…" : "Iniciar câmera"}
+    </button>
   );
 }

@@ -226,7 +226,7 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
     def carregando():
         # As respostas ficam RETIDAS (o handler não responde) até a foto; depois seguem.
         retidas = []
-        pg.route(lentas, retidas.append)
+        pg.route(lentas, lambda rota: retidas.append(rota))
         pg.goto(base + "/liga", wait_until="commit")
         _foto(pg, pasta, "26-forcado-carregando-liga", feitas, 900)
         pg.unroute(lentas)

@@ -333,8 +333,8 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
                 <li key={`${cam.id}:${pe.track_id}`}>
                   <button type="button" className={`gemeo-pessoa ${pe.estado}`} data-testid="gemeo-pessoa" onClick={() => selecionar(cam, pe)}>
                     <span className="dot" />
-                    Pessoa {pe.track_id}
-                    <span className="t-secondary"> · {cam.nome}</span>
+                    <span>{`Pessoa ${pe.track_id}`}</span>
+                    <span className="t-secondary">{cam.nome}</span>
                   </button>
                 </li>
               ))}

@@ -84,19 +84,19 @@ export function SupervisorHome() {
       <dl className="home-agora" aria-label="Agora na planta">
         <div>
           <dt>câmeras no ar</dt>
-          <dd className="t-data">{agora ? `${agora.noAr}/${agora.total}` : "–"}</dd>
+          <dd>{agora ? `${agora.noAr}/${agora.total}` : "–"}</dd>
         </div>
         <div>
           <dt>pessoas na planta</dt>
-          <dd className="t-data">{agora ? <Numero valor={agora.pessoas} /> : "–"}</dd>
+          <dd>{agora ? <Numero valor={agora.pessoas} /> : "–"}</dd>
         </div>
         <div className={agora && agora.incidentes > 0 ? "alerta" : ""}>
           <dt>incidentes ativos</dt>
-          <dd className="t-data">{agora ? <Numero valor={agora.incidentes} /> : "–"}</dd>
+          <dd>{agora ? <Numero valor={agora.incidentes} /> : "–"}</dd>
         </div>
         <div>
           <dt>nível da planta</dt>
-          <dd className="t-data">{liga ? <Numero valor={liga.planta.nivel} /> : "–"}</dd>
+          <dd>{liga ? <Numero valor={liga.planta.nivel} /> : "–"}</dd>
         </div>
       </dl>
       <div className="home-bento">
