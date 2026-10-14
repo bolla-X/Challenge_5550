@@ -235,15 +235,18 @@ class YoloPPEDetector:
 
             xml = next(Path(self.model_path).glob("*.xml"))
             core = ov.Core()
-            cache = pasta_do_cache_openvino()
-            cache.mkdir(parents=True, exist_ok=True)
-            core.set_property({"CACHE_DIR": str(cache)})
             modelo = core.read_model(model=str(xml), weights=str(xml.with_suffix(".bin")))
             if modelo.get_parameters()[0].get_layout().empty:
                 modelo.get_parameters()[0].set_layout(ov.Layout("NCHW"))
         except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com o compilado do ultralytics)
             logger.warning("openvino_nao_recompilado", extra={"error": str(exc)})
             return
+        try:
+            cache = pasta_do_cache_openvino()
+            cache.mkdir(parents=True, exist_ok=True)
+            core.set_property({"CACHE_DIR": str(cache)})
+        except Exception as exc:  # noqa: BLE001  (sem cache só compila mais devagar; nunca impede de compilar)
+            logger.warning("openvino_sem_cache", extra={"error": str(exc)})
         pedido = self.dispositivo_openvino
         tentativas = [pedido] if pedido == "CPU" else [pedido, "CPU"]
         for dispositivo in tentativas:

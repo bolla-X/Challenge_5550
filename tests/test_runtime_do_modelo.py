@@ -134,9 +134,14 @@ def test_gpu_que_nao_compila_cai_para_cpu(tmp_path, monkeypatch):
         def get_parameters(self):
             return [type("P", (), {"get_layout": lambda self: type("L", (), {"empty": False})()})()]
 
+    propriedades = {}
+
     class Core:
         def read_model(self, model, weights):
             return Modelo()
+
+        def set_property(self, valores):
+            propriedades.update(valores)
 
         def compile_model(self, modelo, device_name, config):
             if device_name == "GPU":
@@ -148,6 +153,7 @@ def test_gpu_que_nao_compila_cai_para_cpu(tmp_path, monkeypatch):
     falso.Core = Core
     falso.Layout = lambda s: s
     monkeypatch.setitem(sys.modules, "openvino", falso)
+    monkeypatch.setenv("OV_CACHE_DIR", str(tmp_path / "cache"))
     detector = YoloPPEDetector(model_path=str(pasta))
     detector.dispositivo_openvino = "GPU"
     backend = type("B", (), {})()
@@ -156,6 +162,8 @@ def test_gpu_que_nao_compila_cai_para_cpu(tmp_path, monkeypatch):
     assert backend.ov_compiled_model == "compilado-cpu"
     assert compilados[0][0] == "CPU"
     assert detector.dispositivo_ativo == "CPU (fallback da GPU)"
+    # O cache do OpenVINO vale para o Core inteiro (GPU e CPU), em OV_CACHE_DIR.
+    assert propriedades["CACHE_DIR"] == str(tmp_path / "cache")
 
 
 def test_sem_gpu_o_auto_pula_o_openvino_gpu(tmp_path, monkeypatch):
