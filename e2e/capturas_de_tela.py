@@ -3,11 +3,14 @@
     python e2e/capturas_de_tela.py                       # bench/runtime/capturas/<rodada>/
     python e2e/capturas_de_tela.py --rodada r2 --so 390x844-escuro
     python e2e/capturas_de_tela.py --folhas              # + uma folha de contato por tela
+    python e2e/capturas_de_tela.py --e2e                 # servidor do E2E em vez da demo
 
-Sobe o MESMO servidor do E2E (fixtures, 3 papéis, senhas geradas e nunca
-impressas, 4 câmeras ligadas) e percorre as telas como cada papel. As imagens
-ficam fora do git (`bench/runtime/` é ignorado); a galeria versionada sai
-delas por `scripts/galeria.py`.
+Por padrão sobe a DEMO (`run.py --demo`, sem webcam: `DEMO_WEBCAM=0`), que é o
+que a banca vê: câmeras calibradas na planta, zona, portal, metas e missões.
+As senhas que a demo imprime ficam só na memória deste processo. Com `--e2e`,
+sobe o servidor do E2E (fixtures, 4 câmeras). As imagens ficam fora do git
+(`bench/runtime/` é ignorado); a galeria versionada sai delas por
+`scripts/galeria.py`.
 
 Serve ao ciclo de revisão visual da MISSÃO 2 (Fase C, item 7): rotas e
 estados importantes (vazio, carregando, alerta crítico, degradado, sem sinal)
@@ -21,19 +24,88 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+
+import requests
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from conftest import ServidorE2E, entrar  # noqa: E402
+from conftest import PY, ServidorE2E, _porta_livre, entrar  # noqa: E402
 
 DESTINO = RAIZ / "bench" / "runtime" / "capturas"
 TAMANHOS = {"1920x1080": (1920, 1080), "1366x768": (1366, 768), "390x844": (390, 844)}
 TEMAS = {"claro": "light", "escuro": "dark"}
+
+
+class ServidorDemo:
+    """`run.py --demo` numa porta livre; a mesma interface do ServidorE2E que este script usa."""
+
+    foco, portal = "Pátio", "Canteiro"
+
+    def __init__(self) -> None:
+        self.porta = _porta_livre()
+        self.base = f"http://127.0.0.1:{self.porta}"
+        self.emails = {"supervisor": "supervisor@demo.local", "technical": "tecnico@demo.local", "operator": "operador@demo.local"}
+        self.senhas: dict[str, str] = {}
+        self.cameras: dict[str, int] = {}
+        self.proc: subprocess.Popen | None = None
+        self.log = RAIZ / "bench" / "runtime" / "capturas-demo.log"
+
+    def subir(self, aquecer_s: float) -> None:
+        env = os.environ.copy() | {"PORT": str(self.porta), "HOST": "127.0.0.1", "DEMO_WEBCAM": "0", "PYTHONUNBUFFERED": "1"}
+        self.proc = subprocess.Popen([PY, "run.py", "--demo"], cwd=RAIZ, env=env, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+        papel_do_email = {v: k for k, v in self.emails.items()}
+        pronto = threading.Event()
+
+        def ler() -> None:
+            with self.log.open("w", encoding="utf-8") as log:
+                for linha in self.proc.stdout:
+                    m = re.match(r"\[demo\]\s+(\S+@demo\.local)\s+(\S+)", linha)
+                    if m:  # senha: só na memória, nunca no log
+                        self.senhas[papel_do_email[m.group(1)]] = m.group(2)
+                        log.write(f"[demo] {m.group(1)} <senha omitida>\n")
+                        continue
+                    log.write(linha)
+                    log.flush()
+                    if "Senhas valem" in linha:
+                        pronto.set()
+
+        threading.Thread(target=ler, daemon=True).start()
+        if not pronto.wait(300):
+            raise RuntimeError(f"a demo não subiu em 300 s; ver {self.log}")
+        limite = time.monotonic() + 300
+        while time.monotonic() < limite:
+            try:
+                if requests.get(self.base + "/api/auth/me", timeout=1).status_code in (200, 401):
+                    break
+            except requests.RequestException:
+                time.sleep(0.5)
+        s = self.sessao("technical")
+        self.cameras = {c["name"]: c["id"] for c in s.get(self.base + "/api/cameras", timeout=10).json()}
+        print(f"[capturas] demo no ar; {int(aquecer_s)} s para acumular dados reais", flush=True)
+        time.sleep(aquecer_s)
+
+    def sessao(self, papel: str) -> requests.Session:
+        s = requests.Session()
+        s.post(self.base + "/api/auth/login", json={"email": self.emails[papel], "password": self.senhas[papel]},
+               timeout=10).raise_for_status()
+        return s
+
+    def parar(self) -> None:
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(15)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
 
 
 def _foto(pagina, pasta: Path, nome: str, feitas: list[str], espera_ms: int = 1500) -> None:
@@ -58,12 +130,14 @@ def _abrir_aba(pagina, rotulo: str) -> None:
     pagina.get_by_role("menuitem", name=rotulo).click()
 
 
-def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura: int, tema: str) -> list[str]:
+def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: str) -> list[str]:
     pasta.mkdir(parents=True, exist_ok=True)
     feitas: list[str] = []
     celular = largura < 768
     base = servidor.base
-    multidao, canteiro = servidor.cameras["Multidão"], servidor.cameras["Canteiro"]
+    nome_foco = getattr(servidor, "foco", "Multidão")
+    nome_portal = getattr(servidor, "portal", "Canteiro")
+    multidao, canteiro = servidor.cameras[nome_foco], servidor.cameras[nome_portal]
 
     def contexto():
         extra = {"is_mobile": True, "has_touch": True, "device_scale_factor": 2} if celular else {}
@@ -102,7 +176,7 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
     ctx, pg = logado("technical")
 
     def foco():
-        pg.get_by_role("button", name="Configurar Multidão").click(timeout=30_000)
+        pg.get_by_role("button", name=f"Configurar {nome_foco}").click(timeout=30_000)
         pg.locator("canvas.live-video").first.wait_for(timeout=30_000)
         pg.locator("[data-testid=pilula-incidente], .over-pill.alert").first.wait_for(timeout=90_000)
         _foto(pg, pasta, "07-foco-alerta-critico", feitas, 2500)
@@ -175,7 +249,7 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
 
         pg.route(status, trocar)
         pg.goto(base + "/")
-        pg.get_by_role("button", name="Configurar Canteiro").click(timeout=30_000)
+        pg.get_by_role("button", name=f"Configurar {nome_portal}").click(timeout=30_000)
         pg.locator("[data-testid=aviso-degradado]").first.wait_for(timeout=15_000)
         _foto(pg, pasta, "28-forcado-degradado", feitas, 2000)
         pg.unroute(status)
@@ -187,15 +261,30 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
     pg.unroute_all(behavior="ignoreErrors")
     ctx.close()
 
-    # Sem sinal (REAL): a fonte de rede cai; a câmera "Rede" mostra o estado.
-    servidor.fonte_rede.parar()
+    # Sem sinal (REAL): uma câmera de rede cuja fonte não responde.
+    tecnico = servidor.sessao("technical")
+    fonte_rede = getattr(servidor, "fonte_rede", None)
+    cid = None
+    if fonte_rede is not None:
+        fonte_rede.parar()
+        nome = "Rede"
+    else:
+        nome = "Doca"
+        cid = tecnico.post(base + "/api/cameras", json={"name": nome, "location": "Expedição", "source_type": "RTSP",
+                                                        "source": f"rtsp://127.0.0.1:{_porta_livre()}/sem-sinal",
+                                                        "fps": 12, "width": 960, "height": 540}, timeout=10).json()["id"]
+        tecnico.post(f"{base}/api/cameras/{cid}/start", timeout=60)
     try:
         ctx, pg = logado("technical")
-        _tentar("29-sem-sinal", lambda: (pg.get_by_role("button", name="Configurar Rede").click(timeout=30_000),
-                                         _foto(pg, pasta, "29-sem-sinal-rede", feitas, 9000)))
+        _tentar("29-sem-sinal", lambda: (pg.get_by_role("button", name=f"Configurar {nome}").click(timeout=30_000),
+                                         _foto(pg, pasta, "29-sem-sinal", feitas, 9000)))
         ctx.close()
     finally:
-        servidor.fonte_rede.iniciar()
+        if fonte_rede is not None:
+            fonte_rede.iniciar()
+        else:
+            tecnico.post(f"{base}/api/cameras/{cid}/stop", timeout=30)
+            tecnico.delete(f"{base}/api/cameras/{cid}", timeout=30)
     return feitas
 
 
@@ -235,11 +324,16 @@ def main() -> int:
     ap.add_argument("--rodada", default="r1")
     ap.add_argument("--so", default="", help="ex.: 1366x768-claro")
     ap.add_argument("--folhas", action="store_true")
+    ap.add_argument("--e2e", action="store_true", help="servidor do E2E em vez da demo")
+    ap.add_argument("--aquecer", type=float, default=180.0, help="segundos de demo no ar antes de capturar")
     args = ap.parse_args()
     rodada = DESTINO / args.rodada
-    servidor = ServidorE2E()
+    servidor = ServidorE2E() if args.e2e else ServidorDemo()
     try:
-        servidor.subir()
+        if args.e2e:
+            servidor.subir()
+        else:
+            servidor.subir(args.aquecer)
         with sync_playwright() as pw:
             navegador = pw.chromium.launch(headless=True)
             for nome_tam, (w, h) in TAMANHOS.items():

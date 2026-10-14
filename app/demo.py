@@ -72,7 +72,8 @@ def semear(app) -> dict[str, Any]:
                          fps=12, width=960, height=540, features_json=_features_da_demo())
             db.session.add(cam)
             cameras[nome] = cam
-        ao_vivo = webcam_disponivel(0)
+        # DEMO_WEBCAM=0: sem webcam (capturas da galeria, teste de clone limpo).
+        ao_vivo = os.getenv("DEMO_WEBCAM", "1") != "0" and webcam_disponivel(0)
         if ao_vivo:
             cam = Camera(name="Portal", location="Portaria", source_type="USB", source="0", fps=12, width=640, height=480,
                          features_json=_features_da_demo(), gate_required=["helmet", "vest"])
