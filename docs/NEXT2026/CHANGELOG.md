@@ -1225,3 +1225,15 @@ A primeira rodada (`portao-pr6/`) reprovou e foi refeita inteira depois das corr
   "Mais" e roubava o clique. A faixa agora mede as abas (ResizeObserver) e
   manda para o "Mais" as que não cabem (`components/common.tsx`).
 - O `bench --rapido` da 1ª rodada foi interrompido (a rodada ia ser refeita).
+
+### Queda no palco também pausa as outras câmeras
+
+- Depois do portão, o E2E `test_palco_queda_ao_vivo_em_camera_lenta` rodado
+  **isolado** falhou 3 de 3 (no portão completo passava porque um teste de
+  queda anterior deixava o incidente ativo). Medido na cena (status a cada 2 s):
+  a câmera da queda recebia 0,3–0,5 análise/s, com trechos de 5 s sem nenhuma;
+  o modelo viu `fall_detected` 2 vezes, mas não em 2 análises seguidas (a regra
+  de emergência), com a pessoa ~3 s no chão a 0,25×. A disputa cresceu com a
+  câmera do Portal em 4:3 (640×480 na rede contra 640×384).
+- A cena "Queda" passou a declarar `ativas: "cena"`, como o Portal: isolado,
+  **2 de 2**, alerta ao vivo em 22,2 s e 19,2 s desde entrar na cena.

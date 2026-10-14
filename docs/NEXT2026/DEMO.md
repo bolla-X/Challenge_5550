@@ -63,7 +63,7 @@ Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 - Cada cena prepara o próprio estado: a câmera certa em foco, o Raio-X quando
   pede, e a gravação da queda recomeça (de 4 s) a **0,25×** ao entrar na cena,
   com "GRAVAÇÃO · 0,25×" sobre o vídeo; ao sair, volta a 1×.
-- Nas cenas **Portal** e **Tente enganar a IA**, só a câmera do portal analisa:
+- Nas cenas **Portal**, **Tente enganar a IA** e **Queda**, só a câmera da cena analisa:
   as outras ficam **"Pausada pela apresentação"** (o rodapé do palco diz quais)
   e voltam ao sair da cena. Fechar o palco no meio devolve as câmeras em ~8 s.
   Tempo até "Liberado" na cena, com `portal.mp4` e as 4 câmeras ligadas (10

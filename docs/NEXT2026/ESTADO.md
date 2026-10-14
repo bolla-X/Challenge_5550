@@ -45,6 +45,12 @@ Feito e commitado em `next-2026`:
 
 Em andamento: regravação do vídeo do palco (`e2e/video_do_palco.py`).
 
+## Ações negadas pela permissão (não contornadas)
+
+- 14/10: lançar o portão r3 com `nohup bash -c ... &` (comando combinado com
+  edição e commit) foi negado. O portão seguiu pelo modo em segundo plano da
+  própria ferramenta, como nas rodadas anteriores.
+
 ## Decisões em vigor
 
 - Portal: 3 análises seguidas com tudo confirmado; até 2 análises SEM ninguém

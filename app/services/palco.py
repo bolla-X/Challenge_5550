@@ -17,8 +17,11 @@ Cada cena declara como se prepara, de forma determinística:
 - `ativas`: quais câmeras continuam analisando durante a cena — "todas", ou
   "cena" (só a câmera da cena; as outras ficam "pausadas pela apresentação"
   até sair dela). O Portal usa "cena": com as 4 câmeras disputando a máquina,
-  a pessoa diante do portal esperava a vez (ADENDO 3 da MISSÃO 2). Fora do
-  palco nada muda: o agendador dá ao foco pelo menos 50 % das vagas.
+  a pessoa diante do portal esperava a vez (ADENDO 3 da MISSÃO 2). A Queda
+  também: a pessoa fica ~3 s no chão a 0,25× e a regra pede 2 análises
+  seguidas; disputando com as outras, a câmera dela teve trechos de 5 s sem
+  análise e o alerta não fechava (medido no E2E isolado). Fora do palco nada
+  muda: o agendador dá ao foco pelo menos 50 % das vagas.
 """
 
 from __future__ import annotations
@@ -42,7 +45,7 @@ ROTEIRO: list[dict[str, Any]] = [
      "camera": ["Pátio"], "raiox": True},
     {"chave": "gemeo", "titulo": "Gêmeo digital", "ativas": "todas",
      "legenda": "A planta inteira ao vivo: cada pessoa na cor do seu estado, nunca foto."},
-    {"chave": "queda", "titulo": "Queda", "ativas": "todas",
+    {"chave": "queda", "titulo": "Queda", "ativas": "cena",
      "legenda": "Emergência atribuída a um ID de rastreio, ao vivo e com replay do momento.",
      "camera": ["Escada", "Queda"], "reiniciar": True, "velocidade": 0.25, "inicio_s": 4.0},
     {"chave": "incidente", "titulo": "Incidente e linha causal", "ativas": "todas",

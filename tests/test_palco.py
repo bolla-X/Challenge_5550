@@ -100,7 +100,7 @@ def test_camera_lenta_so_dura_a_cena_da_queda(app_auth, tmp_path, monkeypatch):
 
 def test_toda_cena_declara_as_cameras_ativas():
     assert all(c.get("ativas") in ("todas", "cena") for c in ROTEIRO)
-    assert {c["chave"] for c in ROTEIRO if c["ativas"] == "cena"} == {"portal", "enganar"}
+    assert {c["chave"] for c in ROTEIRO if c["ativas"] == "cena"} == {"portal", "enganar", "queda"}
 
 
 def test_cameras_pausadas_so_com_a_camera_da_cena_presente():
