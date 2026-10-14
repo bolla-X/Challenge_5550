@@ -187,7 +187,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .portal-cabeca button.active { background: var(--sunken); color: var(--text); }
 
 /* ---------- Palco (X6) ---------- */
-.palco { height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--canvas); color: var(--text); }
+.palco { height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); background: var(--canvas); color: var(--text); }
 .palco-topo { display: flex; align-items: center; gap: var(--s4); padding: var(--s4) var(--s6); }
 .palco-marca { font-weight: 600; letter-spacing: -.01em; }
 .palco-pontos { list-style: none; display: flex; gap: 6px; margin: 0 auto; padding: 0; }
@@ -295,7 +295,10 @@ code { font-variant-ligatures: none; }
 /* Palco em tela estreita: é feito para projetor, mas não transborda. O QR some
    (quem está no celular já é o controle) e o título acompanha a largura. */
 @media (max-width: 760px) {
-  .palco { overflow-x: hidden; }
+  .palco { overflow-x: hidden; max-width: 100vw; }
+  .palco-cena, .palco-hero, .palco-legenda { min-width: 0; max-width: 100%; }
+  .palco-pontos { display: none; }
+  .palco-hero p { max-width: 100%; }
   .palco-qr { display: none; }
   .palco-hero { padding: 0 var(--s4); }
   .palco-hero h1 { font-size: clamp(44px, 14vw, 72px); }
