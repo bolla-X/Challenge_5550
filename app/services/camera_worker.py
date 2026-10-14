@@ -423,7 +423,8 @@ class CameraWorker:
         self.gate_required: list[str] | None = list(gate_required) if gate_required else None
         self._gate = GateState()
         # Portal de Entrada (G1): mesmos EPIs exigidos da portaria, contado em análises.
-        self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
+        self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)),
+                                   int(app.config.get("PORTAL_AUSENCIAS_TOLERADAS", 2)))
         # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
         self.andon = ContadorDeMinutos()
         self._rotulos_de_emergencia = frozenset(

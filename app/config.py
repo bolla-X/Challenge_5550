@@ -338,7 +338,7 @@ class Config:
     INFERENCIA_ESPERA_MAX_S = env_float("INFERENCIA_ESPERA_MAX_S", 2.5)
     # Fração das vagas da câmera em foco quando ninguém está atrasado (0,5–0,7;
     # ADENDO 2). A guarda de espera acima continua valendo para as outras.
-    INFERENCIA_FRACAO_FOCO = env_float("INFERENCIA_FRACAO_FOCO", 0.5)
+    INFERENCIA_FRACAO_FOCO = env_float("INFERENCIA_FRACAO_FOCO", 0.7)
     # Quanto tempo uma consulta do portal (polling) mantém a câmera em foco.
     FOCO_LEASE_S = env_float("FOCO_LEASE_S", 3.0)
     # Prioridade de confirmação: análise que vê um destes rótulos pede a próxima
@@ -371,6 +371,9 @@ class Config:
     ERGONOMIA_SEGUNDOS = env_float("ERGONOMIA_SEGUNDOS", 10.0)
     # Portal de Entrada (G1): análises seguidas com tudo confirmado para liberar.
     PORTAL_CONFIRMACOES = env_int("PORTAL_CONFIRMACOES", 3)
+    # Análises seguidas SEM ninguém detectado que não zeram uma confirmação em
+    # curso ("não detectado" não é "ausente"; ver PortalState).
+    PORTAL_AUSENCIAS_TOLERADAS = env_int("PORTAL_AUSENCIAS_TOLERADAS", 2)
     # Aprendizado ativo (G9): recortes de EPI com confiança no meio da faixa.
     APRENDIZADO_ATIVO = env_bool("APRENDIZADO_ATIVO", True)
     ROTULOS_LIMITE = env_int("ROTULOS_LIMITE", 300)

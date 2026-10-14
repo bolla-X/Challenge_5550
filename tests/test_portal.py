@@ -93,6 +93,32 @@ def test_portal_libera_so_depois_de_n_analises_e_conta_um_checkin():
     assert estado.checkins == 1
 
 
+def test_ninguem_detectado_no_meio_da_confirmacao_nao_zera_mas_epi_faltando_zera():
+    """ADENDO 2: até 2 análises sem ninguém detectado ficam neutras; a 3ª, ou um EPI faltando, zera."""
+    ok = avaliar_portal({"people": [_pessoa({"helmet": "ok"})]}, ["helmet"], QUADRO)
+    vazio = avaliar_portal({"people": []}, ["helmet"], QUADRO)
+    sem = avaliar_portal({"people": [_pessoa({"helmet": "missing"})]}, ["helmet"], QUADRO)
+    estado = PortalState(confirmacoes=3)
+    for bruto in (ok, vazio, vazio, ok):
+        assert estado.atualizar(bruto)["verdict"] == "waiting"
+    assert estado.atualizar(ok)["verdict"] == "approved"  # 3 confirmações com 2 ausências no meio
+
+    estado = PortalState(confirmacoes=3)
+    for bruto in (ok, ok, vazio, vazio, vazio, ok):  # 3 ausências seguidas: a sequência recomeça
+        estado.atualizar(bruto)
+    assert estado.atual["verdict"] == "waiting"
+
+    estado = PortalState(confirmacoes=3)
+    for bruto in (ok, ok, sem, ok):  # viu a pessoa sem capacete: zera
+        estado.atualizar(bruto)
+    assert estado.atual["verdict"] == "waiting"
+
+    estado = PortalState(confirmacoes=3, ausencias_toleradas=0)  # regra antiga
+    for bruto in (ok, vazio, ok, ok):
+        estado.atualizar(bruto)
+    assert estado.atual["verdict"] == "waiting"
+
+
 def test_portal_conta_os_vereditos_brutos_e_o_item_que_faltou():
     estado = PortalState(confirmacoes=3)
     ok = avaliar_portal({"people": [_pessoa({"helmet": "ok"})]}, ["helmet"], QUADRO)

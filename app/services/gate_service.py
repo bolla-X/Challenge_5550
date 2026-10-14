@@ -179,10 +179,19 @@ def avaliar_portal(compliance: dict[str, Any] | None, exigidos: list[str], frame
 
 class PortalState(GateState):
     """Mesmo debounce da portaria, contado em ANÁLISES novas (não em quadros
-    publicados, que repetem a mesma análise). Conta os check-ins liberados."""
+    publicados, que repetem a mesma análise). Conta os check-ins liberados.
 
-    def __init__(self, confirmacoes: int = 3) -> None:
+    Análise sem ninguém detectado no meio de uma confirmação ("não detectado"
+    não é "ausente") não zera a sequência: até `ausencias_toleradas` seguidas
+    ficam neutras — não contam como confirmação nem a interrompem. Uma análise
+    que VÊ a pessoa sem o EPI zera, como antes. Medido nas sequências brutas do
+    portal com 4 câmeras (ADENDO 2, CHANGELOG): o pior caso caiu de 27 para 5
+    análises.
+    """
+
+    def __init__(self, confirmacoes: int = 3, ausencias_toleradas: int = 2) -> None:
         self.CONFIRMACAO = {"approved": confirmacoes, "denied": 2, "waiting": 3}
+        self.ausencias_toleradas = max(0, int(ausencias_toleradas))
         self.checkins = 0
         super().__init__()
 
@@ -195,6 +204,7 @@ class PortalState(GateState):
         self.faltas: dict[str, int] = {}
         # As últimas análises, em ordem: (veredito, track_id) — A/D/W.
         self.sequencia: deque[tuple[str, Any]] = deque(maxlen=120)
+        self._ausencias = 0
 
     def atualizar(self, bruto: dict[str, Any]) -> dict[str, Any]:
         self.brutos[bruto["verdict"]] = self.brutos.get(bruto["verdict"], 0) + 1
@@ -202,6 +212,12 @@ class PortalState(GateState):
         for item in bruto.get("itens") or []:
             if item["estado"] == FALTANDO:
                 self.faltas[item["key"]] = self.faltas.get(item["key"], 0) + 1
+        confirmando = self._candidato == "approved" and self._streak > 0
+        if bruto["verdict"] == "waiting" and confirmando and self._ausencias < self.ausencias_toleradas:
+            self._ausencias += 1
+            self.atual.pop("checkin_novo", None)
+            return self.atual
+        self._ausencias = 0
         antes = self.atual["verdict"]
         atual = super().atualizar(bruto)
         if atual["verdict"] == "approved" and antes != "approved":
