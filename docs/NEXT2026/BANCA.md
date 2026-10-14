@@ -129,6 +129,19 @@ Cada modelo e gravação aparece com a licença na tela Sobre e em
 
 ## Demo
 
+**"Quanto tempo a pessoa espera no Portal até 'Liberado'?"**
+Medido com o E2E repetido 10 vezes, as 4 câmeras ligadas e a gravação de um
+trabalhador de capacete e colete de perto (`portal.mp4`): na cena do Portal do
+palco, **p50 3,5 s e p95 5,9 s**; fora do palco, com as 4 câmeras analisando ao
+mesmo tempo, **p50 13,4 s e p95 24,2 s**. A diferença é de propósito e é
+honesta: no palco, a cena pausa as outras câmeras ("pausada pela
+apresentação"), como um portal de verdade teria a sua própria máquina. O que
+segura o tempo é o modelo: ele vê o capacete em ~64 % dos quadros desse vídeo,
+e uma análise que vê a pessoa SEM o capacete zera a confirmação — liberar por
+engano é o erro caro, então não afrouxamos isso para ganhar segundos. Antes de
+uma correção achada na própria medição (quadros velhos das câmeras pausadas
+passavam na frente), o palco dava p50 7,3 s e p95 13,9 s.
+
 **15. "E se algo falhar na demo?"**
 Cada momento do roteiro passou no E2E. O `flask demo reset` volta tudo em
 menos de 10 s, e o DEMO.md tem um plano B por falha (webcam ausente, câmera

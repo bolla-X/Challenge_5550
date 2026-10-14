@@ -1117,3 +1117,56 @@ Sistema de design em `docs/NEXT2026/DESIGN.md` (fonte da verdade:
 - **README de vitrine** com GIF do palco, duas imagens, destaques e "como rodar
   em 3 comandos"; `scripts/preparar.py` baixa os pesos conferindo o SHA-256
   (os `.pt` são pickle), as gravações e aprova os runtimes rápidos.
+
+## ADENDO 3 — fechar o PR6 e integrar com a main (14/10)
+
+### Vídeo do palco (1.1)
+
+- Conferido o MP4 gravado em segundo plano: 142 s, 1920×1080, H.264, as 12
+  cenas aparecem (folha de contato, 1 quadro a cada 4 s). Dois defeitos: o MP4
+  e o GIF começavam na tela de login, e o Portal mostrava a multidão do
+  canteiro. `e2e/video_do_palco.py` agora corta MP4 e GIF a partir da abertura
+  do palco; regravado depois do item 1.2.
+
+### Portal com cenário realista (1.2)
+
+- **Fixture `portal.mp4`** (`scripts/fetch_fixtures.py`, que ganhou `recorte`
+  e `vai_e_volta`): close de um armador de frente, capacete e colete, quadros
+  7000–7084 do vídeo 13 do Moira Close (CC BY-SA 4.0), recortado e ampliado
+  1,6×, em vai-e-volta 3× (16,6 s). Escolhido **por medição** com o peso de
+  EPI: pessoa em 88 % das amostras, capacete ≥ 0,40 em 64 %, colete em 71 %.
+  Descartados (detalhe em ATRIBUICOES.md): plano da laje (capacete 0/14), vídeo
+  21 da série, *Démontage d'échafaudage*. O `seek` do OpenCV neste webm cai ~5 s
+  adiante (medido): a fixture lê em sequência.
+- **Demo:** sem webcam, nasce a câmera "Portal" tocando `portal.mp4` (antes o
+  Portal usava a multidão do Canteiro); sem a fixture, recua para o Canteiro.
+  **E2E:** a câmera "Canteiro" (a de todos os testes de portal) toca `portal.mp4`.
+- **Palco:** cada cena declara `ativas` (`"todas"` ou `"cena"`). Portal e
+  "Tente enganar a IA" deixam só a câmera da cena analisando; as outras ficam
+  **pausadas pela apresentação** (status `pausa: "apresentacao"`, badge e texto
+  nos cartões, rodapé do palco lista quais). Pausa leve: sem análise e captura
+  a 1 quadro/s; alertas, incidentes e histerese ficam como estavam (parar e
+  religar o worker fecharia tudo isso). Ao sair da cena, voltam. Lease de 8 s
+  renovado pela tela do palco (só ela; o celular de controle não sustenta a
+  pausa): fechar o palco no meio da cena devolve as câmeras sozinho.
+- **Fora do palco nada muda:** o agendador segue dando ao foco ≥ 50 % das vagas.
+- **Correção achada pela medição:** ao pausar, cada câmera ainda tinha um
+  quadro pendente no agendador e, esperando há mais de 2,5 s, a guarda de
+  espera o servia **antes** do portal. `descartar_pendente` (teste em
+  `tests/test_agendador_ponderado.py`).
+- **Números (E2E do portal repetido 10×, 4 câmeras ligadas, `portal.mp4`;
+  `bench/results/portal-adendo3-20261014.json`):**
+
+  | cenário | p50 | p95 | máx |
+  |---|---|---|---|
+  | no palco, cena do Portal (outras pausadas) | **3,5 s** | **5,9 s** | 5,9 s |
+  | no palco, antes de descartar o pendente | 7,3 s | 13,9 s | 15,8 s |
+  | fora do palco (`/portal`, 4 câmeras analisando) | 13,4 s | 24,2 s | 24,4 s |
+
+  Meta no palco (p50 ≤ 5 s, p95 ≤ 10 s): **atingida**. Fora do palco, não: o
+  que domina são análises que veem a pessoa **sem** o capacete (o peso o vê em
+  ~64 % dos quadros) e zeram a sequência (decisão em vigor: EPI faltando zera),
+  com ~0,8–1,2 análise/s na câmera em foco. Medido com a CPU da máquina a 83 %
+  por processos de fora do projeto (Docker, Teams, Edge, Java). Ao vivo, sem
+  navegador, a câmera do portal fez 1,85 análise/s na cena (37 em 20 s) e as
+  pausadas 0–1.

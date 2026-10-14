@@ -28,8 +28,8 @@ python run.py --demo --https
   `operador@demo.local`) com senha gerada agora — anote antes de projetar;
 - câmeras: Canteiro (Obra), Pátio (Expedição) e Escada (Manutenção), das
   gravações, rotuladas **GRAVAÇÃO**, calibradas na mesma planta (gêmeo 3D); a
-  webcam vira **Portal** (Portaria), **AO VIVO**; sem webcam, o Portal usa o
-  Canteiro;
+  webcam vira **Portal** (Portaria), **AO VIVO**; sem webcam, o Portal toca a
+  gravação `portal.mp4` (um trabalhador de capacete e colete, de perto);
 - **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
 - quatro missões de turno da equipe (Liga de Setores);
 - tema claro (projetor); LLM desligado; boot até responder: ~70 s com o cache
@@ -49,13 +49,19 @@ Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 - Cada cena prepara o próprio estado: a câmera certa em foco, o Raio-X quando
   pede, e a gravação da queda recomeça (de 4 s) a **0,25×** ao entrar na cena,
   com "GRAVAÇÃO · 0,25×" sobre o vídeo; ao sair, volta a 1×.
+- Nas cenas **Portal** e **Tente enganar a IA**, só a câmera do portal analisa:
+  as outras ficam **"Pausada pela apresentação"** (o rodapé do palco diz quais)
+  e voltam ao sair da cena. Fechar o palco no meio devolve as câmeras em ~8 s.
+  Tempo até "Liberado" na cena, com `portal.mp4` e as 4 câmeras ligadas (10
+  repetições, E2E): **p50 3,5 s, p95 5,9 s**. Fora do palco (`/portal`, as 4
+  analisando): p50 13,4 s, p95 24,2 s — por isso o Portal se mostra pelo palco.
 
 ## Roteiro (≈ 7 min)
 
 | cena | o que fazer | o que aparece | E2E |
 |---|---|---|---|
 | 1 VisionEPI | abrir | câmeras no ar, pessoas na planta e incidentes ativos **agora**, nesta máquina | `test_palco_pelo_teclado_e_pelo_celular` |
-| 2 Portal de Entrada | um jurado diante da webcam | só os EPIs exigidos; confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado; check-in conta para a Liga | `test_portal_de_entrada_confirma_itens_e_libera` |
+| 2 Portal de Entrada | um jurado diante da webcam (sem webcam: a gravação `portal.mp4`); as outras câmeras pausam | só os EPIs exigidos; confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado (p50 3,5 s na cena); check-in conta para a Liga | `test_portal_no_palco_pausa_as_outras_e_libera` |
 | 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("o modelo viu com 0,31 (abaixo do piso 0,40) e descartou"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
 | 4 Raio-X | olhar o Pátio | esqueleto, barras de confiança por classe com o piso, detecções descartadas, trilhas de 5 s, vetor de velocidade, decisão separada da confiança | `test_raio_x_liga_pela_tecla_x` |
 | 5 Gêmeo digital | arrastar para orbitar; "Visão de drone"; tocar numa pessoa | cápsulas na cor do estado; linha do tempo e replay da pessoa | `test_gemeo_3d_mostra_pessoas_e_desenha_a_30_fps` |
@@ -92,7 +98,8 @@ python scripts/bench.py --rapido
 |---|---|---|
 | tudo falhou | — | tocar o **vídeo de backup** da demo (seção abaixo) |
 | celular não abre o controle | sem `--https`, ou outra rede | seguir pelo teclado do notebook (→ / ←) |
-| webcam não abre | o Portal usa a gravação do Canteiro | seguir; o portal mostra itens da gravação |
+| webcam não abre | o Portal toca a gravação `portal.mp4` | seguir; dizer que é gravação (o selo GRAVAÇÃO está na tela) |
+| "Liberado" demora no Portal | o modelo vê o capacete em ~2 de cada 3 quadros; um quadro sem ele zera a sequência | esperar (p95 na cena: 5,9 s); com jurado, pedir que fique de frente e parado |
 | câmera para / some | pílula "Reconectando, tentativa N"; volta sozinha | esperar ~10 s ou "Iniciar câmera" |
 | tela estranha | — | `flask --app wsgi demo reset` e recarregar |
 | sem WebGL no projetor | o gêmeo cai para a planta 2D sozinho | seguir |
