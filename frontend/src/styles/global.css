@@ -519,7 +519,14 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .tabs-list { overflow: visible; flex-wrap: nowrap; }
 .tabs-list .tab { flex: 0 0 auto; }
 @media (max-width: 1440px) { .tabs-list .tab { padding: 0 7px; font-size: 12px; } }
-.tabs-more { position: relative; }
+/* A faixa rola (barra oculta) em vez de transbordar: com a lateral estreita
+   (1280 px, ou vídeo 4:3) a última aba pintava por cima do "Mais" e roubava o
+   clique (E2E de privacidade, ADENDO 3). O foco fica dentro da aba, que a
+   rolagem cortaria por fora. */
+.tabs-list .tabs-tablist { overflow-x: auto; scrollbar-width: none; }
+.tabs-list .tabs-tablist::-webkit-scrollbar { display: none; }
+.tabs-tablist .tab:focus-visible { outline-offset: -2px; }
+.tabs-more { position: relative; flex: none; }
 .tabs-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px; display: flex; flex-direction: column; padding: 6px; border-radius: 10px; background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-2); }
 .tabs-more-menu button { text-align: left; background: transparent; border: 0; padding: 9px 12px; border-radius: 8px; color: var(--text); cursor: pointer; }
 .tabs-more-menu button:hover, .tabs-more-menu button.active { background: var(--sunken); }

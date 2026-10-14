@@ -23,6 +23,9 @@ def _abrir_camera(pagina, nome: str) -> None:
 
 def _abrir_aba(pagina, rotulo: str) -> None:
     """Abre uma aba do foco, inclusive as que ficam no menu "Mais"."""
+    # A faixa primeiro: decidir com a tela de foco ainda entrando (View
+    # Transition) mandava abas da faixa para o menu "Mais", onde não estão.
+    pagina.locator("[role=tablist]").first.wait_for(timeout=30_000)
     aba = pagina.get_by_role("tab", name=rotulo)
     if aba.count():
         aba.click()

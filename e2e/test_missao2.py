@@ -109,6 +109,9 @@ def _abrir_foco(pagina, nome):
 
 
 def _aba(pagina, rotulo):
+    # A faixa primeiro: decidir com a tela de foco ainda entrando (View
+    # Transition) mandava abas da faixa para o menu "Mais", onde não estão.
+    pagina.locator("[role=tablist]").first.wait_for(timeout=30_000)
     aba = pagina.get_by_role("tab", name=rotulo)
     if aba.count():
         aba.click()

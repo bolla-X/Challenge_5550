@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import NumberFlow from "@number-flow/react";
@@ -29,9 +29,45 @@ export function Tabs({
 }) {
   const [maisAberto, setMaisAberto] = useState(false);
   const maisRef = useRef<HTMLDivElement>(null);
-  const naFaixa = primary ? tabs.filter((t) => primary.includes(t.key)) : tabs;
-  const noMais = primary ? tabs.filter((t) => !primary.includes(t.key)) : [];
+  const faixaRef = useRef<HTMLDivElement>(null);
+  const primarias = primary ? tabs.filter((t) => primary.includes(t.key)) : tabs;
+  // Quantas primárias cabem na faixa (com "Mais"). As que não cabem vão para o
+  // menu: com a lateral estreita (1280 px, vídeo 4:3) a última aba pintava por
+  // cima do "Mais" e roubava o clique (ADENDO 3). Só com `primary`: sem ele não há menu.
+  const [cabem, setCabem] = useState(primarias.length);
+  const larguras = useRef<Record<string, number>>({});
+  const naFaixa = primary ? primarias.slice(0, Math.max(1, cabem)) : tabs;
+  const noMais = primary ? [...primarias.slice(Math.max(1, cabem)), ...tabs.filter((t) => !primary.includes(t.key))] : [];
   const ativaNoMais = noMais.find((t) => t.key === active);
+  const chavesPrimarias = primarias.map((t) => t.key).join("|");
+
+  useLayoutEffect(() => {
+    const faixa = faixaRef.current;
+    if (!primary || !faixa || typeof ResizeObserver === "undefined") return undefined;
+    const medir = () => {
+      faixa.querySelectorAll<HTMLElement>('[role="tab"]').forEach((el) => {
+        if (el.dataset.key) larguras.current[el.dataset.key] = el.offsetWidth;
+      });
+      // 6 = padding da faixa; 2 = gap entre abas; 64 = "Mais" ainda não desenhado.
+      const disponivel = faixa.clientWidth - 6 - (maisRef.current?.offsetWidth ?? 64) - 2;
+      let soma = 0;
+      let n = 0;
+      for (const tab of primarias) {
+        const largura = larguras.current[tab.key];
+        if (largura === undefined) break; // ainda não medida: fica onde está até a próxima medida
+        soma += largura + 2;
+        if (soma > disponivel) break;
+        n += 1;
+      }
+      const todasMedidas = primarias.every((t) => larguras.current[t.key] !== undefined);
+      setCabem(todasMedidas ? n : primarias.length);
+    };
+    const observador = new ResizeObserver(medir);
+    observador.observe(faixa);
+    medir();
+    return () => observador.disconnect();
+    // Remede quando muda o conjunto de primárias; a largura das abas fica em `larguras`.
+  }, [chavesPrimarias, Boolean(primary)]);
 
   // Fecha o menu ao clicar fora ou apertar Esc.
   useEffect(() => {
@@ -69,7 +105,7 @@ export function Tabs({
   return (
     <div className="tabs">
       {/* A faixa visual tem dois filhos: o tablist (só abas, como o ARIA exige) e o "Mais". */}
-      <div className="tabs-list">
+      <div className="tabs-list" ref={faixaRef}>
         <div className="tabs-tablist" role="tablist" ref={listRef} onKeyDown={onKeyDown}>
         {naFaixa.map((tab) => {
           const selected = tab.key === active;
@@ -79,6 +115,7 @@ export function Tabs({
               type="button"
               role="tab"
               id={`${idPrefix}-tab-${tab.key}`}
+              data-key={tab.key}
               aria-selected={selected}
               aria-controls={`${idPrefix}-panel-${tab.key}`}
               tabIndex={selected ? 0 : -1}
