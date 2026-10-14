@@ -16,6 +16,11 @@ ultralytics==8.3.40
 # la o `auto` cai para ONNX).
 openvino==2026.3.0; platform_machine == "x86_64" or platform_machine == "AMD64"
 onnxruntime==1.29.0
+# Export para ONNX (scripts/concordancia.py, chamado pelo preparar.py): sem
+# eles o export falhava no clone limpo e o fallback ONNX (máquina sem iGPU
+# Intel) nunca era aprovado. Versões medidas no clone limpo (ADENDO 3).
+onnx==1.22.0
+onnxslim==0.1.98
 mediapipe==0.10.14
 numpy==1.26.4
 gunicorn==22.0.0

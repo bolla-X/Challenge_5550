@@ -93,6 +93,15 @@ def aquecer_cache_openvino() -> None:
           f"({len(tempos)} modelos)", flush=True)
 
 
+# Os candidatos que o app de fato usa (`RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`
+# em app/config.py), um por runtime: OpenVINO dinâmico na iGPU (FP32, FP16 se só
+# ele passar), na CPU, e ONNX dinâmico para máquina sem iGPU Intel. A lista
+# PADRÃO do concordancia.py é a varredura de pesquisa (estáticos, 416/320,
+# INT8) e NÃO os inclui: o teste de clone limpo (ADENDO 3) terminou sem nenhum
+# runtime aprovado para o EPI, que então rodaria em PyTorch.
+CANDIDATOS_DO_APP = "openvino-dyn@gpu-fp32:640,openvino-dyn@gpu-fp16:640,openvino-dyn@cpu-fp32:640,onnx-dyn:640"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--sem-exports", action="store_true", help="pula a exportação/aprovação dos runtimes rápidos")
@@ -106,9 +115,14 @@ def main() -> int:
         baixar_peso(nome, url, esperado)
     subprocess.run([sys.executable, "scripts/fetch_fixtures.py"], cwd=RAIZ, check=True)
     if not args.sem_exports:
+        # Sem auto-instalação do ultralytics: ela chama o `pip` de OUTRO Python
+        # (visto no clone limpo: tentou instalar no Python global). O que falta
+        # vai no requirements.txt.
+        ambiente = os.environ.copy() | {"YOLO_AUTOINSTALL": "false"}
         for modelo in ("epi", "pessoa", "esqueleto"):
             print(f"[preparar] exportando e aprovando o runtime de {modelo} (alguns minutos)", flush=True)
-            subprocess.run([sys.executable, "scripts/concordancia.py", "--modelo", modelo], cwd=RAIZ, check=True)
+            subprocess.run([sys.executable, "scripts/concordancia.py", "--modelo", modelo, "--candidatos", CANDIDATOS_DO_APP],
+                           cwd=RAIZ, check=True, env=ambiente)
     # Em processo separado: o app lê a configuração do ambiente no import.
     subprocess.run([sys.executable, "scripts/preparar.py", "--so-cache"], cwd=RAIZ, check=True)
     print("[preparar] pronto. Agora: python run.py --demo", flush=True)

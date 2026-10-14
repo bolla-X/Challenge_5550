@@ -1282,3 +1282,26 @@ Ajustes fora dos arquivos em conflito, exigidos pela integração:
   (`vyra_ppe_640_dyn` ↔ `vyra_ppe.pt`); teste em `tests/test_runtime_do_modelo.py`.
 - Peso da main conferido: existe, SHA-256 `f0dfeea7…` (o travado no teste), carrega
   e detecta pessoa (0,88), colete (0,85) e capacete (0,51) no `portal.mp4`.
+
+### Teste de clone limpo (Fase D, item 1)
+
+**Clone 1** (`feat/completo-com-rebrand` @ `4a65267`, `../ch5550-clone-1`), README
+à risca (`py -3.11 -m venv` + `pip install -r requirements.txt`;
+`scripts\preparar.py`; `run.py --demo`) e a fumaça `e2e/fumaca_demo.py` contra ele:
+**6/6** (demo no ar em 54 s, 4 câmeras publicando análise, vídeo no canvas,
+Portal no palco com as outras pausadas e "Liberado"). Mas o `preparar.py`
+expôs três defeitos de setup, corrigidos aqui:
+
+1. **Nenhum runtime acelerado aprovado para o EPI** (e a pessoa ficou só com
+   `openvino:640` estático, que a ordem `openvino-gpu,onnx,pytorch` não usa):
+   EPI e pessoa rodaram em PyTorch no clone. Causa: o `preparar.py` chamava o
+   `concordancia.py` com a lista padrão, que é a varredura de pesquisa e não
+   inclui `openvino-dyn@gpu-*`; os aprovados desta máquina vieram de rodadas
+   manuais no PR2. Agora o `preparar.py` passa os candidatos do app
+   (`openvino-dyn@gpu-fp32/fp16`, `openvino-dyn@cpu-fp32`, `onnx-dyn`, a 640).
+2. **Export ONNX falhava** (`No module named 'onnx'`): `onnx==1.22.0` e
+   `onnxslim==0.1.98` no `requirements.txt` — sem eles o fallback ONNX de
+   máquina sem iGPU Intel nunca é aprovado.
+3. **Auto-instalação do ultralytics** tentou `pip install` no Python **global**
+   (3.14) da máquina, fora do venv: `YOLO_AUTOINSTALL=false` no
+   `concordancia.py` e no ambiente que o `preparar.py` passa a ele.

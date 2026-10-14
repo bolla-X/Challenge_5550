@@ -33,13 +33,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-import cv2
+# Antes do import do ultralytics (ele lê no import): nada de `pip install`
+# automático — chamava o pip de outro Python no clone limpo (ADENDO 3).
+os.environ.setdefault("YOLO_AUTOINSTALL", "false")
+
+import cv2  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
