@@ -8,6 +8,9 @@
  * lado da confiança bruta, nunca misturada com ela.
  */
 
+/** Quantas pessoas ganham o painel "modelo x decisão" por quadro. */
+const PAINEIS_MAX = 3;
+
 export type RaioX = {
   esqueletos: { t: number | null; j: ([number, number, number] | null)[] }[];
   pessoas: { t: number | null; epis: Record<string, [number, string]>; decisao: Record<string, string>; vel: [number, number] | null }[];
@@ -136,6 +139,13 @@ export function desenharRaioX(
 
   // Por pessoa: vetor de velocidade e painel "modelo x decisão".
   const porId = new Map(dados.pessoas.map((p) => [p.t, p]));
+  // Painel só para as pessoas maiores (mais perto da câmera) e sem sobrepor outro
+  // painel: numa multidão, um painel por pessoa virava uma parede ilegível.
+  const area = (c: (typeof caixas)[number]) => (c.b[2] - c.b[0]) * (c.b[3] - c.b[1]);
+  const comPainel = new Set(
+    caixas.filter((c) => c.k === "pessoa" && c.t != null).sort((a, b) => area(b) - area(a)).slice(0, PAINEIS_MAX).map((c) => c.t),
+  );
+  const ocupados: [number, number, number, number][] = [];
   for (const c of caixas) {
     if (c.k !== "pessoa" || c.t == null) continue;
     const p = porId.get(c.t);
@@ -165,13 +175,15 @@ export function desenharRaioX(
       }
     }
     const linhas = Object.entries(p.epis);
-    if (!linhas.length) continue;
+    if (!linhas.length || !comPainel.has(c.t)) continue;
     const linhaH = fonte + 8;
     const largura = Math.max(150, fonte * 13);
     const altura = linhas.length * linhaH + 10;
     let ox = px(x2) + 6;
     if (ox + largura > dx + w * escala) ox = Math.max(dx, px(x1) - largura - 6);
     const oy = Math.max(dy, Math.min(py(y1), dy + h * escala - altura));
+    if (ocupados.some(([ax, ay, aw, ah]) => ox < ax + aw && ox + largura > ax && oy < ay + ah && oy + altura > ay)) continue;
+    ocupados.push([ox, oy, largura, altura]);
     ctx.fillStyle = FUNDO;
     ctx.beginPath();
     ctx.roundRect(ox, oy, largura, altura, 8);

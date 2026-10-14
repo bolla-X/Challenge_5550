@@ -19,7 +19,10 @@ export function zonaDoIncidente(inc: Incidente): string | null {
   return inc.zona && inc.zona !== "Toda a câmera" ? inc.zona : null;
 }
 
-/** Uma linha: "Sem capacete · Zona A · Pessoas 4, 7, 9". */
+/** Uma frase: "Sem capacete na Zona A: Pessoas 4, 7, 9" (sem lista de pontos médios). */
 export function rotuloDoIncidente(inc: Incidente): string {
-  return [inc.titulo, zonaDoIncidente(inc), pessoasDoIncidente(inc)].filter(Boolean).join(" · ");
+  const zona = zonaDoIncidente(inc);
+  const onde = !zona ? "" : zona === "Fora da zona" ? " fora da zona" : inc.rule === "risk_area_presence" ? ` (${zona})` : ` na ${zona}`;
+  const pessoas = pessoasDoIncidente(inc);
+  return `${inc.titulo}${onde}${pessoas ? `: ${pessoas}` : ""}`;
 }

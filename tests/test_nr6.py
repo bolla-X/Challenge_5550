@@ -40,9 +40,9 @@ def test_relatorio_traz_nr6_e_ignora_falso_positivo(real_monitor_app):
         db.session.add(cam)
         db.session.commit()
         db.session.add_all([
-            Alert(camera_id=cam.id, rule="missing_helmet", severity="critical", message="Sem capacete — Pessoa 1",
+            Alert(camera_id=cam.id, rule="missing_helmet", severity="critical", message="Sem capacete · Pessoa 1",
                   feature="helmet", status="resolved", metadata_json={}),
-            Alert(camera_id=cam.id, rule="missing_gloves", severity="medium", message="Sem luvas — Pessoa 1",
+            Alert(camera_id=cam.id, rule="missing_gloves", severity="medium", message="Sem luvas · Pessoa 1",
                   feature="gloves", status="resolved", metadata_json={"false_positive": True}),
         ])
         db.session.commit()

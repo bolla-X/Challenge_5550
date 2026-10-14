@@ -92,8 +92,8 @@ def test_retrospectiva_sem_dado_nao_inventa_numero(app):
         r = retrospectiva.montar("turno", AGORA)
         por_chave = {c["chave"]: c for c in r["cards"]}
         assert por_chave["conformidade"]["valor"] == 0
-        assert por_chave["destaque"]["valor"] == "—"
-        assert por_chave["reconhecimento"]["valor"] == "—"
+        assert por_chave["destaque"]["valor"] == "Sem dado"
+        assert por_chave["reconhecimento"]["valor"] == "Sem dado"
         assert "Pessoa" not in str(r)
 
 

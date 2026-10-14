@@ -4,7 +4,8 @@ import { listarIncidentes } from "../../api/endpoints";
 import type { Incidente } from "../../api/types";
 import { PPE_LABELS } from "../../api/ppe";
 import { paraDate } from "../../utils/datas";
-import { PanelSkeleton } from "../common";
+import { EmptyState, PanelSkeleton } from "../common";
+import { IlustracaoPlanta } from "../ilustracoes";
 import { IncidentReplay } from "../replay";
 import "./gemeo.css";
 import { CenaGemeo, type Metricas, type Selecao } from "./cena3d";
@@ -259,7 +260,7 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
             <p className="screen-sub">
               {estado
                 ? `${pessoas.length} pessoa${pessoas.length === 1 ? "" : "s"} em ${calibradas.length} câmera${calibradas.length === 1 ? "" : "s"} calibrada${calibradas.length === 1 ? "" : "s"}${foraDoPadrao ? ` · ${foraDoPadrao} fora do padrão` : ""}`
-                : "Carregando a planta…"}
+                : ""}
             </p>
           </div>
           <div className="gemeo-acoes">
@@ -293,11 +294,17 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
           )}
           {estado && calibradas.length === 0 && (
             <div className="gemeo-vazio">
-              <h2>Nenhuma câmera calibrada na planta</h2>
-              <p>Calibre uma câmera na aba Planta (4 cliques no chão do vídeo e 4 na planta) e ela aparece aqui.</p>
-              <a className="button primary" href="/">
-                Ir para as câmeras
-              </a>
+              <EmptyState
+                ilustracao={<IlustracaoPlanta />}
+                titulo="Nenhuma câmera calibrada na planta"
+                acao={
+                  <a className="button primary" href="/">
+                    Ir para as câmeras
+                  </a>
+                }
+              >
+                Calibre uma câmera na aba Planta (4 cliques no chão do vídeo e 4 na planta) e ela aparece aqui.
+              </EmptyState>
             </div>
           )}
           {erro && !estado && (
@@ -326,8 +333,8 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
                 <li key={`${cam.id}:${pe.track_id}`}>
                   <button type="button" className={`gemeo-pessoa ${pe.estado}`} data-testid="gemeo-pessoa" onClick={() => selecionar(cam, pe)}>
                     <span className="dot" />
-                    Pessoa {pe.track_id}
-                    <span className="t-secondary"> · {cam.nome}</span>
+                    <span>{`Pessoa ${pe.track_id}`}</span>
+                    <span className="t-secondary">{cam.nome}</span>
                   </button>
                 </li>
               ))}

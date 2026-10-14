@@ -193,3 +193,21 @@ def test_fracao_do_foco_configuravel_ate_70_por_cento():
     assert pesos[1] / sum(pesos.values()) == pytest.approx(0.7)
     assert AgendadorDeInferencia(fracao_foco=0.95).fracao_foco == 0.7  # teto
     assert AgendadorDeInferencia(fracao_foco=0.1).fracao_foco == 0.5  # piso: o foco nunca abaixo de 50 %
+
+
+def test_descartar_pendente_tira_a_camera_pausada_da_fila():
+    """ADENDO 3: a câmera pausada pelo palco não toma a vaga do portal com um quadro velho."""
+    relogio = _Relogio()
+    ag = AgendadorDeInferencia(focadas=lambda: {1}, espera_max_s=2.5, relogio=relogio)
+    for cid in (1, 2):
+        slot = _Slot(cid, _nada, _nada)
+        slot.ultimo_servico = 0.0
+        ag._slots[cid] = slot
+        ag._ordem.append(cid)
+    ag._slots[2].frame, ag._slots[2].pendente = object(), True
+    relogio.t = 5.0  # a 2 espera há mais que espera_max_s: a guarda a serviria primeiro
+    ag._slots[1].frame, ag._slots[1].pendente = object(), True
+    ag.descartar_pendente(2)
+    ag.descartar_pendente(99)  # câmera desconhecida: nada acontece
+    assert [s.camera_id for s in ag._escolher()] == [1]
+    assert ag._slots[2].frame is None

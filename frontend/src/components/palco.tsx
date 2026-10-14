@@ -1,4 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { EmptyState, Numero, PanelSkeleton } from "./common";
+import { IlustracaoEscudo } from "./ilustracoes";
 import { useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import type { Incidente } from "../api/types";
@@ -26,6 +28,8 @@ const SimuladorScreen = lazy(() => import("./simulador"));
 
 type Cena = { chave: string; titulo: string; legenda: string; camera_id: number | null; raiox?: boolean };
 type Estado = { cena: number; total: number; seq: number; chave: string; titulo: string; legenda: string; proxima: string | null };
+/** O polling da tela também traz as câmeras que a cena pausou (`ativas: "cena"`). */
+type EstadoDaTela = Estado & { pausadas?: string[] };
 
 async function ir(acao: "proxima" | "anterior" | "ir", indice?: number, token?: string): Promise<Estado> {
   const r = await fetch("/api/palco/ir", {
@@ -100,11 +104,11 @@ function NumerosDoSistema() {
       </div>
       <div>
         <dt>pessoas na planta</dt>
-        <dd className="t-data">{n.pessoas}</dd>
+        <dd className="t-data"><Numero valor={n.pessoas} /></dd>
       </div>
       <div>
         <dt>incidentes ativos</dt>
-        <dd className="t-data">{n.incidentes}</dd>
+        <dd className="t-data"><Numero valor={n.incidentes} /></dd>
       </div>
     </dl>
   );
@@ -128,8 +132,13 @@ function IncidenteDaCena({ cameraId, regra }: { cameraId: number | null; regra?:
       window.clearInterval(id);
     };
   }, [cameraId, regra, achou]);
-  if (inc === undefined) return <p className="status-text">Buscando o incidente mais recente…</p>;
-  if (inc === null) return <p className="palco-vazio">Nenhum incidente registrado ainda nesta câmera — volte a esta cena em instantes.</p>;
+  if (inc === undefined) return <PanelSkeleton lines={5} />;
+  if (inc === null)
+    return (
+      <EmptyState ilustracao={<IlustracaoEscudo />} titulo="Nenhum incidente registrado ainda nesta câmera">
+        Volte a esta cena em instantes: a câmera continua analisando.
+      </EmptyState>
+    );
   return <IncidenteDetalhe incidente={inc} inline onClose={() => undefined} />;
 }
 
@@ -180,7 +189,7 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
       return cena.camera_id != null ? <VideoDaCena cameraId={cena.camera_id} /> : <p className="palco-vazio">Câmera da cena não cadastrada.</p>;
     case "gemeo":
       return (
-        <Suspense fallback={<p className="status-text">Carregando o gêmeo…</p>}>
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
           <GemeoScreen embutido />
         </Suspense>
       );
@@ -196,7 +205,7 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
       );
     case "simulador":
       return (
-        <Suspense fallback={<p className="status-text">Carregando o simulador…</p>}>
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
           <SimuladorScreen />
         </Suspense>
       );
@@ -236,6 +245,9 @@ export function PalcoScreen() {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [mostrarQr, setMostrarQr] = useState(true);
+  // Fora do `estado`: `maisNovo` ignora respostas da mesma cena, e a lista
+  // de pausadas tem de acompanhar o servidor a cada consulta.
+  const [pausadas, setPausadas] = useState<string[]>([]);
   const reduzir = useReducedMotion();
   const local = useRef<number | null>(null);
 
@@ -257,10 +269,11 @@ export function PalcoScreen() {
     const id = window.setInterval(() => {
       fetch("/api/palco/estado", { credentials: "same-origin" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d: Estado | null) => {
+        .then((d: EstadoDaTela | null) => {
           if (d) {
             local.current = null;
             setEstado((atual) => maisNovo(atual, d));
+            setPausadas(d.pausadas ?? []);
           }
         })
         .catch(() => undefined);
@@ -346,6 +359,11 @@ export function PalcoScreen() {
       <footer className="palco-legenda" aria-live="polite">
         <strong data-testid="palco-titulo">{cena.titulo}</strong>
         <span>{cena.legenda}</span>
+        {pausadas.length > 0 && (
+          <small className="palco-pausadas" data-testid="palco-pausadas">
+            {pausadas.length === 1 ? `${pausadas[0]}: pausada` : `${pausadas.join(", ")}: pausadas`} pela apresentação
+          </small>
+        )}
         {estado.proxima && <small className="palco-proxima">a seguir: {estado.proxima} →</small>}
       </footer>
       {mostrarQr && <QrDoControle />}

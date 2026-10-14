@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PanelSkeleton } from "./common";
 
 /**
  * “Você vs. a IA” (G2), em `/desafio`. Cada rodada toca ~1,6 s de vídeo
@@ -136,14 +137,20 @@ export function DesafioScreen() {
   };
 
   if (erro) return <p className="centered-empty">{erro}</p>;
-  if (!rodada) return <p className="centered-empty">Carregando…</p>;
+  if (!rodada)
+    return (
+      <div className="desafio" aria-busy="true">
+        <div className="skeleton-block desafio-esqueleto" />
+        <PanelSkeleton lines={2} />
+      </div>
+    );
 
   return (
     <div className="desafio" data-testid="desafio" data-fase={fase}>
       <header className="desafio-cabeca">
         <h1>Você vs. a IA</h1>
         <span className="t-data" data-testid="desafio-placar">
-          {apelido || "Você"} {placar.humano} × {placar.ia} IA · {placar.rodadas} rodada(s)
+          {apelido || "Você"} {placar.humano} × {placar.ia} IA · {placar.rodadas === 1 ? "1 rodada" : `${placar.rodadas} rodadas`}
         </span>
       </header>
       {fase === "inicio" ? (
@@ -230,7 +237,7 @@ export function DesafioScreen() {
                       </td>
                       <td className="t-data">{resultado[quem].erros}</td>
                       <td className="t-data">{resultado[quem].perdidos}</td>
-                      <td className="t-data">{resultado[quem].tempo_ms == null ? "—" : `${(resultado[quem].tempo_ms! / 1000).toFixed(1)} s`}</td>
+                      <td className="t-data">{resultado[quem].tempo_ms == null ? "sem dado" : `${(resultado[quem].tempo_ms! / 1000).toFixed(1)} s`}</td>
                     </tr>
                   ))}
                 </tbody>

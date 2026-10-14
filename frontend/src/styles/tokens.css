@@ -64,6 +64,42 @@
   --d-state:160ms;
   --d-panel:260ms;
 
+  /* escala tipográfica: tamanho / entrelinha / tracking andam juntos (maior = mais apertado) */
+  --t-hero: 64px;     --t-hero-lh: 1.04;  --t-hero-tr: -.035em;
+  --t-display: 40px;  --t-display-lh: 1.08; --t-display-tr: -.03em;
+  --t-title-1: 28px;  --t-title-1-lh: 1.15; --t-title-1-tr: -.024em;
+  --t-title-2: 22px;  --t-title-2-lh: 1.2;  --t-title-2-tr: -.018em;
+  --t-title-3: 17px;  --t-title-3-lh: 1.3;  --t-title-3-tr: -.012em;
+  --t-body: 15px;     --t-body-lh: 1.5;
+  --t-callout: 14px;  --t-callout-lh: 1.45;
+  --t-footnote: 13px; --t-footnote-lh: 1.4;
+  --t-caption: 12px;  --t-caption-lh: 1.35; --t-caption-tr: .01em;
+
+  /* movimento: durações e curvas nomeadas (a mola criticamente amortecida é
+     aproximada por linear(); sem suporte, cai para a curva de saída) */
+  --d-instant:100ms;
+  --d-entrance:360ms;
+  --d-story:6000ms;
+  --ease-in-out:cubic-bezier(.65,0,.35,1);
+  --ease-spring:cubic-bezier(.23,1,.32,1);
+
+  /* forma: raios extras do sistema (cartão de story) */
+  --r-sheet:28px;
+
+  /* paleta SOBRE VÍDEO: fixa nos dois temas (o vídeo não muda com o tema). Mesmas
+     cores do anotador do servidor e do canvas (live-video.tsx, raiox.ts). */
+  --v-fundo:#0C0D0F;
+  --v-texto:#F5F5F7;
+  --v-texto-escuro:#1A1A1C;
+  --v-ok:#34C77E;
+  --v-info:#4C9DFF;
+  --v-aviso:#FFB020;
+  --v-aproximacao:#FFD60A;
+  --v-perigo:#FF9E5E;
+  --v-parada:#C9241B;
+  --v-neutro:#8C8C95;
+  --tint-ok:rgba(22,121,74,.05);
+
   /* tipografia */
   --font:"Geist Variable","Geist",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
   --font-mono:"Geist Mono Variable","Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -87,6 +123,7 @@
     --stop:#FF5B52;           /*  6,36:1 */
     --ok:#34C77E;             /*  8,90:1 */
     --tint-danger:rgba(255,138,61,.14);
+    --tint-ok:rgba(52,199,126,.14);
     --scrim:rgba(0,0,0,.60);
     --shadow-1:0 1px 2px rgba(0,0,0,.5);
     --shadow-2:0 14px 36px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
@@ -101,6 +138,7 @@
   --accent:#4C9DFF; --on-accent:#0C0D0F;
   --danger:#FF8A3D; --stop:#FF5B52; --ok:#34C77E;
   --tint-danger:rgba(255,138,61,.14);
+  --tint-ok:rgba(52,199,126,.14);
   --scrim:rgba(0,0,0,.60);
   --shadow-1:0 1px 2px rgba(0,0,0,.5);
   --shadow-2:0 14px 36px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);

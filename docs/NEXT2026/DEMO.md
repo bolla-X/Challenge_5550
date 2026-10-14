@@ -7,11 +7,22 @@ momento está indicado.
 ## Antes da banca (uma vez, com internet)
 
 ```bash
-python scripts/fetch_fixtures.py
+python scripts/preparar.py
 ```
 
-Baixa as gravações de demonstração para `tests/fixtures/`. Depois disso tudo é
-offline.
+Baixa pesos e gravações, aprova os runtimes rápidos e **aquece o cache do
+OpenVINO** (`runtime/ov_cache/`, fora do git). Depois disso tudo é offline.
+**Na véspera e na manhã da apresentação**, na máquina da apresentação, rode de
+novo só o aquecimento (~1 min):
+
+```bash
+python scripts/preparar.py --so-cache
+```
+
+Ele compila os três modelos na iGPU nas formas das câmeras da demo e o
+OpenVINO guarda o compilado (doc:
+https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html).
+Trocou de máquina, de driver da GPU ou de versão do OpenVINO: rode de novo.
 
 ## Subir
 
@@ -28,14 +39,17 @@ python run.py --demo --https
   `operador@demo.local`) com senha gerada agora — anote antes de projetar;
 - câmeras: Canteiro (Obra), Pátio (Expedição) e Escada (Manutenção), das
   gravações, rotuladas **GRAVAÇÃO**, calibradas na mesma planta (gêmeo 3D); a
-  webcam vira **Portal** (Portaria), **AO VIVO**; sem webcam, o Portal usa o
-  Canteiro;
+  webcam vira **Portal** (Portaria), **AO VIVO**; sem webcam, o Portal toca a
+  gravação `portal.mp4` (um trabalhador de capacete e colete, de perto);
 - **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
 - quatro missões de turno da equipe (Liga de Setores);
-- tema claro (projetor); LLM desligado; boot até responder: ~70 s com o cache
-  dos modelos quente. **Com o cache frio a subida levou ~4 min** (compila os
-  modelos para a iGPU; aconteceu em 14/10, causa não identificada): suba a
-  demo uma vez antes da banca e deixe no ar.
+- tema claro (projetor); LLM desligado.
+- **Tempo de subida** até a primeira análise publicada (`scripts/medir_partida.py`,
+  3 rodadas cada, 14/10): **com o cache aquecido, mediana 53 s** (50–67 s);
+  **a frio** (pasta de cache nova e vazia), **mediana 68 s** (58–76 s). O caso de
+  ~4 min do ADENDO 2 foi logo depois de reiniciar o PC (caches do sistema e do
+  driver frios) e não se repetiu com pasta de cache nova. Mesmo assim: rode
+  `scripts/preparar.py --so-cache`, suba a demo **antes** da banca e deixe no ar.
 
 Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 `/palco` (atalho na Visão geral: "Apresentação").
@@ -49,14 +63,20 @@ Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 - Cada cena prepara o próprio estado: a câmera certa em foco, o Raio-X quando
   pede, e a gravação da queda recomeça (de 4 s) a **0,25×** ao entrar na cena,
   com "GRAVAÇÃO · 0,25×" sobre o vídeo; ao sair, volta a 1×.
+- Nas cenas **Portal**, **Tente enganar a IA** e **Queda**, só a câmera da cena analisa:
+  as outras ficam **"Pausada pela apresentação"** (o rodapé do palco diz quais)
+  e voltam ao sair da cena. Fechar o palco no meio devolve as câmeras em ~8 s.
+  Tempo até "Liberado" na cena, com `portal.mp4` e as 4 câmeras ligadas (10
+  repetições, E2E): **p50 3,5 s, p95 5,9 s**. Fora do palco (`/portal`, as 4
+  analisando): p50 13,4 s, p95 24,2 s — por isso o Portal se mostra pelo palco.
 
 ## Roteiro (≈ 7 min)
 
 | cena | o que fazer | o que aparece | E2E |
 |---|---|---|---|
 | 1 VisionEPI | abrir | câmeras no ar, pessoas na planta e incidentes ativos **agora**, nesta máquina | `test_palco_pelo_teclado_e_pelo_celular` |
-| 2 Portal de Entrada | um jurado diante da webcam | só os EPIs exigidos; confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado; check-in conta para a Liga | `test_portal_de_entrada_confirma_itens_e_libera` |
-| 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("viu com 0,31, abaixo do piso — descartado"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
+| 2 Portal de Entrada | um jurado diante da webcam (sem webcam: a gravação `portal.mp4`); as outras câmeras pausam | só os EPIs exigidos; confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado (p50 3,5 s na cena); check-in conta para a Liga | `test_portal_no_palco_pausa_as_outras_e_libera` |
+| 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("o modelo viu com 0,31 (abaixo do piso 0,40) e descartou"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
 | 4 Raio-X | olhar o Pátio | esqueleto, barras de confiança por classe com o piso, detecções descartadas, trilhas de 5 s, vetor de velocidade, decisão separada da confiança | `test_raio_x_liga_pela_tecla_x` |
 | 5 Gêmeo digital | arrastar para orbitar; "Visão de drone"; tocar numa pessoa | cápsulas na cor do estado; linha do tempo e replay da pessoa | `test_gemeo_3d_mostra_pessoas_e_desenha_a_30_fps` |
 | 6 Queda | esperar ~13 s (a gravação toca a 0,25×; dizer em voz alta que é câmera lenta e por quê — BANCA 21) | a queda AO VIVO com "GRAVAÇÃO · 0,25×" sobre o vídeo, a pílula "Queda detectada · Pessoa N" e, ao lado, o incidente com linha causal e replay | `test_palco_queda_ao_vivo_em_camera_lenta` |
@@ -92,7 +112,8 @@ python scripts/bench.py --rapido
 |---|---|---|
 | tudo falhou | — | tocar o **vídeo de backup** da demo (seção abaixo) |
 | celular não abre o controle | sem `--https`, ou outra rede | seguir pelo teclado do notebook (→ / ←) |
-| webcam não abre | o Portal usa a gravação do Canteiro | seguir; o portal mostra itens da gravação |
+| webcam não abre | o Portal toca a gravação `portal.mp4` | seguir; dizer que é gravação (o selo GRAVAÇÃO está na tela) |
+| "Liberado" demora no Portal | o modelo vê o capacete em ~2 de cada 3 quadros; um quadro sem ele zera a sequência | esperar (p95 na cena: 5,9 s); com jurado, pedir que fique de frente e parado |
 | câmera para / some | pílula "Reconectando, tentativa N"; volta sozinha | esperar ~10 s ou "Iniciar câmera" |
 | tela estranha | — | `flask --app wsgi demo reset` e recarregar |
 | sem WebGL no projetor | o gêmeo cai para a planta 2D sozinho | seguir |

@@ -14,6 +14,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 
 /* ---------- simulador (X2) ---------- */
 .sim-grade { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.sim-grade > .card { margin: 0; }
 .sim-controles .card-body { display: grid; gap: var(--s4); }
 .sim-campo { display: grid; gap: var(--s2); border: 0; margin: 0; padding: 0; min-width: 0; }
 .sim-campo > span, .sim-campo > legend { font-size: 13px; font-weight: 500; color: var(--text-2); padding: 0; margin-bottom: var(--s2); }
@@ -186,7 +187,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .portal-cabeca button.active { background: var(--sunken); color: var(--text); }
 
 /* ---------- Palco (X6) ---------- */
-.palco { height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--canvas); color: var(--text); }
+.palco { height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); background: var(--canvas); color: var(--text); }
 .palco-topo { display: flex; align-items: center; gap: var(--s4); padding: var(--s4) var(--s6); }
 .palco-marca { font-weight: 600; letter-spacing: -.01em; }
 .palco-pontos { list-style: none; display: flex; gap: 6px; margin: 0 auto; padding: 0; }
@@ -206,6 +207,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-legenda strong { font-size: 28px; font-weight: 600; letter-spacing: -.024em; }
 .palco-legenda span { font-size: 20px; color: var(--text-2); }
 .palco-proxima { margin-left: auto; color: var(--text-3); font-size: 14px; }
+.palco-pausadas { color: var(--text-3); font-size: 14px; }
 .palco-hero { min-height: 60vh; display: grid; place-content: center; justify-items: center; text-align: center; gap: var(--s5); }
 .palco-hero h1 { font-size: clamp(56px, 9vw, 120px); line-height: 1; font-weight: 700; letter-spacing: -.05em; }
 .palco-hero p { font-size: 24px; color: var(--text-2); max-width: 36ch; }
@@ -226,6 +228,11 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-cartao { max-width: 900px; margin: 0 auto; }
 .palco-qr { position: fixed; right: var(--s5); bottom: 96px; width: 132px; display: grid; gap: 4px; justify-items: center; font-size: 12px; color: var(--text-2); background: var(--surface); padding: var(--s3); border-radius: var(--r-control); box-shadow: var(--shadow-2); }
 .palco-qr svg { width: 108px; height: 108px; }
+/* Abaixo de 1600 px o QR (fixo no canto) cobria o fim da coluna do Portal na
+   cena do palco (captura r7, 1366 px). Com o QR na tela, a coluna reserva o espaço dele. */
+@media (max-width: 1600px) and (min-width: 761px) {
+  .palco:has(.palco-qr) .palco-cena .portal-corpo > :last-child { margin-right: calc(132px + var(--s4)); }
+}
 .palco-qr small { font-size: 10px; text-align: center; color: var(--text-3); }
 .incidente-inline { max-width: 900px; margin: 0 auto; }
 .incidente-inline .incidente-fechar { display: none; }
@@ -249,3 +256,65 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 }
 code { font-variant-ligatures: none; }
 .palco-qr code { font-size: 10px; }
+
+/* ---------- Sistema (PR6): estados, tabela, ilustrações, transições ---------- */
+.ilustracao { width: 160px; height: 112px; color: var(--text-3); }
+.ilustracao .tr { stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ilustracao .fino { stroke-width: 1.25; opacity: .6; }
+.ilustracao .tracejado { stroke-dasharray: 4 4; }
+.ilustracao .destaque { fill: var(--accent); }
+.ilustracao .destaque-traco { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.ilustracao .zona { fill: var(--sunken); stroke: currentColor; stroke-width: 1.25; }
+.empty-state.rico { display: grid; justify-items: center; text-align: center; gap: var(--s2); padding: var(--s6) var(--s4); }
+.empty-state.rico h3 { font-size: var(--t-title-3); line-height: var(--t-title-3-lh); letter-spacing: var(--t-title-3-tr); font-weight: 600; color: var(--text); margin-top: var(--s2); }
+.empty-state.rico p { font-size: var(--t-callout); color: var(--text-2); max-width: 44ch; }
+.empty-state-acao { margin-top: var(--s2); display: flex; gap: var(--s2); }
+
+.tabela { width: 100%; border-collapse: collapse; font-size: var(--t-callout); }
+.tabela caption { text-align: left; font-size: var(--t-footnote); font-weight: 600; color: var(--text-2); padding-bottom: var(--s2); }
+.tabela th, .tabela td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--hairline); text-align: left; vertical-align: baseline; }
+.tabela thead th { font-size: var(--t-caption); font-weight: 500; color: var(--text-3); }
+.tabela td.num, .tabela th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* View Transitions entre telas (com fallback: sem a API, a troca é direta). */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-panel); animation-timing-function: var(--ease-out); }
+::view-transition-old(root) { animation-name: vt-sai; }
+::view-transition-new(root) { animation-name: vt-entra; }
+@keyframes vt-sai { to { opacity: 0; } }
+@keyframes vt-entra { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
+
+.skeleton-inline { display: inline-block; width: 16ch; height: 1em; vertical-align: middle; }
+.desafio-esqueleto { width: 100%; aspect-ratio: 16 / 9; margin-bottom: var(--s4); }
+
+.alert-group > summary { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.alert-group .alert-stripe { display: inline-block; width: 4px; height: 16px; border-radius: 2px; }
+.incidente-resumo { display: inline-flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; margin-right: auto; }
+.incidente-zona { font-size: var(--t-footnote); color: var(--text-2); padding: 1px 8px; border-radius: var(--r-chip); background: var(--sunken); }
+.alert-stripe.critical, .alert-stripe.high { background: var(--danger); }
+.alert-stripe.medium, .alert-stripe.low, .alert-stripe.info { background: var(--text-3); }
+
+/* Palco em tela estreita: é feito para projetor, mas não transborda. O QR some
+   (quem está no celular já é o controle) e o título acompanha a largura. */
+@media (max-width: 760px) {
+  .palco { overflow-x: hidden; max-width: 100vw; }
+  .palco-cena, .palco-hero, .palco-legenda { min-width: 0; max-width: 100%; }
+  .palco-pontos { display: none; }
+  .palco-hero p { max-width: 100%; }
+  .palco-qr { display: none; }
+  .palco-hero { padding: 0 var(--s4); }
+  .palco-hero h1 { font-size: clamp(44px, 14vw, 72px); }
+  .palco-hero p { font-size: 18px; }
+  .palco-numeros { gap: var(--s5); flex-wrap: wrap; justify-content: center; }
+  .palco-numeros dd { font-size: 40px; }
+  .palco-legenda { padding: var(--s3) var(--s4); }
+  .palco-legenda strong { font-size: 22px; }
+  .palco-legenda span { font-size: 16px; }
+}
+
+.tabela-rolavel { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 760px) { .auditoria-tabela th:last-child, .auditoria-tabela td:last-child { display: none; } }

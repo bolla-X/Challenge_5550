@@ -183,7 +183,7 @@ class RuleEngine:
                         RuleAlert(
                             rule=rule,
                             severity=severity,
-                            message=f"{texto} — {person_state['label']}",
+                            message=f"{texto} · {person_state['label']}",
                             feature=feature_key,
                             metadata={
                                 "person_id": person_state["id"],
@@ -277,7 +277,7 @@ class RuleEngine:
             if anterior is not None and _chave_do_sujeito(anterior) != _chave_do_sujeito(sujeito):
                 sujeito = {k: v for k, v in anterior.items() if k != "person_box"} | {
                     "person_box": sujeito["person_box"], "continuidade_de": _chave_do_sujeito(sujeito)}
-            rotulo = f" — {sujeito['person_label']}" if sujeito.get("person_label") else ""
+            rotulo = f" · {sujeito['person_label']}" if sujeito.get("person_label") else ""
             vistas.append((agora, queda, sujeito))
             logger.info("queda_vista", extra={"sujeito": _chave_do_sujeito(sujeito), "confianca": round(queda.confidence, 2),
                                               "continuidade_de": sujeito.get("continuidade_de")})
@@ -301,7 +301,7 @@ class RuleEngine:
 
     @staticmethod
     def _pose_label(pose: PoseResult) -> str:
-        return f" — Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
+        return f" · Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
 
     def _torso_px(self, pose: PoseResult, frame_shape: tuple[int, int, int]):
         """Centro dos ombros e dos quadris, em pixels. None se nao der pra confiar."""
@@ -369,7 +369,7 @@ class RuleEngine:
             RuleAlert(
                 rule="risk_area_presence",
                 severity="high",
-                message=f"Pessoa em área de risco — {person['label']}",
+                message=f"Pessoa em área de risco · {person['label']}",
                 feature="risk_area",
                 metadata={
                     "person_id": person["id"],

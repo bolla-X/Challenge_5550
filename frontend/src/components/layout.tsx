@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { effectiveTheme, ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { Mark, Wordmark } from "./brand";
 import { pedirPermissao, permissaoDeNotificacao } from "../pwa";
+import { IconeLua, IconeMudo, IconeSino, IconeSinoAtivo, IconeSol, IconeSom } from "./icones";
 import { exportAlertsCsv } from "./export";
 
 // Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
@@ -15,18 +16,9 @@ const ROTULO_DO_PAPEL: Record<string, string> = {
   supervisor: "Supervisor",
 };
 
-/** Sol e lua em traço de 1,5 px na cor do texto ao lado. */
+/** Sol e lua do conjunto de ícones do sistema (components/icones.tsx). */
 function ThemeIcon({ dark }: { dark: boolean }) {
-  return dark ? (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  );
+  return dark ? <IconeLua /> : <IconeSol />;
 }
 
 export function ThemeToggle() {
@@ -46,15 +38,9 @@ export function ThemeToggle() {
   );
 }
 
-/** Alto-falante em traço, riscado quando mudo. O estado também está no
- * aria-label e no title, então não depende só do desenho. */
+/** Alto-falante, riscado quando mudo. O estado também está no aria-label e no title. */
 function SpeakerIcon({ muted }: { muted: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5H4z" />
-      {muted ? <path d="M16 9.5l5 5M21 9.5l-5 5" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7" />}
-    </svg>
-  );
+  return muted ? <IconeMudo /> : <IconeSom />;
 }
 
 /** X10: liga as notificações do sistema para alerta crítico (pedido só no clique, como a MDN orienta). */
@@ -74,10 +60,7 @@ export function NotificacaoToggle() {
       disabled={estado !== "default"}
       onClick={() => pedirPermissao().then(setEstado)}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
-        <path d="M10 20a2 2 0 0 0 4 0" />
-      </svg>
+      {estado === "granted" ? <IconeSinoAtivo /> : <IconeSino />}
     </button>
   );
 }
@@ -161,6 +144,34 @@ export function Topbar() {
       .catch((err) => console.error(err))
       .finally(() => setPending(null));
   };
+  const secundarios = (
+    <>
+      <button type="button" className="ghost" onClick={() => setCommandPaletteOpen(true)}>
+        Buscar <kbd>Ctrl K</kbd>
+      </button>
+      {access.hasOverview && (
+        <button
+          type="button"
+          className="ghost"
+          disabled={!alertHistory.length}
+          title="Baixa em CSV o histórico de alertas carregado agora"
+          onClick={() => exportAlertsCsv(alertHistory)}
+        >
+          Exportar
+        </button>
+      )}
+      {access.canConfigure && (
+        <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
+          Relatório do turno
+        </a>
+      )}
+      {access.canConfigure && (
+        <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
+          Sobre
+        </button>
+      )}
+    </>
+  );
   return (
     <header className="appbar">
       <span className="brand-lockup">
@@ -169,30 +180,12 @@ export function Topbar() {
       </span>
       <div className="appbar-actions">
         {mode === "operator" && <OperadorSemSetor />}
-        <button type="button" className="ghost" onClick={() => setCommandPaletteOpen(true)}>
-          Buscar <kbd>Ctrl K</kbd>
-        </button>
-        {access.hasOverview && (
-          <button
-            type="button"
-            className="ghost"
-            disabled={!alertHistory.length}
-            title="Baixa em CSV o histórico de alertas carregado agora"
-            onClick={() => exportAlertsCsv(alertHistory)}
-          >
-            Exportar
-          </button>
-        )}
-        {access.canConfigure && (
-          <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
-            Relatório do turno
-          </a>
-        )}
-        {access.canConfigure && (
-          <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
-            Sobre
-          </button>
-        )}
+        <span className="appbar-secundarios">{secundarios}</span>
+        {/* Celular: os mesmos atalhos num menu, para a barra caber numa linha. */}
+        <details className="appbar-menu">
+          <summary className="button ghost">Menu</summary>
+          <div className="appbar-menu-painel">{secundarios}</div>
+        </details>
         <ThemeToggle />
         <NotificacaoToggle />
         <MuteToggle />

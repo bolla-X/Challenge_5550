@@ -13,6 +13,9 @@ import type { EstadoDoStream } from "./live-video";
  * - GRAVAÇÃO: a fonte é um arquivo (fixture de demonstração), não câmera ao vivo;
  * - AO VIVO: câmera real entregando quadro.
  *
+ * PAUSADA vem logo depois de PARADO: a cena do Portal no palco deixa só a
+ * câmera dela analisando, e as outras dizem por quê (ADENDO 3 da MISSÃO 2).
+ *
  * DEGRADADO não substitui nenhum destes: é um aviso À PARTE (o vídeo pode estar
  * AO VIVO e degradado ao mesmo tempo), e diz o que foi reduzido.
  */
@@ -21,7 +24,7 @@ export function formatarVelocidade(v: number): string {
   return `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}×`;
 }
 
-export type ChaveDoFeed = "parado" | "sem_sinal" | "reconectando" | "gravacao" | "ao_vivo";
+export type ChaveDoFeed = "parado" | "pausada" | "sem_sinal" | "reconectando" | "gravacao" | "ao_vivo";
 
 export function estadoDoFeed(
   estado: EstadoDaCamera,
@@ -29,6 +32,7 @@ export function estadoDoFeed(
   stream?: EstadoDoStream,
 ): { chave: ChaveDoFeed; rotulo: string } {
   if (!estado.running) return { chave: "parado", rotulo: "Parado" };
+  if (estado.pausa === "apresentacao") return { chave: "pausada", rotulo: "Pausada pela apresentação" };
   if (stream === "sem_sinal" || estado.diagnostico?.fonte_sem_imagem) return { chave: "sem_sinal", rotulo: "Sem sinal" };
   if (estado.modo === "reconectando" || stream === "reconectando") {
     return { chave: "reconectando", rotulo: `Reconectando${estado.tentativas ? ` · tentativa ${estado.tentativas + 1}` : ""}` };

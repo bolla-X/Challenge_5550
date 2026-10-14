@@ -11,6 +11,21 @@ import numpy as np
 
 from app.vision.schemas import BoundingBox, Detection
 
+RAIZ = Path(__file__).resolve().parent.parent.parent
+
+
+def pasta_do_cache_openvino() -> Path:
+    """Onde o OpenVINO guarda o modelo compilado entre execuções (`OV_CACHE_DIR`).
+
+    Padrão `runtime/ov_cache/` (fora do git). Um diretório só para os três
+    modelos: o OpenVINO nomeia cada blob pelo hash do modelo e da configuração
+    (https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html).
+    `scripts/preparar.py` o aquece antes da apresentação.
+    """
+    valor = os.getenv("OV_CACHE_DIR", "").strip()
+    pasta = Path(valor) if valor else RAIZ / "runtime" / "ov_cache"
+    return pasta if pasta.is_absolute() else RAIZ / pasta
+
 logger = logging.getLogger(__name__)
 
 
@@ -211,8 +226,9 @@ class YoloPPEDetector:
         (https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/gpu-device.html);
         aqui cada câmera tem UM shape (a resolução cadastrada), então isso é
         pago uma vez por câmera — e o aquecimento no boot paga o 960x540.
-        `CACHE_DIR` guarda kernels entre execuções. Falhou na GPU → CPU, e o
-        diagnóstico mostra "CPU (fallback da GPU)".
+        O cache (`pasta_do_cache_openvino`) vale para o `Core` inteiro: o blob
+        compilado da GPU (`.cl_cache`) e o da CPU (`.blob`) ficam entre
+        execuções. Falhou na GPU → CPU, e o diagnóstico mostra "CPU (fallback da GPU)".
         """
         try:
             import openvino as ov
@@ -225,6 +241,12 @@ class YoloPPEDetector:
         except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com o compilado do ultralytics)
             logger.warning("openvino_nao_recompilado", extra={"error": str(exc)})
             return
+        try:
+            cache = pasta_do_cache_openvino()
+            cache.mkdir(parents=True, exist_ok=True)
+            core.set_property({"CACHE_DIR": str(cache)})
+        except Exception as exc:  # noqa: BLE001  (sem cache só compila mais devagar; nunca impede de compilar)
+            logger.warning("openvino_sem_cache", extra={"error": str(exc)})
         pedido = self.dispositivo_openvino
         tentativas = [pedido] if pedido == "CPU" else [pedido, "CPU"]
         for dispositivo in tentativas:
@@ -233,8 +255,6 @@ class YoloPPEDetector:
                 threads = os.getenv("VISIONEPI_THREADS", "").strip()
                 if threads.isdigit() and int(threads) > 0:
                     config["INFERENCE_NUM_THREADS"] = int(threads)
-            else:
-                config["CACHE_DIR"] = str(Path(self.model_path).parent / "ov_cache")
             if self.precisao_openvino in ("fp16", "fp32") and dispositivo == pedido:
                 config["INFERENCE_PRECISION_HINT"] = "f16" if self.precisao_openvino == "fp16" else "f32"
             try:

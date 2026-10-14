@@ -64,6 +64,12 @@ class Fixture:
     # `CAP_PROP_POS_FRAMES`. Em ogv/webm o seek do OpenCV cai no keyframe mais
     # proximo, e o recorte mudaria de conteudo entre versoes de FFmpeg.
     leitura_sequencial: bool = False
+    # Recorte (x, y, largura, altura) em pixels da ORIGEM, aplicado antes de
+    # redimensionar. None = o quadro inteiro.
+    recorte: tuple[int, int, int, int] | None = None
+    # Quantas vezes grava a janela de ida e de volta (ida, volta, ida, volta...),
+    # sem emenda. 0 = so a ida. Para um plano curto demais para a duracao pedida.
+    vai_e_volta: int = 0
 
     @property
     def arquivo_origem(self) -> Path:
@@ -128,6 +134,31 @@ FIXTURES: tuple[Fixture, ...] = (
         pagina="https://commons.wikimedia.org/wiki/File:Bits_%26_Pieces_-_BP152_Falling_down_the_stairs_-_EYE_FLM7636_-_OB_105118.ogv",
         por_que="Pessoa deitada no chao (queda) com varias pessoas em cena.",
         leitura_sequencial=True,
+    ),
+    Fixture(
+        nome="portal",
+        destino="portal.mp4",
+        url="https://upload.wikimedia.org/wikipedia/commons/f/f4/Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
+        sha256_origem="363c0dc47800d27a894a26bbbf570729d5e7c4a190f33fdd092a37aa546c6b46",
+        # Quadros 7000 a 7084 do original (29,97 fps, contados lendo em sequencia):
+        # o close de um armador de frente para a camera, capacete branco e colete.
+        # O recorte deixa so ele (os dois colegas atras ficam de fora), ampliado
+        # 1,6x — e o que a camera do Portal veria (ADENDO 3 da MISSAO 2). Escolhido
+        # por medicao: e o unico plano das fontes testadas em que o Vyra ve
+        # capacete >= 0,40 na maioria dos quadros (capacete 12/16, colete 11/16
+        # amostras). O plano tem 2,8 s; em vai-e-volta 3x, 16,8 s.
+        frame_inicial=7000,
+        frame_final=7084,
+        largura=960,
+        altura=720,
+        licenca="CC BY-SA 4.0",
+        autor="Acabashi",
+        pagina="https://commons.wikimedia.org/wiki/File:Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
+        por_que="Um trabalhador de capacete e colete de perto, de frente: cenario realista do Portal de Entrada.",
+        recorte=(520, 210, 600, 450),
+        # O seek do OpenCV neste webm cai ~5 s adiante (medido): pegaria outro plano.
+        leitura_sequencial=True,
+        vai_e_volta=3,
     ),
 )
 
@@ -268,16 +299,32 @@ def recortar(fixture: Fixture) -> None:
     else:
         captura.set(cv2.CAP_PROP_POS_FRAMES, fixture.frame_inicial)
     escritos = 0
+    volta: list = []  # quadros da ida, em JPEG (a volta os escreve ao contrario)
     for _ in range(fixture.frame_final - fixture.frame_inicial):
         ok, quadro = captura.read()
         if not ok:
             break
-        escritor.write(cv2.resize(quadro, (fixture.largura, fixture.altura)))
+        if fixture.recorte:
+            x, y, w, h = fixture.recorte
+            quadro = quadro[y:y + h, x:x + w]
+        quadro = cv2.resize(quadro, (fixture.largura, fixture.altura))
+        escritor.write(quadro)
         escritos += 1
+        if fixture.vai_e_volta:
+            volta.append(cv2.imencode(".jpg", quadro, [int(cv2.IMWRITE_JPEG_QUALITY), 95])[1])
+    # Ida ja escrita; cada volta desce ate o 1o quadro e, se houver outra, sobe de novo.
+    for volta_n in range(fixture.vai_e_volta):
+        ordem = list(range(len(volta) - 2, -1, -1))
+        if volta_n < fixture.vai_e_volta - 1:
+            ordem += list(range(1, len(volta)))
+        for indice in ordem:
+            escritor.write(cv2.imdecode(volta[indice], cv2.IMREAD_COLOR))
+            escritos += 1
     captura.release()
     escritor.release()
 
-    esperados = fixture.frame_final - fixture.frame_inicial
+    n = fixture.frame_final - fixture.frame_inicial
+    esperados = n + (n - 1) * max(0, 2 * fixture.vai_e_volta - 1)
     if escritos != esperados:
         raise SystemExit(f"Esperava {esperados} quadros, escrevi {escritos}. Fixture incompleta.")
     print(

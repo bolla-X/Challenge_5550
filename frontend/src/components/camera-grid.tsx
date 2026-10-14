@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
+import { EmptyState } from "./common";
+import { IlustracaoCamera } from "./ilustracoes";
 import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
+import { IconeAvancar, IconeMais } from "./icones";
+import { estadoDoFeed } from "./feed-status";
 import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Incidente, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
 // /api/cameras/<id>, não o /video_feed legado (que só serve a câmera padrão).
 export type EstadoDaCamera = {
   running: boolean;
+  /** Pausada pelo palco (cena do Portal): rodando, sem análise. */
+  pausa?: "apresentacao" | null;
   /** De qual fonte está lendo. `undefined` num backend que não manda o campo. */
   modo?: "ao_vivo" | "reconectando" | "fixture";
   /** Velocidade da gravação (1 = original). Só o palco a reduz. */
@@ -36,6 +42,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
           if (cancelled) return;
           setEstado({
             running: Boolean(status.running),
+            pausa: status.pausa ?? null,
             modo: status.video?.modo,
             velocidade: status.video?.velocidade,
             tentativas: status.video?.reconnect_attempts ?? 0,
@@ -102,6 +109,7 @@ export function totalDeIncidentes(estado: EstadoDaCamera | undefined): number {
  * deliberado, e a leitura tem que ser "fonte de demonstração". */
 export function textoDeEstado(estado: EstadoDaCamera): string {
   if (!estado.running) return "Monitoramento parado";
+  if (estado.pausa === "apresentacao") return "Pausada pela apresentação";
   if (estado.modo === "fixture") return "Fonte de demonstração";
   if (estado.modo === "reconectando") return `Reconectando, tentativa ${estado.tentativas + 1}`;
   if (estado.diagnostico?.fonte_sem_imagem) return "Recebendo, sem imagem";
@@ -110,9 +118,7 @@ export function textoDeEstado(estado: EstadoDaCamera): string {
 
 function ChevronIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M9 6l6 6-6 6" />
-    </svg>
+    <IconeAvancar />
   );
 }
 
@@ -155,7 +161,8 @@ function CameraCard({
   }, [camera.id, estado, onEstado]);
 
   const critico = Boolean(temAlertaCritico(estado));
-  const linha = [camera.location, textoDeEstado(estado)].filter(Boolean).join(" · ");
+  const feed = estadoDoFeed(estado, camera);
+  const incidentes = totalDeIncidentes(estado);
 
   return (
     <button
@@ -174,8 +181,18 @@ function CameraCard({
       <div className="cam-body">
         <span className="cam-text">
           <span className="cam-name">{camera.name}</span>
-          <span className="cam-state">{linha}</span>
+          <span className="cam-state">
+            {camera.location && <>{camera.location}, </>}
+            <span className="cam-feed" data-estado={feed.chave}>
+              {feed.rotulo.toLowerCase()}
+            </span>
+          </span>
         </span>
+        {incidentes > 0 && (
+          <span className="cam-incidentes" data-testid="cam-incidentes">
+            {incidentes === 1 ? "1 incidente" : `${incidentes} incidentes`}
+          </span>
+        )}
         <ChevronIcon />
       </div>
     </button>
@@ -386,15 +403,19 @@ export function CameraGrid({ onEstado }: { onEstado?: (id: number, estado: Estad
   if (cameras.length === 0) {
     return (
       <div className="centered-empty">
-        <p>
-          Nenhuma câmera cadastrada ainda.{" "}
-          {access.canConfigure ? "Cadastre a primeira para começar." : "Peça ao Técnico ou ao Supervisor para cadastrar uma."}
-        </p>
-        {access.canConfigure && (
-          <button type="button" className="primary" onClick={() => setShowAddModal(true)}>
-            Adicionar câmera
-          </button>
-        )}
+        <EmptyState
+          ilustracao={<IlustracaoCamera />}
+          titulo="Nenhuma câmera cadastrada"
+          acao={
+            access.canConfigure && (
+              <button type="button" className="primary" onClick={() => setShowAddModal(true)}>
+                Adicionar câmera
+              </button>
+            )
+          }
+        >
+          {access.canConfigure ? "Cadastre a primeira câmera para começar o monitoramento." : "Peça ao Técnico ou ao Supervisor para cadastrar a câmera do seu setor."}
+        </EmptyState>
         {showAddModal && <AddCameraModal onClose={() => setShowAddModal(false)} onCreated={handleCreated} />}
       </div>
     );
@@ -407,9 +428,7 @@ export function CameraGrid({ onEstado }: { onEstado?: (id: number, estado: Estad
       ))}
       {access.canConfigure && (
         <button type="button" className="cam-add" onClick={() => setShowAddModal(true)}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <IconeMais />
           <span>Adicionar câmera</span>
         </button>
       )}

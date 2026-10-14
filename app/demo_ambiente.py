@@ -30,6 +30,10 @@ GRAVACOES = [
     ("Pátio", "Expedição", "next_multidao.mp4"),
     ("Escada", "Manutenção", "next_queda.mp4"),
 ]
+# Sem webcam, o Portal toca esta gravação: um trabalhador de capacete e colete
+# de frente, de perto (ADENDO 3 da MISSÃO 2). Sem ela (fixtures antigas), o
+# Portal recua para a gravação do Canteiro, como antes.
+GRAVACAO_DO_PORTAL = ("Portal", "Portaria", "portal.mp4")
 # Todos os EPIs exigidos ligados na demo (MISSÃO 2, P0.2). Antes eram só
 # capacete, colete e luvas: cada EPI somava UM alerta por pessoa na tela. Com os
 # alertas agrupados em incidentes por (câmera, regra, zona), a multidão com os 7

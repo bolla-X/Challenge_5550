@@ -40,7 +40,7 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
     — (None, 200) se tudo certo. Compartilhado entre create/update pra não
     duplicar as mesmas regras em dois lugares e um dia divergir."""
     if not isinstance(payload, dict):
-        return "Payload inválido — esperado um objeto JSON.", 400
+        return "Payload inválido: esperado um objeto JSON.", 400
 
     if is_create or "name" in payload:
         name = str(payload.get("name", "")).strip()
@@ -264,7 +264,7 @@ def camera_status(camera_id: int):
     except LookupError:
         # Câmera existe no banco mas não tem worker ativo (ex.: enabled=False,
         # ou criada há pouco e o reload ainda não rodou).
-        return jsonify({"running": False, "error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"running": False, "error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.post("/api/cameras/<int:camera_id>/start")
@@ -279,7 +279,7 @@ def camera_start(camera_id: int):
     try:
         return jsonify(monitor.start(camera_id=camera_id))
     except LookupError:
-        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.post("/api/cameras/<int:camera_id>/stop")
@@ -294,7 +294,7 @@ def camera_stop(camera_id: int):
     try:
         return jsonify(monitor.stop(camera_id=camera_id))
     except LookupError:
-        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/video_feed")
@@ -352,7 +352,7 @@ def camera_video_feed(camera_id: int):
                         overlay = worker.overlay_do_quadro()
                 ultima_versao = versao
                 ultimo_envio = agora
-                body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
+                body = jpeg or placeholder_jpeg("Sem sinal")
                 # X-Capture-Ts: instante de captura (epoch ms). Quem le o stream
                 # por fetch (bench, player em canvas) mede a idade do quadro na tela.
                 carimbo = f"X-Frame-Id: {versao}\r\nX-Capture-Ts: {capturado_em:.1f}\r\n" if jpeg and capturado_em else ""
@@ -519,7 +519,7 @@ def camera_frame(camera_id: int):
         jpeg, _versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
     except LookupError:
         jpeg = None
-    resposta = Response(jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame"), mimetype="image/jpeg")
+    resposta = Response(jpeg or placeholder_jpeg("Sem sinal"), mimetype="image/jpeg")
     resposta.headers["Cache-Control"] = "no-store"
     return resposta
 
@@ -623,7 +623,7 @@ def get_camera_risk_area(camera_id: int):
     try:
         return jsonify({"risk_area": monitor.risk_area_state(camera_id=camera_id)})
     except LookupError:
-        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.put("/api/cameras/<int:camera_id>/risk-area")
@@ -632,11 +632,11 @@ def get_camera_risk_area(camera_id: int):
 def put_camera_risk_area(camera_id: int):
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return _validation_error("Payload inválido — esperado um objeto JSON.")
+        return _validation_error("Payload inválido: esperado um objeto JSON.")
     monitor = current_app.extensions["monitor_service"]
     try:
         return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})
     except ValueError as exc:
         return _validation_error(str(exc))
     except LookupError:
-        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409

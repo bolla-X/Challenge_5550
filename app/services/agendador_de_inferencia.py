@@ -166,6 +166,18 @@ class AgendadorDeInferencia:
             slot.frame, slot.ts_ms, slot.pendente = frame, ts_ms, True
             self._cond.notify()
 
+    def descartar_pendente(self, camera_id: int) -> None:
+        """Joga fora o quadro esperando vez (câmera pausada pelo palco).
+
+        Sem isto, ao entrar na cena do Portal cada câmera recém-pausada ainda
+        tinha um quadro no slot — e, esperando há mais de `espera_max_s`, a
+        guarda os servia ANTES do portal: até uma análise inteira por câmera.
+        """
+        with self._cond:
+            slot = self._slots.get(camera_id)
+            if slot is not None and slot.pendente:
+                slot.pendente, slot.frame = False, None
+
     def priorizar(self, camera_id: int, segundos: float = 2.0) -> None:
         """Serve esta câmera primeiro por `segundos` (sinal de emergência a confirmar)."""
         with self._cond:

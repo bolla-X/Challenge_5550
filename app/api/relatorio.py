@@ -13,9 +13,10 @@ os números acima são os do banco.
 from __future__ import annotations
 
 import html
+import re
 import threading
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from flask import Blueprint, Response, current_app, jsonify, request
@@ -34,6 +35,11 @@ def _naive(dt):
     return dt.replace(tzinfo=None) if dt is not None and dt.tzinfo is not None else dt
 
 
+def _hora_local(iso_utc: str) -> str:
+    """"2026-10-14T03:17:00" (UTC, sem fuso) → "14/10/2026 00:17" no fuso desta máquina."""
+    return datetime.fromisoformat(iso_utc).replace(tzinfo=timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M")
+
+
 def montar_relatorio(horas: float, camera_id: int | None) -> dict[str, Any]:
     fim = utc_now()
     inicio = fim - timedelta(hours=horas)
@@ -43,13 +49,13 @@ def montar_relatorio(horas: float, camera_id: int | None) -> dict[str, Any]:
     alertas = consulta.all()
     cameras = {c.id: c.name for c in Camera.query.all()}
 
-    por_regra = Counter(a.message.split(" — ")[0] if a.message else a.rule for a in alertas)
+    por_regra = Counter(re.split(r" [·—] ", a.message)[0] if a.message else a.rule for a in alertas)
     por_camera = Counter(cameras.get(a.camera_id, f"#{a.camera_id}") for a in alertas)
     por_hora: dict[str, int] = defaultdict(int)
     duracoes = []
     for a in alertas:
         if a.created_at:
-            por_hora[_naive(a.created_at).strftime("%H:00")] += 1
+            por_hora[_naive(a.created_at).replace(tzinfo=timezone.utc).astimezone().strftime("%H:00")] += 1
         if a.resolved_at and a.created_at:
             duracoes.append((_naive(a.resolved_at) - _naive(a.created_at)).total_seconds())
     eventos = EventLog.query.filter(EventLog.created_at >= _naive(inicio))
@@ -114,7 +120,7 @@ def _secao_nr6(nr6: dict[str, Any]) -> str:
     for linha in nr6["linhas"]:
         nome = html.escape(_NOMES_EPI.get(linha["epi"], linha["epi"]))
         if linha["itens"]:
-            itens = "<br>".join(f"<b>{html.escape(i['item'])}</b> — “{html.escape(i['texto'])}”" for i in linha["itens"])
+            itens = "<br>".join(f"<b>{html.escape(i['item'])}</b>: “{html.escape(i['texto'])}”" for i in linha["itens"])
         else:
             itens = f"<i>sem item sustentado pelo texto</i>: {html.escape(linha['sem_item'] or '')}"
         linhas.append(f"<tr><td>{nome}</td><td class=nr6>{itens}</td><td>{linha['alertas']}</td></tr>")
@@ -135,16 +141,21 @@ def relatorio_html():
         return "".join(f"<tr><td>{html.escape(str(k))}</td><td>{v}</td></tr>" for k, v in d.items()) or \
             "<tr><td colspan=2>nenhum</td></tr>"
 
-    mediana = f"{a['duracao_mediana_s'] / 60:.1f} min" if a["duracao_mediana_s"] is not None else "—"
-    inicio_txt = html.escape(r["janela"]["inicio"][:16].replace("T", " "))
-    fim_txt = html.escape(r["janela"]["fim"][:16].replace("T", " "))
+    mediana = f"{a['duracao_mediana_s'] / 60:.1f} min".replace(".", ",") if a["duracao_mediana_s"] is not None else "sem dado"
+    inicio_txt = html.escape(_hora_local(r["janela"]["inicio"]))
+    fim_txt = html.escape(_hora_local(r["janela"]["fim"]))
     escopo_txt = f"câmera #{camera_id}" if camera_id else "todas as câmeras"
     corpo = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<title>VisionEPI — Relatório de turno</title>
+<title>Relatório de turno · VisionEPI</title>
 <style>
+ @font-face {{ font-family: "Geist"; src: url(/static/dist/fonts/geist-latin-wght-normal.woff2) format("woff2-variations");
+   font-weight: 100 900; font-display: swap; }}
  @page {{ size: A4; margin: 16mm; }}
- body {{ font: 14px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; color: #1A1A1C; max-width: 760px; margin: 24px auto; }}
- h1 {{ font-size: 24px; margin: 0 0 4px; }} h2 {{ font-size: 16px; margin: 28px 0 8px; }}
+ body {{ font: 14px/1.5 "Geist", system-ui, sans-serif; color: #1A1A1C; background: #FFFFFF;
+   max-width: 760px; margin: 32px auto; padding: 0 16px; }}
+ h1 {{ font-size: 28px; letter-spacing: -.02em; margin: 0 0 4px; }} h2 {{ font-size: 17px; letter-spacing: -.01em; margin: 32px 0 8px; }}
+ button {{ font: 500 14px "Geist", system-ui, sans-serif; height: 36px; padding: 0 16px; border-radius: 10px; border: 0;
+   background: #0A66C2; color: #FFFFFF; cursor: pointer; }}
  .sub {{ color: #5E5E64; }} .kpis {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }}
  .kpi {{ border: 1px solid #E5E5EA; border-radius: 12px; padding: 12px; }} .kpi b {{ display: block; font-size: 24px; }}
  table {{ width: 100%; border-collapse: collapse; }} td {{ padding: 6px 4px; border-bottom: 1px solid #E5E5EA; }}
@@ -154,7 +165,7 @@ def relatorio_html():
  @media print {{ .nao-imprimir {{ display: none; }} }}
 </style></head><body>
 <h1>Relatório de turno</h1>
-<div class="sub">{inicio_txt} a {fim_txt} (UTC) · {escopo_txt}</div>
+<div class="sub">{inicio_txt} a {fim_txt}, {escopo_txt}</div>
 <p class="nao-imprimir"><button onclick="window.print()">Imprimir / salvar PDF</button></p>
 <div class="kpis">
  <div class="kpi"><b>{a['total']}</b>alertas</div><div class="kpi"><b>{a['criticos']}</b>críticos</div>

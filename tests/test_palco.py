@@ -96,3 +96,95 @@ def test_camera_lenta_so_dura_a_cena_da_queda(app_auth, tmp_path, monkeypatch):
     assert worker.video_state()["velocidade"] == 0.25
     tecnico.post("/api/palco/ir", json={"acao": "proxima"})
     assert worker.velocidade_gravacao == 1.0
+
+
+def test_toda_cena_declara_as_cameras_ativas():
+    assert all(c.get("ativas") in ("todas", "cena") for c in ROTEIRO)
+    assert {c["chave"] for c in ROTEIRO if c["ativas"] == "cena"} == {"portal", "enganar", "queda"}
+
+
+def test_cameras_pausadas_so_com_a_camera_da_cena_presente():
+    from app.services.palco import cameras_pausadas
+
+    portal = next(c for c in ROTEIRO if c["chave"] == "portal")
+    gemeo = next(c for c in ROTEIRO if c["chave"] == "gemeo")
+    por_nome = {"Portal": 4, "Canteiro": 1, "Pátio": 2, "Escada": 3}
+    assert cameras_pausadas(portal, por_nome) == {1, 2, 3}
+    assert cameras_pausadas(gemeo, por_nome) == set()
+    # Sem a câmera da cena, pausar as outras só apagaria a planta.
+    assert cameras_pausadas(portal, {"Pátio": 2}) == set()
+
+
+def _video(tmp_path, nome):
+    import cv2
+    import numpy as np
+
+    caminho = tmp_path / f"{nome}.avi"
+    escritor = cv2.VideoWriter(str(caminho), cv2.VideoWriter_fourcc(*"MJPG"), 10, (64, 48))
+    for _ in range(10):
+        escritor.write(np.zeros((48, 64, 3), dtype=np.uint8))
+    escritor.release()
+    return caminho
+
+
+def test_cena_do_portal_pausa_as_outras_e_sair_devolve(app_auth, tmp_path, monkeypatch):
+    """ADENDO 3: só a câmera do Portal analisa na cena; as outras dizem "apresentacao"; o lease devolve."""
+    from app.api import palco as api_palco
+    from app.models import Camera
+
+    with app_auth.app_context():
+        for nome in ("Portal", "Pátio", "Escada"):
+            db.session.add(Camera(name=nome, source_type="Arquivo", source=str(_video(tmp_path, nome)), fps=12, width=64,
+                                  height=48))
+        db.session.commit()
+        monitor = app_auth.extensions["monitor_service"]
+        monitor.load_cameras_from_db()
+        ids = {c.name: c.id for c in Camera.query.all()}
+    monkeypatch.setattr(api_palco, "_preparar", lambda app, cena: None)
+    tecnico = app_auth.test_client()
+    tecnico.post("/api/auth/login", json={"email": "tec@x.local", "password": SENHA})
+    portal = next(i for i, c in enumerate(ROTEIRO) if c["chave"] == "portal")
+    enganar = next(i for i, c in enumerate(ROTEIRO) if c["chave"] == "enganar")
+
+    tecnico.post("/api/palco/ir", json={"acao": "ir", "indice": portal})
+    assert not monitor.worker_da_camera(ids["Portal"]).pausada_pelo_palco
+    assert monitor.status(ids["Pátio"])["pausa"] == "apresentacao"
+    assert monitor.status(ids["Portal"])["pausa"] is None
+    assert tecnico.get("/api/palco/estado").get_json()["pausadas"] == ["Escada", "Pátio"]
+
+    tecnico.post("/api/palco/ir", json={"acao": "ir", "indice": enganar})  # a cena seguinte também é do portal
+    assert monitor.worker_da_camera(ids["Escada"]).pausada_pelo_palco
+    tecnico.post("/api/palco/ir", json={"acao": "proxima"})  # saiu: todas voltam
+    assert not any(monitor.worker_da_camera(cid).pausada_pelo_palco for cid in ids.values())
+    assert tecnico.get("/api/palco/estado").get_json()["pausadas"] == []
+
+    # Palco fechado no meio da cena: o lease vence e as câmeras voltam sozinhas.
+    tecnico.post("/api/palco/ir", json={"acao": "ir", "indice": portal})
+    assert monitor.worker_da_camera(ids["Pátio"]).pausada_pelo_palco
+    monitor._pausa_palco_ate = 0.0
+    assert monitor.expirar_pausa_do_palco() is True
+    assert not monitor.worker_da_camera(ids["Pátio"]).pausada_pelo_palco
+    # O celular (token) não sustenta a pausa: só a tela do palco.
+    token = tecnico.get("/api/palco/controle").get_json()["caminho"].split("t=", 1)[1]
+    assert app_auth.test_client().get(f"/api/palco/estado?t={token}").get_json()["pausadas"] == []
+    assert not monitor.worker_da_camera(ids["Pátio"]).pausada_pelo_palco
+    # A tela volta a consultar: a cena reaplica a pausa.
+    tecnico.get("/api/palco/estado")
+    assert monitor.worker_da_camera(ids["Pátio"]).pausada_pelo_palco
+
+
+def test_worker_pausado_captura_devagar_e_nao_pede_inferencia(app_auth, tmp_path):
+    from app.models import Camera
+
+    with app_auth.app_context():
+        db.session.add(Camera(name="Pátio", source_type="Arquivo", source=str(_video(tmp_path, "p")), fps=12, width=64,
+                              height=48))
+        db.session.commit()
+        monitor = app_auth.extensions["monitor_service"]
+        monitor.load_cameras_from_db()
+        worker = monitor.worker_da_camera(Camera.query.filter_by(name="Pátio").one().id)
+    antes = worker._taxa_util_de_captura()
+    monitor.pausar_pelo_palco({worker.camera_id})
+    assert worker._taxa_util_de_captura() == 1.0 < antes
+    monitor.pausar_pelo_palco(set())
+    assert worker._taxa_util_de_captura() == antes

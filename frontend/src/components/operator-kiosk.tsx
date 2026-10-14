@@ -67,7 +67,9 @@ export function OperatorKiosk({ camId }: { camId: number }) {
   const bannerSub = !running
     ? "Inicie o monitoramento para começar a receber o feed em tempo real."
     : primaryAlert
-      ? [primaryAlert.rule, primaryAlert.feature].filter(Boolean).join(" · ")
+      ? activeAlerts.length === 1
+        ? "Avise o colaborador e registre abaixo."
+        : `${activeAlerts.length} alertas ativos nesta câmera. Avise o colaborador e registre abaixo.`
       : "Nenhum alerta ativo no momento.";
 
   const handleStart = () => {

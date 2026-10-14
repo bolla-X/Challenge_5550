@@ -31,6 +31,7 @@ from app.demo_ambiente import (  # noqa: F401  (reexportados para quem importa a
     BANCO,
     EPIS_DESLIGADOS_NA_DEMO,
     FIXTURES,
+    GRAVACAO_DO_PORTAL,
     GRAVACOES,
     METAS,
     MISSOES,
@@ -72,14 +73,21 @@ def semear(app) -> dict[str, Any]:
                          fps=12, width=960, height=540, features_json=_features_da_demo())
             db.session.add(cam)
             cameras[nome] = cam
-        ao_vivo = webcam_disponivel(0)
+        # DEMO_WEBCAM=0: sem webcam (capturas da galeria, teste de clone limpo).
+        ao_vivo = os.getenv("DEMO_WEBCAM", "1") != "0" and webcam_disponivel(0)
+        nome, setor, arquivo = GRAVACAO_DO_PORTAL
         if ao_vivo:
-            cam = Camera(name="Portal", location="Portaria", source_type="USB", source="0", fps=12, width=640, height=480,
+            cam = Camera(name=nome, location=setor, source_type="USB", source="0", fps=12, width=640, height=480,
                          features_json=_features_da_demo(), gate_required=["helmet", "vest"])
-            db.session.add(cam)
-            cameras["Portal"] = cam
+        elif (FIXTURES / arquivo).exists():
+            cam = Camera(name=nome, location=setor, source_type="Arquivo", source=str(FIXTURES / arquivo), fps=12,
+                         width=960, height=720, features_json=_features_da_demo(), gate_required=["helmet", "vest"])
         else:
+            cam = None
             cameras["Canteiro"].gate_required = ["helmet", "vest"]
+        if cam is not None:
+            db.session.add(cam)
+            cameras[nome] = cam
         cameras["Pátio"].risk_polygon = ZONA_PATIO
         for nome, calibracao in PLANTAS.items():
             cameras[nome].planta = calibracao
@@ -95,10 +103,11 @@ def semear(app) -> dict[str, Any]:
                             role="supervisor")
         servico.create_user(email="tecnico@demo.local", name="Técnico da demo", password=senhas["technical"],
                             role="technical")
-        alvo = cameras["Portal"] if ao_vivo else cameras["Canteiro"]
+        alvo = cameras.get("Portal") or cameras["Canteiro"]
         servico.create_user(email="operador@demo.local", name="Operador da demo", password=senhas["operator"],
                             role="operator", camera_id=alvo.id)
-        return {"senhas": senhas, "ao_vivo": ao_vivo, "cameras": {n: c.id for n, c in cameras.items()}}
+        return {"senhas": senhas, "ao_vivo": ao_vivo, "portal": "webcam" if ao_vivo else ("gravacao" if cam else "canteiro"),
+                "cameras": {n: c.id for n, c in cameras.items()}}
 
 
 def imprimir_acessos(info: dict[str, Any], porta: int) -> None:
@@ -108,8 +117,10 @@ def imprimir_acessos(info: dict[str, Any], porta: int) -> None:
     print(f"[demo]   supervisor@demo.local  {s['supervisor']}", flush=True)
     print(f"[demo]   tecnico@demo.local     {s['technical']}", flush=True)
     print(f"[demo]   operador@demo.local    {s['operator']}", flush=True)
-    print("[demo] Webcam: " + ("ligada como câmera AO VIVO \"Portal\"." if info["ao_vivo"]
-                                else "não encontrada; o Portal usa a gravação do Canteiro."), flush=True)
+    portal = {"webcam": "ligada como câmera AO VIVO \"Portal\".",
+              "gravacao": "não encontrada; o Portal toca a gravação portal.mp4.",
+              "canteiro": "não encontrada e sem portal.mp4; o Portal usa a gravação do Canteiro."}
+    print("[demo] Webcam: " + portal[info.get("portal", "webcam" if info["ao_vivo"] else "canteiro")], flush=True)
     print("[demo] Senhas valem só para esta execução. Reset: flask --app wsgi demo reset\n", flush=True)
 
 

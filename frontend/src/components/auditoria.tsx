@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { PanelSkeleton } from "./common";
+import { EmptyState, PanelSkeleton } from "./common";
+import { IlustracaoCadeia } from "./ilustracoes";
 import { VerificarIntegridade } from "./incidente-detalhe";
 
 /**
@@ -36,7 +37,7 @@ export function AuditoriaScreen() {
     <div className="screen auditoria" data-testid="auditoria">
       <div className="screen-head">
         <h1>Auditoria das evidências</h1>
-        <span className="screen-sub">{elos ? `${total} elo${total === 1 ? "" : "s"} na cadeia de custódia` : "Carregando a cadeia…"}</span>
+        <span className="screen-sub">{elos ? `${total} elo${total === 1 ? "" : "s"} na cadeia de custódia` : <span className="skeleton-block skeleton-inline" />}</span>
         <div className="screen-actions">
           <a className="button ghost" href="/">
             Painel
@@ -66,11 +67,11 @@ export function AuditoriaScreen() {
           ) : !elos ? (
             <PanelSkeleton lines={5} />
           ) : elos.length === 0 ? (
-            <div className="sim-vazio">
-              <h2>A cadeia ainda está vazia</h2>
-              <p>O primeiro alerta, quadro, replay ou troca de privacidade entra aqui com o seu SHA-256.</p>
-            </div>
+            <EmptyState ilustracao={<IlustracaoCadeia />} titulo="A cadeia ainda está vazia">
+              O primeiro alerta, quadro, replay ou troca de privacidade entra aqui com o seu SHA-256.
+            </EmptyState>
           ) : (
+            <div className="tabela-rolavel">
             <table className="sim-tabela auditoria-tabela">
               <thead>
                 <tr>
@@ -87,7 +88,7 @@ export function AuditoriaScreen() {
                     <td className="t-data">{e.id}</td>
                     <td>{TIPO[e.tipo] ?? e.tipo}</td>
                     <th scope="row">{e.descricao}</th>
-                    <td className="t-data">{new Date(e.criado_em).toLocaleString("pt-BR")}</td>
+                    <td className="t-data">{quando(e.criado_em)}</td>
                     <td className="t-data custodia-hash" title={e.elo_sha256}>
                       {e.elo_sha256.slice(0, 16)}…
                     </td>
@@ -95,6 +96,7 @@ export function AuditoriaScreen() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </section>
@@ -103,3 +105,10 @@ export function AuditoriaScreen() {
 }
 
 export default AuditoriaScreen;
+
+/** "14/10 08:17:30": data curta e hora, sem a vírgula do toLocaleString. */
+function quando(iso: string): string {
+  const d = new Date(iso);
+  const dois = (n: number) => String(n).padStart(2, "0");
+  return `${dois(d.getDate())}/${dois(d.getMonth() + 1)} ${dois(d.getHours())}:${dois(d.getMinutes())}:${dois(d.getSeconds())}`;
+}

@@ -4,7 +4,8 @@ import { playGateApprovedChime, playGateDeniedChime } from "../audio/chime";
 import { MuteToggle } from "./layout";
 import { Panel } from "./common";
 import { LiveVideo } from "./live-video";
-import { getGate, putGate, startCamera } from "../api/endpoints";
+import { IniciarSeParada } from "./portal";
+import { getGate, putGate } from "../api/endpoints";
 import type { CameraRecord, GateState } from "../api/types";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 
@@ -90,7 +91,6 @@ function ChipsExigidos({ gate }: { gate: GateState | null }) {
 export function GateKiosk({ camId }: { camId: number }) {
   const camera = useDashboardStore((s) => s.cameras.find((c) => c.id === camId));
   const gate = useGate(camId, true);
-  const [starting, setStarting] = useState(false);
   if (!camera) return null;
 
   return (
@@ -102,17 +102,7 @@ export function GateKiosk({ camId }: { camId: number }) {
         </div>
         <LiveVideo cameraId={camId} label={`Vídeo de ${camera.name}`} />
         <div className="kiosk-actions">
-          <button
-            type="button"
-            className="ghost small"
-            disabled={starting}
-            onClick={() => {
-              setStarting(true);
-              startCamera(camId).finally(() => setStarting(false));
-            }}
-          >
-            {starting ? "Iniciando…" : "Iniciar câmera"}
-          </button>
+          <IniciarSeParada camId={camId} />
         </div>
       </div>
       <div className="kiosk-footer">

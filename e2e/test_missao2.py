@@ -109,6 +109,9 @@ def _abrir_foco(pagina, nome):
 
 
 def _aba(pagina, rotulo):
+    # A faixa primeiro: decidir com a tela de foco ainda entrando (View
+    # Transition) mandava abas da faixa para o menu "Mais", onde não estão.
+    pagina.locator("[role=tablist]").first.wait_for(timeout=30_000)
     aba = pagina.get_by_role("tab", name=rotulo)
     if aba.count():
         aba.click()
@@ -125,9 +128,9 @@ def test_multidao_mostra_no_maximo_um_incidente_por_regra_e_zona(navegador, serv
         _aba(pagina, "Alertas")
         pagina.locator("[data-testid=incidente]").first.wait_for(timeout=240_000)
         time.sleep(4)
-        resumos = [t.strip() for t in pagina.locator("[data-testid=incidente]").all_inner_texts()]
-        chaves = [" · ".join(r.split(" · ")[:2]) for r in resumos]
-        assert len(chaves) == len(set(chaves)), resumos
+        resumos = pagina.locator("[data-testid=incidente]")
+        chaves = [(r.get_attribute("data-titulo"), r.get_attribute("data-zona")) for r in resumos.all()]
+        assert len(chaves) == len(set(chaves)), chaves
         # A pílula do vídeo mostra o incidente com os IDs de rastreio.
         pilula = pagina.locator("[data-testid=pilula-incidente]")
         pilula.wait_for(timeout=60_000)
@@ -162,10 +165,10 @@ def test_simulador_reprocessa_e_nunca_muda_alerta_real(navegador, servidor):
         if caixa.is_checked():
             caixa.uncheck()
         botao.click()
-        pagina.wait_for_function("document.querySelector('[data-testid=sim-total]')?.textContent === '0'", timeout=30_000)
+        pagina.wait_for_function("document.querySelector('[data-testid=sim-total]')?.dataset.valor === '0'", timeout=30_000)
         reais_depois = tecnico.get(f"{servidor.base}/alerts?camera_id={cid}&limit=500", timeout=10).json()["count"]
         assert reais_depois >= reais_antes  # o simulador nunca apaga nem resolve alerta real
-        assert int(pagina.locator("[data-testid=sim-real]").inner_text()) >= 0
+        assert int(pagina.locator("[data-testid=sim-real]").get_attribute("data-valor")) >= 0
         assert servidor.sessao("operator").get(f"{servidor.base}/api/simulador/contexto?camera_id={cid}", timeout=10).status_code == 403
     finally:
         contexto.close()
@@ -406,7 +409,7 @@ def test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar(navegador, servidor):
         resultado = pagina.locator("[data-testid=enganar-resultado]")
         resultado.wait_for(timeout=30_000)
         assert resultado.get_attribute("data-resultado") in ("enganou", "pegou")
-        assert "1" in pagina.locator("[data-testid=enganar-placar] dd").first.inner_text()
+        assert pagina.locator("[data-testid=enganar-placar] dd").first.get_attribute("data-valor") == "1"
         assert pagina.locator(".portal-explicacao").count() >= 1
         assert pagina.locator("canvas.live-video").first.get_attribute("data-raiox") == "1"
     finally:

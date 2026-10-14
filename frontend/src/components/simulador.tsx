@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { PanelSkeleton } from "./common";
+import { EmptyState, Numero, PanelSkeleton } from "./common";
+import { IlustracaoGrafico } from "./ilustracoes";
 
 /**
  * Simulador "E se?" (X2, `/simulador`, técnico ou acima). Reprocessa as trilhas
@@ -284,8 +285,8 @@ export function SimuladorScreen() {
                 </fieldset>
                 <label className="sim-campo">
                   <span>
-                    Histerese para criar: <strong className="t-data">{histerese.toFixed(1)} s</strong>
-                    <span className="muted"> (hoje {ctx.atual.criar_apos_s ?? "—"} s ou {ctx.atual.criar_apos_quadros} análises)</span>
+                    Histerese para criar: <strong className="t-data">{histerese.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s</strong>
+                    <span className="muted"> (hoje {ctx.atual.criar_apos_s ?? "sem dado"} s ou {ctx.atual.criar_apos_quadros} análises)</span>
                   </span>
                   <input type="range" min={0.5} max={10} step={0.5} value={histerese} onChange={(e) => setHisterese(Number(e.target.value))} data-testid="sim-histerese" />
                 </label>
@@ -326,26 +327,25 @@ export function SimuladorScreen() {
               </div>
             )}
             {!resultado ? (
-              <div className="sim-vazio">
-                <h2>Mude a regra e reprocesse</h2>
-                <p>Arraste os vértices da zona, mude a histerese ou desligue um EPI. O resultado aparece aqui, lado a lado com o que aconteceu de verdade.</p>
-              </div>
+              <EmptyState ilustracao={<IlustracaoGrafico />} titulo="Mude a regra e reprocesse">
+                Arraste os vértices da zona, mude a histerese ou desligue um EPI. O resultado aparece aqui, lado a lado com o que aconteceu de verdade.
+              </EmptyState>
             ) : (
               <>
                 <dl className="sim-numeros" data-testid="sim-numeros">
                   <div>
                     <dt>Teriam disparado</dt>
-                    <dd className="t-data" data-testid="sim-total">{resultado.simulado.total}</dd>
-                    <span className="muted">{resultado.simulado.incidentes} incidente(s)</span>
+                    <dd className="t-data" data-testid="sim-total" data-valor={resultado.simulado.total}><Numero valor={resultado.simulado.total} /></dd>
+                    <span className="muted">{resultado.simulado.incidentes === 1 ? "1 incidente" : `${resultado.simulado.incidentes} incidentes`}</span>
                   </div>
                   <div>
                     <dt>Dispararam de fato</dt>
-                    <dd className="t-data" data-testid="sim-real">{resultado.real.total}</dd>
+                    <dd className="t-data" data-testid="sim-real" data-valor={resultado.real.total}><Numero valor={resultado.real.total} /></dd>
                     <span className="muted">{diferenca === 0 ? "igual" : diferenca > 0 ? `${diferenca} a mais com a proposta` : `${-diferenca} a menos com a proposta`}</span>
                   </div>
                   <div>
                     <dt>Regra de hoje, simulada</dt>
-                    <dd className="t-data">{resultado.com_regra_atual.total}</dd>
+                    <dd className="t-data"><Numero valor={resultado.com_regra_atual.total} /></dd>
                     <span className="muted">quanto o simulador reproduz o real</span>
                   </div>
                 </dl>

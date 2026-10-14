@@ -41,7 +41,7 @@ def iniciar_prova():
         return jsonify({"error": "'n' deve ser um inteiro"}), 400
     fixture = Path(BASE_DIR) / str(current_app.config.get("ESCALA_FIXTURE", FIXTURE_PADRAO))
     if not fixture.exists():
-        return jsonify({"error": f"fixture ausente: {fixture.name} — rode python scripts/fetch_fixtures.py"}), 409
+        return jsonify({"error": f"fixture ausente: {fixture.name}. Rode python scripts/fetch_fixtures.py"}), 409
     existentes = _virtuais()
     for i in range(len(existentes), n):
         camera = Camera(name=f"Escala {i + 1}", location=MARCA, source_type="Arquivo", source=str(fixture),

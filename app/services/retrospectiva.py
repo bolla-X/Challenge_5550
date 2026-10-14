@@ -58,7 +58,7 @@ def montar(periodo: str = "turno", agora: datetime | None = None,
     destaque = next((s for s in placar if s["pontos"] > 0), None)
     cards.append({
         "chave": "destaque", "titulo": "Setor destaque",
-        "valor": destaque["setor"] if destaque else "—", "unidade": "",
+        "valor": destaque["setor"] if destaque else "Sem dado", "unidade": "",
         "detalhe": f"{destaque['pontos']} pontos de indicadores positivos" if destaque else "Nenhum setor pontuou ainda",
     })
 
@@ -81,12 +81,12 @@ def montar(periodo: str = "turno", agora: datetime | None = None,
                        f"mediana {round(median(todos))} s",
         })
     else:
-        cards.append({"chave": "reconhecimento", "titulo": "Alertas reconhecidos mais rápido", "valor": "—", "unidade": "",
+        cards.append({"chave": "reconhecimento", "titulo": "Alertas reconhecidos mais rápido", "valor": "Sem dado", "unidade": "",
                       "detalhe": "Nenhum incidente reconhecido neste período"})
 
     cards.append({
         "chave": "rotulos", "titulo": "Contribuições de rótulo", "valor": por_tipo["rotulo"], "unidade": "",
-        "detalhe": "recortes duvidosos revisados pela equipe — viram dado de treino" if por_tipo["rotulo"]
+        "detalhe": "recortes duvidosos revisados pela equipe, que viram dado de treino" if por_tipo["rotulo"]
         else "Nenhum recorte revisado ainda",
     })
     cards.append({

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalItem, PortalState } from "../api/types";
 import { PPE_LABELS } from "../api/ppe";
+import { Numero } from "./common";
 
 /**
  * "Tente enganar a IA" (X9): modo desafio do Portal. O visitante diz o que vai
@@ -70,7 +71,7 @@ function veredito(r: Resultado): { titulo: string; classe: string; texto: string
   return {
     titulo: "A IA errou com o EPI de verdade",
     classe: "enganou",
-    texto: falha ? `Não confirmou “${nome(falha)}”: ${falha.explicacao ?? "não detectado"}. Falso negativo — fica registrado.` : "Não liberou mesmo com os EPIs.",
+    texto: falha ? `Não confirmou “${nome(falha)}”: ${falha.explicacao ?? "não detectado"}. Falso negativo, e fica registrado.` : "Não liberou mesmo com os EPIs.",
   };
 }
 
@@ -120,7 +121,7 @@ export function EnganarIA({ portal }: { portal: PortalState | null }) {
     <section className="enganar card" aria-label="Tente enganar a IA" data-testid="enganar">
       <header>
         <h2>Tente enganar a IA</h2>
-        <p className="muted">Escolha o que vai tentar, fique diante da câmera e veja o que o sistema viu — com o Raio-X ligado.</p>
+        <p className="muted">Escolha o que vai tentar, fique diante da câmera e veja o que o sistema viu, com o Raio-X ligado.</p>
       </header>
       <div className="enganar-opcoes" role="radiogroup" aria-label="O que você vai tentar">
         {TENTATIVAS.map((t) => (
@@ -156,19 +157,19 @@ export function EnganarIA({ portal }: { portal: PortalState | null }) {
       <dl className="enganar-placar" data-testid="enganar-placar">
         <div>
           <dt>Tentativas</dt>
-          <dd className="t-data">{placar.tentativas}</dd>
+          <dd className="t-data" data-valor={placar.tentativas}><Numero valor={placar.tentativas} /></dd>
         </div>
         <div>
           <dt>Enganaram a IA</dt>
-          <dd className="t-data">{placar.enganaram}</dd>
+          <dd className="t-data"><Numero valor={placar.enganaram} /></dd>
         </div>
         <div>
           <dt>Pegas</dt>
-          <dd className="t-data">{placar.pegas}</dd>
+          <dd className="t-data"><Numero valor={placar.pegas} /></dd>
         </div>
         <div>
           <dt>Erros com EPI real</dt>
-          <dd className="t-data">{placar.erros_com_epi_real}</dd>
+          <dd className="t-data"><Numero valor={placar.erros_com_epi_real} /></dd>
         </div>
       </dl>
       <p className="muted">Placar anônimo, só desta sessão. Nenhuma foto é salva.</p>

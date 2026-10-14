@@ -12,7 +12,7 @@ type Item = { nome: string; papel: string; licenca: string; link: string; nota?:
 const MODELOS: Item[] = [
   {
     nome: "Vyra YOLO PPE Detection (Hexmon)",
-    papel: "Detecção de EPI — YOLOv8m, 14 classes",
+    papel: "Detecção de EPI: YOLOv8m, 14 classes",
     licenca: "CC-BY-4.0 (exige atribuição ao autor)",
     link: "https://huggingface.co/Hexmon/vyra-yolo-ppe-detection",
   },
@@ -24,17 +24,17 @@ const VIDEOS: Item[] = [
   {
     nome: "Building construction Moira Close, Broadwater Farm (2025)",
     papel: "Canteiro com capacete e colete",
-    licenca: "CC BY-SA 4.0 — Acabashi",
+    licenca: "CC BY-SA 4.0, Acabashi",
     link: "https://commons.wikimedia.org/wiki/File:Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
   },
   {
-    nome: "Video Codec Test — pedestrian area 1080p25",
+    nome: "Video Codec Test: pedestrian area 1080p25",
     papel: "Várias pessoas sem EPI",
-    licenca: "CC0 — Taurus Media Technik",
+    licenca: "CC0, Taurus Media Technik",
     link: "https://commons.wikimedia.org/wiki/File:Video_Codec_Test_pedestrian_area_1080p25.y4m.webm",
   },
   {
-    nome: "Bits & Pieces BP152 — Falling down the stairs (EYE Filmmuseum)",
+    nome: "Bits & Pieces BP152: Falling down the stairs (EYE Filmmuseum)",
     papel: "Pessoa caída",
     licenca: "Domínio público",
     link: "https://commons.wikimedia.org/wiki/File:Bits_%26_Pieces_-_BP152_Falling_down_the_stairs_-_EYE_FLM7636_-_OB_105118.ogv",
@@ -46,7 +46,7 @@ const BIBLIOTECAS: Item[] = [
   {
     nome: "ByteTrack (derivado de roboflow/supervision 0.30.9)",
     papel: "Tracker experimental, vendorizado em app/vision/bytetrack",
-    licenca: "MIT — Roboflow",
+    licenca: "MIT, Roboflow",
     link: "https://github.com/roboflow/supervision/blob/develop/LICENSE.md",
   },
   { nome: "PyTorch", papel: "Runtime padrão do modelo", licenca: "BSD-3-Clause", link: "https://github.com/pytorch/pytorch/blob/main/LICENSE" },
@@ -85,7 +85,7 @@ export function AboutScreen() {
     <div className="screen sobre">
       <ScreenHead
         title="Sobre e licenças"
-        sub="VisionEPI — FIAP NEXT 2026. Modelos, gravações de demonstração e bibliotecas, com a licença declarada por cada projeto."
+        sub="VisionEPI, FIAP NEXT 2026. Modelos, gravações de demonstração e bibliotecas, com a licença declarada por cada projeto."
         actions={
           <button type="button" className="ghost" onClick={() => setScreen("grid")}>
             Voltar
@@ -96,7 +96,7 @@ export function AboutScreen() {
       <Lista titulo="Gravações usadas na demonstração" itens={VIDEOS} />
       <Lista titulo="Software" itens={BIBLIOTECAS} />
       <p className="t-secondary sobre-nota">
-        Privacidade: o vídeo sai com rosto desfocado por padrão; nada aqui reconhece pessoas — o "Pessoa N" é um rastreio por posição.
+        Privacidade: o vídeo sai com rosto desfocado por padrão; nada aqui reconhece pessoas: o "Pessoa N" é um rastreio por posição.
         Detalhes de origem, recorte e checksum das gravações em docs/NEXT2026/ATRIBUICOES.md.
       </p>
     </div>

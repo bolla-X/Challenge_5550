@@ -9,6 +9,8 @@ import { PanelSkeleton } from "./common";
  */
 
 export type Cartao = { chave: string; titulo: string; valor: number | string; unidade: string; detalhe: string };
+const zerado = (c: Cartao) => c.valor === 0 || c.valor === "0";
+
 type Retro = { periodo: string; titulo: string; inicio: string; fim: string; cards: Cartao[] };
 
 const DURACAO_MS = 6000;
@@ -83,7 +85,8 @@ function useRetro(periodo: string) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return (await r.json()) as Retro;
       })
-      .then(setRetro)
+      // Cartões com dado do período primeiro; os ainda zerados vão para o fim (continuam lá, sem esconder).
+      .then((d) => setRetro({ ...d, cards: [...d.cards].sort((a, b) => Number(zerado(a)) - Number(zerado(b))) }))
       .catch((e) => setErro(e instanceof Error ? e.message : "falha"));
   }, [periodo]);
   useEffect(carregar, [carregar]);

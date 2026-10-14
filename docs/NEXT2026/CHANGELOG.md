@@ -1079,3 +1079,171 @@ Fica como ameaça no ESTADO.md.
   depois de entrar na cena — ~2 s de reabertura + 8,8 s de gravação até a
   queda a 0,25× + a confirmação), captura revisada
   (`bench/runtime/e2e-capturas/palco-queda-camera-lenta.png`).
+
+## PR6 — Experiência SSS+++ (Fase C)
+
+Sistema de design em `docs/NEXT2026/DESIGN.md` (fonte da verdade:
+`frontend/src/styles/tokens.css`).
+
+- **Tokens:** cor só para estado, tipografia com tamanho/entrelinha/tracking
+  juntos, espaço em grade de 4/8, raios e sombras nomeados, movimento com
+  durações e curvas nomeadas. Claro é o padrão da demo; o escuro tem valores
+  próprios.
+- **Fontes self-hosted:** Geist e Geist Mono (SIL OFL 1.1,
+  https://github.com/vercel/geist-font), em `frontend/public/fonts`, offline.
+- **Ícones:** um conjunto só, Phosphor (MIT, `@phosphor-icons/react` 2.1.10
+  fixado), peso regular, via `components/icones.tsx`; nenhum SVG de ícone à mão.
+- **Componentes únicos** (botão, cartão, badge de estado, tabela, modal, toast,
+  skeleton, estado vazio com ilustração SVG original e uma ação) e o teste
+  `e2e/test_estados.py`, que procura "em construção", TODO, lorem,
+  placeholder e travessão no texto visível de todas as rotas.
+- **Movimento:** View Transitions entre telas (`document.startViewTransition`)
+  e entre rotas (`@view-transition { navigation: auto }`); sem a API o
+  navegador troca a tela sem animação (MDN:
+  https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API). Tudo
+  respeita `prefers-reduced-motion` (só troca de opacidade curta).
+- **Revisão visual** em quatro rodadas de capturas (`e2e/capturas_de_tela.py`:
+  29 telas e estados × 3 tamanhos × 2 temas, pela própria demo), crítica
+  escrita com nota por item em `docs/NEXT2026/galeria/index.md`. O que ela
+  achou e virou regra está em DESIGN.md ("O que a revisão visual mudou"); os
+  maiores: os ícones dos botões estavam invisíveis (uma regra CSS antiga
+  apagava ícones preenchidos), o Início e Contas eram dois cartões vazios, a
+  barra superior ocupava um terço da tela do celular, alertas mostravam código
+  interno (`missing_vest`), o Modo TV quebrava "0 min" em duas linhas e o Raio-X
+  virava uma parede de painéis numa multidão (agora: 3 maiores, sem sobrepor).
+- **Capturas pela demo** (`run.py --demo`) com `DEMO_WEBCAM=0` (novo), para a
+  galeria nunca fotografar a webcam de quem roda; as senhas da demo ficam só
+  na memória do script de captura.
+- **README de vitrine** com GIF do palco, duas imagens, destaques e "como rodar
+  em 3 comandos"; `scripts/preparar.py` baixa os pesos conferindo o SHA-256
+  (os `.pt` são pickle), as gravações e aprova os runtimes rápidos.
+
+## ADENDO 3 — fechar o PR6 e integrar com a main (14/10)
+
+### Vídeo do palco (1.1)
+
+- Conferido o MP4 gravado em segundo plano: 142 s, 1920×1080, H.264, as 12
+  cenas aparecem (folha de contato, 1 quadro a cada 4 s). Dois defeitos: o MP4
+  e o GIF começavam na tela de login, e o Portal mostrava a multidão do
+  canteiro. `e2e/video_do_palco.py` agora corta MP4 e GIF a partir da abertura
+  do palco; regravado depois do item 1.2.
+
+### Portal com cenário realista (1.2)
+
+- **Fixture `portal.mp4`** (`scripts/fetch_fixtures.py`, que ganhou `recorte`
+  e `vai_e_volta`): close de um armador de frente, capacete e colete, quadros
+  7000–7084 do vídeo 13 do Moira Close (CC BY-SA 4.0), recortado e ampliado
+  1,6×, em vai-e-volta 3× (16,6 s). Escolhido **por medição** com o peso de
+  EPI: pessoa em 88 % das amostras, capacete ≥ 0,40 em 64 %, colete em 71 %.
+  Descartados (detalhe em ATRIBUICOES.md): plano da laje (capacete 0/14), vídeo
+  21 da série, *Démontage d'échafaudage*. O `seek` do OpenCV neste webm cai ~5 s
+  adiante (medido): a fixture lê em sequência.
+- **Demo:** sem webcam, nasce a câmera "Portal" tocando `portal.mp4` (antes o
+  Portal usava a multidão do Canteiro); sem a fixture, recua para o Canteiro.
+  **E2E:** a câmera "Canteiro" (a de todos os testes de portal) toca `portal.mp4`.
+- **Palco:** cada cena declara `ativas` (`"todas"` ou `"cena"`). Portal e
+  "Tente enganar a IA" deixam só a câmera da cena analisando; as outras ficam
+  **pausadas pela apresentação** (status `pausa: "apresentacao"`, badge e texto
+  nos cartões, rodapé do palco lista quais). Pausa leve: sem análise e captura
+  a 1 quadro/s; alertas, incidentes e histerese ficam como estavam (parar e
+  religar o worker fecharia tudo isso). Ao sair da cena, voltam. Lease de 8 s
+  renovado pela tela do palco (só ela; o celular de controle não sustenta a
+  pausa): fechar o palco no meio da cena devolve as câmeras sozinho.
+- **Fora do palco nada muda:** o agendador segue dando ao foco ≥ 50 % das vagas.
+- **Correção achada pela medição:** ao pausar, cada câmera ainda tinha um
+  quadro pendente no agendador e, esperando há mais de 2,5 s, a guarda de
+  espera o servia **antes** do portal. `descartar_pendente` (teste em
+  `tests/test_agendador_ponderado.py`).
+- **Números (E2E do portal repetido 10×, 4 câmeras ligadas, `portal.mp4`;
+  `bench/results/portal-adendo3-20261014.json`):**
+
+  | cenário | p50 | p95 | máx |
+  |---|---|---|---|
+  | no palco, cena do Portal (outras pausadas) | **3,5 s** | **5,9 s** | 5,9 s |
+  | no palco, antes de descartar o pendente | 7,3 s | 13,9 s | 15,8 s |
+  | fora do palco (`/portal`, 4 câmeras analisando) | 13,4 s | 24,2 s | 24,4 s |
+
+  Meta no palco (p50 ≤ 5 s, p95 ≤ 10 s): **atingida**. Fora do palco, não: o
+  que domina são análises que veem a pessoa **sem** o capacete (o peso o vê em
+  ~64 % dos quadros) e zeram a sequência (decisão em vigor: EPI faltando zera),
+  com ~0,8–1,2 análise/s na câmera em foco. Medido com a CPU da máquina a 83 %
+  por processos de fora do projeto (Docker, Teams, Edge, Java). Ao vivo, sem
+  navegador, a câmera do portal fez 1,85 análise/s na cena (37 em 20 s) e as
+  pausadas 0–1.
+
+### Partida a frio e cache do OpenVINO (1.3)
+
+- Doc oficial lida: *Model Caching Overview* —
+  https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html
+  (`core.set_property({props.cache_dir: ...})`; na GPU gera `.cl_cache`, na CPU
+  `.blob`; dispositivo sem `EXPORT_IMPORT` ignora sem erro — a iGPU daqui
+  anuncia `EXPORT_IMPORT`).
+- Antes: `CACHE_DIR` só na compilação da GPU e por modelo
+  (`models/export/*/ov_cache`). Agora: um diretório, `runtime/ov_cache/` (fora
+  do git; `OV_CACHE_DIR` muda), aplicado ao `Core` inteiro (GPU e CPU).
+- `scripts/preparar.py --so-cache` (e o fim do `preparar.py` completo) sobe o
+  app num banco temporário e aquece os três modelos nas formas das câmeras da
+  demo (960×540, 960×720, 640×480): 56 s.
+- `scripts/medir_partida.py`: de `run.py --demo` até a primeira análise
+  publicada (`bench/results/partida-adendo3-20261014.json`):
+
+  | cache | rodadas (s) | mediana |
+  |---|---|---|
+  | frio (pasta nova e vazia) | 58,3 · 67,8 · 75,9 | **67,8 s** |
+  | aquecido pelo `preparar.py --so-cache` | 50,3 · 67,0 · 53,2 | **53,2 s** |
+
+  Os ~4 min do ADENDO 2 não se repetiram: "frio" aqui é a pasta de cache, com
+  os caches do sistema e do driver da GPU quentes (o PC não foi reiniciado).
+  Hipótese não verificada: os 4 min vieram desses caches, logo após o reinício.
+- Achados do caminho: no Windows o `python.exe` do venv é um lançador e
+  `terminate()` deixava o servidor filho vivo, segurando o banco da demo
+  (`encerrar_arvore` com `taskkill /T` em `e2e/conftest.py`); mesmo assim o
+  SQLite é solto segundos depois, e o `medir_partida.py` espera o banco livre.
+
+### Portão do PR6 (1.4)
+
+Rodada única, `bench/runtime/portao-pr6-r2/` (saída de cada etapa em arquivo,
+exit code conferido):
+
+| etapa | resultado |
+|---|---|
+| `ruff check .` | 0 erros |
+| `pytest` (unitários) | **664 passed** |
+| `npm run build` (`tsc -b` + Vite) | exit 0 |
+| `pytest e2e` (4 câmeras ligadas, sem pausa de contorno; axe em claro e escuro) | **36 passed** (12 min) |
+| `scripts/bench.py --rapido` | 1 câm.: 1,86 análise/s, alerta 2,9 s; 4 câm.: 0,36 análise/s por câmera, alerta 5,0 s (`bench/results/20261014-134154-rapido.json`; 47–54 % de CPU de terceiros) |
+
+A primeira rodada (`portao-pr6/`) reprovou e foi refeita inteira depois das correções:
+- `test_gpu_que_nao_compila_cai_para_cpu`: o `set_property` do cache, dentro
+  do `try`, fazia o detector desistir de recompilar quando falhava (no teste,
+  um `Core` falso sem o método). Falha ao configurar o cache agora só registra
+  `openvino_sem_cache` e compila assim mesmo; o teste confere o `CACHE_DIR`.
+- 5 E2E nas abas da tela de foco: (1) corrida — o teste decidia entre "aba" e
+  "menu Mais" antes de a faixa terminar de entrar (View Transition do PR6);
+  agora espera a faixa; (2) **bug real de layout**: com a lateral estreita
+  (1280 px, ou a câmera 4:3 do Portal) a última aba transbordava por cima do
+  "Mais" e roubava o clique. A faixa agora mede as abas (ResizeObserver) e
+  manda para o "Mais" as que não cabem (`components/common.tsx`).
+- O `bench --rapido` da 1ª rodada foi interrompido (a rodada ia ser refeita).
+
+### Queda no palco também pausa as outras câmeras
+
+- Depois do portão, o E2E `test_palco_queda_ao_vivo_em_camera_lenta` rodado
+  **isolado** falhou 3 de 3 (no portão completo passava porque um teste de
+  queda anterior deixava o incidente ativo). Medido na cena (status a cada 2 s):
+  a câmera da queda recebia 0,3–0,5 análise/s, com trechos de 5 s sem nenhuma;
+  o modelo viu `fall_detected` 2 vezes, mas não em 2 análises seguidas (a regra
+  de emergência), com a pessoa ~3 s no chão a 0,25×. A disputa cresceu com a
+  câmera do Portal em 4:3 (640×480 na rede contra 640×384).
+- A cena "Queda" passou a declarar `ativas: "cena"`, como o Portal: isolado,
+  **2 de 2**, alerta ao vivo em 22,2 s e 19,2 s desde entrar na cena.
+
+### Portão final do PR6 (r3, depois da correção da Queda)
+
+`bench/runtime/portao-pr6-r3/`, rodada única: `ruff` 0 · `pytest` **664
+passed** · `npm run build` ok · `pytest e2e` **36 passed** (4 câmeras, axe nos
+dois temas) · `bench.py --rapido` exit 0 (`bench/results/20261014-153054-rapido.json`):
+1 câm. 1,29 análise/s, alerta 4,8 s; 4 câm. 0,31/s por câmera, alerta 5,2 s —
+com **76–82 % da CPU** tomada por processos de fora do projeto (r2: 47–54 %,
+1,86 e 0,36/s). O ADENDO 3 não toca o caminho por análise; a diferença
+acompanha a carga de fundo (regra do bench leve: sem investigação).

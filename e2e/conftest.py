@@ -7,7 +7,8 @@ O servidor sobe como em produção (`run.py`), com banco isolado em
 e três câmeras:
 
 1. "Multidão" — fixture com várias pessoas sem EPI (gera alerta);
-2. "Canteiro" — fixture com capacete e colete;
+2. "Canteiro" — `portal.mp4`: um trabalhador de capacete e colete, de perto
+   (é a câmera de todos os testes do portal; ADENDO 3 da MISSÃO 2);
 3. "Rede" — fonte MJPEG por HTTP (`e2e/fonte_mjpeg.py`) que o teste derruba.
 
 Senhas são geradas a cada execução e nunca impressas.
@@ -42,6 +43,26 @@ def _porta_livre() -> int:
         return s.getsockname()[1]
 
 
+def encerrar_arvore(proc: subprocess.Popen | None, espera_s: float = 10.0) -> None:
+    """Encerra o servidor E os filhos dele.
+
+    No Windows o `python.exe` do venv é um lançador e o interpretador de
+    verdade é processo FILHO: `terminate()` matava só o lançador, o servidor
+    seguia vivo segurando a porta e o banco (achado medindo a partida a frio:
+    a 2ª rodada encontrou "o banco da demo está em uso").
+    """
+    if proc is None or proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        proc.terminate()
+    try:
+        proc.wait(espera_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 class ServidorE2E:
     def __init__(self) -> None:
         import fetch_fixtures
@@ -58,7 +79,7 @@ class ServidorE2E:
         # cadeia de custódia (X3) sem ninguém ter adulterado nada.
         for pasta in ("e2e-clips", "e2e-trilhas"):
             shutil.rmtree(runtime / pasta, ignore_errors=True)
-        self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda")}
+        self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda", "portal")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}
         self.emails = {papel: f"{papel}@e2e.local" for papel in self.senhas}
@@ -116,7 +137,7 @@ class ServidorE2E:
                 raise RuntimeError(f"servidor não respondeu em 300 s; ver {self.log}")
         tecnico = self.sessao("technical")
         for nome, tipo, fonte in (("Multidão", "Arquivo", str(self.fixtures["multidao"])),
-                                  ("Canteiro", "Arquivo", str(self.fixtures["bench"])),
+                                  ("Canteiro", "Arquivo", str(self.fixtures["portal"])),
                                   ("Rede", "RTSP", self.fonte_rede.url),
                                   ("Queda", "Arquivo", str(self.fixtures["queda"]))):
             r = tecnico.post(self.base + "/api/cameras", json={"name": nome, "source_type": tipo, "source": fonte,
@@ -136,12 +157,7 @@ class ServidorE2E:
         return s
 
     def parar(self) -> None:
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
+        encerrar_arvore(self.proc)
         self.fonte_rede.parar()
 
 

@@ -249,6 +249,12 @@ class MonitorService:
         # Foco por consulta (portal, palco): câmera -> instante em que expira.
         self._foco_lease: dict[int, float] = {}
         self._foco_lease_s = float(app.config.get("FOCO_LEASE_S", 3.0))
+        # Câmeras pausadas pelo palco e até quando (lease renovado pela tela do
+        # palco a cada consulta): fechar o palco no meio da cena não deixa a
+        # planta sem análise — o laço de 2 s abaixo devolve as câmeras.
+        self._pausa_palco: set[int] = set()
+        self._pausa_palco_ate = 0.0
+        self._pausa_palco_lease_s = float(app.config.get("PALCO_PAUSA_LEASE_S", 8.0))
 
         # ---- controlador adaptativo ("modo batata") -----------------------
         self.controlador = ControladorAdaptativo(
@@ -380,6 +386,7 @@ class MonitorService:
         )
         worker.fila_de_rotulos = self.fila_de_rotulos
         worker.planta = camera.planta
+        worker.pausada_pelo_palco = camera.id in self._pausa_palco
         return worker
 
     def _criar_servico_llm(self):
@@ -455,6 +462,7 @@ class MonitorService:
         while not self._parar_adaptativo.wait(2.0):
             try:
                 manter_afinidade()
+                self.expirar_pausa_do_palco()
                 self.tique_adaptativo()
             except Exception:  # noqa: BLE001  (o controlador nunca derruba o monitor)
                 pass
@@ -519,6 +527,29 @@ class MonitorService:
             worker = self._workers.get(camera_id)
             if worker is not None:
                 worker.espectadores = self.espectadores[camera_id]
+
+    def pausar_pelo_palco(self, camera_ids: set[int]) -> set[int]:
+        """Pausa (análise) exatamente estas câmeras e devolve as demais. Idempotente.
+
+        Chamado a cada troca de cena e a cada consulta da tela do palco, que
+        renova o lease. Fora do palco nada muda: o agendador segue com o foco.
+        """
+        with self._workers_lock:
+            workers = dict(self._workers)
+        for camera_id, worker in workers.items():
+            worker.pausada_pelo_palco = camera_id in camera_ids
+            if camera_id in camera_ids and self.agendador is not None:
+                self.agendador.descartar_pendente(camera_id)
+        self._pausa_palco = set(camera_ids)
+        self._pausa_palco_ate = time.monotonic() + self._pausa_palco_lease_s if camera_ids else 0.0
+        return self._pausa_palco
+
+    def expirar_pausa_do_palco(self) -> bool:
+        """Devolve as câmeras se a tela do palco parou de consultar (lease vencido)."""
+        if self._pausa_palco and time.monotonic() > self._pausa_palco_ate:
+            self.pausar_pelo_palco(set())
+            return True
+        return False
 
     def marcar_foco(self, camera_id: int) -> None:
         """Mantém a câmera em foco por `FOCO_LEASE_S` (o portal consulta a cada 0,6 s)."""
