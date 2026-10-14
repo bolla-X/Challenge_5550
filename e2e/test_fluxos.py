@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import time
 
+import pytest
+
 from conftest import RAIZ, entrar
+
+# ADENDO 2 da MISSÃO 2: o tempo até "Liberado" é medido com o portal repetido N
+# vezes (`E2E_PORTAL_REPETICOES=10`); cada repetição acrescenta uma linha em
+# bench/runtime/portal-liberado.jsonl.
+REPETICOES_PORTAL = max(1, int(os.environ.get("E2E_PORTAL_REPETICOES", "1")))
 
 
 def _abrir_camera(pagina, nome: str) -> None:
@@ -344,10 +353,14 @@ def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor
         contexto.close()
 
 
-def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
+@pytest.mark.parametrize("repeticao", range(REPETICOES_PORTAL))
+def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor, repeticao):
     """G1: `/portal` mostra só os EPIs exigidos, item a item, e libera quando confirma."""
     tecnico = servidor.sessao("technical")
     cid = servidor.cameras["Canteiro"]
+    # Partida a frio: o lease de foco (3 s) da repetição anterior expira antes.
+    time.sleep(4 if repeticao else 0)
+    # Gravar a portaria zera o estado do portal (nenhuma confirmação herdada).
     assert tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": ["helmet", "vest"]},
                        timeout=10).status_code == 200
     # Liberar exige 3 análises seguidas com tudo confirmado. As 4 câmeras
@@ -357,6 +370,7 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
         pagina = contexto.new_page()
         entrar(pagina, servidor, "technical")
         pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=30_000)
+        aberto = time.monotonic()
         pagina.goto(f"{servidor.base}/portal?camera={cid}")
         portal = pagina.locator("[data-testid=portal]")
         portal.wait_for(timeout=30_000)
@@ -369,10 +383,14 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
         pagina.wait_for_function(
             "document.querySelector('[data-testid=portal]')?.dataset.veredito === 'approved'", timeout=240_000
         )
-        # Tempo até "Liberado" com as 4 câmeras ligadas (resumo da MISSÃO 2).
-        segundos = time.monotonic() - inicio
-        print(f"\n[portal] Liberado em {segundos:.1f} s com 4 câmeras ligadas")
-        (RAIZ / "bench" / "runtime" / "portal-liberado.txt").write_text(f"{segundos:.1f}\n", encoding="utf-8")
+        # Tempo até "Liberado" com as 4 câmeras ligadas: desde abrir o portal
+        # (o que a pessoa diante da câmera espera) e desde o 1º item na tela.
+        fim = time.monotonic()
+        print(f"\n[portal] Liberado em {fim - aberto:.1f} s desde abrir ({fim - inicio:.1f} s desde o 1º item)"
+              " com 4 câmeras ligadas")
+        with (RAIZ / "bench" / "runtime" / "portal-liberado.jsonl").open("a", encoding="utf-8") as saida:
+            saida.write(json.dumps({"repeticao": repeticao, "desde_abrir_s": round(fim - aberto, 2),
+                                    "desde_item_s": round(fim - inicio, 2), "ts": round(time.time())}) + "\n")
         assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
         assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
         _todas_ligadas(servidor)
