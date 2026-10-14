@@ -538,6 +538,8 @@ class MonitorService:
             workers = dict(self._workers)
         for camera_id, worker in workers.items():
             worker.pausada_pelo_palco = camera_id in camera_ids
+            if camera_id in camera_ids and self.agendador is not None:
+                self.agendador.descartar_pendente(camera_id)
         self._pausa_palco = set(camera_ids)
         self._pausa_palco_ate = time.monotonic() + self._pausa_palco_lease_s if camera_ids else 0.0
         return self._pausa_palco
