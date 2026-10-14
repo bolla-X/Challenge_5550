@@ -1,36 +1,34 @@
-# ESTADO — missão NEXT 2026
+# ESTADO — MISSÃO 2
 
-Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a cada marco.
+Retomar lendo só este arquivo e `MISSAO-2.md`. Reescrito a cada marco.
+(A missão anterior, PRs #10–#13, está em `MISSAO.md` e no CHANGELOG.)
 
-## Marco atual: PR4 no portão (Fase 4) — última etapa da missão
+## Rollback
 
-| PR | Situação | Evidência |
+- `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
+- `main-pre-release` = HEAD de `main` antes do release (`6c3ed61`).
+
+## Marco atual: FASE A (PR5) — consertos que afetam a demo
+
+| item | situação | evidência |
 |---|---|---|
-| PR1 performance + benchmark | **mergeado** (`3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
-| PR2 diferenciais + L1 | **mergeado** (`753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 |
-| PR3 funções criativas | **mergeado** (`b8de7ac`) | https://github.com/bolla-X/Challenge_5550/pull/12 |
-| PR4 demo, confiabilidade, docs | portão verde: pytest 569, ruff, tsc, E2E 18/18, soak 20 min (0 erros de console, RSS pico +6,1 %), reset 7,7–9,7 s | PR aberto a seguir |
+| P0.1 rodízio ponderado | código + 8 testes unitários; pausas removidas dos E2E | `tests/test_agendador_ponderado.py`; E2E pendente |
+| P0.2 incidentes + re-associação | código + 10 + 8 testes; medição antes/depois rodando | `tests/test_incidentes.py`, `tests/test_reassociacao.py`, `scripts/contar_incidentes.py` |
+| P0.3 `.env.example` | 640 + teste; permissão estreitada | `tests/test_onboarding.py::test_env_example_infere_a_640` |
 
 ## Decisões em vigor
 
-- Runtime padrão: `RUNTIME_ORDEM=openvino-gpu,onnx,pytorch` (sem GPU → ONNX).
-- `ONNX_SPINNING` desligado; tracker IoU; imgsz 640; adaptativo só N/pose/telemetria.
-- Gravação sem espectador avança a 4 quadros/s; câmera ao vivo em tempo real.
-- Histerese de alerta: 8 quadros OU 2 s com ≥ 2 confirmações (não afrouxar por fixture).
+- Foco = câmera com `video_feed` aberto (foco, portal, quiosque, palco) ou consulta recente do portal (lease 3 s).
+- Agendador: *smooth weighted round-robin*; foco soma peso = nº das outras (≥ 50 %); guarda de 2,5 s.
+- Incidente = (câmera, regra, zona); zona = nome da área de risco se a pessoa está dentro, "Fora da zona" se não, "Toda a câmera" sem zona.
+- Re-associação: 1,5 × largura da caixa, 2 s (config `REASSOCIAR_*`).
 
-## Como medir (ADENDO 1)
+## Como verificar
 
-- Bench destacado: `scripts/rodar_portao.py --liberar-docker`; progresso em `bench/runtime/<rótulo>.estado`.
-- Decisão por CPU: `python scripts/resumo_cpu.py <jsons> --base X --novo Y`.
-- E2E destacado: `Start-Process .venv\Scripts\python.exe -ArgumentList -m,pytest,e2e,-q -RedirectStandardOutput bench\runtime\e2e-X.out`.
-
-## Pendências
-
-- `.env.example` negado pelas permissões desta máquina (ainda `YOLO_IMGSZ=416`; o código usa 640).
-- Ruído de alertas na multidão (5 por pessoa + troca de ID). A demo liga só 3 EPIs.
-- G3 (SOS) fora do roteiro: sem vídeo de licença livre para verificar.
-- Números absolutos sob carga de terceiros (13–77 %): rodar `scripts/bench.py --rapido` na máquina da banca.
+- Unitários: `.venv\Scripts\python.exe -m pytest tests -q`.
+- E2E: `.venv\Scripts\python.exe -m pytest e2e -q` (4 câmeras, sem pausas).
+- Incidentes: `python scripts/contar_incidentes.py --fixture multidao --rotulo depois` (e `--raiz ../ch5550-antes --rotulo antes`).
 
 ## Próximo passo exato
 
-Merge do PR4; depois, só manutenção.
+Concluir a medição de incidentes, ligar todos os EPIs na demo, rodar o E2E com 4 câmeras; depois X1 (gêmeo 3D).

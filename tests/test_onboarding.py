@@ -526,3 +526,12 @@ def test_limiar_e_janela_de_brilho_chegam_no_worker():
         "o limiar em uso tem que aparecer no diagnostico: sem ele, quem le "
         '"fonte sem imagem" nao sabe contra que numero foi comparado'
     )
+
+
+def test_env_example_infere_a_640():
+    """416 foi reprovado no guarda de qualidade (capacete 8 % contra a referência a 640).
+
+    O código já usava 640 por padrão, mas o `.env.example` dizia 416 — e quem o
+    copiava herdava a resolução reprovada sem saber (MISSÃO 2, P0.3).
+    """
+    assert ler_env_example()["YOLO_IMGSZ"] == "640"

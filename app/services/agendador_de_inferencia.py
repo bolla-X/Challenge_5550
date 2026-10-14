@@ -20,6 +20,16 @@ uma inferência por vez, e devolve o resultado ao worker por callback.
 Modo `lote`: com mais de uma câmera pendente, roda UMA chamada `predict` com
 todos os frames (`detect_lote`). Mantido atrás de configuração porque só vale
 se o p95 por câmera melhorar — medido no bench, não presumido.
+
+**Rodízio ponderado (MISSÃO 2, P0.1).** O rodízio igualitário dava à câmera
+que alguém está olhando (portal, tela de foco, palco) só 1/N das inferências:
+com 4 câmeras o Portal não chegava a "Liberado" e o E2E só passava parando as
+outras. Agora a escolha é um *smooth weighted round-robin* (o do nginx):
+cada câmera pendente ganha crédito igual ao seu peso, a de maior crédito é
+servida e paga o total. As câmeras em foco somam peso igual ao número das
+outras — pelo menos 50 % das vagas — e as demais dividem o resto. Uma guarda
+de espera máxima (`espera_max_s`, padrão 2,5 s) serve primeiro a câmera
+pendente há mais tempo sem inferência, para nenhuma ficar sem análise.
 """
 
 from __future__ import annotations
@@ -51,6 +61,10 @@ class _Slot:
     servidos: int = 0
     descartados: int = 0
     ultima_ms: float = field(default=0.0)
+    # Rodízio ponderado: crédito acumulado e quando foi servida pela última vez.
+    credito: float = 0.0
+    ultimo_servico: float = 0.0
+    servidos_em_foco: int = 0
 
 
 class Cronometro:
@@ -72,12 +86,23 @@ class Cronometro:
 
 
 class AgendadorDeInferencia:
-    def __init__(self, *, lote: bool = False, lote_max: int = 4) -> None:
+    def __init__(
+        self,
+        *,
+        lote: bool = False,
+        lote_max: int = 4,
+        focadas: Callable[[], set[int]] | None = None,
+        espera_max_s: float = 2.5,
+        relogio: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.lote = bool(lote)
         self.lote_max = max(1, int(lote_max))
+        # Quem está em foco na UI agora (ver MonitorService.cameras_em_foco).
+        self._focadas = focadas or (lambda: set())
+        self.espera_max_s = max(0.1, float(espera_max_s))
+        self._relogio = relogio
         self._slots: dict[int, _Slot] = {}
         self._ordem: list[int] = []
-        self._proximo = 0
         self._cond = threading.Condition()
         self._rodando = threading.Event()
         self._thread: threading.Thread | None = None
@@ -88,7 +113,9 @@ class AgendadorDeInferencia:
     def registrar(self, camera_id: int, analisar, entregar, *, stats=None, detectar_lote=None, pos_lote=None,
                   preparar=None) -> None:
         with self._cond:
-            self._slots[camera_id] = _Slot(camera_id, analisar, entregar, stats, detectar_lote, pos_lote, preparar)
+            slot = _Slot(camera_id, analisar, entregar, stats, detectar_lote, pos_lote, preparar)
+            slot.ultimo_servico = self._relogio()
+            self._slots[camera_id] = slot
             if camera_id not in self._ordem:
                 self._ordem.append(camera_id)
         self._garantir_thread()
@@ -98,7 +125,6 @@ class AgendadorDeInferencia:
             self._slots.pop(camera_id, None)
             if camera_id in self._ordem:
                 self._ordem.remove(camera_id)
-                self._proximo = 0
 
     def submeter(self, camera_id: int, frame: Any, ts_ms: float) -> None:
         """Entrega o frame mais novo. Não bloqueia: só troca o conteúdo do slot."""
@@ -120,12 +146,19 @@ class AgendadorDeInferencia:
     def estado(self) -> dict[str, Any]:
         with self._cond:
             return {
-                "modo": "lote" if self.lote else "rodizio",
+                "modo": "lote" if self.lote else "rodizio_ponderado",
                 "cameras": list(self._ordem),
+                "em_foco": sorted(self._focadas_registradas()),
+                "espera_max_s": self.espera_max_s,
                 "inferencias": self.inferencias,
                 "ultimo_erro": self.ultimo_erro,
                 "por_camera": {
-                    str(s.camera_id): {"servidos": s.servidos, "descartados": s.descartados, "ultima_ms": round(s.ultima_ms, 1)}
+                    str(s.camera_id): {
+                        "servidos": s.servidos,
+                        "servidos_em_foco": s.servidos_em_foco,
+                        "descartados": s.descartados,
+                        "ultima_ms": round(s.ultima_ms, 1),
+                    }
                     for s in self._slots.values()
                 },
             }
@@ -146,26 +179,49 @@ class AgendadorDeInferencia:
         self._thread = threading.Thread(target=self._laco, name="agendador-de-inferencia", daemon=True)
         self._thread.start()
 
+    def _focadas_registradas(self) -> set[int]:
+        try:
+            focadas = set(self._focadas() or ())
+        except Exception:  # noqa: BLE001  (fonte de foco com problema = sem prioridade, nunca para o agendador)
+            focadas = set()
+        return focadas & set(self._slots)
+
+    def pesos(self, focadas: set[int]) -> dict[int, float]:
+        """Peso de cada câmera registrada: em foco somam o número das outras (≥ 50 %)."""
+        ids = list(self._slots)
+        outras = [c for c in ids if c not in focadas]
+        if not focadas or not outras:
+            return {c: 1.0 for c in ids}
+        peso_foco = len(outras) / len(focadas)
+        return {c: (peso_foco if c in focadas else 1.0) for c in ids}
+
     def _escolher(self) -> list[_Slot]:
-        """Próximos slots a servir, em rodízio a partir de `_proximo`. Chamar com o lock."""
-        if not self._ordem:
+        """Próximos slots a servir (rodízio ponderado + guarda de espera). Chamar com o lock."""
+        pendentes = [self._slots[c] for c in self._ordem if c in self._slots and self._slots[c].pendente]
+        if not pendentes:
             return []
-        n = len(self._ordem)
+        agora = self._relogio()
+        focadas = self._focadas_registradas()
+        pesos = self.pesos(focadas)
+        limite = self.lote_max if self.lote else 1
         escolhidos: list[_Slot] = []
-        for passo in range(n):
-            indice = (self._proximo + passo) % n
-            slot = self._slots.get(self._ordem[indice])
-            if slot is None or not slot.pendente:
-                continue
+        while pendentes and len(escolhidos) < limite:
+            atrasados = [s for s in pendentes if agora - s.ultimo_servico >= self.espera_max_s]
+            if atrasados:
+                slot = min(atrasados, key=lambda s: s.ultimo_servico)
+            else:
+                total = sum(pesos.get(s.camera_id, 1.0) for s in pendentes)
+                for s in pendentes:
+                    s.credito += pesos.get(s.camera_id, 1.0)
+                slot = max(pendentes, key=lambda s: s.credito)  # empate: o primeiro na ordem
+                slot.credito -= total
+            pendentes.remove(slot)
             escolhidos.append(slot)
-            if not self.lote or len(escolhidos) >= self.lote_max:
-                self._proximo = (indice + 1) % n
-                break
-        else:
-            if escolhidos:
-                self._proximo = (self._ordem.index(escolhidos[-1].camera_id) + 1) % n
         for slot in escolhidos:
             slot.pendente = False
+            slot.ultimo_servico = agora
+            if slot.camera_id in focadas:
+                slot.servidos_em_foco += 1
         return escolhidos
 
     def _laco(self) -> None:

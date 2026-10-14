@@ -332,6 +332,11 @@ class Config:
     RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")
     # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
     INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
+    # Rodízio ponderado (MISSÃO 2, P0.1): a câmera em foco na UI recebe ≥ 50 %
+    # das inferências; nenhuma outra espera mais que isto sem análise.
+    INFERENCIA_ESPERA_MAX_S = env_float("INFERENCIA_ESPERA_MAX_S", 2.5)
+    # Quanto tempo uma consulta do portal (polling) mantém a câmera em foco.
+    FOCO_LEASE_S = env_float("FOCO_LEASE_S", 3.0)
     # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
     # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
     # Modo privacidade (F4): desfoque de rosto em tudo que sai do worker.
@@ -409,6 +414,11 @@ class Config:
     # "iou" (padrão) ou "bytetrack" (laboratório; o detector de pessoa passa a
     # entregar a partir de 0,1 para a segunda associação). Ver CHANGELOG.
     TRACKER = os.getenv("TRACKER", "iou").strip().lower()
+    # Re-associação de ID (MISSÃO 2, P0.2): track novo a até N larguras de
+    # caixa de onde outro sumiu, em até J s, herda o ID antigo.
+    REASSOCIAR_IDS = env_bool("REASSOCIAR_IDS", True)
+    REASSOCIAR_DISTANCIA_LARGURAS = env_float("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)
+    REASSOCIAR_JANELA_S = env_float("REASSOCIAR_JANELA_S", 2.0)
     POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)
     POSE_MAX_PEOPLE = env_int("POSE_MAX_PEOPLE", 4)
     POSE_MIN_DETECTION_CONFIDENCE = env_float("POSE_MIN_DETECTION_CONFIDENCE", 0.5)
