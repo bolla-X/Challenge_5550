@@ -354,6 +354,55 @@ def test_alerta_critico_e_falado_em_pt_br_sem_falar_por_cima(navegador, servidor
 
 
 @pytest.mark.parametrize("repeticao", range(REPETICOES_PORTAL))
+def test_portal_no_palco_pausa_as_outras_e_libera(navegador, servidor, repeticao):
+    """ADENDO 3: na cena do Portal só a câmera dela analisa; as outras dizem "pausada pela apresentação" e voltam."""
+    tecnico = servidor.sessao("technical")
+    cid = servidor.cameras["Canteiro"]  # a cena do Portal usa "Portal" ou, sem ela, "Canteiro"
+    outras = [c for n, c in servidor.cameras.items() if n != "Canteiro"]
+    time.sleep(4 if repeticao else 0)
+    tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": 0}, timeout=10).raise_for_status()
+    assert tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": ["helmet", "vest"]},
+                       timeout=10).status_code == 200
+    contexto = navegador.new_context(viewport={"width": 1920, "height": 1080})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "technical")
+        pagina.goto(f"{servidor.base}/palco")
+        pagina.locator("[data-testid=palco][data-cena='0']").wait_for(timeout=30_000)
+        aberto = time.monotonic()
+        pagina.keyboard.press("ArrowRight")
+        pagina.locator("[data-testid=palco][data-chave=portal] [data-testid=portal]").wait_for(timeout=30_000)
+        pausadas = pagina.locator("[data-testid=palco-pausadas]")
+        pausadas.wait_for(timeout=10_000)
+        assert "pausada" in pausadas.inner_text() and "pela apresentação" in pausadas.inner_text()
+        for outra in outras:
+            estado = tecnico.get(f"{servidor.base}/api/cameras/{outra}/status", timeout=10).json()
+            assert estado["running"] and estado["pausa"] == "apresentacao", estado.get("pausa")
+        pagina.wait_for_function(
+            "document.querySelector('[data-testid=portal]')?.dataset.veredito === 'approved'", timeout=240_000
+        )
+        fim = time.monotonic()
+        print(f"
+[portal-palco] Liberado em {fim - aberto:.1f} s desde entrar na cena")
+        diag = tecnico.get(f"{servidor.base}/api/cameras/{cid}/portal", timeout=10).json().get("diagnostico") or {}
+        with (RAIZ / "bench" / "runtime" / "portal-palco.jsonl").open("a", encoding="utf-8") as saida:
+            saida.write(json.dumps({"repeticao": repeticao, "desde_cena_s": round(fim - aberto, 2), "ts": round(time.time()),
+                                    "fixture": "portal.mp4",
+                                    "analises": "".join(x[0] for x in diag.get("sequencia", []))}) + "
+")
+        # Sair da cena devolve as câmeras (a próxima cena do roteiro também é do portal).
+        tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": 0}, timeout=10).raise_for_status()
+        pagina.locator("[data-testid=palco][data-cena='0']").wait_for(timeout=15_000)
+        for outra in outras:
+            assert tecnico.get(f"{servidor.base}/api/cameras/{outra}/status", timeout=10).json()["pausa"] is None
+        _todas_ligadas(servidor)
+    finally:
+        contexto.close()
+        tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": 0}, timeout=10)
+        tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=10)
+
+
+@pytest.mark.parametrize("repeticao", range(REPETICOES_PORTAL))
 def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor, repeticao):
     """G1: `/portal` mostra só os EPIs exigidos, item a item, e libera quando confirma."""
     tecnico = servidor.sessao("technical")
@@ -391,7 +440,7 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor, repetica
         diag = tecnico.get(f"{servidor.base}/api/cameras/{cid}/portal", timeout=10).json().get("diagnostico") or {}
         with (RAIZ / "bench" / "runtime" / "portal-liberado.jsonl").open("a", encoding="utf-8") as saida:
             saida.write(json.dumps({"repeticao": repeticao, "desde_abrir_s": round(fim - aberto, 2),
-                                    "desde_item_s": round(fim - inicio, 2), "ts": round(time.time()),
+                                    "desde_item_s": round(fim - inicio, 2), "ts": round(time.time()), "fixture": "portal.mp4",
                                     "analises": "".join(x[0] for x in diag.get("sequencia", []))}) + "\n")
         assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
         assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1

@@ -23,12 +23,28 @@ def test_modelo_ausente_nao_derruba_a_analise(tmp_path):
     assert detector.diagnostics().get("error"), "o diagnóstico tem de dizer que o modelo falhou"
 
 
-def test_webcam_ausente_o_portal_usa_a_gravacao(real_monitor_app, monkeypatch):
+def test_webcam_ausente_o_portal_toca_a_gravacao_do_portal(real_monitor_app, monkeypatch, tmp_path):
     import app.demo as demo
 
+    (tmp_path / "portal.mp4").write_bytes(b"")
+    monkeypatch.setattr(demo, "FIXTURES", tmp_path)
     monkeypatch.setattr(demo, "webcam_disponivel", lambda indice=0: False)
     info = demo.semear(real_monitor_app)
-    assert info["ao_vivo"] is False
+    assert (info["ao_vivo"], info["portal"]) == (False, "gravacao")
+    with real_monitor_app.app_context():
+        portal = Camera.query.filter_by(name="Portal").one()
+        assert (portal.source_type, portal.gate_required) == ("Arquivo", ["helmet", "vest"])
+        assert portal.source.endswith("portal.mp4")
+        assert User.query.filter_by(email="operador@demo.local").one().camera_id == portal.id
+
+
+def test_sem_webcam_nem_gravacao_do_portal_usa_o_canteiro(real_monitor_app, monkeypatch, tmp_path):
+    import app.demo as demo
+
+    monkeypatch.setattr(demo, "FIXTURES", tmp_path)  # sem portal.mp4
+    monkeypatch.setattr(demo, "webcam_disponivel", lambda indice=0: False)
+    info = demo.semear(real_monitor_app)
+    assert (info["ao_vivo"], info["portal"]) == (False, "canteiro")
     with real_monitor_app.app_context():
         nomes = {c.name for c in Camera.query.all()}
         assert "Portal" not in nomes
