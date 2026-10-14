@@ -144,6 +144,34 @@ export function Topbar() {
       .catch((err) => console.error(err))
       .finally(() => setPending(null));
   };
+  const secundarios = (
+    <>
+      <button type="button" className="ghost" onClick={() => setCommandPaletteOpen(true)}>
+        Buscar <kbd>Ctrl K</kbd>
+      </button>
+      {access.hasOverview && (
+        <button
+          type="button"
+          className="ghost"
+          disabled={!alertHistory.length}
+          title="Baixa em CSV o histórico de alertas carregado agora"
+          onClick={() => exportAlertsCsv(alertHistory)}
+        >
+          Exportar
+        </button>
+      )}
+      {access.canConfigure && (
+        <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
+          Relatório do turno
+        </a>
+      )}
+      {access.canConfigure && (
+        <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
+          Sobre
+        </button>
+      )}
+    </>
+  );
   return (
     <header className="appbar">
       <span className="brand-lockup">
@@ -152,30 +180,12 @@ export function Topbar() {
       </span>
       <div className="appbar-actions">
         {mode === "operator" && <OperadorSemSetor />}
-        <button type="button" className="ghost" onClick={() => setCommandPaletteOpen(true)}>
-          Buscar <kbd>Ctrl K</kbd>
-        </button>
-        {access.hasOverview && (
-          <button
-            type="button"
-            className="ghost"
-            disabled={!alertHistory.length}
-            title="Baixa em CSV o histórico de alertas carregado agora"
-            onClick={() => exportAlertsCsv(alertHistory)}
-          >
-            Exportar
-          </button>
-        )}
-        {access.canConfigure && (
-          <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
-            Relatório do turno
-          </a>
-        )}
-        {access.canConfigure && (
-          <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
-            Sobre
-          </button>
-        )}
+        <span className="appbar-secundarios">{secundarios}</span>
+        {/* Celular: os mesmos atalhos num menu, para a barra caber numa linha. */}
+        <details className="appbar-menu">
+          <summary className="button ghost">Menu</summary>
+          <div className="appbar-menu-painel">{secundarios}</div>
+        </details>
         <ThemeToggle />
         <NotificacaoToggle />
         <MuteToggle />

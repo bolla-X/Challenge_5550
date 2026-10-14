@@ -291,3 +291,21 @@ code { font-variant-ligatures: none; }
 .incidente-zona { font-size: var(--t-footnote); color: var(--text-2); padding: 1px 8px; border-radius: var(--r-chip); background: var(--sunken); }
 .alert-stripe.critical, .alert-stripe.high { background: var(--danger); }
 .alert-stripe.medium, .alert-stripe.low, .alert-stripe.info { background: var(--text-3); }
+
+/* Palco em tela estreita: é feito para projetor, mas não transborda. O QR some
+   (quem está no celular já é o controle) e o título acompanha a largura. */
+@media (max-width: 760px) {
+  .palco { overflow-x: hidden; }
+  .palco-qr { display: none; }
+  .palco-hero { padding: 0 var(--s4); }
+  .palco-hero h1 { font-size: clamp(44px, 14vw, 72px); }
+  .palco-hero p { font-size: 18px; }
+  .palco-numeros { gap: var(--s5); flex-wrap: wrap; justify-content: center; }
+  .palco-numeros dd { font-size: 40px; }
+  .palco-legenda { padding: var(--s3) var(--s4); }
+  .palco-legenda strong { font-size: 22px; }
+  .palco-legenda span { font-size: 16px; }
+}
+
+.tabela-rolavel { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 760px) { .auditoria-tabela th:last-child, .auditoria-tabela td:last-child { display: none; } }

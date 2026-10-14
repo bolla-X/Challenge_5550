@@ -71,6 +71,7 @@ export function AuditoriaScreen() {
               O primeiro alerta, quadro, replay ou troca de privacidade entra aqui com o seu SHA-256.
             </EmptyState>
           ) : (
+            <div className="tabela-rolavel">
             <table className="sim-tabela auditoria-tabela">
               <thead>
                 <tr>
@@ -95,6 +96,7 @@ export function AuditoriaScreen() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </section>

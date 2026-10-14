@@ -47,7 +47,8 @@ function AlertRow({ alert, active, reduceMotion = false, animated = false }: { a
   const meta = alert.metadata || {};
   const subject = (meta.person_label as string) || (meta.person_id as string) || (meta.subject as string) || "global";
   const cls = ["alert-row", alert.severity, alert.resolved_at ? "resolved" : "", alert.false_positive ? "false-positive" : ""].filter(Boolean).join(" ");
-  const contexto = [alert.rule, subject].filter(Boolean).join(" · ");
+  // Contexto legível: câmera e sujeito (a pessoa já vem no título). Nunca o código da regra.
+  const contexto = [nomeDaCamera, alert.message.includes(subject) || subject === "global" ? null : subject].filter(Boolean).join(" · ");
   const resolvido = alert.resolved_at ? `, resolvido ${formatDateTime(alert.resolved_at)}` : "";
   const temAcao = true;
 
