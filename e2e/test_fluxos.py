@@ -388,9 +388,11 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor, repetica
         fim = time.monotonic()
         print(f"\n[portal] Liberado em {fim - aberto:.1f} s desde abrir ({fim - inicio:.1f} s desde o 1º item)"
               " com 4 câmeras ligadas")
+        diag = tecnico.get(f"{servidor.base}/api/cameras/{cid}/portal", timeout=10).json().get("diagnostico") or {}
         with (RAIZ / "bench" / "runtime" / "portal-liberado.jsonl").open("a", encoding="utf-8") as saida:
             saida.write(json.dumps({"repeticao": repeticao, "desde_abrir_s": round(fim - aberto, 2),
-                                    "desde_item_s": round(fim - inicio, 2), "ts": round(time.time())}) + "\n")
+                                    "desde_item_s": round(fim - inicio, 2), "ts": round(time.time()),
+                                    "analises": "".join(x[0] for x in diag.get("sequencia", []))}) + "\n")
         assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
         assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
         _todas_ligadas(servidor)
