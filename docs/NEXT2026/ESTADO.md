@@ -14,18 +14,15 @@ no CHANGELOG.)
 Commit + push de `next-2026` (`origin/next-2026`) a cada marco e antes de
 qualquer tarefa > 10 min em segundo plano.
 
-## Marco atual: PR5 mergeado; PR6 (Fase C) em revisão visual
+## Marco atual: PR6 (Fase C) na rodada final de capturas
 
-- PR5 = https://github.com/bolla-X/Challenge_5550/pull/14, squash `69de586` em
-  `feat/completo-com-rebrand`. Portão: pytest 658, ruff, build, E2E 34/34 com 4
-  câmeras e axe; bench intercalado passa (ver BENCHMARKS "Portão do PR5").
-- `next-2026` recriada: squash do PR5 + o trabalho da Fase C (merge `6dbc2cc`
-  conferido: o diff contra o squash é só o do PR6). Branches `pr6` e `pr6-wip`
-  ficaram no remoto (a exclusão foi negada pela permissão).
-- Capturas: `python e2e/capturas_de_tela.py --rodada rN --folhas` (3 tamanhos ×
-  2 temas, estados forçados nomeados `forcado-*`); "antes" do PR6 em
-  `bench/runtime/capturas/r0` (1920×1080 claro, código do PR5).
-- Ameaças A/B do PR5: ver "Ameaças conhecidas".
+- PR5 = https://github.com/bolla-X/Challenge_5550/pull/14 (squash `69de586`).
+- PR6 em `next-2026`: sistema de design, ícones Phosphor, estados, View
+  Transitions; revisão visual em 6 rodadas (r1–r6) pela demo, crítica com notas
+  em `docs/NEXT2026/galeria/index.md`, regras novas em DESIGN.md; README de
+  vitrine; `scripts/preparar.py`; `e2e/video_do_palco.py` (MP4 + GIF).
+- Unitários 658 verdes depois das mudanças (última rodada completa antes das
+  correções de layout; o portão roda tudo de novo).
 
 ## Decisões em vigor
 
@@ -51,6 +48,7 @@ qualquer tarefa > 10 min em segundo plano.
 
 ## Próximo passo exato
 
-Rodada r1 de capturas → crítica escrita por tela (rubrica da Fase C, nota 0–5)
-em `docs/NEXT2026/galeria/index.md` → corrigir o que ficar abaixo de 4 → r2 →
-`scripts/galeria.py --rodada r2 --antes r0` → README de vitrine → portão → PR6.
+r6 → conferir as telas de nota baixa → `scripts/galeria.py --rodada r6 --antes r0`
+→ `e2e/video_do_palco.py` (copiar o GIF para `docs/NEXT2026/galeria/readme/`)
+→ portão (pytest, ruff, build, E2E 4 câmeras + axe) → `bench.py --rapido` → PR6
+→ squash → Fase D (clone limpo, Release com o vídeo, PR7).
