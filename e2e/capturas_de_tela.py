@@ -37,7 +37,7 @@ import requests
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from conftest import PY, ServidorE2E, _porta_livre, entrar  # noqa: E402
+from conftest import PY, ServidorE2E, _porta_livre, encerrar_arvore, entrar  # noqa: E402
 
 DESTINO = RAIZ / "bench" / "runtime" / "capturas"
 TAMANHOS = {"1920x1080": (1920, 1080), "1366x768": (1366, 768), "390x844": (390, 844)}
@@ -102,12 +102,7 @@ class ServidorDemo:
         return s
 
     def parar(self) -> None:
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(15)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
+        encerrar_arvore(self.proc, 15.0)
 
 
 def _foto(pagina, pasta: Path, nome: str, feitas: list[str], espera_ms: int = 1500) -> None:

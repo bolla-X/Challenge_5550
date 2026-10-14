@@ -43,6 +43,26 @@ def _porta_livre() -> int:
         return s.getsockname()[1]
 
 
+def encerrar_arvore(proc: subprocess.Popen | None, espera_s: float = 10.0) -> None:
+    """Encerra o servidor E os filhos dele.
+
+    No Windows o `python.exe` do venv é um lançador e o interpretador de
+    verdade é processo FILHO: `terminate()` matava só o lançador, o servidor
+    seguia vivo segurando a porta e o banco (achado medindo a partida a frio:
+    a 2ª rodada encontrou "o banco da demo está em uso").
+    """
+    if proc is None or proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        proc.terminate()
+    try:
+        proc.wait(espera_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 class ServidorE2E:
     def __init__(self) -> None:
         import fetch_fixtures
@@ -137,12 +157,7 @@ class ServidorE2E:
         return s
 
     def parar(self) -> None:
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
+        encerrar_arvore(self.proc)
         self.fonte_rede.parar()
 
 
