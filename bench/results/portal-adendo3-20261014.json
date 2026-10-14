@@ -1,0 +1,84 @@
+{
+ "fixture": "tests/fixtures/portal.mp4",
+ "cameras_ligadas": 4,
+ "repeticoes": 10,
+ "no_palco": {
+  "descricao": "cena do Portal, outras 3 pausadas pela apresentacao, pendentes descartados (commit da correcao)",
+  "tempos_s": [
+   3.23,
+   5.91,
+   2.61,
+   2.78,
+   5.8,
+   3.72,
+   3.91,
+   3.2,
+   3.94,
+   1.98
+  ],
+  "p50_s": 3.5,
+  "p95_s": 5.9,
+  "sequencias": [
+   "AAAD",
+   "DAAA",
+   "AAA",
+   "WADAAA",
+   "ADDAAAA",
+   "DAAAA",
+   "DDAWAA",
+   "DDWAAA",
+   "AAWA",
+   "AAWA"
+  ]
+ },
+ "no_palco_antes_do_descarte": {
+  "tempos_s": [
+   2.52,
+   2.7,
+   11.66,
+   6.66,
+   9.31,
+   1.99,
+   7.94,
+   15.78,
+   4.38,
+   10.66
+  ],
+  "p50_s": 7.3,
+  "p95_s": 13.9
+ },
+ "fora_do_palco": {
+  "descricao": "/portal com as 4 cameras analisando, foco com 50% das vagas",
+  "tempos_s": [
+   23.92,
+   15.0,
+   11.84,
+   24.41,
+   8.12,
+   16.02,
+   9.01,
+   4.78,
+   4.75,
+   22.95
+  ],
+  "p50_s": 13.4,
+  "p95_s": 24.2,
+  "sequencias": [
+   "WADDWAAA",
+   "ADAAWA",
+   "AWAA",
+   "ADAADADAAA",
+   "AAWA",
+   "ADAADAAA",
+   "AAA",
+   "AAA",
+   "AAA",
+   "AADAADDAAA"
+  ]
+ },
+ "meta_palco": {
+  "p50_s": 5,
+  "p95_s": 10
+ },
+ "carga_externa": "CPU da maquina em 83% sem processos do projeto (Docker, Teams, Edge, Java) durante as rodadas"
+}
