@@ -72,10 +72,26 @@ Em andamento: regravação do vídeo do palco (`e2e/video_do_palco.py`).
 
 ## Próximo passo exato
 
-Vídeo regravado → conferir cenas → GIF para `docs/NEXT2026/galeria/readme/palco.gif`
-→ portão completo do PR6 numa rodada (pytest, ruff, build+tsc, `pytest e2e`, bench
-`--rapido`) → capturas só das telas alteradas (cartões com "Pausada pela
-apresentação", rodapé do palco, Portal com portal.mp4) → galeria/notas → PR6 squash
-→ Fase D: clone limpo, Release, `release-main` com merge manual da main
-(plano: `PPE_MISSING_POLICY` da main entra com padrão `ausencia`; peso padrão
-continua o Vyra; `visionepi_cppe_n416.pt` vira opção documentada).
+Feito desde o último marco: vídeo regravado e GIF no README; portão r2 verde
+(664 unit, 36 E2E); capturas r7/r7b + galeria; cena da Queda também pausa as
+outras (E2E isolado 2/2). Corpo do PR6 pronto no scratchpad da sessão (refazer
+a partir do CHANGELOG "ADENDO 3" se perdido).
+
+1. Conferir o portão r3 em `bench/runtime/portao-pr6-r3/` (ruff, pytest,
+   build, e2e, bench — cada .txt termina com `exit=`). Se tudo 0: abrir o PR6
+   `next-2026` → `feat/completo-com-rebrand` e `gh pr merge --squash`.
+2. Ensaio da integração com a main em `../ch5550-release-ensaio` (branch local
+   `release-main-ensaio`, merge de `origin/main` SEM commit, conflitos abertos
+   em: .env.example, .gitignore, README.md, app/config.py,
+   app/services/camera_worker.py, app/services/risk_rules.py,
+   app/vision/person_compliance_matcher.py, app/vision/yolo_ppe_detector.py,
+   app/static/dist/*, docs/SPRINT4.md, frontend/src/styles/global.css).
+   Plano: pipeline/infra/UI/docs NEXT = versão nossa; incorporar da main
+   `PPE_MISSING_POLICY` (padrão `ausencia`), classes negativas e `evidence` no
+   matcher, 2º gatilho do LLM, estado "indisponível" no quiosque, docs/scripts/
+   testes da Sprint 4; peso padrão continua Vyra e `visionepi_cppe_n416.pt`
+   vira opção documentada no README; adaptar `tests/test_onboarding.py`; dist
+   = rebuild. Registrar cada arquivo no CHANGELOG.
+3. Depois: clone limpo, Release `next-2026-demo` com
+   `bench/runtime/video-palco/palco.mp4`, `release-main` → PR7 → squash na
+   main, E2E de fumaça e `run.py --demo` a partir da main.
