@@ -61,3 +61,11 @@ def test_ainda_ativo_e_sem_aproximacao():
     inc = {"id": 1, "rule": "missing_vest", "zona": "Fora da zona", "pessoas": [4], "reconhecido_em_s": None}
     r = montar(inc, [alerta(5, "missing_vest", "vest", 0)], [], agora=T0.timestamp() + 30)
     assert [p["texto"] for p in r["linhas"]["4"]] == ["apareceu sem colete", "continua há 30 s"]
+
+
+def test_varios_epis_faltando_viram_uma_lista():
+    alertas = [alerta(1, "risk_area_presence", "risk_area", 4), alerta(2, "missing_helmet", "helmet", 4.2),
+               alerta(3, "missing_vest", "vest", 4.4), alerta(4, "missing_gloves", "gloves", 4.6)]
+    inc = INCIDENTE | {"reconhecido_em_s": None}
+    textos = [p["texto"] for p in montar(inc, alertas, [], agora=T0.timestamp() + 10)["linhas"]["4"]]
+    assert "entrou na Zona A sem capacete, colete e luvas" in textos

@@ -62,6 +62,14 @@ def _sem(feature: str | None) -> str:
     return PPE_RULES.get(feature or "", ("sem EPI", ""))[0].lower()
 
 
+def _lista_sem(itens: list[str]) -> str:
+    """["sem capacete", "sem colete", "sem luvas"] → "sem capacete, colete e luvas"."""
+    nomes = [i.removeprefix("sem ").strip() for i in itens]
+    if len(nomes) == 1:
+        return f"sem {nomes[0]}"
+    return f"sem {', '.join(nomes[:-1])} e {nomes[-1]}"
+
+
 def _duracao(segundos: float) -> str:
     s = int(round(segundos))
     return f"{s} s" if s < 90 else f"{s // 60} min {s % 60:02d} s"
@@ -123,7 +131,7 @@ def montar(incidente: dict[str, Any], alertas: list[dict[str, Any]], eventos: li
                 and (_ts(a.get("resolved_at")) or agora) >= (t0 or 0)
             })
             if principal.get("rule") == "risk_area_presence":
-                texto = f"entrou na {zona_frase}" + (f" {' e '.join(faltando)}" if faltando else "")
+                texto = f"entrou na {zona_frase}" + (f" {_lista_sem(faltando)}" if faltando else "")
             else:
                 texto = f"{'na ' + zona if zona not in ('Fora da zona', 'Toda a câmera') else 'apareceu'} {_sem(principal.get('feature'))}"
             passo(t0, texto, "violacao")

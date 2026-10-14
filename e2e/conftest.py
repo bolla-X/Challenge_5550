@@ -72,7 +72,8 @@ class ServidorE2E:
             "ALERT_CREATE_AFTER_FRAMES": "3",
             "RTSP_FIXTURE_FALLBACK": "",
             "SNAPSHOT_DIR": "bench/runtime/e2e-snapshots",
-            "CLEANUP_DIRECTORIES": "bench/runtime/e2e-snapshots",
+            # Sem limpeza a cada câmera ligada: apagaria evidência da cadeia de custódia (X3).
+            "CLEANUP_ON_MONITOR_START": "false",
             "PYTHONUNBUFFERED": "1",
         }
         self.log = runtime / "e2e.log"

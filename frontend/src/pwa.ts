@@ -56,6 +56,9 @@ export function avisarAlertaCritico(alerta: Alert, nomeDaCamera?: string): boole
     icon: "/static/dist/icons/icone-192.png",
     badge: "/static/dist/icons/icone-192.png",
   };
+  // Contador lido pelo E2E (o headless não mostra a notificação na tela).
+  const w = window as unknown as { __visionepiNotificacoes?: number };
+  w.__visionepiNotificacoes = (w.__visionepiNotificacoes ?? 0) + 1;
   if (registro) {
     registro.showNotification(titulo, opcoes).catch(() => undefined);
   } else {

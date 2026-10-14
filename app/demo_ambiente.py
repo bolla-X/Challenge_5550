@@ -87,7 +87,10 @@ def preparar_ambiente() -> None:
         "LLM_ENABLED": "false",
         "REPLAY_DIR": str(PASTA / "clips"),
         "SNAPSHOT_DIR": str(PASTA / "snapshots"),
-        "CLEANUP_DIRECTORIES": str(PASTA / "snapshots"),
+        # A demo já apaga snapshots e clipes ao subir e no reset. Limpar a cada
+        # câmera ligada apagava evidência que está na cadeia de custódia (X3) —
+        # e a cena da queda no palco reinicia a câmera.
+        "CLEANUP_ON_MONITOR_START": "false",
         "ROTULOS_DIR": str(PASTA / "rotulos"),
         "TRILHAS_DIR": str(PASTA / "trilhas"),
         "RTSP_FIXTURE_FALLBACK": "",

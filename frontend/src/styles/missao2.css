@@ -186,7 +186,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .portal-cabeca button.active { background: var(--sunken); color: var(--text); }
 
 /* ---------- Palco (X6) ---------- */
-.palco { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; background: var(--canvas); color: var(--text); }
+.palco { height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--canvas); color: var(--text); }
 .palco-topo { display: flex; align-items: center; gap: var(--s4); padding: var(--s4) var(--s6); }
 .palco-marca { font-weight: 600; letter-spacing: -.01em; }
 .palco-pontos { list-style: none; display: flex; gap: 6px; margin: 0 auto; padding: 0; }
@@ -194,10 +194,13 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-pontos li.feita { background: var(--text-3); }
 .palco-pontos li.atual { background: var(--accent); width: 40px; }
 .palco-indice { color: var(--text-3); font-size: 14px; }
-.palco-cena { min-height: 0; padding: 0 var(--s6); overflow: auto; }
+.palco-cena { min-height: 0; padding: 0 var(--s6); overflow-y: auto; overflow-x: hidden; }
 .palco-cena.entra { animation: palco-entra 360ms var(--ease-out); }
 @keyframes palco-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.palco-cena .portal, .palco-cena .gemeo { min-height: 0; }
+.palco-cena .portal { min-height: 0; padding: 0; background: transparent; }
+.palco-cena .gemeo { min-height: 0; height: 100%; }
+.palco-cena .gemeo .gemeo-viewport { min-height: 0; height: calc(100vh - 230px); }
+.palco-cena .portal-corpo { grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr); }
 .palco-cena .screen { padding-top: 0; }
 .palco-legenda { display: flex; align-items: baseline; gap: var(--s4); padding: var(--s4) var(--s6) var(--s5); flex-wrap: wrap; }
 .palco-legenda strong { font-size: 28px; font-weight: 600; letter-spacing: -.024em; }
@@ -210,7 +213,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-numeros div { display: grid; gap: 2px; }
 .palco-numeros dt { font-size: 14px; color: var(--text-3); order: 2; }
 .palco-numeros dd { margin: 0; font-size: 56px; font-weight: 600; letter-spacing: -.03em; }
-.palco-video { position: relative; height: calc(100vh - 220px); border-radius: var(--r-card); overflow: hidden; background: var(--overlay); }
+.palco-video { position: relative; height: 100%; min-height: 0; border-radius: var(--r-card); overflow: hidden; background: var(--overlay); }
 .palco-video canvas.live-video { width: 100%; height: 100%; display: block; }
 .palco-pilula { position: absolute; top: var(--s4); right: var(--s4); max-width: 60%; }
 .palco-vazio { font-size: 20px; color: var(--text-2); text-align: center; padding: var(--s7); }
@@ -219,7 +222,8 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-qr svg { width: 108px; height: 108px; }
 .palco-qr small { font-size: 10px; text-align: center; color: var(--text-3); }
 .incidente-inline { max-width: 900px; margin: 0 auto; }
-.incidente-inline .replay-cab > button { display: none; }
+.incidente-inline .incidente-fechar { display: none; }
+.incidente-acoes { display: flex; gap: var(--s2); align-items: center; }
 
 /* controle no celular */
 .controle { min-height: 100vh; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s6) var(--s5); background: var(--canvas); }
@@ -231,3 +235,11 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .controle-botoes { margin-top: auto; display: grid; grid-template-columns: 1fr 1.6fr; gap: var(--s3); }
 .controle-botoes button { height: 96px; font-size: 20px; border-radius: var(--r-card); }
 @media (prefers-reduced-motion: reduce) { .palco-cena.entra { animation: none; } }
+
+/* Números grandes: a fonte do sistema com algarismos tabulares (a mono corta o zero). */
+.retro-valor, .liga-pontos, .liga-nivel-numero, .sim-numeros dd, .palco-numeros dd, .enganar-placar dd,
+.gemeo-numeros dd, .liga-missao-linha strong, .enganar-contagem {
+  font-family: var(--font); font-variant-numeric: tabular-nums;
+}
+code { font-variant-ligatures: none; }
+.palco-qr code { font-size: 10px; }

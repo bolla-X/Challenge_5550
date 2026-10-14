@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import time
 
-from conftest import entrar
+from conftest import RAIZ, entrar
 
 
 def _abrir_camera(pagina, nome: str) -> None:
@@ -350,10 +350,17 @@ def test_portal_de_entrada_confirma_itens_e_libera(navegador, servidor):
         pagina.locator("[data-testid=portal-item-helmet]").wait_for(timeout=30_000)
         assert pagina.locator("[data-testid=portal-item-gloves]").count() == 0
         # Algum item chega a "confirmado" e, com tudo confirmado, "Liberado".
+        inicio = time.monotonic()
         pagina.locator("[data-testid^=portal-item-][data-estado=confirmado]").first.wait_for(timeout=180_000)
         pagina.wait_for_function(
             "document.querySelector('[data-testid=portal]')?.dataset.veredito === 'approved'", timeout=240_000
         )
+        # Tempo até "Liberado" com as 4 câmeras ligadas (resumo da MISSÃO 2).
+        segundos = time.monotonic() - inicio
+        print(f"
+[portal] Liberado em {segundos:.1f} s com 4 câmeras ligadas")
+        (RAIZ / "bench" / "runtime" / "portal-liberado.txt").write_text(f"{segundos:.1f}
+", encoding="utf-8")
         assert pagina.locator("[data-testid=portal-titulo]").inner_text() == "Liberado"
         assert int(pagina.locator("[data-testid=portal-checkins]").inner_text().split()[0]) >= 1
         _todas_ligadas(servidor)

@@ -162,7 +162,11 @@ function QrDoControle() {
     <aside className="palco-qr" data-testid="palco-qr" data-url={url.texto}>
       <QrSvg texto={url.texto} rotulo="QR code do controle da apresentação pelo celular" />
       <span>Controle pelo celular</span>
-      {url.aviso && <small>{url.aviso}</small>}
+      {url.aviso && (
+        <small>
+          Em HTTP, só esta máquina alcança. Para o celular: <code>python run.py --demo --https</code>
+        </small>
+      )}
     </aside>
   );
 }

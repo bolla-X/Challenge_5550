@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Alert, Incidente } from "../api/types";
-import { detalheDoIncidente } from "../api/endpoints";
+import { detalheDoIncidente, reconhecerIncidente } from "../api/endpoints";
 import { paraDate } from "../utils/datas";
 import { pessoasDoIncidente, zonaDoIncidente } from "../utils/incidentes";
 import { IncidentReplay } from "./replay";
@@ -143,6 +143,11 @@ export function IncidenteDetalhe({
     return () => window.removeEventListener("keydown", esc);
   }, [onClose, replay, inline]);
 
+  const [reconhecido, setReconhecido] = useState<number | null>(incidente.reconhecido_em_s);
+  const reconhecer = () =>
+    reconhecerIncidente(incidente.id)
+      .then((r) => setReconhecido(r.incidente.reconhecido_em_s ?? 0))
+      .catch(() => undefined);
   const passos = pessoa && linha ? linha.linhas[pessoa] ?? [] : [];
   const zona = zonaDoIncidente(incidente);
 
@@ -160,9 +165,20 @@ export function IncidenteDetalhe({
                 .join(" · ")}
             </p>
           </div>
-          <button type="button" className="ghost small" onClick={onClose}>
-            Fechar
-          </button>
+          <div className="incidente-acoes">
+            {reconhecido != null ? (
+              <span className="chip ok" data-testid="incidente-reconhecido">
+                Reconhecido em {Math.round(reconhecido)} s
+              </span>
+            ) : (
+              <button type="button" className="small" onClick={reconhecer} data-testid="incidente-reconhecer">
+                Reconhecer
+              </button>
+            )}
+            <button type="button" className="ghost small incidente-fechar" onClick={onClose}>
+              Fechar
+            </button>
+          </div>
         </header>
 
         <section className="causal" aria-label="Linha causal">
