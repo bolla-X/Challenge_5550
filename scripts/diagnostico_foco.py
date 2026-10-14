@@ -143,6 +143,9 @@ def main() -> None:
         "foco": a.foco, "segundos": a.segundos, "env": a.env,
         "servidos": {nome: por.get(str(cid), {}).get("servidos") for nome, cid in ids.items()},
         "fracao_foco": round(por.get(str(foco), {}).get("servidos", 0) / total, 3),
+        "maior_espera_s": {nome: por.get(str(cid), {}).get("maior_espera_s") for nome, cid in ids.items()},
+        "esperas_acima_de_3s": {nome: f'{por.get(str(cid), {}).get("esperas_acima_de_3s")}/{por.get(str(cid), {}).get("vagas")}'
+                                for nome, cid in ids.items()},
         "inferencias_por_s": round(total / a.segundos, 2),
         "pre_alertas_registrados": sum(1 for e in eventos if e.get("event_type") == "approach_risk_area"),
         "alertas_de_queda": sum(1 for e in eventos if "Queda" in (e.get("message") or "")),

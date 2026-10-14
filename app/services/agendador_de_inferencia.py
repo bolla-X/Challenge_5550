@@ -76,6 +76,11 @@ class _Slot:
     credito: float = 0.0
     ultimo_servico: float = 0.0
     servidos_em_foco: int = 0
+    # Regra dos 3 s: maior intervalo entre duas vagas seguidas desta câmera e
+    # quantos intervalos passaram de 3 s (a espera da subida não conta).
+    escolhas: int = 0
+    maior_espera_s: float = 0.0
+    esperas_acima_de_3s: int = 0
 
 
 class Cronometro:
@@ -191,6 +196,9 @@ class AgendadorDeInferencia:
                         "servidos_em_foco": s.servidos_em_foco,
                         "descartados": s.descartados,
                         "ultima_ms": round(s.ultima_ms, 1),
+                        "maior_espera_s": round(s.maior_espera_s, 2),
+                        "esperas_acima_de_3s": s.esperas_acima_de_3s,
+                        "vagas": s.escolhas,
                     }
                     for s in self._slots.values()
                 },
@@ -263,6 +271,11 @@ class AgendadorDeInferencia:
             self._ultima_foi_foco = slot.camera_id in focadas
         for slot in escolhidos:
             slot.pendente = False
+            if slot.escolhas:
+                espera = agora - slot.ultimo_servico
+                slot.maior_espera_s = max(slot.maior_espera_s, espera)
+                slot.esperas_acima_de_3s += espera > 3.0
+            slot.escolhas += 1
             slot.ultimo_servico = agora
             if slot.camera_id in focadas:
                 slot.servidos_em_foco += 1

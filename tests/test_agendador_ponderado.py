@@ -177,6 +177,12 @@ def test_em_prioridade_acaba_sozinha():
     assert not ag.em_prioridade(7)
 
 
+def test_estado_informa_a_maior_espera_de_cada_camera():
+    ordem, ag = _simular({1}, custo_s=0.5)
+    for cid in (2, 3, 4):
+        assert ag.estado()["por_camera"][str(cid)]["maior_espera_s"] == pytest.approx(_maior_espera(ordem, cid))
+
+
 def test_fracao_do_foco_configuravel_ate_70_por_cento():
     """ADENDO 2: o foco pode levar até 70 % das vagas quando ninguém está atrasado."""
     ag = AgendadorDeInferencia(focadas=lambda: {1}, fracao_foco=0.7)
