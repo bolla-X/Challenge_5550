@@ -120,3 +120,15 @@ python scripts/bench.py --rapido
 | sem internet | nada muda: a demo é offline | — |
 | porta 5000 ocupada | `run.py` não sobe | `PORT=5050` nos dois comandos |
 | GPU Intel indisponível | runtime cai para ONNX/CPU (aparece no Diagnóstico) | seguir; a análise fica mais lenta, o vídeo não |
+
+## Vídeo de backup (plano B)
+
+O Modo Apresentação percorrendo as 12 cenas, em 1920×1080 (138 s, H.264):
+**https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo**
+(asset `visionepi-palco-demo.mp4`). Baixe **antes** da apresentação e deixe no
+notebook: a demo é offline, o plano B também tem de ser.
+
+Gravado com `python e2e/video_do_palco.py` contra `python run.py --demo` (sem
+webcam): começa na abertura, o Portal chega a "Liberado" com a gravação
+`portal.mp4` e a queda sai ao vivo a 0,25×. Regravar depois de mudar o palco:
+o mesmo comando gera `bench/runtime/video-palco/palco.mp4` e o GIF do README.
