@@ -42,7 +42,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rodada", required=True)
     ap.add_argument("--antes", default="", help="rodada de capturas do código anterior ao PR6")
-    ap.add_argument("--telas-antes-depois", default="02-supervisor-inicio,07-foco-alerta-critico,14-liga,13-auditoria,22-palco,17-portal")
+    ap.add_argument("--telas-antes-depois", default="02-supervisor-inicio,07-foco-alerta-critico,16-tv,14-liga,13-auditoria,17-portal")
     args = ap.parse_args()
     origem = CAPTURAS / args.rodada
     total = 0
