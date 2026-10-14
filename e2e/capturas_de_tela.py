@@ -221,8 +221,8 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
 
     # Estados FORÇADOS (o nome do arquivo diz): carregando, vazio, degradado.
     # Sem interceptar rota no Playwright (handler em voo derrubava a rodada):
-    # "carregando" = latência de rede pelo DevTools; "vazio" e "degradado" =
-    # `fetch` da própria página devolvendo o dado de teste. Cada estado num
+    # o `fetch` da própria página atrasa ("carregando") ou devolve o dado de
+    # teste ("vazio", "degradado"). Cada estado num
     # contexto próprio.
     def forcado(nome: str, script: str | None, rota: str, preparar=None, espera_ms: int = 2500, depois=None) -> None:
         ctx, pg = logado("technical")
@@ -238,12 +238,6 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
         finally:
             ctx.close()
 
-    def lenta(ctx, pg) -> None:
-        cdp = ctx.new_cdp_session(pg)
-        cdp.send("Network.enable")
-        cdp.send("Network.emulateNetworkConditions",
-                 {"offline": False, "latency": 8000, "downloadThroughput": -1, "uploadThroughput": -1})
-
     def troca_fetch(trecho: str, corpo_js: str) -> str:
         return ("(() => { const original = window.fetch; window.fetch = async (...a) => {"
                 " const r = await original(...a); const u = String(a[0] && a[0].url ? a[0].url : a[0]);"
@@ -251,7 +245,12 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
                 f" const j = await r.clone().json(); const novo = ({corpo_js})(j);"
                 " return new Response(JSON.stringify(novo), { status: 200, headers: { 'Content-Type': 'application/json' } }); }; })();")
 
-    _tentar("carregando", lambda: forcado("26-forcado-carregando-liga", None, "/liga", lenta, 1500))
+    # A API da Liga demora 15 s dentro da página (o resto do app carrega normal).
+    atraso = ("(() => { const original = window.fetch; window.fetch = (...a) => {"
+              " const u = String(a[0] && a[0].url ? a[0].url : a[0]);"
+              " return u.includes('/api/liga')"
+              " ? new Promise((ok) => setTimeout(() => ok(original(...a)), 15000)) : original(...a); }; })();")
+    _tentar("carregando", lambda: forcado("26-forcado-carregando-liga", atraso, "/liga", None, 2500))
     vazia = troca_fetch("/api/custodia", "(j) => ({ ...j, items: [], total: 0 })")
     _tentar("vazio", lambda: forcado("27-forcado-vazio-auditoria", vazia, "/auditoria"))
     degradar = ("(j) => ({ ...j, adaptativo: { degradado: true, reducoes: "

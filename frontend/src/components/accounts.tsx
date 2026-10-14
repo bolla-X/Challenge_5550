@@ -278,7 +278,7 @@ export function AccountsScreen() {
       )}
 
       {aba === "gerenciar" && (
-      <Panel id="panel-accounts" title="Contas existentes" description={`${usuarios.length} conta(s).`}>
+      <Panel id="panel-accounts" title="Contas existentes" description={`${usuarios.length === 1 ? "1 conta" : `${usuarios.length} contas`}`}>
         <div className="account-list">
           {usuarios.map((u) => (
             <div key={u.id} className={`account-row${u.active ? "" : " inactive"}`}>

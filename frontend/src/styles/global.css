@@ -497,6 +497,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .home-tile-cameras { grid-column: span 2; grid-row: span 2; align-items: stretch; justify-content: space-between; gap: var(--s4); }
 .home-tile-cameras strong { font-size: 28px; letter-spacing: -.02em; }
 .home-tile-texto { display: grid; gap: var(--s1); }
+.home-tile > .home-miniaturas { max-width: none; }
 .home-miniaturas { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); width: 100%; }
 .home-miniatura:last-child:nth-child(odd) { grid-column: span 2; aspect-ratio: 32 / 9; }
 .home-miniatura { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--r-control); background: var(--overlay); }
