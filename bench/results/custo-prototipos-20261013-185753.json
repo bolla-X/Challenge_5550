@@ -1,0 +1,99 @@
+{
+ "segundos": 120.0,
+ "cameras": {
+  "Multidão": {
+   "orcamento_ms_p50": 409.1,
+   "analises": 67,
+   "g3_g4_g7_sinais": {
+    "n": 68,
+    "p50_ms": 0.396,
+    "p95_ms": 0.637,
+    "p95_sobre_orcamento": 0.0016
+   },
+   "g5_planta": {
+    "n": 68,
+    "p50_ms": 0.492,
+    "p95_ms": 1.163,
+    "p95_sobre_orcamento": 0.0028
+   },
+   "g8_andon": {
+    "n": 68,
+    "p50_ms": 0.082,
+    "p95_ms": 0.125,
+    "p95_sobre_orcamento": 0.0003
+   }
+  },
+  "Canteiro": {
+   "orcamento_ms_p50": 382.1,
+   "analises": 67,
+   "g1_portal": {
+    "n": 68,
+    "p50_ms": 0.053,
+    "p95_ms": 0.101,
+    "p95_sobre_orcamento": 0.0003
+   },
+   "g3_g4_g7_sinais": {
+    "n": 68,
+    "p50_ms": 0.083,
+    "p95_ms": 0.211,
+    "p95_sobre_orcamento": 0.0006
+   },
+   "g8_andon": {
+    "n": 68,
+    "p50_ms": 0.021,
+    "p95_ms": 0.04,
+    "p95_sobre_orcamento": 0.0001
+   },
+   "g9_rotulos": {
+    "n": 13,
+    "p50_ms": 9.443,
+    "p95_ms": 13.123,
+    "p95_sobre_orcamento": 0.0343
+   }
+  },
+  "Rede": {
+   "orcamento_ms_p50": 371.0,
+   "analises": 68,
+   "g3_g4_g7_sinais": {
+    "n": 67,
+    "p50_ms": 0.125,
+    "p95_ms": 0.243,
+    "p95_sobre_orcamento": 0.0007
+   },
+   "g8_andon": {
+    "n": 67,
+    "p50_ms": 0.06,
+    "p95_ms": 0.085,
+    "p95_sobre_orcamento": 0.0002
+   },
+   "g9_rotulos": {
+    "n": 15,
+    "p50_ms": 7.95,
+    "p95_ms": 11.243,
+    "p95_sobre_orcamento": 0.0303
+   }
+  },
+  "Queda": {
+   "orcamento_ms_p50": 527.8,
+   "analises": 67,
+   "g3_g4_g7_sinais": {
+    "n": 67,
+    "p50_ms": 0.197,
+    "p95_ms": 0.321,
+    "p95_sobre_orcamento": 0.0006
+   },
+   "g8_andon": {
+    "n": 67,
+    "p50_ms": 0.072,
+    "p95_ms": 0.099,
+    "p95_sobre_orcamento": 0.0002
+   },
+   "g9_rotulos": {
+    "n": 1,
+    "p50_ms": 11.854,
+    "p95_ms": 11.854,
+    "p95_sobre_orcamento": 0.0225
+   }
+  }
+ }
+}
