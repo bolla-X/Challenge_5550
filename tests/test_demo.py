@@ -5,7 +5,6 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
 from app import create_app
 from app.config import TestConfig
 from app.extensions import db
