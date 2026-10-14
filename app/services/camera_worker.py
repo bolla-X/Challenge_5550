@@ -195,6 +195,11 @@ class CameraWorker:
         # da velocidade original. Só arquivo; a tela mostra o valor (ver
         # `tocar_gravacao`).
         self.velocidade_gravacao = 1.0
+        # Pausada pelo palco (ADENDO 3): a cena do Portal deixa só a câmera dela
+        # analisando. Pausa LEVE — a captura cai a 1 quadro/s e nada vai ao
+        # agendador; alertas, incidentes e histerese ficam como estavam (parar
+        # e religar o worker resolveria tudo isso). Ver MonitorService.pausar_pelo_palco.
+        self.pausada_pelo_palco = False
         reserva = str(app.config.get("RTSP_FIXTURE_FALLBACK", "") or "")
         self.fonte_reserva = str(Path(BASE_DIR) / reserva) if reserva and not Path(reserva).is_absolute() else reserva
         self.tentativas_antes_da_reserva = max(1, int(app.config.get("RTSP_MAX_TENTATIVAS", 5)))
@@ -540,6 +545,8 @@ class CameraWorker:
         return {
             "camera_id": self.camera_id,
             "running": self._running.is_set(),
+            # "apresentacao": rodando, mas sem análise enquanto a cena do palco durar.
+            "pausa": "apresentacao" if self.pausada_pelo_palco else None,
             "frame_counter": self._frame_counter,
             "last_error": self._last_error,
             # Estado da captura (live/reconnecting/unavailable + backoff): sem
@@ -1075,6 +1082,8 @@ class CameraWorker:
         1178 ms com todas as fontes convertendo cada quadro, 981 ms convertendo
         só ~2,5 quadros/s por fonte, 791 ms sem vídeo nenhum.
         """
+        if self.pausada_pelo_palco:
+            return 1.0
         if self.espectadores > 0:
             return float(self.target_fps)
         return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
@@ -1262,7 +1271,9 @@ class CameraWorker:
                     # for de fato inferido). Assim a análise pega o quadro mais
                     # novo mesmo quando o vídeo publica devagar.
                     contador += 1
-                    if self.detect_every_n <= 1 or contador % self.detect_every_n == 1 or self._analise_recente is None:
+                    if self.pausada_pelo_palco:
+                        pass  # sem análise; o vídeo segue (a 1 quadro/s) para a miniatura
+                    elif self.detect_every_n <= 1 or contador % self.detect_every_n == 1 or self._analise_recente is None:
                         self.agendador.submeter(self.camera_id, frame, ts_captura_ms)
                     agora = time.monotonic()
                     # Análise nova fura a cadência do vídeo: o alerta não espera

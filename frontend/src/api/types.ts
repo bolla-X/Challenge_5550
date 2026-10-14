@@ -353,6 +353,8 @@ export interface ModoAdaptativo {
 
 export interface MonitorStatus extends CameraScoped {
   running: boolean;
+  /** "apresentacao": rodando, mas sem análise enquanto a cena do palco durar. */
+  pausa?: "apresentacao" | null;
   /** O que o controlador adaptativo reduziu nesta câmera (null = nunca mexeu). */
   adaptativo?: ModoAdaptativo | null;
   frame_counter: number;

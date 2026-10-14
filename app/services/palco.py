@@ -14,6 +14,11 @@ Cada cena declara como se prepara, de forma determinística:
   segundo (cena "Queda", ADENDO 2 da MISSÃO 2). A queda da gravação fica
   ~0,8 s no chão; a 0,25× são ~3 s, e a regra de emergência (2 análises
   seguidas) confirma ao vivo. A tela mostra "GRAVAÇÃO · 0,25×" sobre o vídeo.
+- `ativas`: quais câmeras continuam analisando durante a cena — "todas", ou
+  "cena" (só a câmera da cena; as outras ficam "pausadas pela apresentação"
+  até sair dela). O Portal usa "cena": com as 4 câmeras disputando a máquina,
+  a pessoa diante do portal esperava a vez (ADENDO 3 da MISSÃO 2). Fora do
+  palco nada muda: o agendador dá ao foco pelo menos 50 % das vagas.
 """
 
 from __future__ import annotations
@@ -25,28 +30,28 @@ from dataclasses import dataclass, field
 from typing import Any
 
 ROTEIRO: list[dict[str, Any]] = [
-    {"chave": "abertura", "titulo": "VisionEPI",
+    {"chave": "abertura", "titulo": "VisionEPI", "ativas": "todas",
      "legenda": "Segurança do trabalho que enxerga a planta inteira. Por setor, nunca por pessoa."},
-    {"chave": "portal", "titulo": "Portal de Entrada",
+    {"chave": "portal", "titulo": "Portal de Entrada", "ativas": "cena",
      "legenda": "Antes de entrar: cada EPI exigido confirmado, faltando ou não verificável.",
      "camera": ["Portal", "Canteiro"]},
-    {"chave": "enganar", "titulo": "Tente enganar a IA", "legenda": "Boné no lugar do capacete? O sistema mostra o que viu e por quê.",
+    {"chave": "enganar", "titulo": "Tente enganar a IA", "ativas": "cena", "legenda": "Boné no lugar do capacete? O sistema mostra o que viu e por quê.",
      "camera": ["Portal", "Canteiro"], "raiox": True},
-    {"chave": "raiox", "titulo": "Raio-X", "legenda": "O que o modelo viu, separado do que o sistema decidiu.",
+    {"chave": "raiox", "titulo": "Raio-X", "ativas": "todas", "legenda": "O que o modelo viu, separado do que o sistema decidiu.",
      "camera": ["Pátio"], "raiox": True},
-    {"chave": "gemeo", "titulo": "Gêmeo digital", "legenda": "A planta inteira ao vivo: cada pessoa na cor do seu estado, nunca foto."},
-    {"chave": "queda", "titulo": "Queda", "legenda": "Emergência atribuída a um ID de rastreio, ao vivo e com replay do momento.",
+    {"chave": "gemeo", "titulo": "Gêmeo digital", "ativas": "todas", "legenda": "A planta inteira ao vivo: cada pessoa na cor do seu estado, nunca foto."},
+    {"chave": "queda", "titulo": "Queda", "ativas": "todas", "legenda": "Emergência atribuída a um ID de rastreio, ao vivo e com replay do momento.",
      "camera": ["Escada", "Queda"], "reiniciar": True, "velocidade": 0.25, "inicio_s": 4.0},
-    {"chave": "incidente", "titulo": "Incidente e linha causal",
+    {"chave": "incidente", "titulo": "Incidente e linha causal", "ativas": "todas",
      "legenda": "Alertas agrupados por regra e zona; a história contada só com o que foi registrado.",
      "camera": ["Pátio"]},
-    {"chave": "custodia", "titulo": "Cadeia de custódia",
+    {"chave": "custodia", "titulo": "Cadeia de custódia", "ativas": "todas",
      "legenda": "Cada evidência com SHA-256 encadeado: mudar um byte quebra a cadeia."},
-    {"chave": "simulador", "titulo": "Simulador “E se?”",
+    {"chave": "simulador", "titulo": "Simulador “E se?”", "ativas": "todas",
      "legenda": "Mudar a regra e ver, antes de aplicar, quantos alertas teriam disparado."},
-    {"chave": "liga", "titulo": "Liga de Setores", "legenda": "Gamificação só com indicadores positivos. Nunca premia “zero alertas”."},
-    {"chave": "retrospectiva", "titulo": "Retrospectiva", "legenda": "O turno em stories, com dados reais da equipe."},
-    {"chave": "encerramento", "titulo": "Obrigado", "legenda": "Tudo o que você viu roda offline nesta máquina."},
+    {"chave": "liga", "titulo": "Liga de Setores", "ativas": "todas", "legenda": "Gamificação só com indicadores positivos. Nunca premia “zero alertas”."},
+    {"chave": "retrospectiva", "titulo": "Retrospectiva", "ativas": "todas", "legenda": "O turno em stories, com dados reais da equipe."},
+    {"chave": "encerramento", "titulo": "Obrigado", "ativas": "todas", "legenda": "Tudo o que você viu roda offline nesta máquina."},
 ]
 
 
@@ -100,3 +105,13 @@ def camera_da_cena(cena: dict[str, Any], cameras_por_nome: dict[str, int]) -> in
         if nome in cameras_por_nome:
             return cameras_por_nome[nome]
     return None
+
+
+def cameras_pausadas(cena: dict[str, Any], cameras_por_nome: dict[str, int]) -> set[int]:
+    """Câmeras que a cena pausa: todas menos a dela, se `ativas == "cena"` e ela existir."""
+    if cena.get("ativas", "todas") != "cena":
+        return set()
+    alvo = camera_da_cena(cena, cameras_por_nome)
+    if alvo is None:
+        return set()  # sem a câmera da cena, pausar as outras só apagaria a planta
+    return {cid for cid in cameras_por_nome.values() if cid != alvo}

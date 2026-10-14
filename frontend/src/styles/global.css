@@ -541,6 +541,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .feed-badge[data-estado="sem_sinal"] { background: var(--v-parada); color: var(--v-texto); }
 .feed-badge[data-estado="sem_sinal"] .feed-badge-dot { background: var(--v-texto); }
 .feed-badge[data-estado="parado"] .feed-badge-dot { background: var(--v-neutro); }
+.feed-badge[data-estado="pausada"] .feed-badge-dot { background: var(--v-neutro); }
 @media (prefers-reduced-motion: no-preference) {
   .feed-badge[data-estado="reconectando"] .feed-badge-dot { animation: feed-pulso 1.2s ease-in-out infinite; }
 }

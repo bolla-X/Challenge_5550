@@ -13,7 +13,7 @@ import threading
 from flask import Blueprint, current_app, jsonify, request
 
 from app.models import ROLE_TECHNICAL, Camera
-from app.services.palco import ROTEIRO, Palco, camera_da_cena
+from app.services.palco import ROTEIRO, Palco, camera_da_cena, cameras_pausadas
 from app.utils.auth import current_user, login_required, require_role
 
 palco_bp = Blueprint("palco", __name__)
@@ -56,7 +56,21 @@ def estado():
     negado = _negado()
     if negado:
         return negado
-    return jsonify(_palco().publico())
+    palco = _palco()
+    pausadas: list[str] = []
+    # Só a TELA do palco (sessão, sem token) sustenta a pausa: o celular de
+    # controle não segura câmeras pausadas se o palco for fechado.
+    if not request.args.get("t"):
+        pausadas = _aplicar_ativas(ROTEIRO[palco.estado.cena])
+    return jsonify(palco.publico() | {"pausadas": pausadas})
+
+
+def _aplicar_ativas(cena: dict) -> list[str]:
+    """Pausa as câmeras fora da cena (e renova o lease). Devolve os nomes pausados."""
+    por_nome = _cameras_por_nome()
+    pausar = cameras_pausadas(cena, por_nome)
+    current_app.extensions["monitor_service"].pausar_pelo_palco(pausar)
+    return sorted(nome for nome, cid in por_nome.items() if cid in pausar)
 
 
 def _ajustar_velocidades(cena: dict) -> None:
@@ -111,6 +125,7 @@ def ir():
     except (ValueError, TypeError) as exc:
         return jsonify({"error": str(exc)}), 400
     if novo.cena != anterior:
+        _aplicar_ativas(ROTEIRO[novo.cena])
         _ajustar_velocidades(ROTEIRO[novo.cena])
         # Em thread: reiniciar a gravação leva ~1–2 s e o celular não espera.
         threading.Thread(target=_preparar, args=(current_app._get_current_object(), ROTEIRO[novo.cena]), daemon=True).start()

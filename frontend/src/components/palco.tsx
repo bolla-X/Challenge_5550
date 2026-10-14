@@ -28,6 +28,8 @@ const SimuladorScreen = lazy(() => import("./simulador"));
 
 type Cena = { chave: string; titulo: string; legenda: string; camera_id: number | null; raiox?: boolean };
 type Estado = { cena: number; total: number; seq: number; chave: string; titulo: string; legenda: string; proxima: string | null };
+/** O polling da tela também traz as câmeras que a cena pausou (`ativas: "cena"`). */
+type EstadoDaTela = Estado & { pausadas?: string[] };
 
 async function ir(acao: "proxima" | "anterior" | "ir", indice?: number, token?: string): Promise<Estado> {
   const r = await fetch("/api/palco/ir", {
@@ -243,6 +245,9 @@ export function PalcoScreen() {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [mostrarQr, setMostrarQr] = useState(true);
+  // Fora do `estado`: `maisNovo` ignora respostas da mesma cena, e a lista
+  // de pausadas tem de acompanhar o servidor a cada consulta.
+  const [pausadas, setPausadas] = useState<string[]>([]);
   const reduzir = useReducedMotion();
   const local = useRef<number | null>(null);
 
@@ -264,10 +269,11 @@ export function PalcoScreen() {
     const id = window.setInterval(() => {
       fetch("/api/palco/estado", { credentials: "same-origin" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d: Estado | null) => {
+        .then((d: EstadoDaTela | null) => {
           if (d) {
             local.current = null;
             setEstado((atual) => maisNovo(atual, d));
+            setPausadas(d.pausadas ?? []);
           }
         })
         .catch(() => undefined);
@@ -353,6 +359,11 @@ export function PalcoScreen() {
       <footer className="palco-legenda" aria-live="polite">
         <strong data-testid="palco-titulo">{cena.titulo}</strong>
         <span>{cena.legenda}</span>
+        {pausadas.length > 0 && (
+          <small className="palco-pausadas" data-testid="palco-pausadas">
+            {pausadas.length === 1 ? `${pausadas[0]}: pausada` : `${pausadas.join(", ")}: pausadas`} pela apresentação
+          </small>
+        )}
         {estado.proxima && <small className="palco-proxima">a seguir: {estado.proxima} →</small>}
       </footer>
       {mostrarQr && <QrDoControle />}

@@ -211,3 +211,51 @@ B. Queda na demo
 1. Refaça o bench intercalado "antes × PR5" (3 repetições, 1 e 4 câmeras), seguindo a regra de bench leve da MISSAO-2.
 2. Rode o portão completo do PR5 numa rodada única: pytest, ruff, build, E2E com 4 câmeras sem pausas de contorno, axe. Abra o PR5 e faça squash merge.
 3. Siga a MISSAO-2 a partir da Fase C (PR6) e depois a Fase D (PR7 → main), atualizando o ESTADO.md a cada marco.
+
+## ADENDO 3 — fechar o PR6 e a Fase D com integração honesta com a main (14/10/2026)
+
+Leia docs/NEXT2026/MISSAO-2.md e docs/NEXT2026/ESTADO.md. Acrescente este texto ao final da MISSAO-2.md como "ADENDO 3" e continue em modo autônomo até o merge final na main, sem perguntar nada.
+
+### Regras deste adendo
+- Ação negada pela permissão (apagar branch remota, rm -rf etc.): não tente contornar com outro comando. Registre no ESTADO.md e siga. Para pastas temporárias, use nomes novos em vez de apagar.
+- Commit + push da branch de trabalho a cada marco e antes de qualquer tarefa longa em segundo plano.
+- Nunca use `| tail` ou pipe que esconda o código de saída de testes. Grave a saída em arquivo e confira o exit code.
+
+### 1. Fechar o PR6
+1. Confira o MP4 e o GIF do palco gerados em segundo plano: duração, resolução e se todas as cenas aparecem (extraia 1 quadro por cena e revise). Se estiverem com defeito, grave de novo. Copie o GIF para `docs/NEXT2026/galeria/readme/palco.gif` (≤ 8 MB; se passar, reduza fps ou tamanho). Confirme que todas as imagens referenciadas no README existem no repositório.
+2. Portal com cenário realista:
+   - crie a fixture `portal.mp4` derivada, recortando e ampliando um único trabalhador de capacete e colete de uma fixture existente (ou de outro vídeo de licença livre do Wikimedia Commons, com uma pessoa de perto), com 15–30 s e a licença registrada em ATRIBUICOES;
+   - meça com o E2E do portal repetido 10 vezes, 4 câmeras ligadas, e registre p50 e p95 com essa fixture;
+   - no `/palco`, cada cena declara quais câmeras ficam ativas. Durante a cena do Portal, as câmeras fora da cena ficam pausadas e a UI mostra "pausada pela apresentação"; ao sair da cena, voltam. Meça de novo no palco;
+   - fora do palco, o comportamento do agendador continua o mesmo (foco com 50%);
+   - meta no palco: p50 ≤ 5 s e p95 ≤ 10 s. Registre os números finais no CHANGELOG, no DEMO.md e no BANCA.md, mesmo se não bater a meta.
+3. Partida a frio:
+   - leia a doc oficial do OpenVINO sobre cache de modelo (propriedade CACHE_DIR) e cite a URL;
+   - ative o cache em `runtime/ov_cache/` (fora do git) e faça o `scripts/preparar.py` aquecer o cache;
+   - meça a subida do `python run.py --demo` a frio e com o cache aquecido, até a primeira análise publicada, 3 vezes cada;
+   - registre os números no DEMO.md, com a instrução de rodar `scripts/preparar.py` antes da apresentação.
+4. Portão completo do PR6 numa rodada única: pytest completo, ruff, build e typecheck, E2E completo com 4 câmeras e axe nos dois temas, e `bench.py --rapido`.
+5. Rode as capturas finais de novo só nas telas alteradas depois da última rodada, atualize a galeria e as notas da rubrica, abra o PR6 e faça squash merge em `feat/completo-com-rebrand`.
+
+### 2. Fase D (como na MISSAO-2), com esta mudança na integração com a main
+1. Teste de clone limpo seguindo o README à risca, até `python run.py --demo` e um E2E de fumaça contra o clone. Corrija o que falhar.
+2. Publique a Release `next-2026-demo` com o MP4 do palco como asset (`gh release create`, sem Actions) e cite o link no DEMO.md.
+3. Integração com a main, substituindo o `-X ours` da MISSAO-2:
+   - crie `release-main` a partir de `feat/completo-com-rebrand` e faça `git merge origin/main` sem estratégia automática;
+   - resolva os conflitos arquivo por arquivo:
+     - interface, infraestrutura, pipeline e docs do NEXT: vale a versão da `feat/completo-com-rebrand`;
+     - mudanças funcionais da main que não conflitam com o comportamento atual (ex.: correções, conteúdo da Sprint 4): incorpore;
+     - modelo/peso de EPI padrão: mantenha o atual da `feat/completo-com-rebrand`, porque todas as medições, guardas e E2E foram feitos com ele. Se o peso definido pela main existir e carregar, exponha-o como opção de config documentada no README.
+   - para cada um dos arquivos em conflito, registre no CHANGELOG uma linha com o arquivo, a versão que ficou e o motivo; nada da main é descartado sem registro;
+   - rode o portão completo e o teste de clone limpo em `release-main`;
+   - abra o PR7 `release-main` → `main` e faça squash merge (rollback: tag `main-pre-release`);
+   - depois do merge, rode um E2E de fumaça e `python run.py --demo` partindo da própria `main` atualizada.
+4. Atualize o ESTADO.md: a `main` passa a ser a branch final da apresentação.
+
+### Resumo final (até 30 linhas)
+- links dos PRs 6 e 7 e da Release;
+- p50/p95 do portal com `portal.mp4`, no palco e fora dele;
+- tempo de subida a frio e com o cache aquecido;
+- tabela das decisões de conflito com a main (arquivo → versão que ficou);
+- resultado do clone limpo na main;
+- as 3 maiores ameaças restantes para a apresentação.

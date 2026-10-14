@@ -11,6 +11,8 @@ import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Inci
 // /api/cameras/<id>, não o /video_feed legado (que só serve a câmera padrão).
 export type EstadoDaCamera = {
   running: boolean;
+  /** Pausada pelo palco (cena do Portal): rodando, sem análise. */
+  pausa?: "apresentacao" | null;
   /** De qual fonte está lendo. `undefined` num backend que não manda o campo. */
   modo?: "ao_vivo" | "reconectando" | "fixture";
   /** Velocidade da gravação (1 = original). Só o palco a reduz. */
@@ -40,6 +42,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
           if (cancelled) return;
           setEstado({
             running: Boolean(status.running),
+            pausa: status.pausa ?? null,
             modo: status.video?.modo,
             velocidade: status.video?.velocidade,
             tentativas: status.video?.reconnect_attempts ?? 0,
@@ -106,6 +109,7 @@ export function totalDeIncidentes(estado: EstadoDaCamera | undefined): number {
  * deliberado, e a leitura tem que ser "fonte de demonstração". */
 export function textoDeEstado(estado: EstadoDaCamera): string {
   if (!estado.running) return "Monitoramento parado";
+  if (estado.pausa === "apresentacao") return "Pausada pela apresentação";
   if (estado.modo === "fixture") return "Fonte de demonstração";
   if (estado.modo === "reconectando") return `Reconectando, tentativa ${estado.tentativas + 1}`;
   if (estado.diagnostico?.fonte_sem_imagem) return "Recebendo, sem imagem";

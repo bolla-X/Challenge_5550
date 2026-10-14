@@ -64,6 +64,12 @@ class Fixture:
     # `CAP_PROP_POS_FRAMES`. Em ogv/webm o seek do OpenCV cai no keyframe mais
     # proximo, e o recorte mudaria de conteudo entre versoes de FFmpeg.
     leitura_sequencial: bool = False
+    # Recorte (x, y, largura, altura) em pixels da ORIGEM, aplicado antes de
+    # redimensionar. None = o quadro inteiro.
+    recorte: tuple[int, int, int, int] | None = None
+    # Grava a janela e depois a mesma janela de tras para frente (o dobro da
+    # duracao sem emenda). Para um plano curto demais para a duracao pedida.
+    vai_e_volta: bool = False
 
     @property
     def arquivo_origem(self) -> Path:
@@ -128,6 +134,30 @@ FIXTURES: tuple[Fixture, ...] = (
         pagina="https://commons.wikimedia.org/wiki/File:Bits_%26_Pieces_-_BP152_Falling_down_the_stairs_-_EYE_FLM7636_-_OB_105118.ogv",
         por_que="Pessoa deitada no chao (queda) com varias pessoas em cena.",
         leitura_sequencial=True,
+    ),
+    Fixture(
+        nome="portal",
+        destino="portal.mp4",
+        url="https://upload.wikimedia.org/wikipedia/commons/f/f4/Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
+        sha256_origem="363c0dc47800d27a894a26bbbf570729d5e7c4a190f33fdd092a37aa546c6b46",
+        # Quadros 7235 a 7625 do original (29,97 fps, contados lendo em sequencia):
+        # o plano fixo da laje com dois armadores, sem as transicoes das pontas.
+        # O recorte fica so com o da esquerda (capacete branco e colete), ampliado
+        # 1,5x — e o que a camera do Portal veria: UMA pessoa de perto diante
+        # dela (ADENDO 3 da MISSAO 2). O plano tem 13 s; em vai-e-volta, 26 s.
+        frame_inicial=7235,
+        frame_final=7625,
+        largura=960,
+        altura=720,
+        licenca="CC BY-SA 4.0",
+        autor="Acabashi",
+        pagina="https://commons.wikimedia.org/wiki/File:Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
+        por_que="Um trabalhador de capacete e colete de perto: cenario realista do Portal de Entrada.",
+        recorte=(480, 180, 640, 480),
+        # O seek do OpenCV neste webm cai ~5 s adiante (medido): o recorte
+        # pegaria a transicao para o guindaste.
+        leitura_sequencial=True,
+        vai_e_volta=True,
     ),
 )
 
@@ -268,16 +298,26 @@ def recortar(fixture: Fixture) -> None:
     else:
         captura.set(cv2.CAP_PROP_POS_FRAMES, fixture.frame_inicial)
     escritos = 0
+    volta: list = []  # quadros da ida, em JPEG (a volta os escreve ao contrario)
     for _ in range(fixture.frame_final - fixture.frame_inicial):
         ok, quadro = captura.read()
         if not ok:
             break
-        escritor.write(cv2.resize(quadro, (fixture.largura, fixture.altura)))
+        if fixture.recorte:
+            x, y, w, h = fixture.recorte
+            quadro = quadro[y:y + h, x:x + w]
+        quadro = cv2.resize(quadro, (fixture.largura, fixture.altura))
+        escritor.write(quadro)
+        escritos += 1
+        if fixture.vai_e_volta:
+            volta.append(cv2.imencode(".jpg", quadro, [int(cv2.IMWRITE_JPEG_QUALITY), 95])[1])
+    for jpeg in reversed(volta):
+        escritor.write(cv2.imdecode(jpeg, cv2.IMREAD_COLOR))
         escritos += 1
     captura.release()
     escritor.release()
 
-    esperados = fixture.frame_final - fixture.frame_inicial
+    esperados = (fixture.frame_final - fixture.frame_inicial) * (2 if fixture.vai_e_volta else 1)
     if escritos != esperados:
         raise SystemExit(f"Esperava {esperados} quadros, escrevi {escritos}. Fixture incompleta.")
     print(
