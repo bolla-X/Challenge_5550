@@ -367,6 +367,7 @@ def test_portal_no_palco_pausa_as_outras_e_libera(navegador, servidor, repeticao
     try:
         pagina = contexto.new_page()
         entrar(pagina, servidor, "technical")
+        pagina.get_by_role("button", name=re.compile("Configurar")).first.wait_for(timeout=60_000)
         pagina.goto(f"{servidor.base}/palco")
         pagina.locator("[data-testid=palco][data-cena='0']").wait_for(timeout=30_000)
         aberto = time.monotonic()

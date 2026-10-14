@@ -32,7 +32,8 @@ TEMPO_DA_CENA = {"abertura": 7, "portal": 14, "enganar": 9, "raiox": 9, "gemeo":
                  "custodia": 9, "simulador": 9, "liga": 8, "retrospectiva": 12, "encerramento": 6}
 
 
-def gravar(servidor: ServidorDemo, pasta: Path) -> Path:
+def gravar(servidor: ServidorDemo, pasta: Path) -> tuple[Path, float]:
+    """Grava e devolve (webm, segundo do vídeo em que o palco aparece na cena 0)."""
     from playwright.sync_api import sync_playwright
 
     pasta.mkdir(parents=True, exist_ok=True)
@@ -42,6 +43,7 @@ def gravar(servidor: ServidorDemo, pasta: Path) -> Path:
                                          record_video_dir=str(pasta), record_video_size={"width": 1920, "height": 1080})
         contexto.add_init_script("try { localStorage.setItem('visionepi-theme', 'light'); } catch (e) {}")
         pagina = contexto.new_page()
+        inicio_do_video = time.monotonic()  # o Playwright grava desde a criação da página
         entrar(pagina, servidor, "supervisor")
         pagina.wait_for_timeout(3000)
         pagina.goto(servidor.base + "/palco")
@@ -50,6 +52,8 @@ def gravar(servidor: ServidorDemo, pasta: Path) -> Path:
         for _ in range(20):
             pagina.keyboard.press("ArrowLeft")
         pagina.wait_for_function("document.querySelector('[data-testid=palco]')?.dataset.cena === '0'", timeout=15_000)
+        pagina.wait_for_timeout(1000)  # a entrada animada da cena termina
+        inicio_do_palco = time.monotonic() - inicio_do_video
         total = int(pagina.locator(".palco-indice").inner_text().split("/")[1])
         for i in range(total):
             chave = palco.get_attribute("data-chave")
@@ -70,17 +74,18 @@ def gravar(servidor: ServidorDemo, pasta: Path) -> Path:
         navegador.close()
     final = pasta / "palco.webm"
     shutil.move(video, final)
-    return final
+    return final, inicio_do_palco
 
 
-def converter(webm: Path) -> None:
+def converter(webm: Path, inicio_s: float = 0.0) -> None:
+    """MP4 e GIF começam em `inicio_s`: a abertura do palco, sem a tela de login."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         print("[video] ffmpeg não encontrado: fica o WebM", flush=True)
         return
     mp4 = webm.with_suffix(".mp4")
-    subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", str(webm), "-c:v", "libx264", "-preset", "slow", "-crf", "23",
-                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(mp4)], check=True)
+    subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", f"{inicio_s:.2f}", "-i", str(webm), "-c:v", "libx264", "-preset", "slow",
+                    "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(mp4)], check=True)
     # GIF do README: os primeiros 24 s (abertura e portal), 800 px, 8 fps, paleta própria.
     gif = webm.parent / "palco.gif"
     filtro = ("fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer")
@@ -95,10 +100,10 @@ def main() -> int:
     servidor = ServidorDemo()
     try:
         servidor.subir(args.aquecer)
-        webm = gravar(servidor, DESTINO)
+        webm, inicio = gravar(servidor, DESTINO)
     finally:
         servidor.parar()
-    converter(webm)
+    converter(webm, inicio)
     return 0
 
 
