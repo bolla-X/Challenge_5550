@@ -3,6 +3,7 @@
     python scripts/bench.py                    # 2 perfis x {1, 4} câmeras, 60 s cada
     python scripts/bench.py --perfis batata --cameras 4 --duracao 90
     python scripts/bench.py --soak 1200        # soak de 20 min, 4 câmeras
+    python scripts/bench.py --rapido           # ≤ 5 min: perfil atual, 1 e 4 câmeras (para a banca)
     python scripts/bench.py --env YOLO_IMGSZ=320 --rotulo imgsz320
 
 O que ele faz, e por que cada passo é assim:
@@ -769,7 +770,14 @@ def main() -> int:
     ap.add_argument("--arvores", default="",
                     help="rotulo=caminho[|K=V;K=V],... : compara árvores (ou configs) INTERCALADAS")
     ap.add_argument("--sem-prioridade", action="store_true", help="não eleva a prioridade do servidor")
+    ap.add_argument("--rapido", action="store_true",
+                    help="≤ 5 min: perfil atual, 1 e 4 câmeras, 60 s cada, 10 s de aquecimento (mostrar números ao vivo)")
     args = ap.parse_args()
+    if args.rapido:
+        # Os números absolutos do BENCHMARKS.md vieram de uma máquina com 13–42 %
+        # de CPU de terceiros; este modo existe para medir NA máquina da banca.
+        args.perfis, args.cameras, args.duracao, args.aquecimento = "atual", "1,4", 60.0, 10.0
+        args.rotulo = args.rotulo or "rapido"
 
     if args.duracao < 60 and not os.getenv("BENCH_PERMITE_CURTO"):
         print("[bench] duração mínima é 60 s (a missão exige); use BENCH_PERMITE_CURTO=1 só para depurar o script.")
