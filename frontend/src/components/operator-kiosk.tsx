@@ -114,6 +114,17 @@ export function OperatorKiosk({ camId }: { camId: number }) {
         <div className="actions">
           {COMPLIANCE_KEYS.filter((key) => camera.features[key]).map((key) => {
             const violated = activeAlerts.some((a) => a.feature === key);
+            // Sprint 4: o peso novo nao tem mascara. Sem este caso, "sem alerta"
+            // virava um check verde para um EPI que o modelo nem consegue ver —
+            // o operador leria "conforme" onde o sistema e cego.
+            const unsupported = !violated && status?.model?.supported_ppe?.[key] === false;
+            if (unsupported) {
+              return (
+                <span key={key} className="kiosk-chip" title="O modelo atual não detecta este EPI">
+                  {COMPLIANCE_LABELS[key]}: indisponível
+                </span>
+              );
+            }
             return (
               <span key={key} className={`chip ${violated ? "miss" : "ok"}`}>
                 <span className="dot" />

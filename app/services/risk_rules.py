@@ -103,12 +103,16 @@ class RuleEngine:
         cooldown_seconds: int,
         risk_polygon: list[tuple[float, float]],
         supported_ppe_getter: Callable[[], set[str]] | None = None,
+        missing_policy: str = "ausencia",
     ) -> None:
         self.feature_manager = feature_manager
         self.cooldown_seconds = cooldown_seconds
         self.risk_polygon = risk_polygon
         self.supported_ppe_getter = supported_ppe_getter
-        self.person_matcher = PersonComplianceMatcher()
+        # "ausencia" | "evidencia" — ver PersonComplianceMatcher e docs/SPRINT4.md.
+        # Com "evidencia", EPI nao detectado vira "unverified" e NAO gera
+        # alerta: so gera quem teve a classe negativa detectada.
+        self.person_matcher = PersonComplianceMatcher(missing_policy=missing_policy)
         # Continuidade da queda: o rastreador troca o ID de quem cai (a caixa em
         # pé e a caixa no chão quase não se sobrepõem) e a confirmação de
         # emergência, que conta análises seguidas da MESMA chave, nunca fechava.
@@ -172,20 +176,27 @@ class RuleEngine:
                 for feature_key, (message, severity) in PPE_RULES.items():
                     if not self.feature_manager.is_enabled(feature_key) or feature_key not in supported_ppe:
                         continue
-                    status = person_state["ppe"][feature_key]["status"]
+                    check = person_state["ppe"][feature_key]
+                    status = check["status"]
                     if status == "missing":
                         rule, texto = f"missing_{feature_key}", message
                     elif status == "incorrect":
                         rule, texto = f"incorrect_{feature_key}", PPE_INCORRECT_MESSAGES[feature_key]
                     else:
                         continue
+                    # Sprint 4: o operador precisa saber se o sistema VIU a
+                    # pessoa sem o EPI ou só não achou o EPI. São erros de
+                    # natureza diferente (ver docs/SPRINT4.md, análise de erro).
+                    evidencia = check.get("evidence", "nao_detectado")
+                    sufixo = " (visto sem o EPI)" if evidencia == "negativa_detectada" else ""
                     alerts.append(
                         RuleAlert(
                             rule=rule,
                             severity=severity,
-                            message=f"{texto} · {person_state['label']}",
+                            message=f"{texto} · {person_state['label']}{sufixo}",
                             feature=feature_key,
                             metadata={
+                                "evidence": evidencia,
                                 "person_id": person_state["id"],
                                 "person_label": person_state["label"],
                                 "person_box": person_state["box"],

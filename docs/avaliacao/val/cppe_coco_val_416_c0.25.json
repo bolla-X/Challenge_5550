@@ -1,0 +1,934 @@
+{
+  "pessoas": {
+    "anotadas": 239,
+    "previstas": 274,
+    "casadas": 204,
+    "revocacao": 0.8536,
+    "precisao": 0.7445
+  },
+  "politicas": {
+    "ausencia": {
+      "condicional": {
+        "helmet": {
+          "vp": 39,
+          "fp": 13,
+          "fn": 3,
+          "vn": 131,
+          "suporte_ausente": 42,
+          "suporte_presente": 144,
+          "precisao": 0.75,
+          "revocacao": 0.9286,
+          "f1": 0.8298,
+          "acuracia": 0.914,
+          "sem_verdade_com_alerta": 9,
+          "sem_verdade_sem_alerta": 9
+        },
+        "vest": {
+          "vp": 56,
+          "fp": 13,
+          "fn": 9,
+          "vn": 111,
+          "suporte_ausente": 65,
+          "suporte_presente": 124,
+          "precisao": 0.8116,
+          "revocacao": 0.8615,
+          "f1": 0.8358,
+          "acuracia": 0.8836,
+          "sem_verdade_com_alerta": 8,
+          "sem_verdade_sem_alerta": 7
+        },
+        "gloves": {
+          "vp": 29,
+          "fp": 14,
+          "fn": 0,
+          "vn": 59,
+          "suporte_ausente": 29,
+          "suporte_presente": 73,
+          "precisao": 0.6744,
+          "revocacao": 1.0,
+          "f1": 0.8056,
+          "acuracia": 0.8627,
+          "sem_verdade_com_alerta": 96,
+          "sem_verdade_sem_alerta": 6
+        },
+        "glasses": {
+          "vp": 39,
+          "fp": 11,
+          "fn": 0,
+          "vn": 35,
+          "suporte_ausente": 39,
+          "suporte_presente": 46,
+          "precisao": 0.78,
+          "revocacao": 1.0,
+          "f1": 0.8764,
+          "acuracia": 0.8706,
+          "sem_verdade_com_alerta": 115,
+          "sem_verdade_sem_alerta": 4
+        },
+        "safety_shoe": {
+          "vp": 2,
+          "fp": 11,
+          "fn": 0,
+          "vn": 59,
+          "suporte_ausente": 2,
+          "suporte_presente": 70,
+          "precisao": 0.1538,
+          "revocacao": 1.0,
+          "f1": 0.2667,
+          "acuracia": 0.8472,
+          "sem_verdade_com_alerta": 118,
+          "sem_verdade_sem_alerta": 14
+        }
+      },
+      "ponta_a_ponta": {
+        "helmet": {
+          "vp": 39,
+          "fp": 13,
+          "fn": 6,
+          "vn": 158,
+          "suporte_ausente": 45,
+          "suporte_presente": 171,
+          "precisao": 0.75,
+          "revocacao": 0.8667,
+          "f1": 0.8041,
+          "acuracia": 0.912,
+          "sem_verdade_com_alerta": 9,
+          "sem_verdade_sem_alerta": 14
+        },
+        "vest": {
+          "vp": 56,
+          "fp": 13,
+          "fn": 13,
+          "vn": 131,
+          "suporte_ausente": 69,
+          "suporte_presente": 144,
+          "precisao": 0.8116,
+          "revocacao": 0.8116,
+          "f1": 0.8116,
+          "acuracia": 0.8779,
+          "sem_verdade_com_alerta": 8,
+          "sem_verdade_sem_alerta": 18
+        },
+        "gloves": {
+          "vp": 29,
+          "fp": 14,
+          "fn": 2,
+          "vn": 62,
+          "suporte_ausente": 31,
+          "suporte_presente": 76,
+          "precisao": 0.6744,
+          "revocacao": 0.9355,
+          "f1": 0.7838,
+          "acuracia": 0.8505,
+          "sem_verdade_com_alerta": 96,
+          "sem_verdade_sem_alerta": 36
+        },
+        "glasses": {
+          "vp": 39,
+          "fp": 11,
+          "fn": 2,
+          "vn": 36,
+          "suporte_ausente": 41,
+          "suporte_presente": 47,
+          "precisao": 0.78,
+          "revocacao": 0.9512,
+          "f1": 0.8571,
+          "acuracia": 0.8523,
+          "sem_verdade_com_alerta": 115,
+          "sem_verdade_sem_alerta": 36
+        },
+        "safety_shoe": {
+          "vp": 2,
+          "fp": 11,
+          "fn": 0,
+          "vn": 64,
+          "suporte_ausente": 2,
+          "suporte_presente": 75,
+          "precisao": 0.1538,
+          "revocacao": 1.0,
+          "f1": 0.2667,
+          "acuracia": 0.8571,
+          "sem_verdade_com_alerta": 118,
+          "sem_verdade_sem_alerta": 44
+        }
+      },
+      "alertas_em_pessoa_inexistente": {
+        "helmet": 43,
+        "vest": 49,
+        "gloves": 67,
+        "glasses": 70,
+        "safety_shoe": 66
+      },
+      "exemplos": {
+        "helmet": {
+          "fp": [
+            "image1121.jpg#4",
+            "image1121.jpg#5",
+            "image1121.jpg#8",
+            "image117.jpg#8",
+            "image132.jpg#1",
+            "image347.jpg#0",
+            "image439.jpeg#1",
+            "image464.jpg#2",
+            "image608.jpg#0",
+            "image608.jpg#4",
+            "image644.jpg#6",
+            "image759.jpg#0"
+          ],
+          "fn": [
+            "image1130.jpg#0",
+            "image1190.jpg#0",
+            "image1346.jpg#1"
+          ],
+          "vp": [
+            "image1129.jpg#1",
+            "image1129.jpg#2",
+            "image1137.jpg#0",
+            "image1146.jpg#0",
+            "image1151.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1193.jpg#1",
+            "image1203.jpg#0",
+            "image1203.jpg#1",
+            "image1211.jpg#0",
+            "image1211.jpg#1"
+          ]
+        },
+        "vest": {
+          "fp": [
+            "image11.jpeg#2",
+            "image1121.jpg#3",
+            "image1121.jpg#7",
+            "image1121.jpg#8",
+            "image115.jpg#0",
+            "image132.jpg#0",
+            "image132.jpg#1",
+            "image137.jpg#0",
+            "image144.jpg#0",
+            "image144.jpg#4",
+            "image176.jpg#1",
+            "image628.jpg#2"
+          ],
+          "fn": [
+            "image202.jpg#3",
+            "image202.jpg#5",
+            "image230.jpg#0",
+            "image439.jpeg#0",
+            "image487.jpg#0",
+            "image524.jpeg#0",
+            "image524.jpeg#1",
+            "image524.jpeg#2",
+            "image698.jpg#1"
+          ],
+          "vp": [
+            "image1129.jpg#0",
+            "image1129.jpg#1",
+            "image1129.jpg#2",
+            "image1130.jpg#0",
+            "image1137.jpg#0",
+            "image1146.jpg#0",
+            "image1151.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1190.jpg#0",
+            "image1193.jpg#1",
+            "image1203.jpg#0"
+          ]
+        },
+        "gloves": {
+          "fp": [
+            "image11.jpeg#2",
+            "image141.jpeg#1",
+            "image27.jpeg#0",
+            "image35.jpeg#0",
+            "image439.jpeg#0",
+            "image464.jpg#3",
+            "image524.jpeg#3",
+            "image532.jpeg#0",
+            "image607.jpeg#1",
+            "image670.jpg#0",
+            "image674.jpg#0",
+            "image804.jpg#3"
+          ],
+          "fn": [],
+          "vp": [
+            "image1129.jpg#0",
+            "image1129.jpg#1",
+            "image1129.jpg#2",
+            "image1130.jpg#0",
+            "image1146.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1190.jpg#0",
+            "image1193.jpg#1",
+            "image1203.jpg#1",
+            "image1211.jpg#1",
+            "image1223.jpg#0"
+          ]
+        },
+        "glasses": {
+          "fp": [
+            "image1190.jpg#0",
+            "image1217.jpg#1",
+            "image1217.jpg#3",
+            "image164.jpg#0",
+            "image31.jpg#0",
+            "image505.jpg#0",
+            "image628.jpg#0",
+            "image628.jpg#2",
+            "image660.jpg#0",
+            "image981.jpeg#0",
+            "image981.jpeg#1"
+          ],
+          "fn": [],
+          "vp": [
+            "image1129.jpg#0",
+            "image1129.jpg#2",
+            "image1130.jpg#0",
+            "image1137.jpg#0",
+            "image1146.jpg#0",
+            "image1151.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1193.jpg#1",
+            "image1203.jpg#0",
+            "image1203.jpg#1",
+            "image1211.jpg#0"
+          ]
+        },
+        "safety_shoe": {
+          "fp": [
+            "image11.jpeg#2",
+            "image1211.jpg#0",
+            "image1211.jpg#1",
+            "image1333.jpg#0",
+            "image1369.jpg#0",
+            "image1369.jpg#1",
+            "image1369.jpg#3",
+            "image137.jpg#0",
+            "image615.jpg#3",
+            "image763.jpg#0",
+            "image9.jpg#0"
+          ],
+          "fn": [],
+          "vp": [
+            "image1130.jpg#0",
+            "image1369.jpg#2"
+          ]
+        }
+      }
+    },
+    "evidencia": {
+      "condicional": {
+        "helmet": {
+          "vp": 23,
+          "fp": 0,
+          "fn": 19,
+          "vn": 144,
+          "suporte_ausente": 42,
+          "suporte_presente": 144,
+          "precisao": 1.0,
+          "revocacao": 0.5476,
+          "f1": 0.7077,
+          "acuracia": 0.8978,
+          "sem_verdade_com_alerta": 2,
+          "sem_verdade_sem_alerta": 16
+        },
+        "vest": {
+          "vp": 52,
+          "fp": 8,
+          "fn": 13,
+          "vn": 116,
+          "suporte_ausente": 65,
+          "suporte_presente": 124,
+          "precisao": 0.8667,
+          "revocacao": 0.8,
+          "f1": 0.832,
+          "acuracia": 0.8889,
+          "sem_verdade_com_alerta": 4,
+          "sem_verdade_sem_alerta": 11
+        },
+        "gloves": {
+          "vp": 19,
+          "fp": 0,
+          "fn": 10,
+          "vn": 73,
+          "suporte_ausente": 29,
+          "suporte_presente": 73,
+          "precisao": 1.0,
+          "revocacao": 0.6552,
+          "f1": 0.7917,
+          "acuracia": 0.902,
+          "sem_verdade_com_alerta": 3,
+          "sem_verdade_sem_alerta": 99
+        },
+        "glasses": {
+          "vp": 3,
+          "fp": 0,
+          "fn": 36,
+          "vn": 46,
+          "suporte_ausente": 39,
+          "suporte_presente": 46,
+          "precisao": 1.0,
+          "revocacao": 0.0769,
+          "f1": 0.1429,
+          "acuracia": 0.5765,
+          "sem_verdade_com_alerta": 0,
+          "sem_verdade_sem_alerta": 119
+        },
+        "safety_shoe": {
+          "vp": 0,
+          "fp": 1,
+          "fn": 2,
+          "vn": 69,
+          "suporte_ausente": 2,
+          "suporte_presente": 70,
+          "precisao": 0.0,
+          "revocacao": 0.0,
+          "f1": null,
+          "acuracia": 0.9583,
+          "sem_verdade_com_alerta": 0,
+          "sem_verdade_sem_alerta": 132
+        }
+      },
+      "ponta_a_ponta": {
+        "helmet": {
+          "vp": 23,
+          "fp": 0,
+          "fn": 22,
+          "vn": 171,
+          "suporte_ausente": 45,
+          "suporte_presente": 171,
+          "precisao": 1.0,
+          "revocacao": 0.5111,
+          "f1": 0.6765,
+          "acuracia": 0.8981,
+          "sem_verdade_com_alerta": 2,
+          "sem_verdade_sem_alerta": 21
+        },
+        "vest": {
+          "vp": 52,
+          "fp": 8,
+          "fn": 17,
+          "vn": 136,
+          "suporte_ausente": 69,
+          "suporte_presente": 144,
+          "precisao": 0.8667,
+          "revocacao": 0.7536,
+          "f1": 0.8062,
+          "acuracia": 0.8826,
+          "sem_verdade_com_alerta": 4,
+          "sem_verdade_sem_alerta": 22
+        },
+        "gloves": {
+          "vp": 19,
+          "fp": 0,
+          "fn": 12,
+          "vn": 76,
+          "suporte_ausente": 31,
+          "suporte_presente": 76,
+          "precisao": 1.0,
+          "revocacao": 0.6129,
+          "f1": 0.76,
+          "acuracia": 0.8879,
+          "sem_verdade_com_alerta": 3,
+          "sem_verdade_sem_alerta": 129
+        },
+        "glasses": {
+          "vp": 3,
+          "fp": 0,
+          "fn": 38,
+          "vn": 47,
+          "suporte_ausente": 41,
+          "suporte_presente": 47,
+          "precisao": 1.0,
+          "revocacao": 0.0732,
+          "f1": 0.1364,
+          "acuracia": 0.5682,
+          "sem_verdade_com_alerta": 0,
+          "sem_verdade_sem_alerta": 151
+        },
+        "safety_shoe": {
+          "vp": 0,
+          "fp": 1,
+          "fn": 2,
+          "vn": 74,
+          "suporte_ausente": 2,
+          "suporte_presente": 75,
+          "precisao": 0.0,
+          "revocacao": 0.0,
+          "f1": null,
+          "acuracia": 0.961,
+          "sem_verdade_com_alerta": 0,
+          "sem_verdade_sem_alerta": 162
+        }
+      },
+      "alertas_em_pessoa_inexistente": {
+        "helmet": 4,
+        "vest": 10,
+        "gloves": 1,
+        "glasses": 0,
+        "safety_shoe": 0
+      },
+      "exemplos": {
+        "helmet": {
+          "fp": [],
+          "fn": [
+            "image1129.jpg#1",
+            "image1130.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1190.jpg#0",
+            "image1203.jpg#0",
+            "image1211.jpg#0",
+            "image1211.jpg#1",
+            "image1223.jpg#0",
+            "image1273.jpg#0",
+            "image1290.jpg#0",
+            "image1333.jpg#0"
+          ],
+          "vp": [
+            "image1129.jpg#2",
+            "image1137.jpg#0",
+            "image1146.jpg#0",
+            "image1151.jpg#0",
+            "image1193.jpg#1",
+            "image1203.jpg#1",
+            "image1215.jpg#0",
+            "image1215.jpg#1",
+            "image1217.jpg#0",
+            "image1217.jpg#1",
+            "image1217.jpg#2",
+            "image1217.jpg#3"
+          ]
+        },
+        "vest": {
+          "fp": [
+            "image11.jpeg#2",
+            "image1121.jpg#3",
+            "image1121.jpg#7",
+            "image1121.jpg#8",
+            "image115.jpg#0",
+            "image137.jpg#0",
+            "image176.jpg#1",
+            "image628.jpg#2"
+          ],
+          "fn": [
+            "image1129.jpg#0",
+            "image1377.jpg#0",
+            "image202.jpg#3",
+            "image202.jpg#5",
+            "image230.jpg#0",
+            "image439.jpeg#0",
+            "image439.jpeg#1",
+            "image487.jpg#0",
+            "image524.jpeg#0",
+            "image524.jpeg#1",
+            "image524.jpeg#2",
+            "image524.jpeg#3"
+          ],
+          "vp": [
+            "image1129.jpg#1",
+            "image1129.jpg#2",
+            "image1130.jpg#0",
+            "image1137.jpg#0",
+            "image1146.jpg#0",
+            "image1151.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1190.jpg#0",
+            "image1193.jpg#1",
+            "image1203.jpg#0",
+            "image1203.jpg#1"
+          ]
+        },
+        "gloves": {
+          "fp": [],
+          "fn": [
+            "image1130.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1223.jpg#0",
+            "image1290.jpg#0",
+            "image1333.jpg#0",
+            "image1342.jpg#0",
+            "image1369.jpg#2",
+            "image1375.jpg#0",
+            "image1377.jpg#0"
+          ],
+          "vp": [
+            "image1129.jpg#0",
+            "image1129.jpg#1",
+            "image1129.jpg#2",
+            "image1146.jpg#0",
+            "image1190.jpg#0",
+            "image1193.jpg#1",
+            "image1203.jpg#1",
+            "image1211.jpg#1",
+            "image1234.jpg#0",
+            "image1234.jpg#1",
+            "image1248.jpg#0",
+            "image1273.jpg#0"
+          ]
+        },
+        "glasses": {
+          "fp": [],
+          "fn": [
+            "image1129.jpg#0",
+            "image1129.jpg#2",
+            "image1130.jpg#0",
+            "image1146.jpg#0",
+            "image1151.jpg#0",
+            "image1183.jpg#0",
+            "image1183.jpg#1",
+            "image1193.jpg#1",
+            "image1203.jpg#0",
+            "image1203.jpg#1",
+            "image1211.jpg#0",
+            "image1211.jpg#1"
+          ],
+          "vp": [
+            "image1137.jpg#0",
+            "image1248.jpg#0",
+            "image1273.jpg#0"
+          ]
+        },
+        "safety_shoe": {
+          "fp": [
+            "image1211.jpg#0"
+          ],
+          "fn": [
+            "image1130.jpg#0",
+            "image1369.jpg#2"
+          ],
+          "vp": []
+        }
+      }
+    }
+  },
+  "ic95_ponta_a_ponta": {
+    "ausencia": {
+      "helmet": {
+        "precisao": [
+          0.5682,
+          0.902
+        ],
+        "revocacao": [
+          0.7436,
+          0.9556
+        ],
+        "f1": [
+          0.6579,
+          0.896
+        ]
+      },
+      "vest": {
+        "precisao": [
+          0.6812,
+          0.9091
+        ],
+        "revocacao": [
+          0.6818,
+          0.9216
+        ],
+        "f1": [
+          0.7176,
+          0.8903
+        ]
+      },
+      "gloves": {
+        "precisao": [
+          0.5,
+          0.8163
+        ],
+        "revocacao": [
+          0.84,
+          1.0
+        ],
+        "f1": [
+          0.6429,
+          0.881
+        ]
+      },
+      "glasses": {
+        "precisao": [
+          0.6286,
+          0.9107
+        ],
+        "revocacao": [
+          0.875,
+          1.0
+        ],
+        "f1": [
+          0.75,
+          0.9398
+        ]
+      },
+      "safety_shoe": {
+        "precisao": [
+          0.0,
+          0.3636
+        ],
+        "revocacao": [
+          1.0,
+          1.0
+        ],
+        "f1": [
+          0.1176,
+          0.5333
+        ]
+      }
+    },
+    "evidencia": {
+      "helmet": {
+        "precisao": [
+          1.0,
+          1.0
+        ],
+        "revocacao": [
+          0.3158,
+          0.66
+        ],
+        "f1": [
+          0.48,
+          0.7952
+        ]
+      },
+      "vest": {
+        "precisao": [
+          0.7436,
+          0.963
+        ],
+        "revocacao": [
+          0.6053,
+          0.8806
+        ],
+        "f1": [
+          0.6731,
+          0.8986
+        ]
+      },
+      "gloves": {
+        "precisao": [
+          1.0,
+          1.0
+        ],
+        "revocacao": [
+          0.4074,
+          0.7778
+        ],
+        "f1": [
+          0.5789,
+          0.875
+        ]
+      },
+      "glasses": {
+        "precisao": [
+          1.0,
+          1.0
+        ],
+        "revocacao": [
+          0.0,
+          0.1944
+        ],
+        "f1": [
+          0.0408,
+          0.3256
+        ]
+      },
+      "safety_shoe": {
+        "precisao": [
+          0.0,
+          0.0
+        ],
+        "revocacao": [
+          0.0,
+          0.0
+        ],
+        "f1": null
+      }
+    }
+  },
+  "subconjuntos": {
+    "completo": {
+      "imagens": 143,
+      "pessoas": {
+        "anotadas": 239,
+        "previstas": 274,
+        "casadas": 204,
+        "revocacao": 0.8536,
+        "precisao": 0.7445
+      },
+      "ponta_a_ponta": {
+        "ausencia": {
+          "helmet": {
+            "vp": 39,
+            "fp": 13,
+            "fn": 6,
+            "vn": 158,
+            "suporte_ausente": 45,
+            "suporte_presente": 171,
+            "precisao": 0.75,
+            "revocacao": 0.8667,
+            "f1": 0.8041,
+            "acuracia": 0.912,
+            "sem_verdade_com_alerta": 9,
+            "sem_verdade_sem_alerta": 14
+          },
+          "vest": {
+            "vp": 56,
+            "fp": 13,
+            "fn": 13,
+            "vn": 131,
+            "suporte_ausente": 69,
+            "suporte_presente": 144,
+            "precisao": 0.8116,
+            "revocacao": 0.8116,
+            "f1": 0.8116,
+            "acuracia": 0.8779,
+            "sem_verdade_com_alerta": 8,
+            "sem_verdade_sem_alerta": 18
+          },
+          "gloves": {
+            "vp": 29,
+            "fp": 14,
+            "fn": 2,
+            "vn": 62,
+            "suporte_ausente": 31,
+            "suporte_presente": 76,
+            "precisao": 0.6744,
+            "revocacao": 0.9355,
+            "f1": 0.7838,
+            "acuracia": 0.8505,
+            "sem_verdade_com_alerta": 96,
+            "sem_verdade_sem_alerta": 36
+          },
+          "glasses": {
+            "vp": 39,
+            "fp": 11,
+            "fn": 2,
+            "vn": 36,
+            "suporte_ausente": 41,
+            "suporte_presente": 47,
+            "precisao": 0.78,
+            "revocacao": 0.9512,
+            "f1": 0.8571,
+            "acuracia": 0.8523,
+            "sem_verdade_com_alerta": 115,
+            "sem_verdade_sem_alerta": 36
+          },
+          "safety_shoe": {
+            "vp": 2,
+            "fp": 11,
+            "fn": 0,
+            "vn": 64,
+            "suporte_ausente": 2,
+            "suporte_presente": 75,
+            "precisao": 0.1538,
+            "revocacao": 1.0,
+            "f1": 0.2667,
+            "acuracia": 0.8571,
+            "sem_verdade_com_alerta": 118,
+            "sem_verdade_sem_alerta": 44
+          }
+        },
+        "evidencia": {
+          "helmet": {
+            "vp": 23,
+            "fp": 0,
+            "fn": 22,
+            "vn": 171,
+            "suporte_ausente": 45,
+            "suporte_presente": 171,
+            "precisao": 1.0,
+            "revocacao": 0.5111,
+            "f1": 0.6765,
+            "acuracia": 0.8981,
+            "sem_verdade_com_alerta": 2,
+            "sem_verdade_sem_alerta": 21
+          },
+          "vest": {
+            "vp": 52,
+            "fp": 8,
+            "fn": 17,
+            "vn": 136,
+            "suporte_ausente": 69,
+            "suporte_presente": 144,
+            "precisao": 0.8667,
+            "revocacao": 0.7536,
+            "f1": 0.8062,
+            "acuracia": 0.8826,
+            "sem_verdade_com_alerta": 4,
+            "sem_verdade_sem_alerta": 22
+          },
+          "gloves": {
+            "vp": 19,
+            "fp": 0,
+            "fn": 12,
+            "vn": 76,
+            "suporte_ausente": 31,
+            "suporte_presente": 76,
+            "precisao": 1.0,
+            "revocacao": 0.6129,
+            "f1": 0.76,
+            "acuracia": 0.8879,
+            "sem_verdade_com_alerta": 3,
+            "sem_verdade_sem_alerta": 129
+          },
+          "glasses": {
+            "vp": 3,
+            "fp": 0,
+            "fn": 38,
+            "vn": 47,
+            "suporte_ausente": 41,
+            "suporte_presente": 47,
+            "precisao": 1.0,
+            "revocacao": 0.0732,
+            "f1": 0.1364,
+            "acuracia": 0.5682,
+            "sem_verdade_com_alerta": 0,
+            "sem_verdade_sem_alerta": 151
+          },
+          "safety_shoe": {
+            "vp": 0,
+            "fp": 1,
+            "fn": 2,
+            "vn": 74,
+            "suporte_ausente": 2,
+            "suporte_presente": 75,
+            "precisao": 0.0,
+            "revocacao": 0.0,
+            "f1": null,
+            "acuracia": 0.961,
+            "sem_verdade_com_alerta": 0,
+            "sem_verdade_sem_alerta": 162
+          }
+        }
+      }
+    }
+  },
+  "latencia_ms": {
+    "p50": 97.2,
+    "p90": 112.7,
+    "n": 143
+  },
+  "config": "cppe_coco",
+  "cfg": {
+    "modelo": "models/visionepi_cppe_n416.pt",
+    "classes": null,
+    "pessoa": "models/yolov8n.pt"
+  },
+  "split": "val",
+  "imgsz": 416,
+  "conf": 0.25,
+  "avaliados": [
+    "helmet",
+    "vest",
+    "gloves",
+    "glasses",
+    "safety_shoe"
+  ],
+  "imagens": 143,
+  "excluidas": []
+}

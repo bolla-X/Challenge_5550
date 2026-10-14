@@ -92,7 +92,53 @@ def test_env_example_liga_o_detector_de_pessoa():
     Custo de deixar `true`, medido (docs/BENCH.md): -20% de FPS
     (24,32 -> 19,42 a imgsz=416). E o preco de o sistema funcionar.
     """
-    assert ler_env_example()["MULTI_PERSON_DETECTION"] == "true"
+    valores = ler_env_example()
+    if valores["PPE_MODEL_PATH"].endswith("vyra_ppe.pt"):
+        assert valores["MULTI_PERSON_DETECTION"] == "true"
+
+
+def test_env_example_documenta_o_peso_da_sprint4_como_opcao():
+    """Integração com a main (MISSÃO 2, ADENDO 3): o padrão segue o Vyra.
+
+    Todas as medições, guardas de qualidade e E2E do NEXT 2026 foram feitos com
+    o Vyra (e o export OpenVINO aprovado é dele). O peso da Sprint 4 fica como
+    opção documentada — e documentada com as TRÊS linhas juntas, pela mesma
+    razão do teste original da main: com ele, o segundo YOLO sai (classe Person
+    própria, medida) e `YOLO_CLASSES` vazio (os índices do Vyra filtrariam as
+    classes erradas deste peso em silêncio). Ver docs/SPRINT4.md.
+    """
+    valores = ler_env_example()
+    assert valores["PPE_MODEL_PATH"] == "models/vyra_ppe.pt"
+    assert valores["MULTI_PERSON_DETECTION"] == "true"
+    assert valores["YOLO_CLASSES"] == "0,1,2,3,5,11,12,13"
+    texto = (RAIZ / ".env.example").read_text(encoding="utf-8")
+    for linha in ("PPE_MODEL_PATH=models/visionepi_cppe_n416.pt", "YOLO_CLASSES=", "MULTI_PERSON_DETECTION=false"):
+        assert re.search(rf"^#\s+{re.escape(linha)}\s*$", texto, re.M), f"opção da Sprint 4 sem a linha {linha!r}"
+
+
+def test_peso_da_sprint4_esta_versionado_e_e_o_avaliado():
+    """O peso do default precisa existir num clone limpo, e ser o que foi medido.
+
+    Sem ele, quem clona teria de treinar 2,6 h antes de subir. O SHA-256 e o
+    do arquivo avaliado em docs/avaliacao/ — trocar o peso sem refazer a
+    avaliacao faria o relatorio descrever outro modelo.
+    """
+    import hashlib
+
+    peso = RAIZ / "models" / "visionepi_cppe_n416.pt"
+    assert peso.exists(), "models/visionepi_cppe_n416.pt ausente — ver .gitignore (excecao do peso)"
+    assert hashlib.sha256(peso.read_bytes()).hexdigest() == (
+        "f0dfeea760eea2b9a8a8ae1955b3e6b5dee6770c42171ea8b24a5eceaacae935"
+    )
+
+
+def test_politica_de_missing_padrao_e_a_escolhida_na_validacao():
+    """`ausencia` venceu `evidencia` no F1 medio capacete+colete (0,83 x 0,62)
+    na VALIDACAO. O teste nao participou da escolha."""
+    from app.config import Config
+
+    assert ler_env_example()["PPE_MISSING_POLICY"] == "ausencia"
+    assert Config.PPE_MISSING_POLICY in ("ausencia", "evidencia")
 
 
 def test_env_example_aponta_o_peso_de_pessoa_para_arquivo_local():

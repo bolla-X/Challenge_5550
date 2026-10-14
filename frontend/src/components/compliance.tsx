@@ -4,11 +4,13 @@ import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
 
 /** Chip de EPI: pílula com ponto e rótulo. Conforme em --ok, ausente com o
- * tingimento de perigo, não avaliado neutro. */
+ * tingimento de perigo, não avaliado neutro. "Não verificado" (política
+ * `evidencia` da Sprint 4: nada visto, nem com nem sem) fica neutro também —
+ * nunca verde, que diria "conforme" onde o sistema não viu. */
 function PpeChip({ label, status }: { label: string; status?: string }) {
   const cls = status === "ok" ? "chip ok" : status === "missing" || status === "incorrect" ? "chip miss" : "chip";
   return (
-    <span className={cls}>
+    <span className={cls} title={status === "unverified" ? `${label}: não verificado` : undefined}>
       <span className="dot" />
       {label}
     </span>

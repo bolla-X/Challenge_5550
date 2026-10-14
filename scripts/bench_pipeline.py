@@ -270,6 +270,12 @@ def rodar_camera(
     }
 
 
+def _classes(valor: str) -> list[int] | None:
+    if valor == "vyra":
+        return CLASSES_VYRA
+    return [int(v) for v in valor.split(",") if v.strip()] or None
+
+
 def main() -> int:
     analisador = argparse.ArgumentParser(description="Bench por estagio do pipeline de visao.")
     analisador.add_argument("--imgsz", type=int, default=416)
@@ -281,6 +287,12 @@ def main() -> int:
     analisador.add_argument("--detect-every-n", type=int, default=3)
     analisador.add_argument("--modelo", default="models/vyra_ppe.pt", help="Peso de EPI (.pt ou .onnx).")
     analisador.add_argument("--modelo-pessoa", default="models/yolov8n.pt")
+    analisador.add_argument(
+        "--classes",
+        default="vyra",
+        help="Filtro de classes do detector de EPI: 'vyra' (0,1,2,3,5,11,12,13), vazio = todas, ou lista '0,2,6'. "
+        "Com o peso da Sprint 4 use --classes ''.",
+    )
     analisador.add_argument("--rotulo", default="", help="Nome do cenario no relatorio.")
     analisador.add_argument("--json", default="", help="Grava o resultado bruto neste arquivo.")
     analisador.add_argument(
@@ -310,7 +322,7 @@ def main() -> int:
     detector = YoloPPEDetector(
         model_path=str(RAIZ / argumentos.modelo),
         confidence=CONFIANCA,
-        classes=CLASSES_VYRA,
+        classes=_classes(argumentos.classes),
         imgsz=argumentos.imgsz,
     )
     detector_pessoa = None

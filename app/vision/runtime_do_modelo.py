@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,23 @@ SUFIXOS = {
     # (`scripts/concordancia.py`, candidato `openvino-dyn@gpu-fp32:640`).
     "openvino-gpu": ("openvino-dyn@gpu-fp32", "openvino-dyn@gpu-fp16"),
 }
+
+
+# Diretório de export com o nome do peso de origem: `vyra_ppe_640_dyn`,
+# `yolov8n_640`, `yolo11n-pose_640_dyn` (scripts/concordancia.py).
+_EXPORT_DO_PESO = re.compile(r"^(?P<peso>.+)_\d{3,4}(?:_dyn)?(?:_int8)?$")
+
+
+def _export_de_outro_peso(caminho: Path, peso_pt: str) -> bool:
+    """A aprovação é do tipo de modelo ("epi"), não do peso: com
+    `PPE_MODEL_PATH` apontando para outro `.pt` (o peso da Sprint 4, por
+    exemplo), o `auto` carregaria em silêncio o export aprovado do Vyra. Recusa
+    quando o diretório do export diz de qual peso veio e não é este."""
+    for parte in caminho.parts:
+        achou = _EXPORT_DO_PESO.match(parte)
+        if achou:
+            return achou.group("peso") != Path(peso_pt).stem
+    return False
 
 
 def _aprovados(base_dir: Path, modelo: str) -> dict[str, Any]:
@@ -100,6 +118,8 @@ def _resolver(base_dir: Path, *, modelo: str, peso_pt: str, imgsz: int, pedido: 
             continue
         registro = aprovados[chave]
         caminho = Path(registro.get("caminho", ""))
+        if _export_de_outro_peso(caminho, peso_pt):
+            continue
         if not caminho.is_absolute():
             caminho = base_dir / caminho
         if caminho.exists():

@@ -410,6 +410,11 @@ class Config:
     # o tempo vai, em vez de adivinhar pelo FPS medio.
     PROFILE_FRAMES = env_int("PROFILE_FRAMES", 0)
     MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", True)
+    # Sprint 4: o que fazer quando NENHUMA caixa (positiva ou negativa) de um
+    # EPI foi associada a pessoa. "ausencia" = alerta (Sprints 1-3);
+    # "evidencia" = "nao verificado", sem alerta — so alerta quem foi visto
+    # SEM o EPI (classe negativa). Numeros que decidem em docs/SPRINT4.md.
+    PPE_MISSING_POLICY = os.getenv("PPE_MISSING_POLICY", "ausencia").strip().lower()
 
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
     # frame. E o que permite atribuir queda/postura a um individuo. Custa N
@@ -548,6 +553,10 @@ class TestConfig(Config):
     # Trilhas do simulador (X2) numa pasta temporária por processo: a suíte
     # não escreve no instance/ de quem roda nem herda trilha de outra rodada.
     TRILHAS_DIR = tempfile.mkdtemp(prefix="visionepi-trilhas-")
+    # Mesmo motivo: um .env com PPE_MISSING_POLICY=evidencia mudaria quais
+    # alertas nascem e quebraria testes que nada tem a ver com politica. Quem
+    # testa a outra politica pede explicitamente (test_matcher_evidencia.py).
+    PPE_MISSING_POLICY = "ausencia"
 
 
 class AuthTestConfig(TestConfig):

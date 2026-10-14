@@ -1247,3 +1247,38 @@ dois temas) · `bench.py --rapido` exit 0 (`bench/results/20261014-153054-rapido
 com **76–82 % da CPU** tomada por processos de fora do projeto (r2: 47–54 %,
 1,86 e 0,36/s). O ADENDO 3 não toca o caminho por análise; a diferença
 acompanha a carga de fundo (regra do bench leve: sem investigação).
+
+## Integração com a main (ADENDO 3, Fase D) — `release-main`
+
+`release-main` nasceu de `feat/completo-com-rebrand` (`4a65267`, PR6) e recebeu
+`git merge origin/main` **sem estratégia automática** (`6c3ed61`, Sprint 4 de
+IA: 15 commits). 98 arquivos entraram sem conflito (relatório e evidências da
+Sprint 4, `docs/avaliacao/`, `docs/entrega/`, scripts de avaliação e treino,
+3 arquivos de teste novos, o peso `models/visionepi_cppe_n416.pt`, tipos e
+quiosque do frontend). Nada da main foi descartado sem registro:
+
+| arquivo | versão que ficou | motivo |
+|---|---|---|
+| `.env.example` | **feat** (Vyra + runtimes aprovados) **+ main** (`PPE_MISSING_POLICY=ausencia` e seus comentários; peso da Sprint 4 documentado como alternativa, com as 3 linhas juntas) | todas as medições, guardas e E2E do NEXT foram feitos com o Vyra. **Achado:** `YOLO_CLASSES=` (vazio) e `MULTI_PERSON_DETECTION=false` da main entraram **sem conflito** e, com o Vyra, desligariam a avaliação de pessoas — voltaram para `0,1,2,3,5,11,12,13` e `true` |
+| `.gitignore` | **união** | mantidos os ignores do NEXT (`runtime/`, `bench/runtime/`…) e os da main (`datasets/`, `runs_treino/`, `models/*` com a exceção do peso da Sprint 4) |
+| `README.md` | **feat** + trechos da **main** | ficaram da main: o destaque da entrega Sprint 4, "Ausente não é não visto", Gemini na stack, rótulos do diagrama (regras e 2º gatilho) e o roadmap. Os trechos da main que entraram sem conflito dizendo "o default é o peso próprio" foram reescritos: padrão Vyra, peso da Sprint 4 como opção (seção "Configuração do modelo de EPI") |
+| `app/config.py` | **feat** (`MULTI_PERSON_DETECTION=True`) **+ main** (`PPE_MISSING_POLICY`, também travado em `ausencia` no `TestConfig`) | padrão do Vyra precisa do detector de pessoa; a política da main com padrão `ausencia` é o comportamento atual |
+| `app/services/camera_worker.py` | **feat** (laço com `_publicar`/`_depois_de_publicar`) **+ main** (2º gatilho do LLM no "não verificado" confirmado, agora dentro de `_depois_de_publicar`; `missing_policy` no `RuleEngine`) | a main mexia no laço antigo, que a feat reorganizou; a função foi levada para o lugar novo, sem mudar a regra |
+| `app/services/risk_rules.py` | **feat** (continuidade da queda, "uso incorreto", mensagem com "·") **+ main** (`missing_policy`, sufixo "(visto sem o EPI)", `evidence` nos metadados) | os dois lados acrescentaram coisas independentes |
+| `app/vision/person_compliance_matcher.py` | **fusão manual**: feat ("uso incorreto", `_assign` em tupla) + main (classes negativas, `evidence`, política) | decisão: OK → uso incorreto → "visto sem o EPI" → ausente (`ausencia`) ou "não verificado" (`evidencia`). Com Vyra + `ausencia`, o resultado é o de hoje (o Vyra filtra as `NO-*` por `YOLO_CLASSES`) |
+| `app/vision/yolo_ppe_detector.py` | **união** (aliases de protetor auricular da feat + negativas e `PPE_NEGATIVE_CLASSES` da main) | independentes |
+| `app/static/dist/*` | **build novo** do código fundido; o bundle velho da main (`index-BuHE6RZR.js`) saiu | artefato gerado |
+| `docs/SPRINT4.md` | **main** (relatório oficial de IA da entrega); o da feat foi **renomeado** `docs/SPRINT4-PLANTA.md` | eram dois documentos diferentes com o mesmo nome; o README e o PDF da main apontam para o relatório |
+| `frontend/src/styles/global.css` | **feat** (sistema de design do PR6) | a main só acrescentava `unverified` a `.row-dot`/`.metric`, que o PR6 removeu; o estado ficou no chip de EPI (`compliance.tsx`: neutro, nunca verde, com `title`) |
+
+Ajustes fora dos arquivos em conflito, exigidos pela integração:
+- `tests/test_onboarding.py` (veio da main sem conflito): o teste que travava o
+  peso da Sprint 4 como padrão virou `test_env_example_documenta_o_peso_da_sprint4_como_opcao`
+  (padrão Vyra + as 3 linhas da opção documentadas). O do SHA-256 do peso ficou como veio.
+- `app/vision/runtime_do_modelo.py` — **achado na integração:** a aprovação de
+  runtime é por tipo de modelo ("epi"), não por peso; com `PPE_MODEL_PATH` no
+  peso da Sprint 4, o `auto` carregaria em silêncio o export OpenVINO **do
+  Vyra**. Agora a aprovação só vale se o diretório do export for do mesmo peso
+  (`vyra_ppe_640_dyn` ↔ `vyra_ppe.pt`); teste em `tests/test_runtime_do_modelo.py`.
+- Peso da main conferido: existe, SHA-256 `f0dfeea7…` (o travado no teste), carrega
+  e detecta pessoa (0,88), colete (0,85) e capacete (0,51) no `portal.mp4`.

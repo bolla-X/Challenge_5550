@@ -110,12 +110,17 @@ def test_openvino_gpu_aprovado_devolve_dispositivo_e_precisao(tmp_path, monkeypa
         "onnx-dyn:640": {"concordancia": 1.0, "caminho": "models/export/nao-existe.onnx"},
     }}), encoding="utf-8")
 
-    escolha = resolver(tmp_path, modelo="epi", peso_pt="vyra.pt", imgsz=640, pedido="auto", ordem="openvino-gpu,onnx,pytorch")
+    escolha = resolver(tmp_path, modelo="epi", peso_pt="models/vyra_ppe.pt", imgsz=640, pedido="auto",
+                       ordem="openvino-gpu,onnx,pytorch")
 
     assert escolha["caminho"] == str(pasta)
     assert (escolha["dispositivo"], escolha["precisao"]) == ("GPU", "fp16")
-    sem_gpu = resolver(tmp_path, modelo="epi", peso_pt="vyra.pt", imgsz=640, pedido="auto", ordem="onnx,pytorch")
-    assert sem_gpu["caminho"] == "vyra.pt" and sem_gpu["dispositivo"] is None, "onnx aprovado mas ausente → .pt"
+    sem_gpu = resolver(tmp_path, modelo="epi", peso_pt="models/vyra_ppe.pt", imgsz=640, pedido="auto", ordem="onnx,pytorch")
+    assert sem_gpu["caminho"] == "models/vyra_ppe.pt" and sem_gpu["dispositivo"] is None, "onnx aprovado mas ausente → .pt"
+    # Outro peso de EPI (o da Sprint 4): o export aprovado do Vyra NÃO vale para ele.
+    outro = resolver(tmp_path, modelo="epi", peso_pt="models/visionepi_cppe_n416.pt", imgsz=640, pedido="auto",
+                     ordem="openvino-gpu,onnx,pytorch")
+    assert outro["caminho"] == "models/visionepi_cppe_n416.pt" and outro["dispositivo"] is None
 
 
 def test_gpu_que_nao_compila_cai_para_cpu(tmp_path, monkeypatch):

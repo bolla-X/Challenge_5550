@@ -57,13 +57,16 @@ terminal as contas da demo e o endereço. Roteiro da apresentação em
 
 Sistema de monitoramento de segurança industrial em tempo real, desenvolvido para o **Challenge 2026 — Metaindústria** (FIAP × SPI Integração). Usa visão computacional para detectar uso de EPIs, analisar postura e comportamento, e sinalizar risco antes que o incidente aconteça — não apenas registrar a infração depois do fato.
 
+> **Sprint 4 (entrega final de IA):** relatório técnico em [docs/SPRINT4.md](docs/SPRINT4.md) e em PDF ([docs/entrega/](docs/entrega/)), diagrama em [docs/arquitetura_sprint4.png](docs/arquitetura_sprint4.png), tabelas geradas em [docs/avaliacao/RESUMO.md](docs/avaliacao/RESUMO.md), evidências em [docs/evidencias/](docs/evidencias/).
+
 ## O problema
 
 O modelo tradicional de segurança industrial é reativo: inspeções periódicas, checklists manuais, punição depois do incidente. O VisionEPI propõe o oposto — monitoramento contínuo por IA, alertas em tempo real, e uma camada de tendência que aponta onde o risco está se acumulando antes de virar acidente.
 
 ## Funcionalidades
 
-- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos, máscara e calçado de segurança, via modelo YOLOv8 dedicado (Vyra, 14 classes). O segundo modelo para detecção de pessoa continua disponível para pesos que não trazem a classe `Person` (arquitetura dual-model opcional).
+- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos, máscara e calçado de segurança, via modelo YOLOv8 dedicado (Vyra, 14 classes). O segundo modelo para detecção de pessoa continua disponível para pesos que não trazem a classe `Person` (arquitetura dual-model opcional). Alternativa configurável: o peso da Sprint 4 (`models/visionepi_cppe_n416.pt`, YOLOv8n treinado no Construction-PPE, com classes *negativas*; [docs/SPRINT4.md](docs/SPRINT4.md)).
+- **Ausente não é não visto** — cada EPI sai como *detectado*, *visto sem* ou *não detectado*; a política (`PPE_MISSING_POLICY`) decide o que vira alerta, e o alerta diz ao operador se a pessoa foi vista sem o EPI.
 - **Multi-pessoa com identidade estável** — múltiplas pessoas detectadas e avaliadas no mesmo frame, cada uma com id que persiste entre frames (tracking por IoU). O EPI é associado à pessoa por geometria e de forma exclusiva: um capacete pertence a uma pessoa só, mesmo com as caixas se sobrepondo.
 - **Multi-câmera de verdade** — um worker por câmera, modelos YOLO carregados uma única vez e compartilhados. Todo alerta, evento e mensagem de WebSocket carrega `camera_id`.
 - **Análise de postura e quedas** — via MediaPipe Pose, sinalizando posturas suspeitas e pessoas caídas.
@@ -98,6 +101,8 @@ Detalhe, números e decisões em [`docs/NEXT2026/`](docs/NEXT2026/) — CHANGELO
 - gunicorn em produção (o servidor de desenvolvimento do Werkzeug nunca é usado fora de dev)
 - Ultralytics YOLOv8 (detecção de EPI e de pessoa, dual-model) e YOLO11n-pose
 - OpenVINO (iGPU Intel) e ONNX Runtime, escolhidos por `PPE_RUNTIME=auto` só entre exports aprovados no guarda
+- Peso da Sprint 4 `models/visionepi_cppe_n416.pt` (YOLOv8n, 6,2 MB, versionado) como alternativa configurável (ver "Configuração do modelo de EPI")
+- Google Gemini 3.6 Flash (segunda opinião multimodal, opcional)
 - MediaPipe Pose (postura e quedas)
 - SQLite (dev) / PostgreSQL (produção, via Docker)
 
@@ -118,7 +123,7 @@ flowchart TB
         LOOP["<b>_loop</b> — um frame por vez"]
         YOLO["YOLO EPI + YOLO pessoa<br/><i>inference_lock compartilhado</i>"]
         POSE["MediaPipe Pose<br/>por pessoa rastreada"]
-        REGRAS["RuleEngine + PersonComplianceMatcher"]
+        REGRAS["RuleEngine + PersonComplianceMatcher<br/><i>detectado · visto sem · não detectado</i>"]
         ALERTA["AlertStateService<br/><i>histerese conta DETECÇÃO</i>"]
         ENCODE["cv2.imencode<br/><i>uma vez por frame, 2,5 ms</i>"]
         FONTE --> LOOP --> YOLO --> POSE --> REGRAS --> ALERTA --> ENCODE
@@ -144,7 +149,7 @@ flowchart TB
         SCHEMA -- "sim" --> OPINIAO
     end
 
-    ALERTA == "alerta CRIADO<br/>+ o JPEG já codificado" ==> SUBMETER
+    ALERTA == "alerta CRIADO ou<br/>'não verificado' confirmado<br/>+ o JPEG já codificado" ==> SUBMETER
 
     BANCO[("SQLite / PostgreSQL<br/>alertas · eventos · câmeras · usuários")]
     FLASK["<b>Flask</b><br/>API REST + Socket.IO<br/><i>escopo por câmera em rooms</i>"]
@@ -263,6 +268,16 @@ Para desenvolvimento do frontend com hot-reload, rode `npm run dev` dentro de `f
 ### Configuração do modelo de EPI
 
 O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI. O padrão é **`models/vyra_ppe.pt`** ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
+
+**Alternativa: o peso da Sprint 4**, `models/visionepi_cppe_n416.pt`, já vem no repositório (6,2 MB; SHA-256 travado em `tests/test_onboarding.py`). YOLOv8n treinado no Construction-PPE a `imgsz=416`, com pessoa, 5 EPIs e 5 classes negativas num peso só; medido por pessoa, a precisão do alerta "sem capacete" foi de 0,39 para 0,85 ([docs/SPRINT4.md](docs/SPRINT4.md)). Não é o padrão da demo: todas as medições, guardas de qualidade e E2E do NEXT 2026 foram feitos com o Vyra. Para usar, as três linhas juntas no `.env`:
+
+```
+PPE_MODEL_PATH=models/visionepi_cppe_n416.pt
+YOLO_CLASSES=
+MULTI_PERSON_DETECTION=false
+```
+
+Ele roda em PyTorch (o export OpenVINO aprovado no guarda é o do Vyra). `PPE_MISSING_POLICY=ausencia|evidencia` (padrão `ausencia`) decide se "não detectado" vira alerta.
 
 Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve em `models/vyra_ppe.pt`.
 
@@ -417,6 +432,12 @@ tests/                  Testes backend (pytest)
 ```
 
 ## Roadmap
+
+- [x] **Peso treinado no domínio** (Sprint 4) — YOLOv8n no Construction-PPE a `imgsz=416`; um modelo só no lugar de dois; avaliação por pessoa em 236 pessoas anotadas, com IC por reamostragem de cenas. [docs/SPRINT4.md](docs/SPRINT4.md)
+- [x] **Classes negativas e o estado "não verificado"** (Sprint 4) — `PPE_MISSING_POLICY=ausencia|evidencia`, escolhida na validação.
+- [x] **Segundo gatilho do LLM** (Sprint 4) — capacete/colete "não verificado" por 3 detecções aciona a segunda opinião, sem criar alerta.
+- [ ] **Medir o LLM no conjunto anotado** — `scripts/avaliar_llm_dataset.py` pronto; falta rodar com chave (bloqueio de rede no ambiente da Sprint 4).
+- [ ] **Dataset das câmeras da planta**, anotado por duas pessoas — única forma de afirmar acurácia lá.
 
 - [x] Tracking estável de pessoa entre frames — feito com um tracker IoU por câmera (`app/vision/person_tracker.py`) em vez de `model.track(persist=True)`: o estado do tracker do Ultralytics vive dentro do objeto do modelo, e os modelos aqui são compartilhados entre câmeras.
 - [x] Matching geométrico EPI–pessoa por posição real, com atribuição exclusiva

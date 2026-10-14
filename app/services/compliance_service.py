@@ -60,10 +60,16 @@ class ComplianceService:
             elif people:
                 missing_people = [person for person in people if person["ppe"][key]["status"] == "missing"]
                 uncertain_people = [person for person in people if person["ppe"][key]["status"] == "unsupported"]
+                unverified_people = [person for person in people if person["ppe"][key]["status"] == "unverified"]
                 ok_people = [person for person in people if person["ppe"][key]["status"] == "ok"]
                 if missing_people:
                     status = "missing"
                     message = f"Ausente em {len(missing_people)} de {len(people)} pessoa(s)"
+                elif unverified_people:
+                    # Nem visto com, nem visto sem: nao e violacao confirmada,
+                    # e tambem nao e "ok". Amarelo, sem alerta.
+                    status = "unverified"
+                    message = f"Não verificado em {len(unverified_people)} de {len(people)} pessoa(s)"
                 elif uncertain_people:
                     status = "unsupported"
                     message = "Modelo não suporta avaliação completa"
