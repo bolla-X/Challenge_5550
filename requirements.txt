@@ -6,18 +6,26 @@ python-dotenv==1.0.1
 psycopg2-binary==2.9.9
 opencv-python==4.10.0.84
 ultralytics==8.3.40
-# OpenVINO fica FORA de proposito. Em teste de bancada ele parece 5,6x melhor
-# (24 ms/frame contra 186 ms), mas dentro do worker real fica MAIS LENTO que o
-# PyTorch — 435-614 ms contra 237 ms, medido. E nao publica wheel para Apple
-# Silicon: torna-lo obrigatorio quebraria o pip install inteiro no macOS ARM.
-# Para experimentar em CPU Intel, instale a mao e aponte PPE_MODEL_PATH para um
-# diretorio *_openvino_model (o codigo ja suporta).
+# Runtimes de inferencia (NEXT 2026). O padrao `auto` tenta, nesta ordem,
+# OpenVINO na iGPU Intel -> ONNX Runtime -> PyTorch, so com exports APROVADOS no
+# guarda de concordancia (scripts/concordancia.py, models/export/aprovados.json).
+# Medido no portao do PR2 (docs/NEXT2026/BENCHMARKS.md): CPU-ms do servidor por
+# analise -71 % com OpenVINO na iGPU contra ONNX na CPU. O comentario antigo
+# ("OpenVINO fica fora, mais lento no worker") era do loop sincrono de antes do
+# PR1 e deixou de valer. OpenVINO so em x86-64 (sem wheel para Apple Silicon:
+# la o `auto` cai para ONNX).
+openvino==2026.3.0; platform_machine == "x86_64" or platform_machine == "AMD64"
+onnxruntime==1.29.0
 mediapipe==0.10.14
 numpy==1.26.4
 gunicorn==22.0.0
+# Certificado local do `run.py --https` (celular como camera, F6).
+cryptography==50.0.1
 pytest==8.3.3
 pytest-cov==5.0.0
 ruff==0.6.9
+# E2E e bench (navegador real). Depois do pip: `python -m playwright install chromium`.
+playwright==1.55.0
 
 # --- Camada LLM multimodal (Sprint 3) -----------------------------------
 # google-genai usa transporte HTTP/JSON e NAO puxa protobuf: verificado com

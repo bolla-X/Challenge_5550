@@ -57,10 +57,10 @@ def test_env_example_nao_liga_auto_create_tables():
 def test_env_example_aponta_para_peso_que_o_requirements_instala():
     """`PPE_MODEL_PATH` nao pode apontar para um runtime que nao e instalado.
 
-    O `.env.example` apontava para um diretorio `*_openvino_model`, mas o
-    `requirements.txt` deliberadamente NAO instala OpenVINO — e explica por que
-    num comentario. O README, por sua vez, documenta `models/vyra_ppe.pt`.
-    Os dois discordavam entre si; quem seguisse o `.env.example` nao subia.
+    O `.env.example` ja apontou para um diretorio `*_openvino_model` quando o
+    OpenVINO nao era instalado, e quem o seguia nao subia. Desde o NEXT 2026 o
+    caminho e sempre o `.pt`: o runtime (`PPE_RUNTIME=auto`) escolhe sozinho o
+    export aprovado no guarda e cai para o `.pt` se nada estiver aprovado.
     """
     caminho = ler_env_example()["PPE_MODEL_PATH"]
     assert caminho.endswith(".pt"), (
