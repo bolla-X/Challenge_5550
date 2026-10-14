@@ -1,0 +1,23 @@
+{
+  "rotulo": "depois-multidao",
+  "raiz": "C:\\Users\\L-BARALDI\\Desktop\\Challenge_5550-main",
+  "fixture": "next_multidao.mp4",
+  "segundos": 150.0,
+  "carga_de_fundo_pct": 99.5,
+  "inferencias": 327,
+  "alertas_criados": 250,
+  "alertas_por_regra": {
+    "missing_glasses": 46,
+    "missing_gloves": 46,
+    "missing_helmet": 46,
+    "missing_mask": 46,
+    "missing_vest": 46,
+    "risk_area_presence": 20
+  },
+  "ids_de_pessoa_com_alerta": 34,
+  "incidentes_criados": 11,
+  "max_itens_no_painel_antigo": 80,
+  "max_alertas_ativos_mesma_regra": 15,
+  "max_incidentes_ativos": 11,
+  "max_incidentes_mesma_regra_e_zona": 1
+}

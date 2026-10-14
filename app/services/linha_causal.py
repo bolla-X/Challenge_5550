@@ -133,7 +133,8 @@ def montar(incidente: dict[str, Any], alertas: list[dict[str, Any]], eventos: li
             if principal.get("rule") == "risk_area_presence":
                 texto = f"entrou na {zona_frase}" + (f" {_lista_sem(faltando)}" if faltando else "")
             else:
-                texto = f"{'na ' + zona if zona not in ('Fora da zona', 'Toda a câmera') else 'apareceu'} {_sem(principal.get('feature'))}"
+                onde = f"estava na {zona}" if zona not in ("Fora da zona", "Toda a câmera") else "apareceu"
+                texto = f"{onde} {_sem(principal.get('feature'))}"
             passo(t0, texto, "violacao")
             # 3) Quanto tempo ficou assim.
             fim = _ts(principal.get("resolved_at"))

@@ -178,9 +178,12 @@ export const putGate = (camId: number, required: string[] | null) =>
   });
 
 // ---- incidentes (MISSÃO 2, P0.2): app/api/incidentes.py -------------------
-export const listarIncidentes = (params: { cameraId?: number | null; status?: "active" | "resolved"; limit?: number } = {}) => {
+export const listarIncidentes = (
+  params: { cameraId?: number | null; status?: "active" | "resolved"; limit?: number; regra?: string } = {},
+) => {
   const q = new URLSearchParams();
   if (params.cameraId != null) q.set("camera_id", String(params.cameraId));
+  if (params.regra) q.set("rule", params.regra);
   if (params.status) q.set("status", params.status);
   if (params.limit) q.set("limit", String(params.limit));
   return apiFetch<{ items: Incidente[]; count: number }>(`/api/incidentes?${q.toString()}`);

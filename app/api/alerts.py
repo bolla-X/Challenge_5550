@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -125,6 +126,13 @@ def get_alert_clip_frame(alert_id: int, indice: int):
     if not camera_permitida(alert.camera_id):
         return erro_fora_do_escopo()
     pasta = _pasta_do_clipe(alert_id)
+    # Alerta da mesma análise de outro: os quadros moram na pasta do primeiro.
+    try:
+        compartilhado = json.loads((pasta / "clip.json").read_text(encoding="utf-8")).get("quadros_em")
+    except (OSError, ValueError):
+        compartilhado = None
+    if compartilhado and str(compartilhado).startswith("alert_") and str(compartilhado)[6:].isdigit():
+        pasta = pasta.parent / str(compartilhado)
     nome = f"{int(indice):04d}.jpg"
     if not (pasta / nome).exists():
         return jsonify({"error": "quadro não encontrado"}), 404

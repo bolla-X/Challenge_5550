@@ -183,3 +183,31 @@ Resumo final em até 30 linhas:
 - tempo até "Liberado" no Portal com 4 câmeras ligadas;
 - resultado do teste de clone limpo;
 - as 3 maiores ameaças restantes para a apresentação.
+
+## ADENDO 2 — retomada depois do reinício do PC (14/10/2026)
+
+O PC reiniciou no meio da sessão anterior, durante o bench intercalado "antes × PR5".
+
+### Recuperação (antes de qualquer outra coisa)
+1. `git status` e `git worktree list`. Rode `git worktree prune`. Encerre só processos seus que tenham sobrado (servidor do VisionEPI, Chromium do Playwright, bench) e libere portas e arquivos `.db` presos.
+2. Se houver alteração sem commit em `next-2026`, faça commit agora ("wip: recuperação pós-reinício") e `git push -u origin next-2026`.
+3. Regra nova, vale até o fim da missão: commit + push da branch de trabalho a cada marco e antes de qualquer tarefa com mais de 10 minutos rodando em segundo plano. Nada importante fica só no disco local.
+4. Rode pytest completo, ruff e build, para confirmar que o estado em disco é o mesmo que passou antes do reinício (649 unitários, E2E 33/33 na rodada 8). Se algo divergir, investigue antes de seguir.
+
+### Ajustes antes do merge do PR5
+A. Tempo até "Liberado" no Portal
+- Meça com o E2E do portal repetido 10 vezes, com 4 câmeras ligadas, e registre p50 e p95.
+- Meta: p50 ≤ 5 s e p95 ≤ 10 s.
+- Se não atingir, aumente o peso da câmera em foco no agendador (até 70% das vagas, mantendo a regra de nenhuma câmera ficar mais de 3 s sem inferência) e/ou reduza as confirmações exigidas no portal para 3 quadros, se cada item continuar exigindo confirmação estável. Meça de novo.
+- Registre no CHANGELOG os números antes e depois.
+
+B. Queda na demo
+- Mantenha a regra de 2 análises seguidas.
+- No modo demo, a cena "Queda" do `/palco` passa a tocar a gravação da queda ao vivo a 0,25× da velocidade original, com o rótulo "GRAVAÇÃO · 0,25×" sempre visível sobre o vídeo, e o alerta aparece ao vivo. O replay do incidente continua como continuação da cena.
+- E2E: o alerta de queda aparece na cena do palco com o rótulo de velocidade visível (verifique o texto do rótulo no DOM).
+- No BANCA.md, inclua a pergunta "Vocês detectam uma queda que dura menos de 1 segundo ao vivo?" com a resposta honesta e medida: taxa de análise por câmera, duração da queda na fixture, por que a demo usa 0,25× e o que melhoraria isso (mais análises por segundo ou hardware dedicado).
+
+### Depois
+1. Refaça o bench intercalado "antes × PR5" (3 repetições, 1 e 4 câmeras), seguindo a regra de bench leve da MISSAO-2.
+2. Rode o portão completo do PR5 numa rodada única: pytest, ruff, build, E2E com 4 câmeras sem pausas de contorno, axe. Abra o PR5 e faça squash merge.
+3. Siga a MISSAO-2 a partir da Fase C (PR6) e depois a Fase D (PR7 → main), atualizando o ESTADO.md a cada marco.

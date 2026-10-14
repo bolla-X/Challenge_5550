@@ -36,6 +36,14 @@ async function ir(acao: "proxima" | "anterior" | "ir", indice?: number, token?: 
   return (await r.json()) as Estado;
 }
 
+/** O servidor numera cada troca (`seq`): resposta atrasada de um polling
+ * (ou de um `ir`) nunca volta a tela para uma cena mais antiga. */
+function maisNovo(atual: Estado | null, d: Estado): Estado {
+  if (!atual) return d;
+  if (d.seq < atual.seq) return atual;
+  return atual.seq === d.seq && atual.cena === d.cena ? atual : d;
+}
+
 function VideoDaCena({ cameraId }: { cameraId: number }) {
   const estado = useCameraEstado(cameraId);
   const inc = incidenteCritico(estado);
@@ -89,13 +97,24 @@ function NumerosDoSistema() {
   );
 }
 
-function IncidenteDaCena({ cameraId }: { cameraId: number | null }) {
+function IncidenteDaCena({ cameraId, regra }: { cameraId: number | null; regra?: string }) {
   const [inc, setInc] = useState<Incidente | null | undefined>(undefined);
+  const achou = inc != null;
   useEffect(() => {
-    listarIncidentes({ cameraId, limit: 1 })
-      .then((r) => setInc(r.items[0] ?? null))
-      .catch(() => setInc(null));
-  }, [cameraId]);
+    if (achou) return undefined;
+    let vivo = true;
+    const buscar = () =>
+      listarIncidentes({ cameraId, regra, limit: 1 })
+        .then((r) => vivo && setInc(r.items[0] ?? null))
+        .catch(() => vivo && setInc(null));
+    buscar();
+    // Até o primeiro aparecer: a gravação da cena acabou de recomeçar.
+    const id = window.setInterval(buscar, 3000);
+    return () => {
+      vivo = false;
+      window.clearInterval(id);
+    };
+  }, [cameraId, regra, achou]);
   if (inc === undefined) return <p className="status-text">Buscando o incidente mais recente…</p>;
   if (inc === null) return <p className="palco-vazio">Nenhum incidente registrado ainda nesta câmera — volte a esta cena em instantes.</p>;
   return <IncidenteDetalhe incidente={inc} inline onClose={() => undefined} />;
@@ -115,8 +134,14 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
     case "portal":
     case "enganar":
       return <PortalScreen cameraId={cena.camera_id} desafioInicial={cena.chave === "enganar"} />;
-    case "raiox":
     case "queda":
+      // Incidente com o replay do momento, não o vídeo ao vivo: com o vídeo
+      // aberto a gravação anda em tempo real, e a queda da gravação fica
+      // ~0,8 s no chão, menos que duas análises numa máquina carregada (a
+      // regra de emergência exige duas). Sem espectador a gravação anda na
+      // taxa útil e a queda confirma. Ver CHANGELOG (Missão 2, PR5).
+      return <IncidenteDaCena cameraId={cena.camera_id} regra="fall_detected" />;
+    case "raiox":
       return cena.camera_id != null ? <VideoDaCena cameraId={cena.camera_id} /> : <p className="palco-vazio">Câmera da cena não cadastrada.</p>;
     case "gemeo":
       return (
@@ -200,7 +225,7 @@ export function PalcoScreen() {
         .then((d: Estado | null) => {
           if (d) {
             local.current = null;
-            setEstado((atual) => (atual && atual.seq === d.seq && atual.cena === d.cena ? atual : d));
+            setEstado((atual) => maisNovo(atual, d));
           }
         })
         .catch(() => undefined);
@@ -211,7 +236,7 @@ export function PalcoScreen() {
   const mover = useCallback(
     (acao: "proxima" | "anterior") => {
       ir(acao)
-        .then(setEstado)
+        .then((d) => setEstado((atual) => maisNovo(atual, d)))
         .catch(() => {
           // Servidor fora: o teclado ainda troca a cena nesta tela.
           setEstado((atual) => {

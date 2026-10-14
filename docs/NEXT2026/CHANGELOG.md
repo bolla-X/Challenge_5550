@@ -887,9 +887,87 @@ regulador que reduz a resolução interna quando o p95 passa de 40 ms.
   custódia. A demo já limpa ao subir e no reset; ela e o E2E deixam de limpar a
   cada câmera ligada.
 - A custódia fazia 1 commit por alerta criado dentro do loop
-  (`test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois` pegou):
-  os elos entram na mesma transação da análise.
+  (`test_uma_analise_com_muitos_alertas_faz_um_commit_so_e_emite_depois` pegou).
+  Primeira correção: elos na mesma transação da análise. Ela criou uma
+  **inversão de trava** (o worker segurava a escrita do SQLite esperando a trava
+  da cadeia; o gravador de evidências segurava a trava esperando a escrita →
+  `database is locked` e, pior, a sessão do worker ficava quebrada para sempre).
+  Correção final: os alertas commitam primeiro e os elos entram num segundo
+  commit, em lote (2 commits por análise, o teste mudou para isso); SQLite em
+  **WAL** com `busy_timeout` 15 s (`app/extensions.py`); o worker faz rollback da
+  sessão em qualquer erro do laço, em vez de seguir com ela inválida.
 - Abrir e fechar o arquivo da trilha a cada análise custava ~6 ms no Windows: o
   arquivo fica aberto, com flush a cada segundo.
 - O simulador com a regra atual reproduz os alertas reais da demo (21/21, 16/16
   por regra numa janela de 5 min) — é a prova de que ele simula a mesma coisa.
+- **Gravador de evidências afogado.** Na rodada 3 do E2E o log mostrou
+  `gravador_fila_cheia descartados: 731`: com os 7 EPIs, uma pessoa abre até 7
+  alertas na MESMA análise, e cada um enfileirava o seu quadro e o seu replay
+  (8 s de JPEG) — o mesmo conteúdo, 7 vezes. Agora: **um** arquivo de quadro e
+  **um** conjunto de quadros de replay por análise. Os outros alertas recebem só
+  o próprio `clip.json` com `"quadros_em": "alert_<primeiro>"`, e a API serve os
+  quadros pela pasta do primeiro. A custódia registra **um** elo de quadro e
+  **um** de replay por análise, com `alert_ids` de todos; o manifesto do replay
+  cobre todas as pastas (`alert_N/arquivo`), então adulterar o índice de qualquer
+  alerta do lote aponta o elo e o arquivo. Testes: `test_replay.py`
+  (`test_alertas_da_mesma_analise_compartilham_os_quadros`), `test_custodia.py`
+  (3 novos: verificação por alerta acompanhante, índice adulterado, API).
+
+### Decisões de P0.1 tomadas com medição (`scripts/diagnostico_foco.py`)
+
+- **Foco vence sob carga.** Com a máquina a 100 % de CPU (outros processos), a
+  guarda de espera (2,5 s) disparava para as 3 câmeras de fundo o tempo todo e o
+  foco caía para 26 % das inferências. Regra: quando há atrasados, a câmera em
+  foco alterna com eles (nunca duas atrasadas seguidas sem o foco entre elas).
+  Medido sob carga (0,5–1 inferência/s no total): foco **52–58 %**.
+- **Prioridade de confirmação de emergência = uma vaga.** Uma detecção de queda
+  dá à câmera **uma** ficha (válida 2 s) para a análise de confirmação, sem esperar
+  o rodízio. A primeira versão (prioridade por janela de tempo) deixava os falsos
+  positivos de queda da `multidao` roubarem as vagas do portal.
+- **Gravação desacelera durante a confirmação** (`CAPTURA_FPS_CONFIRMACAO`, só
+  em fonte gravada): a queda da gravação durava menos que duas análises sob carga.
+  A regra das 2 análises **não** foi afrouxada: `scripts/confianca_de_queda.py`
+  mostrou falso positivo de queda com confiança **0,84** num quadro da `multidao`
+  — um quadro sozinho não separa queda real de falso positivo.
+- **Aproximação (F3):** a trilha expirava em 2 s e, sob carga, a análise seguinte
+  chegava depois; `validade_s` 6 s, e o aviso só sai para trilhas presentes na
+  análise atual.
+- **A queda trocava de ID no meio da confirmação.** A confirmação de emergência
+  conta análises seguidas da MESMA chave (regra + ID), e o rastreador troca o ID
+  de quem cai (caixa em pé × caixa no chão quase não se sobrepõem). Medido com o
+  log `queda_vista` e as 4 câmeras (`diagnostico_foco.py --foco queda`, 180 s):
+  pares `person_14 → person_3` (3,1 s) e `person_5 → person_4` (3,6 s) na mesma
+  queda; a única confirmada manteve o ID. Agora uma queda a ≤ 1,5 largura de
+  caixa de outra vista há ≤ 5 s herda o sujeito dela (`continuidade_de` no
+  metadado registra o ID que o rastreador deu). `tests/test_quedas.py` (2 novos).
+- **Verificação da cadeia inteira em 92 s.** O E2E de 20 min deixou 2 523 elos e
+  31 mil quadros de replay; no Windows cada abertura de arquivo custava ~1 ms.
+  Leitura dos arquivos em 8 threads: 23 s na mesma cadeia (e a deduplicação acima
+  corta os quadros por análise). A mesma medição mostrou 171 elos "conteúdo
+  alterado" — não era adulteração: o diagnóstico tinha gravado `alert_1…` na
+  MESMA pasta de replay do E2E (os ids recomeçam a cada banco). E2E e diagnóstico
+  passam a ter pastas de replay e trilha próprias, zeradas ao subir, e o
+  gravador apaga quadros velhos de uma pasta com o mesmo id antes de escrever.
+- **Linha causal:** "na Zona A sem capacete" virou "estava na Zona A sem
+  capacete" (o passo começava sem verbo quando a pessoa já surgia dentro da zona).
+- **Queda com o vídeo aberto: limite assumido, não contornado.** Rodada 4 do
+  E2E: com a tela de foco aberta a gravação anda em tempo real, a pessoa fica
+  ~0,8 s no chão (6,2–7,0 s do clipe), e com 4 câmeras numa máquina carregada
+  duas análises não cabem nisso — 5 min só com avistamentos isolados
+  (`queda_vista` a cada 30–70 s). A ficha de prioridade e a câmera lenta da
+  confirmação só começam DEPOIS do resultado da 1ª análise (~1 s de latência).
+  A mesma gravação sem espectador anda na taxa útil e confirmou 5 quedas no
+  mesmo E2E. A regra das 2 análises fica (o falso positivo de 0,84 da
+  `multidao` é de um quadro só). Consequências: o E2E da queda espera na grade
+  e confere o evento com o ID depois, na aba "Quedas e postura"; a cena "Queda"
+  do `/palco` mostra o incidente de queda com a linha causal e o replay do
+  momento (`/api/incidentes?rule=`), não o vídeo ao vivo. Numa câmera real a
+  pessoa caída fica no chão bem mais que 0,8 s.
+- **`[bootstrap] failed: Failed to fetch`** no console quando a página navegava
+  no meio do primeiro carregamento (ou o servidor estava ocupado): falha de rede
+  agora tenta de novo em 2 s (até 5 vezes) e só vira erro se persistir.
+- **400 do Socket.IO no console** (gêmeo, rodadas 3 e 6): o socket conectava no
+  carregamento do módulo, antes de saber se havia sessão; na tela de login o
+  servidor rejeitava (`socket_rejected_unauthenticated`, ~37 por rodada) e o
+  poll seguinte daquele `sid` voltava 400. `autoConnect: false`: o socket só
+  conecta em `subscribeToServerEvents`, depois do login.

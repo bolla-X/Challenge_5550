@@ -1,0 +1,15 @@
+{
+  "foco": "multidao",
+  "segundos": 120.0,
+  "env": [],
+  "servidos": {
+    "multidao": 61,
+    "bench": 17,
+    "queda": 22,
+    "multidao2": 16
+  },
+  "fracao_foco": 0.526,
+  "inferencias_por_s": 0.97,
+  "pre_alertas_registrados": 0,
+  "alertas_de_queda": 1
+}

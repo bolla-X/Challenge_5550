@@ -145,9 +145,27 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const unsubscribe = subscribeToServerEvents();
-    bootstrap().catch((err) => console.error("[bootstrap] failed", err));
-    loadCameras().catch((err) => console.error("[loadCameras] failed", err));
-    return unsubscribe;
+    let ativo = true;
+    // Falha de REDE (fetch abortado por navegação, servidor ocupado) não é erro
+    // do app: tenta de novo em 2 s enquanto a tela estiver montada. Outras
+    // falhas continuam como erro no console.
+    const carregar = (nome: string, fn: () => Promise<unknown>, tentativa = 0): void => {
+      fn().catch((err) => {
+        const rede = err instanceof TypeError && /fetch/i.test(err.message);
+        if (rede && ativo && tentativa < 5) {
+          console.warn(`[${nome}] rede indisponível, tentando de novo`, err);
+          window.setTimeout(() => ativo && carregar(nome, fn, tentativa + 1), 2000);
+        } else if (!rede || ativo) {
+          console.error(`[${nome}] failed`, err);
+        }
+      });
+    };
+    carregar("bootstrap", bootstrap);
+    carregar("loadCameras", loadCameras);
+    return () => {
+      ativo = false;
+      unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 

@@ -149,3 +149,47 @@ def test_api_verifica_por_incidente_e_tudo(app, client, tmp_path):
     assert r["integra"] and {e["tipo"] for e in r["elos"]} == {"alerta", "snapshot", "clipe"}
     tudo = client.get("/api/custodia/verificar").get_json()
     assert tudo["elos_na_cadeia"] == 5
+
+
+def _lote(app, tmp_path):
+    """Três alertas da mesma análise: um quadro e um replay para todos."""
+    from app.services.replay import ClipePendente, QuadroDeReplay, gravar_clipe
+
+    with app.app_context():
+        alertas = [_alerta(n) for n in (1, 2, 3)]
+        snap = tmp_path / "lote.jpg"
+        snap.write_bytes(b"\xff\xd8lote\xff\xd9")
+        custodia.registrar_snapshot(alertas[0], snap, alert_ids=[a.id for a in alertas])
+        quadros = [QuadroDeReplay(ts_ms=i * 100.0, jpeg=bytes([0xFF, 0xD8, i, 0xFF, 0xD9]), overlay=None, escala=1.0)
+                   for i in range(3)]
+        pendente = ClipePendente(alert_id=alertas[0].id, t0_ms=100.0, inicio_ms=0.0, fim_ms=300.0, alerta={"rule": "missing_helmet"},
+                                 acompanhantes=[{"id": a.id, "rule": a.rule} for a in alertas[1:]])
+        clipe = gravar_clipe(tmp_path / "clips", pendente, quadros, camera_id=2)
+        custodia.registrar_clipe(alertas[0].id, 2, [Path(x) for x in clipe["pastas"]], alert_ids=[a.id for a in alertas])
+        return [a.id for a in alertas], tmp_path / "clips"
+
+
+def test_evidencia_compartilhada_entra_na_verificacao_de_cada_alerta(app, tmp_path):
+    ids, _ = _lote(app, tmp_path)
+    with app.app_context():
+        assert ElodeCustodia.query.count() == 2, "um elo para o quadro e um para o replay, não um por alerta"
+        r = custodia.verificar(alert_ids={ids[2]})
+        assert r["integra"] and {e["tipo"] for e in r["elos"]} == {"snapshot", "clipe"}
+
+
+def test_indice_adulterado_de_um_acompanhante_quebra_o_elo_do_replay(app, tmp_path):
+    ids, clips = _lote(app, tmp_path)
+    indice = clips / f"alert_{ids[1]}" / "clip.json"
+    indice.write_text(indice.read_text(encoding="utf-8").replace("missing_helmet", "missing_vest"), encoding="utf-8")
+    with app.app_context():
+        r = custodia.verificar()
+        assert r["quebrado"]["tipo"] == "clipe" and r["quebrado"]["situacao"] == "conteudo_alterado"
+        assert r["quebrado"]["arquivo"] == f"alert_{ids[1]}/clip.json"
+
+
+def test_api_serve_quadro_do_acompanhante_pela_pasta_do_primeiro(app, client, tmp_path):
+    ids, clips = _lote(app, tmp_path)
+    app.config["REPLAY_DIR"] = str(clips)
+    r = client.get(f"/api/alerts/{ids[2]}/clip/1.jpg")
+    assert r.status_code == 200 and r.data == bytes([0xFF, 0xD8, 1, 0xFF, 0xD9])
+    assert client.get(f"/api/alerts/{ids[2]}/clip").get_json()["quadros_em"] == f"alert_{ids[0]}"

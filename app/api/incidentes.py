@@ -42,6 +42,9 @@ def listar_incidentes():
     status = request.args.get("status")
     if status in {"active", "resolved"}:
         consulta = consulta.filter(Incidente.status == status)
+    regra = request.args.get("rule")
+    if regra:
+        consulta = consulta.filter(Incidente.rule == regra)
     limite = min(max(request.args.get("limit", 100, type=int) or 100, 1), 500)
     itens = consulta.order_by(Incidente.aberto_em.desc()).limit(limite).all()
     return jsonify({"items": [i.to_dict() for i in itens], "count": len(itens)})

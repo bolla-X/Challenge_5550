@@ -60,6 +60,37 @@ class SnapshotService:
             logger.warning("snapshot_attach_failed", extra={"alert_id": alert.id, "error": str(exc)})
             return alert
 
+    def attach_to_alerts(self, alerts: list[Alert], frame: np.ndarray | None) -> list[Alert]:
+        """Um quadro para vários alertas da mesma análise (mesmo instante): um arquivo, um commit, um elo."""
+        if not alerts:
+            return []
+        if len(alerts) == 1:
+            return [self.attach_to_alert(alerts[0], frame)]
+        if not self.enabled or frame is None:
+            return alerts
+        try:
+            self.absolute_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            filename = f"alert_{alerts[0].id}_lote{len(alerts)}_{timestamp}.jpg"
+            filepath = self.absolute_dir / filename
+            if not cv2.imwrite(str(filepath), frame, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]):
+                logger.warning("snapshot_write_failed", extra={"alert_id": alerts[0].id, "path": str(filepath)})
+                return alerts
+            for alerta in alerts:
+                alerta.frame_ref = f"/snapshots/{filename}"
+                alerta.metadata_json = {**(alerta.metadata_json or {}), "snapshot_available": True}
+            from app.extensions import db
+
+            db.session.commit()
+            if self.custodia:
+                from app.services.custodia import registrar_snapshot
+
+                registrar_snapshot(alerts[0], filepath, alert_ids=[a.id for a in alerts])
+            return alerts
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("snapshot_attach_failed", extra={"alert_id": alerts[0].id, "error": str(exc)})
+            return alerts
+
     def info(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,

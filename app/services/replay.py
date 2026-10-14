@@ -23,7 +23,7 @@ import json
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -99,33 +99,57 @@ class ClipePendente:
     fim_ms: float
     inicio_ms: float
     alerta: dict[str, Any]
+    # Outros alertas criados na MESMA análise: mesma janela, mesmos quadros.
+    # Gravam só o próprio clip.json, apontando para os quadros do primeiro
+    # ("quadros_em"): com os 7 EPIs, uma pessoa abria até 7 alertas de uma vez e
+    # o gravador escrevia 7 cópias do mesmo replay (fila cheia no E2E).
+    acompanhantes: list[dict[str, Any]] = field(default_factory=list)
 
 
-def gravar_clipe(diretorio: Path, pendente: ClipePendente, quadros: list[QuadroDeReplay], camera_id: int | None) -> dict[str, Any]:
-    """Escreve os quadros e o índice do clipe. Roda no thread do GravadorAssincrono."""
-    pasta = diretorio / f"alert_{pendente.alert_id}"
-    pasta.mkdir(parents=True, exist_ok=True)
-    indice = []
-    for i, q in enumerate(quadros):
-        (pasta / f"{i:04d}.jpg").write_bytes(q.jpeg)
-        indice.append({"i": i, "ts_ms": q.ts_ms, "rel_ms": round(q.ts_ms - pendente.t0_ms, 1),
-                       "overlay": q.overlay, "escala": q.escala})
-    meta = pendente.alerta.get("metadata") or {}
-    clipe = {
-        "alert_id": pendente.alert_id,
+def _indice_do_clipe(pendente: ClipePendente, alerta: dict[str, Any], indice: list[dict[str, Any]],
+                     camera_id: int | None) -> dict[str, Any]:
+    meta = alerta.get("metadata") or {}
+    return {
+        "alert_id": alerta.get("id"),
         "camera_id": camera_id,
         "t0_ms": pendente.t0_ms,
         "janela_ms": [round(pendente.inicio_ms - pendente.t0_ms), round(pendente.fim_ms - pendente.t0_ms)],
         "quadros": indice,
         "total": len(indice),
         "pessoa": meta.get("person_label") or meta.get("person_id") or meta.get("subject"),
-        "regra": pendente.alerta.get("rule"),
-        "mensagem": pendente.alerta.get("message"),
-        "severidade": pendente.alerta.get("severity"),
+        "regra": alerta.get("rule"),
+        "mensagem": alerta.get("message"),
+        "severidade": alerta.get("severity"),
         # As evidências que SUSTENTARAM a decisão, como estavam no alerta.
         "evidencias": {k: meta.get(k) for k in ("confirmation_frames", "present_labels", "supported_ppe", "person_box", "method")
                        if meta.get(k) is not None},
         "gerado_em": time.time(),
     }
+
+
+def gravar_clipe(diretorio: Path, pendente: ClipePendente, quadros: list[QuadroDeReplay], camera_id: int | None) -> dict[str, Any]:
+    """Escreve os quadros (uma vez) e um índice por alerta do lote. Roda no thread do GravadorAssincrono.
+
+    Devolve o índice do primeiro alerta, com `pastas` = todas as pastas escritas.
+    """
+    pasta = diretorio / f"alert_{pendente.alert_id}"
+    pasta.mkdir(parents=True, exist_ok=True)
+    # Pasta com o mesmo id de outra vida do banco: quadros velhos a mais
+    # entrariam no manifesto da custódia e no replay.
+    for velho in pasta.glob("*.jpg"):
+        velho.unlink(missing_ok=True)
+    indice = []
+    for i, q in enumerate(quadros):
+        (pasta / f"{i:04d}.jpg").write_bytes(q.jpeg)
+        indice.append({"i": i, "ts_ms": q.ts_ms, "rel_ms": round(q.ts_ms - pendente.t0_ms, 1),
+                       "overlay": q.overlay, "escala": q.escala})
+    clipe = _indice_do_clipe(pendente, pendente.alerta | {"id": pendente.alert_id}, indice, camera_id)
     (pasta / "clip.json").write_text(json.dumps(clipe, ensure_ascii=False), encoding="utf-8")
-    return clipe
+    pastas = [pasta]
+    for outro in pendente.acompanhantes:
+        destino = diretorio / f"alert_{outro['id']}"
+        destino.mkdir(parents=True, exist_ok=True)
+        dele = _indice_do_clipe(pendente, outro, indice, camera_id) | {"quadros_em": pasta.name}
+        (destino / "clip.json").write_text(json.dumps(dele, ensure_ascii=False), encoding="utf-8")
+        pastas.append(destino)
+    return clipe | {"pastas": [str(x) for x in pastas]}

@@ -82,3 +82,33 @@ def test_linha_do_tempo_guarda_so_mudancas_e_e_limitada():
     for i in range(5):
         linha.registrar([{"id": f"person_{10 + i}", "label": "x", "ppe": {}}], 5.0 + i)
     assert len(linha.ids()) == 2 and linha.obter("person_3") is None, "limite de IDs: sai o mais antigo"
+
+
+def _quedas(motor, deteccoes):
+    return [a for a in motor.evaluate(deteccoes, None, (576, 720, 3)) if a.rule == "fall_detected"]
+
+
+def test_queda_mantem_o_sujeito_quando_o_rastreador_troca_o_id():
+    """Medido com as 4 câmeras: a mesma queda chegou como person_5 e depois person_4; a confirmação nunca fechava."""
+    motor, t = _motor(), [100.0]
+    motor.relogio = lambda: t[0]
+    primeira = _quedas(motor, [_pessoa(260, 430, 560, 530, track_id=5), _queda(262, 432, 558, 528)])
+    t[0] += 3.6
+    segunda = _quedas(motor, [_pessoa(280, 440, 580, 540, track_id=4), _queda(282, 442, 578, 538)])
+
+    assert primeira[0].key == segunda[0].key
+    assert segunda[0].metadata["person_id"] == "person_5"
+    assert segunda[0].metadata["continuidade_de"] == "person_4"
+    assert segunda[0].metadata["person_box"]["x1"] == 280, "a caixa é a da análise atual"
+
+
+def test_queda_longe_ou_depois_da_janela_e_outro_sujeito():
+    motor, t = _motor(), [100.0]
+    motor.relogio = lambda: t[0]
+    a = _quedas(motor, [_pessoa(0, 430, 200, 530, track_id=1), _queda(2, 432, 198, 528)])
+    t[0] += 1.0
+    longe = _quedas(motor, [_pessoa(500, 430, 700, 530, track_id=2), _queda(502, 432, 698, 528)])
+    assert longe[0].key != a[0].key, "a 2,5 larguras de distância é outra pessoa"
+    t[0] += 6.0
+    depois = _quedas(motor, [_pessoa(0, 430, 200, 530, track_id=3), _queda(2, 432, 198, 528)])
+    assert depois[0].metadata["person_id"] == "person_3", "fora da janela de 5 s não herda"

@@ -1,0 +1,24 @@
+{
+  "rotulo": "depois-queda",
+  "raiz": "C:\\Users\\L-BARALDI\\Desktop\\Challenge_5550-main",
+  "fixture": "next_queda.mp4",
+  "segundos": 150.0,
+  "carga_de_fundo_pct": 99.7,
+  "inferencias": 141,
+  "alertas_criados": 96,
+  "alertas_por_regra": {
+    "fall_detected": 2,
+    "missing_glasses": 17,
+    "missing_gloves": 17,
+    "missing_helmet": 17,
+    "missing_mask": 17,
+    "missing_vest": 17,
+    "risk_area_presence": 9
+  },
+  "ids_de_pessoa_com_alerta": 7,
+  "incidentes_criados": 30,
+  "max_itens_no_painel_antigo": 22,
+  "max_alertas_ativos_mesma_regra": 4,
+  "max_incidentes_ativos": 12,
+  "max_incidentes_mesma_regra_e_zona": 1
+}

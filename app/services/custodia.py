@@ -30,6 +30,7 @@ import hashlib
 import json
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -183,18 +184,36 @@ def registrar_alerta(alerta: Alert) -> ElodeCustodia:
 
 
 @_seguro
-def registrar_snapshot(alerta: Alert, caminho: Path) -> ElodeCustodia:
+def registrar_snapshot(alerta: Alert, caminho: Path, *, alert_ids: list[int] | None = None) -> ElodeCustodia:
+    ids = alert_ids or [alerta.id]
     return _anexar(tipo="snapshot", ref=f"snapshot:{caminho.name}", conteudo_sha256=sha256_bytes(caminho.read_bytes()),
-                   descricao=f"Quadro do alerta {alerta.id}", camera_id=alerta.camera_id, alert_id=alerta.id,
-                   detalhe={"caminho": str(caminho)})
+                   descricao=f"Quadro do alerta {alerta.id}" + (f" e de mais {len(ids) - 1}" if len(ids) > 1 else ""),
+                   camera_id=alerta.camera_id, alert_id=alerta.id, detalhe={"caminho": str(caminho), "alert_ids": ids})
+
+
+def manifesto_das_pastas(pastas: list[Path]) -> dict[str, str]:
+    """Uma pasta: nomes simples (formato original). Várias: "pasta/arquivo"."""
+    if len(pastas) == 1:
+        return manifesto_da_pasta(pastas[0])
+    saida: dict[str, str] = {}
+    for pasta in pastas:
+        for nome, h in manifesto_da_pasta(pasta).items():
+            saida[f"{pasta.name}/{nome}"] = h
+    return saida
 
 
 @_seguro
-def registrar_clipe(alert_id: int, camera_id: int | None, pasta: Path) -> ElodeCustodia:
-    manifesto = manifesto_da_pasta(pasta)
-    return _anexar(tipo="clipe", ref=f"clipe:{pasta.name}", conteudo_sha256=sha256_bytes(conteudo_do_manifesto(manifesto)),
-                   descricao=f"Replay do alerta {alert_id} ({len(manifesto) - 1} quadros)", camera_id=camera_id,
-                   alert_id=alert_id, detalhe={"caminho": str(pasta), "manifesto": manifesto})
+def registrar_clipe(alert_id: int, camera_id: int | None, pastas: Path | list[Path], *,
+                    alert_ids: list[int] | None = None) -> ElodeCustodia:
+    lista = [pastas] if isinstance(pastas, Path) else list(pastas)
+    manifesto = manifesto_das_pastas(lista)
+    quadros = sum(1 for n in manifesto if n.endswith(".jpg"))
+    ids = alert_ids or [alert_id]
+    return _anexar(tipo="clipe", ref=f"clipe:{lista[0].name}", conteudo_sha256=sha256_bytes(conteudo_do_manifesto(manifesto)),
+                   descricao=f"Replay do alerta {alert_id} ({quadros} quadros)"
+                   + (f", compartilhado com mais {len(ids) - 1}" if len(ids) > 1 else ""),
+                   camera_id=camera_id, alert_id=alert_id,
+                   detalhe={"caminho": str(lista[0]), "pastas": [str(x) for x in lista], "manifesto": manifesto, "alert_ids": ids})
 
 
 @_seguro
@@ -217,13 +236,17 @@ def _recalcular(elo: ElodeCustodia, alertas: dict[int, Alert], eventos: dict[int
     if elo.tipo == "snapshot":
         return (sha256_bytes(caminho.read_bytes()) if caminho.is_file() else None), None
     if elo.tipo == "clipe":
-        if not caminho.is_dir():
+        pastas = [Path(x) for x in ((elo.detalhe or {}).get("pastas") or [str(caminho)])]
+        if not all(p.is_dir() for p in pastas):
             return None, None
-        atual = manifesto_da_pasta(caminho)
+        atual = manifesto_das_pastas(pastas)
         antigo = (elo.detalhe or {}).get("manifesto") or {}
         mudou = next((nome for nome in sorted(set(antigo) | set(atual)) if antigo.get(nome) != atual.get(nome)), None)
         return sha256_bytes(conteudo_do_manifesto(atual)), mudou
     return None, None
+
+
+VERIFICACAO_THREADS = 8
 
 
 def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
@@ -235,11 +258,21 @@ def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
     elos = ElodeCustodia.query.order_by(ElodeCustodia.id).all()
     # Fontes em lote (uma consulta por tabela, não uma por elo): a cadeia de um
     # turno tem milhares de elos e a verificação tinha de caber num clique.
-    conferir = [e for e in elos if alert_ids is None or e.alert_id in alert_ids]
+    def do_incidente(e: ElodeCustodia) -> bool:
+        return alert_ids is None or e.alert_id in alert_ids or bool(alert_ids & set((e.detalhe or {}).get("alert_ids") or []))
+
+    conferir = [e for e in elos if do_incidente(e)]
     ids_alerta = {e.alert_id for e in conferir if e.tipo == "alerta" and e.alert_id}
     ids_evento = {int(e.ref.split(":", 1)[1]) for e in conferir if e.tipo in ("privacidade", "evento")}
     alertas = {a.id: a for a in Alert.query.filter(Alert.id.in_(ids_alerta)).all()} if ids_alerta else {}
     eventos = {v.id: v for v in EventLog.query.filter(EventLog.id.in_(ids_evento)).all()} if ids_evento else {}
+    # Arquivos em paralelo: no Windows cada abertura custa ~1 ms (antivírus), e
+    # a cadeia de um E2E de 20 min tinha 31 mil quadros de replay → 92 s em
+    # série. Só leitura de disco nas threads; os elos já estão carregados.
+    de_arquivo = [e for e in conferir if e.tipo in ("snapshot", "clipe")]
+    with ThreadPoolExecutor(max_workers=VERIFICACAO_THREADS) as pool:
+        recalculados = dict(zip((e.id for e in de_arquivo), pool.map(lambda e: _recalcular(e, alertas, eventos), de_arquivo),
+                                strict=True))
     anterior = GENESE
     resultado: list[dict[str, Any]] = []
     primeiro_problema: dict[str, Any] | None = None
@@ -250,15 +283,15 @@ def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
             situacao = "cadeia_quebrada"
         elif hash_do_elo(elo.id, elo.tipo, elo.ref, elo.conteudo_sha256, elo.anterior_sha256, elo.criado_em) != elo.elo_sha256:
             situacao = "registro_alterado"
-        elif alert_ids is None or elo.alert_id in alert_ids:
-            recalculado, arquivo = _recalcular(elo, alertas, eventos)
+        elif do_incidente(elo):
+            recalculado, arquivo = recalculados.get(elo.id) or _recalcular(elo, alertas, eventos)
             if recalculado is None:
                 situacao = "ausente"
                 ausentes += 1
             elif recalculado != elo.conteudo_sha256:
                 situacao = "conteudo_alterado"
         anterior = elo.elo_sha256
-        if alert_ids is not None and elo.alert_id not in alert_ids and situacao == "ok":
+        if not do_incidente(elo) and situacao == "ok":
             continue
         item = elo.to_dict() | {"situacao": situacao, **({"arquivo": arquivo} if arquivo else {})}
         resultado.append(item)

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -52,6 +53,11 @@ class ServidorE2E:
         banco = runtime / "e2e.db"
         for sufixo in ("", "-journal", "-wal", "-shm"):  # WAL: os arquivos auxiliares velhos corromperiam o banco novo
             Path(str(banco) + sufixo).unlink(missing_ok=True)
+        # Replay e trilhas próprios e zerados: os ids de alerta recomeçam com o
+        # banco, e uma pasta alert_1 de outra rodada (ou da demo) quebraria a
+        # cadeia de custódia (X3) sem ninguém ter adulterado nada.
+        for pasta in ("e2e-clips", "e2e-trilhas"):
+            shutil.rmtree(runtime / pasta, ignore_errors=True)
         self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}
@@ -73,6 +79,8 @@ class ServidorE2E:
             "ALERT_CREATE_AFTER_FRAMES": "3",
             "RTSP_FIXTURE_FALLBACK": "",
             "SNAPSHOT_DIR": "bench/runtime/e2e-snapshots",
+            "REPLAY_DIR": "bench/runtime/e2e-clips",
+            "TRILHAS_DIR": "bench/runtime/e2e-trilhas",
             # Sem limpeza a cada câmera ligada: apagaria evidência da cadeia de custódia (X3).
             "CLEANUP_ON_MONITOR_START": "false",
             "PYTHONUNBUFFERED": "1",

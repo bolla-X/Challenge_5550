@@ -8,27 +8,33 @@ Retomar lendo só este arquivo e `MISSAO-2.md`. Reescrito a cada marco.
 - `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
 - `main-pre-release` = HEAD de `main` antes do release (`6c3ed61`).
 
-## Marco atual: FASE A (PR5) — consertos que afetam a demo
+## Marco atual: PR5 (Fases A + B) no portão
 
 | item | situação | evidência |
 |---|---|---|
-| P0.1 rodízio ponderado | código + 8 testes unitários; pausas removidas dos E2E | `tests/test_agendador_ponderado.py`; E2E pendente |
-| P0.2 incidentes + re-associação | código + 10 + 8 testes; medição antes/depois rodando | `tests/test_incidentes.py`, `tests/test_reassociacao.py`, `scripts/contar_incidentes.py` |
-| P0.3 `.env.example` | 640 + teste; permissão estreitada | `tests/test_onboarding.py::test_env_example_infere_a_640` |
+| P0.1 rodízio ponderado | pronto; foco 52–58 % sob carga | `test_agendador_ponderado.py` (11), `diagnostico_foco.py`, E2E sem pausas |
+| P0.2 incidentes + re-associação | pronto; multidão: máx. 1 incidente por regra+zona | `test_incidentes.py`, `test_reassociacao.py`, `contar_incidentes.py` |
+| P0.3 `.env.example` 640 | pronto | `test_onboarding.py` |
+| X1–X10 | código + unitários + E2E (ver tabela no CHANGELOG) | `e2e/test_missao2.py` |
+
+Rodada 3 do E2E: 28/33; as 5 falhas levaram a quatro consertos (evidência por
+análise, continuidade da queda, verificação paralela, pastas isoladas) — ver
+CHANGELOG "Achados no caminho". Rodada 4 em execução.
 
 ## Decisões em vigor
 
-- Foco = câmera com `video_feed` aberto (foco, portal, quiosque, palco) ou consulta recente do portal (lease 3 s).
-- Agendador: *smooth weighted round-robin*; foco soma peso = nº das outras (≥ 50 %); guarda de 2,5 s.
-- Incidente = (câmera, regra, zona); zona = nome da área de risco se a pessoa está dentro, "Fora da zona" se não, "Toda a câmera" sem zona.
-- Re-associação: 1,5 × largura da caixa, 2 s (config `REASSOCIAR_*`).
+- Foco = `video_feed` aberto ou consulta recente do portal (lease 3 s); foco alterna com atrasados.
+- Emergência: 1 ficha de 2 s por detecção de queda; gravação a 4 fps durante a confirmação; regra de 2 análises mantida.
+- Queda herda o sujeito de queda vista há ≤ 5 s a ≤ 1,5 largura.
+- Evidência: um quadro e um replay por análise, compartilhados (`quadros_em`).
+- SQLite em WAL; custódia em segundo commit, em lote.
 
-## Como verificar
+## Worktrees
 
-- Unitários: `.venv\Scripts\python.exe -m pytest tests -q`.
-- E2E: `.venv\Scripts\python.exe -m pytest e2e -q` (4 câmeras, sem pausas).
-- Incidentes: `python scripts/contar_incidentes.py --fixture multidao --rotulo depois` (e `--raiz ../ch5550-antes --rotulo antes`).
+- `../ch5550-antes` (tag `pre-missao-2`): medições "antes" e bench de referência.
+- `../ch5550-pr6` (branch `pr6-wip`): edições da Fase C ainda não commitadas.
 
 ## Próximo passo exato
 
-Concluir a medição de incidentes, ligar todos os EPIs na demo, rodar o E2E com 4 câmeras; depois X1 (gêmeo 3D).
+E2E verde → bench `--rapido` ×3 intercalado com `../ch5550-antes` → commit →
+PR5 → squash merge → recriar `next-2026` → aplicar a worktree do PR6.

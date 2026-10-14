@@ -153,6 +153,8 @@ def test_api_lista_detalha_e_reconhece(app, client):
     _logar(client, app)
     lista = client.get("/api/incidentes?status=active").get_json()
     assert [i["id"] for i in lista["items"]] == [inc_id]
+    assert client.get("/api/incidentes?rule=missing_helmet").get_json()["count"] == 1
+    assert client.get("/api/incidentes?rule=fall_detected").get_json()["count"] == 0
     detalhe = client.get(f"/api/incidentes/{inc_id}").get_json()
     assert len(detalhe["alertas"]) == 2
     r = client.post(f"/api/incidentes/{inc_id}/reconhecer").get_json()

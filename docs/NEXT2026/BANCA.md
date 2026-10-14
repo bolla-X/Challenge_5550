@@ -56,6 +56,11 @@ queda, a classe aparece em sequência (até 4 análises seguidas); nas gravaçõ
 sem queda, só isolada (0 pares seguidos em 93 análises). Por isso a regra de
 emergência pede 2 análises seguidas, e não 8. A amostra é pequena (3
 gravações), e o risco de falso alarme numa planta real está registrado.
+Limite medido: na gravação a pessoa fica ~0,8 s no chão; com o vídeo aberto em
+tempo real e 4 câmeras numa máquina carregada, duas análises não cabem nisso.
+Não afrouxamos a regra (um falso positivo da `multidao` chegou a 0,84 num
+quadro só): no palco, a cena mostra o incidente confirmado com o replay do
+momento. Numa câmera real, quem cai fica no chão bem mais que 0,8 s.
 
 ## Gamificação
 

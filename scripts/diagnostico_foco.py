@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -51,13 +52,16 @@ def main() -> None:
     banco = runtime / "diagnostico-foco.db"
     for sufixo in ("", "-journal", "-wal", "-shm"):  # WAL: os arquivos auxiliares velhos corromperiam o banco novo
         Path(str(banco) + sufixo).unlink(missing_ok=True)
+    for pasta in ("diagnostico-clips", "diagnostico-trilhas"):
+        shutil.rmtree(runtime / pasta, ignore_errors=True)
     senha = secrets.token_urlsafe(16)
     env = os.environ.copy() | {
         "VISIONEPI_DOTENV": "0", "HOST": "127.0.0.1", "PORT": str(porta), "SECRET_KEY": secrets.token_hex(32),
         "DATABASE_URL": f"sqlite:///{banco.as_posix()}", "AUTH_REQUIRED": "true", "AUTO_CREATE_TABLES": "true",
         "LLM_ENABLED": "false", "PPE_MODEL_PATH": "models/vyra_ppe.pt", "YOLO_CLASSES": "0,1,2,3,5,11,12,13",
         "ALERT_CREATE_AFTER_FRAMES": "3", "RTSP_FIXTURE_FALLBACK": "", "CLEANUP_ON_MONITOR_START": "false",
-        "SNAPSHOT_DIR": "bench/runtime/diagnostico-snapshots", "PYTHONUNBUFFERED": "1",
+        "SNAPSHOT_DIR": "bench/runtime/diagnostico-snapshots",
+        "REPLAY_DIR": "bench/runtime/diagnostico-clips", "TRILHAS_DIR": "bench/runtime/diagnostico-trilhas", "PYTHONUNBUFFERED": "1",
     } | dict(kv.split("=", 1) for kv in a.env)
     py = sys.executable
     subprocess.run([py, "-m", "flask", "--app", "wsgi", "users", "create", "--email", "t@d.local", "--name", "T",

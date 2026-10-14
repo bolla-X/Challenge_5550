@@ -880,15 +880,14 @@ class CameraWorker:
 
     def _attach_snapshots_and_log_events(self, alert_state: dict[str, Any], frame) -> None:
         created_ids = {item.get("id") for item in alert_state.get("created", []) if item.get("id")}
-        if created_ids:
+        if created_ids and self.gravador is not None and frame is not None:
+            # Disco fora do loop: UM quadro para todos os alertas da análise (o
+            # quadro anotado é um array novo, vai para outro thread sem cópia).
+            self.gravador.enfileirar(self._gravar_snapshot_lote, sorted(created_ids), frame)
+        elif created_ids:
             for runtime_state in self.alert_state_service._states.values():  # runtime state owns the live SQLAlchemy object
                 alert = runtime_state.alert
                 if alert is None or alert.id not in created_ids:
-                    continue
-                if self.gravador is not None and frame is not None:
-                    # Disco fora do loop: o quadro anotado é um array novo (o
-                    # anotador copia), então pode ir para outro thread sem cópia.
-                    self.gravador.enfileirar(self._gravar_snapshot, alert.id, frame)
                     continue
                 updated_alert = self.snapshot_service.attach_to_alert(alert, frame)
                 payload = updated_alert.to_dict()
@@ -900,13 +899,17 @@ class CameraWorker:
 
     def _gravar_snapshot(self, alert_id: int, frame) -> None:
         """Roda no thread do GravadorAssincrono, com sessão própria."""
+        self._gravar_snapshot_lote([alert_id], frame)
+
+    def _gravar_snapshot_lote(self, alert_ids: list[int], frame) -> None:
+        """Um arquivo para todos os alertas da análise; um commit; um elo na custódia."""
         from app.models import Alert
 
-        alerta = db.session.get(Alert, alert_id)
-        if alerta is None:
+        alertas = Alert.query.filter(Alert.id.in_(alert_ids)).order_by(Alert.id).all()
+        if not alertas:
             return
-        atualizado = self.snapshot_service.attach_to_alert(alerta, frame)
-        self._emitir("alert_updated", atualizado.to_dict())
+        for atualizado in self.snapshot_service.attach_to_alerts(alertas, frame):
+            self._emitir("alert_updated", atualizado.to_dict())
 
     def _emit_resolved_alert_event_once(self, payload: dict[str, Any], *, false_positive: bool = False) -> dict[str, Any] | None:
         metadata = payload.get("metadata") or {}
@@ -1328,12 +1331,13 @@ class CameraWorker:
         inicio = time.perf_counter()
         if self.replay.deve_gravar(ts_captura_ms):
             self.replay.gravar(self.quadro_publico(), ts_captura_ms, self.overlay_dict())
-        for criado in alert_state.get("created", []) or []:
-            if criado.get("id"):
-                self._clipes_pendentes.append(ClipePendente(
-                    alert_id=int(criado["id"]), t0_ms=ts_captura_ms, inicio_ms=ts_captura_ms - self._replay_antes_ms,
-                    fim_ms=ts_captura_ms + self._replay_depois_ms, alerta=criado,
-                ))
+        criados = [c for c in (alert_state.get("created", []) or []) if c.get("id")]
+        if criados:
+            # Um replay para todos os alertas da análise (mesma janela, mesmos quadros).
+            self._clipes_pendentes.append(ClipePendente(
+                alert_id=int(criados[0]["id"]), t0_ms=ts_captura_ms, inicio_ms=ts_captura_ms - self._replay_antes_ms,
+                fim_ms=ts_captura_ms + self._replay_depois_ms, alerta=criados[0], acompanhantes=criados[1:],
+            ))
         prontos = [c for c in self._clipes_pendentes if ts_captura_ms >= c.fim_ms]
         if prontos:
             self._clipes_pendentes = [c for c in self._clipes_pendentes if ts_captura_ms < c.fim_ms]
@@ -1362,8 +1366,10 @@ class CameraWorker:
     def _gravar_clipe(self, pendente: ClipePendente, quadros) -> None:
         clipe = gravar_clipe(self.replay_dir, pendente, quadros, self.camera_id)
         if self.app.config.get("CUSTODIA_ATIVA", True):
-            registrar_clipe(pendente.alert_id, self.camera_id, self.replay_dir / f"alert_{pendente.alert_id}")
-        self._emitir("clip_pronto", {"camera_id": self.camera_id, "alert_id": pendente.alert_id, "total": clipe["total"]})
+            registrar_clipe(pendente.alert_id, self.camera_id, [Path(x) for x in clipe["pastas"]],
+                            alert_ids=[pendente.alert_id, *(int(o["id"]) for o in pendente.acompanhantes)])
+        for alert_id in [pendente.alert_id, *(int(o["id"]) for o in pendente.acompanhantes)]:
+            self._emitir("clip_pronto", {"camera_id": self.camera_id, "alert_id": alert_id, "total": clipe["total"]})
 
     def _receber_analise(self, analise: FrameAnalysis, ts_ms: float) -> None:
         """Callback do agendador (thread dele): guarda a análise pronta."""

@@ -182,7 +182,7 @@ def test_incidente_linha_causal_e_custodia_integra(navegador, servidor):
         detalhe.wait_for(timeout=10_000)
         passos = pagina.locator("[data-testid=linha-causal] li")
         passos.first.wait_for(timeout=30_000)
-        assert re.search(r"apareceu|entrou|aproximou", passos.first.inner_text()), passos.first.inner_text()
+        assert re.search(r"apareceu|entrou|estava na|aproximou", passos.first.inner_text()), passos.first.inner_text()
         pagina.locator("[data-testid=verificar-integridade]").click()
         resultado = pagina.locator("[data-testid=custodia-resultado]")
         resultado.wait_for(timeout=30_000)
@@ -240,7 +240,12 @@ def test_palco_pelo_teclado_e_pelo_celular(navegador, playwright_sessao, servido
         vistos = []
         for i in range(1, total):
             pagina.keyboard.press("ArrowRight")
-            pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{i}'", timeout=15_000)
+            try:
+                pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{i}'", timeout=15_000)
+            except Exception as exc:
+                foco = pagina.evaluate("document.activeElement && document.activeElement.outerHTML.slice(0, 200)")
+                raise AssertionError(f"cena {i} não veio; tela em {palco.get_attribute('data-cena')} "
+                                     f"({palco.get_attribute('data-chave')}), foco em {foco}") from exc
             pagina.locator("[data-testid=palco-cena]").wait_for()
             vistos.append(palco.get_attribute("data-chave"))
             time.sleep(1.5)

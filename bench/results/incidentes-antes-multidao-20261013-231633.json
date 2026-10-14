@@ -1,0 +1,23 @@
+{
+  "rotulo": "antes-multidao",
+  "raiz": "..\\ch5550-antes",
+  "fixture": "next_multidao.mp4",
+  "segundos": 150.0,
+  "carga_de_fundo_pct": 77.7,
+  "inferencias": 295,
+  "alertas_criados": 279,
+  "alertas_por_regra": {
+    "missing_glasses": 52,
+    "missing_gloves": 52,
+    "missing_helmet": 52,
+    "missing_mask": 52,
+    "missing_vest": 52,
+    "risk_area_presence": 19
+  },
+  "ids_de_pessoa_com_alerta": 30,
+  "incidentes_criados": null,
+  "max_itens_no_painel_antigo": 64,
+  "max_alertas_ativos_mesma_regra": 12,
+  "max_incidentes_ativos": null,
+  "max_incidentes_mesma_regra_e_zona": null
+}

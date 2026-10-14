@@ -57,3 +57,23 @@ def test_clipe_tem_so_os_quadros_gravados_na_janela(tmp_path):
     disco = json.loads((tmp_path / "alert_7" / "clip.json").read_text(encoding="utf-8"))
     assert disco["total"] == clipe["total"]
     assert (tmp_path / "alert_7" / "0000.jpg").exists()
+
+
+def test_alertas_da_mesma_analise_compartilham_os_quadros(tmp_path):
+    """Com os 7 EPIs, uma pessoa abre vários alertas na mesma análise: os quadros são gravados UMA vez."""
+    buf = BufferDeReplay(segundos=10.0, fps_max=10.0)
+    for i in range(10):
+        buf.gravar(_quadro(i), i * 100.0, None)
+    pendente = ClipePendente(alert_id=7, t0_ms=500.0, inicio_ms=0.0, fim_ms=1000.0,
+                             alerta={"rule": "missing_helmet", "message": "Sem capacete"},
+                             acompanhantes=[{"id": 8, "rule": "missing_vest", "message": "Sem colete"},
+                                            {"id": 9, "rule": "missing_gloves", "message": "Sem luvas"}])
+    clipe = gravar_clipe(tmp_path, pendente, buf.entre(0.0, 1000.0), camera_id=2)
+
+    assert len(clipe["pastas"]) == 3
+    assert len(list((tmp_path / "alert_7").glob("*.jpg"))) == clipe["total"]
+    for outro, regra in ((8, "missing_vest"), (9, "missing_gloves")):
+        assert not list((tmp_path / f"alert_{outro}").glob("*.jpg")), "nenhuma cópia dos quadros"
+        dele = json.loads((tmp_path / f"alert_{outro}" / "clip.json").read_text(encoding="utf-8"))
+        assert dele["quadros_em"] == "alert_7" and dele["alert_id"] == outro and dele["regra"] == regra
+        assert dele["total"] == clipe["total"]
