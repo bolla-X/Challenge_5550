@@ -54,14 +54,15 @@ function Setor({ s }: { s: TvSetor }) {
       </header>
       <div className="tv-numeros">
         <div>
-          <strong className="tv-grande t-data" data-testid="tv-conformidade">
+          <strong className="tv-grande" data-testid="tv-conformidade">
             {pct(s.conformidade_atual)}
           </strong>
           <span>EPIs exigidos em uso agora</span>
         </div>
         <div>
-          <strong className="tv-grande t-data" data-testid="tv-sequencia">
-            {s.sequencia_min} min
+          <strong className="tv-grande" data-testid="tv-sequencia">
+            {s.sequencia_min}
+            <span className="tv-unidade">min</span>
           </strong>
           <span>seguidos com 100% dos EPIs</span>
         </div>

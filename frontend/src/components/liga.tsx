@@ -306,7 +306,26 @@ export function LigaScreen() {
         </div>
       )}
       {!liga ? (
-        <PanelSkeleton lines={6} />
+        // Skeleton no formato final: placar à esquerda, nível e missões à direita.
+        <div className="liga-grade" aria-busy="true">
+          <section className="card">
+            <div className="card-body">
+              <PanelSkeleton lines={7} />
+            </div>
+          </section>
+          <div className="liga-lado">
+            <section className="card">
+              <div className="card-body">
+                <PanelSkeleton lines={3} />
+              </div>
+            </section>
+            <section className="card">
+              <div className="card-body">
+                <PanelSkeleton lines={4} />
+              </div>
+            </section>
+          </div>
+        </div>
       ) : (
         <div className="liga-grade">
           <section className="card">

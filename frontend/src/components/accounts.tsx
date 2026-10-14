@@ -148,7 +148,7 @@ export function AccountsScreen() {
   const [papel, setPapel] = useState<UserRole>("operator");
   const [cameraId, setCameraId] = useState("");
   const [salvando, setSalvando] = useState(false);
-  const [aba, setAba] = useState<"menu" | "nova" | "gerenciar">("menu");
+  const [aba, setAba] = useState<"nova" | "gerenciar">("gerenciar");
 
   const carregar = () =>
     listUsers()
@@ -200,26 +200,24 @@ export function AccountsScreen() {
     <div className="screen">
       <ScreenHead
         title="Contas"
-        sub={aba === "nova" ? "Criar nova conta" : aba === "gerenciar" ? "Gerenciar contas existentes" : "Acessos ao sistema"}
+        sub={aba === "nova" ? "Nova conta" : usuarios.length === 1 ? "1 conta" : `${usuarios.length} contas`}
         actions={
-          <button type="button" className="ghost" onClick={() => (aba === "menu" ? setScreen("home") : setAba("menu"))}>
-            {aba === "menu" ? "Voltar ao início" : "Voltar"}
-          </button>
+          aba === "nova" ? (
+            <button type="button" className="ghost" onClick={() => setAba("gerenciar")}>
+              Voltar
+            </button>
+          ) : (
+            <>
+              <button type="button" className="ghost" onClick={() => setScreen("home")}>
+                Início
+              </button>
+              <button type="button" className="primary" onClick={() => setAba("nova")}>
+                Nova conta
+              </button>
+            </>
+          )
         }
       />
-
-      {aba === "menu" && (
-        <div className="home-tiles">
-          <button type="button" className="home-tile" onClick={() => setAba("nova")}>
-            <strong>Criar nova conta</strong>
-            <span>Defina e-mail, senha e a câmera do setor do operador.</span>
-          </button>
-          <button type="button" className="home-tile" onClick={() => setAba("gerenciar")}>
-            <strong>Gerenciar contas existentes</strong>
-            <span>{usuarios.length} conta(s). Trocar senha, desativar ou apagar.</span>
-          </button>
-        </div>
-      )}
 
       {aba === "nova" && (
       <Panel id="panel-new-account" title="Nova conta" description="Você define o e-mail e a senha. Passe os dados ao operador em mãos.">

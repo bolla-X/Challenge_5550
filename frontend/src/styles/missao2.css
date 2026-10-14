@@ -14,6 +14,7 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 
 /* ---------- simulador (X2) ---------- */
 .sim-grade { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.sim-grade > .card { margin: 0; }
 .sim-controles .card-body { display: grid; gap: var(--s4); }
 .sim-campo { display: grid; gap: var(--s2); border: 0; margin: 0; padding: 0; min-width: 0; }
 .sim-campo > span, .sim-campo > legend { font-size: 13px; font-weight: 500; color: var(--text-2); padding: 0; margin-bottom: var(--s2); }

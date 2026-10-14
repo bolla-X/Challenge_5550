@@ -87,7 +87,7 @@ export function AuditoriaScreen() {
                     <td className="t-data">{e.id}</td>
                     <td>{TIPO[e.tipo] ?? e.tipo}</td>
                     <th scope="row">{e.descricao}</th>
-                    <td className="t-data">{new Date(e.criado_em).toLocaleString("pt-BR")}</td>
+                    <td className="t-data">{quando(e.criado_em)}</td>
                     <td className="t-data custodia-hash" title={e.elo_sha256}>
                       {e.elo_sha256.slice(0, 16)}…
                     </td>
@@ -103,3 +103,10 @@ export function AuditoriaScreen() {
 }
 
 export default AuditoriaScreen;
+
+/** "14/10 08:17:30": data curta e hora, sem a vírgula do toLocaleString. */
+function quando(iso: string): string {
+  const d = new Date(iso);
+  const dois = (n: number) => String(n).padStart(2, "0");
+  return `${dois(d.getDate())}/${dois(d.getMonth() + 1)} ${dois(d.getHours())}:${dois(d.getMinutes())}:${dois(d.getSeconds())}`;
+}

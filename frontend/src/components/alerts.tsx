@@ -182,7 +182,7 @@ export function AlertPanel() {
   const reconhecerTodos = () => {
     setOcupado(true);
     acknowledgeAllAlerts(camId)
-      .then((r) => showMessage(r.acknowledged ? `${r.acknowledged} alerta(s) marcados como tratados.` : "Nenhum alerta pendente de aviso.", "ok"))
+      .then((r) => showMessage(r.acknowledged ? `${alertas(r.acknowledged)} marcado${r.acknowledged === 1 ? "" : "s"} como tratado${r.acknowledged === 1 ? "" : "s"}.` : "Nenhum alerta pendente de aviso.", "ok"))
       .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao reconhecer alertas.", "error"))
       .finally(() => setOcupado(false));
   };
@@ -199,8 +199,8 @@ export function AlertPanel() {
       .then((r) =>
         showMessage(
           r.silencio_s > 0
-            ? `${r.active_before} alerta(s) encerrados. Não voltam por ${Math.round(r.silencio_s)} s enquanto a violação continuar.`
-            : `${r.active_before} alerta(s) ativo(s) encerrados.`,
+            ? `${alertas(r.active_before)} encerrado${r.active_before === 1 ? "" : "s"}. Não volta${r.active_before === 1 ? "" : "m"} por ${Math.round(r.silencio_s)} s enquanto a violação continuar.`
+            : `${alertas(r.active_before)} ativo${r.active_before === 1 ? "" : "s"} encerrado${r.active_before === 1 ? "" : "s"}.`,
           "ok",
         ),
       )
@@ -423,7 +423,7 @@ export function AlertHistoryPanel() {
     setApagando(true);
     deleteResolvedAlerts({ cameraId: cameraFilter ? Number(cameraFilter) : null, olderThanDays: antigos ? Number(antigos) : undefined })
       .then((r) => {
-        showMessage(`${r.deleted} alerta(s) resolvidos apagados.`, "ok");
+        showMessage(`${alertas(r.deleted)} resolvido${r.deleted === 1 ? "" : "s"} apagado${r.deleted === 1 ? "" : "s"}.`, "ok");
         return carregar();
       })
       .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao apagar alertas.", "error"))
@@ -507,4 +507,8 @@ export function AlertHistoryPanel() {
       </div>
     </Panel>
   );
+}
+
+function alertas(n: number): string {
+  return n === 1 ? "1 alerta" : `${n} alertas`;
 }

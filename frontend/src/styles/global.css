@@ -660,14 +660,15 @@ a.button.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(-
 .tv-cabeca { display: flex; justify-content: space-between; align-items: baseline; }
 .tv-cabeca h1 { margin: 0; font-size: clamp(32px, 3.2vw, 56px); letter-spacing: -.02em; }
 .tv-cabeca .t-data { font-size: clamp(28px, 2.8vw, 48px); color: var(--text-2); }
-.tv-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: var(--s5); }
+.tv-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: var(--s5); }
 .tv-setor { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s5); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-1); }
 .tv-setor header { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); }
 .tv-setor h2 { margin: 0; font-size: clamp(28px, 2.4vw, 44px); letter-spacing: -.02em; }
 .tv-cameras { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; color: var(--text-2); }
 .tv-numeros { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
 .tv-numeros > div { display: flex; flex-direction: column; gap: 4px; }
-.tv-grande { font-size: clamp(56px, 6vw, 112px); font-weight: 700; line-height: 1; letter-spacing: -.03em; }
+.tv-grande { font-size: clamp(48px, min(5vw, 9vh), 104px); font-weight: 700; line-height: 1; letter-spacing: -.03em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tv-unidade { font-size: .42em; font-weight: 600; letter-spacing: 0; margin-left: .15em; color: var(--text-2); }
 .tv-numeros span { font-size: 20px; color: var(--text-2); }
 .tv-meta { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--s3); font-size: 22px; align-items: baseline; }
 .tv-meta strong { font-size: 26px; }

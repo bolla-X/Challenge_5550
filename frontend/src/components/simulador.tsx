@@ -285,7 +285,7 @@ export function SimuladorScreen() {
                 </fieldset>
                 <label className="sim-campo">
                   <span>
-                    Histerese para criar: <strong className="t-data">{histerese.toFixed(1)} s</strong>
+                    Histerese para criar: <strong className="t-data">{histerese.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s</strong>
                     <span className="muted"> (hoje {ctx.atual.criar_apos_s ?? "sem dado"} s ou {ctx.atual.criar_apos_quadros} análises)</span>
                   </span>
                   <input type="range" min={0.5} max={10} step={0.5} value={histerese} onChange={(e) => setHisterese(Number(e.target.value))} data-testid="sim-histerese" />
@@ -336,7 +336,7 @@ export function SimuladorScreen() {
                   <div>
                     <dt>Teriam disparado</dt>
                     <dd className="t-data" data-testid="sim-total" data-valor={resultado.simulado.total}><Numero valor={resultado.simulado.total} /></dd>
-                    <span className="muted">{resultado.simulado.incidentes} incidente(s)</span>
+                    <span className="muted">{resultado.simulado.incidentes === 1 ? "1 incidente" : `${resultado.simulado.incidentes} incidentes`}</span>
                   </div>
                   <div>
                     <dt>Dispararam de fato</dt>
