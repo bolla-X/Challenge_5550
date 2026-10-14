@@ -4,6 +4,7 @@ import logging
 import sys
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from time import monotonic, sleep
 from typing import Any
 
@@ -96,6 +97,16 @@ def abrir_captura(source: Any, *, open_timeout_ms: int = 5000, threads_decode: i
         params += [int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), teto, int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), teto]
     return cv2.VideoCapture(source, api, params) if params else cv2.VideoCapture(source, api)
 
+
+
+def e_arquivo_local(source) -> bool:
+    """Fonte é um arquivo de vídeo no disco (não índice de webcam nem URL)."""
+    if not isinstance(source, str) or source.isdigit() or "://" in source:
+        return False
+    try:
+        return Path(source).is_file()
+    except OSError:
+        return False
 
 class VideoStreamError(RuntimeError):
     pass

@@ -2,25 +2,20 @@
 
 Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a cada marco.
 
-## Marco atual: PR3 em validação (Fase 3)
+## Marco atual: PR4 em construção (Fase 4)
 
 | PR | Situação | Evidência |
 |---|---|---|
-| PR1 performance + benchmark | **mergeado** (squash `3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
-| PR2 diferenciais + L1 | **mergeado** (squash `753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 — portão: pytest 488, E2E 11/11, CPU-ms/análise −69 a −71 % |
-| PR3 funções criativas | `next-2026` recriada de `753daa0` + cherry-pick do `pr3-wip` | ver abaixo |
-| PR4 | não iniciado | — |
+| PR1 performance + benchmark | **mergeado** (`3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
+| PR2 diferenciais + L1 | **mergeado** (`753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 |
+| PR3 funções criativas | **mergeado** (`b8de7ac`) | https://github.com/bolla-X/Challenge_5550/pull/12 — pytest 559, E2E 17/17, protótipos ≤ 3,4 % do orçamento |
+| PR4 demo, confiabilidade, docs | em andamento na `next-2026` | ver abaixo |
 
-### PR3 — na `next-2026`
-
-- G1 Portal (`/portal`), G2 Você vs. a IA (`/desafio`, GABARITO.md), G3 SOS,
-  G4 imóvel, G5 planta (aba Planta), G6 fala pt-BR, G7 ergonomia, G8 Modo TV
-  (`/tv`, metas por setor, migração `e7f8a9b0c1d2`), G9 rotular (`/rotular`),
-  G10 NR-6 no relatório; laboratório "Pergunte à planta" (desligado).
-- Migrações novas: `e7f8a9b0c1d2` (metas_setor), `f9a0b1c2d3e4` (cameras.planta).
-- pytest 554; ruff ok; build ok. E2E (17 fluxos) rodando: `bench/runtime/e2e-pr3a.out`.
-- Custo por protótipo medido em `pipeline_stats` (etapas `g1_portal`,
-  `g3_g4_g7_sinais`, `g5_planta`, `g8_andon`, `g9_rotulos`).
+### PR4 — plano
+1. Câmera "Arquivo" pela API com `em_loop` (rebobina em vez de reconectar).
+2. `python run.py --demo` (banco isolado, senhas só no terminal, GRAVAÇÃO/AO VIVO, tema claro) e `flask demo reset` < 10 s.
+3. Soak 20 min 4 câmeras (RSS < +10 %, console limpo) e testes de falha (modelo ausente, fonte inválida, webcam ausente, LLM fora, banco indisponível).
+4. `scripts/bench.py --rapido` (≤ 5 min); DEMO.md, BANCA.md (rascunho no scratchpad da sessão), README, CHANGELOG final.
 
 ## Decisões em vigor
 
@@ -44,8 +39,4 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ## Próximo passo exato
 
-1. E2E do PR3 (`e2e-pr3a.out`) 17/17; corrigir o que falhar.
-2. Custo por protótipo (≤ 10 % do orçamento do quadro) lendo `/api/diagnostics/pipeline`
-   com as câmeras rodando; bench CPU-ms PR2 (`753daa0`) × PR3, 3 repetições.
-3. Capturas das telas novas; CHANGELOG do PR3; PR3 → squash; recriar `next-2026`.
-4. PR4 (demo, confiabilidade, docs), incluindo o ruído de alertas (5 por pessoa).
+Seguir o plano do PR4 acima, na ordem; portão: pytest, ruff, build, E2E, soak.

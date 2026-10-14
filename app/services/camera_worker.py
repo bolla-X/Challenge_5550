@@ -45,7 +45,7 @@ from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_d
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
-from app.vision.video_stream import VideoStream
+from app.vision.video_stream import VideoStream, e_arquivo_local
 from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
 
@@ -174,6 +174,9 @@ class CameraWorker:
             # So tem efeito em fonte de rede (ver VideoStream._ler_do_capture).
             limiar_grab_ms=float(app.config.get("RTSP_LIMIAR_GRAB_MS", 5.0)),
             threads_decode=int(app.config.get("CAPTURA_THREADS_DECODE", 2)),
+            # Gravação no disco volta ao início no fim, em vez de contar 15
+            # falhas e reabrir com backoff a cada volta (~1 s sem vídeo).
+            em_loop=e_arquivo_local(source),
         )
         # ---- modo fixture: estado de PRIMEIRA CLASSE, não degradação muda --
         # A fonte configurada da câmera, guardada separada de

@@ -626,3 +626,15 @@ def test_pular_avanca_sem_converter_e_falha_como_o_read(relogio, capturas):
     assert stream.pular() is False, "sem captura aberta, quem reabre é o read()"
     assert stream.read()[0] is True
     assert stream.pular() is True
+
+
+def test_e_arquivo_local(tmp_path):
+    from app.vision.video_stream import e_arquivo_local
+
+    arquivo = tmp_path / "x.mp4"
+    arquivo.write_bytes(b"0")
+    assert e_arquivo_local(str(arquivo))
+    assert not e_arquivo_local("0")
+    assert not e_arquivo_local(0)
+    assert not e_arquivo_local("rtsp://camera/stream")
+    assert not e_arquivo_local(str(tmp_path / "nao-existe.mp4"))
