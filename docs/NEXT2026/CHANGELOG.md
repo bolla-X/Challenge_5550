@@ -709,3 +709,17 @@ queda numa planta real fica registrado para a banca.
 
 Corrida benigna no Socket.IO (`join_room` de cliente que acabou de
 desconectar, `KeyError` no log do E2E) tratada no handler de foco.
+
+### E2E do PR3 — o que as rodadas completas acharam
+
+As rodadas completas (17 fluxos, 4 câmeras) falharam em testes diferentes a
+cada vez. Para parar de adivinhar, o `e2e/conftest.py` passou a gravar a tela e
+o texto da página de todo teste que falha (`bench/runtime/e2e-falhas/`). Com
+isso:
+
+| falha | o que a captura mostrou | correção |
+|---|---|---|
+| `/rotular` não avançava | erro 500 no console; no log, `WinError 32`: a imagem era servida com `send_file`, o handle ficava aberto e o Windows recusava mover o arquivo ao decidir | **bug do produto**: imagem servida da memória; teste de regressão falha no código antigo |
+| privacidade | depois de `clear_cookies()` a página voltou logada como técnico: uma requisição em andamento devolveu o cookie | teste sai da página antes de limpar |
+| pílula de aproximação, portal | multidão a ~0,5 análise/s (DEGRADADO) com 4 câmeras; o rastreio/histerese não fecha a tempo | como no teste de queda: as outras câmeras param durante o teste e voltam no fim |
+| fala | a 1ª frase veio do Canteiro — o produto fala alertas críticos de qualquer câmera, como a especificação pede | teste aceita qualquer câmera e exige o nome dela na frase |
