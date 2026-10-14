@@ -165,7 +165,10 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
         status = re.compile(rf".*/api/cameras/{canteiro}/status.*")
 
         def trocar(rota):
-            resposta = rota.fetch()
+            try:
+                resposta = rota.fetch()
+            except Exception:  # noqa: BLE001  (página já fechou)
+                return
             corpo = resposta.json()
             corpo["adaptativo"] = {"degradado": True, "reducoes": ["análise a cada 3 quadros", "inferência em 480 px"]}
             rota.fulfill(response=resposta, body=json.dumps(corpo))
@@ -180,6 +183,8 @@ def capturar(servidor: ServidorE2E, navegador, pasta: Path, largura: int, altura
     _tentar("carregando", carregando)
     _tentar("vazio", vazio)
     _tentar("degradado", degradado)
+    # Uma resposta interceptada ainda em voo derrubaria o próximo contexto.
+    pg.unroute_all(behavior="ignoreErrors")
     ctx.close()
 
     # Sem sinal (REAL): a fonte de rede cai; a câmera "Rede" mostra o estado.
