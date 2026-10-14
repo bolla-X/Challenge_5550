@@ -12,6 +12,12 @@
 3. Exporta e aprova os runtimes rápidos (`scripts/concordancia.py` para EPI,
    pessoa e esqueleto). Sem isso o `auto` cai no PyTorch, que funciona mas é
    bem mais lento numa máquina sem GPU dedicada.
+4. Aquece o cache do OpenVINO (`runtime/ov_cache/`, ou `OV_CACHE_DIR`): compila
+   os três modelos no dispositivo escolhido, nas formas das câmeras da demo, e
+   o OpenVINO guarda o compilado. A subida seguinte do `run.py --demo` lê do
+   cache em vez de compilar (números no DEMO.md). Rode de novo depois de trocar
+   de máquina, de driver da GPU ou de versão do OpenVINO. Só ele:
+   `python scripts/preparar.py --so-cache`.
 
 Já baixado e com o hash certo = pulado. Nada aqui lê ou escreve o `.env`.
 """
@@ -20,8 +26,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
+import secrets
 import subprocess
 import sys
+import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
@@ -63,10 +73,34 @@ def baixar_peso(nome: str, url: str, esperado: str) -> None:
     parcial.replace(destino)
 
 
+def aquecer_cache_openvino() -> None:
+    """Sobe o app num banco temporário (sem câmeras) e aquece os modelos nas formas da demo."""
+    banco = Path(tempfile.mkdtemp(prefix="visionepi-preparar-")) / "preparar.db"
+    os.environ.update({"VISIONEPI_DOTENV": "0", "DATABASE_URL": f"sqlite:///{banco.as_posix()}", "AUTO_CREATE_TABLES": "true",
+                       "LLM_ENABLED": "false", "SECRET_KEY": secrets.token_hex(32)})
+    sys.path.insert(0, str(RAIZ))
+    from app import create_app
+    from app.vision.runtime_do_modelo import aquecer_modelos
+    from app.vision.yolo_ppe_detector import pasta_do_cache_openvino
+
+    inicio = time.monotonic()
+    monitor = create_app().extensions["monitor_service"]
+    monitor.validar_runtimes()
+    # 960x540 (Canteiro, Pátio), 960x720 (Portal gravado) e 640x480 (webcam do Portal).
+    tempos = aquecer_modelos([monitor.detector, monitor.person_detector, monitor.pose_detector],
+                             formas=((540, 960), (720, 960), (480, 640)))
+    print(f"[preparar] cache do OpenVINO em {pasta_do_cache_openvino()} aquecido em {time.monotonic() - inicio:.0f} s "
+          f"({len(tempos)} modelos)", flush=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--sem-exports", action="store_true", help="pula a exportação/aprovação dos runtimes rápidos")
+    ap.add_argument("--so-cache", action="store_true", help="só aquece o cache do OpenVINO (pesos e exports já prontos)")
     args = ap.parse_args()
+    if args.so_cache:
+        aquecer_cache_openvino()
+        return 0
     MODELOS.mkdir(exist_ok=True)
     for nome, url, esperado in PESOS:
         baixar_peso(nome, url, esperado)
@@ -75,6 +109,8 @@ def main() -> int:
         for modelo in ("epi", "pessoa", "esqueleto"):
             print(f"[preparar] exportando e aprovando o runtime de {modelo} (alguns minutos)", flush=True)
             subprocess.run([sys.executable, "scripts/concordancia.py", "--modelo", modelo], cwd=RAIZ, check=True)
+    # Em processo separado: o app lê a configuração do ambiente no import.
+    subprocess.run([sys.executable, "scripts/preparar.py", "--so-cache"], cwd=RAIZ, check=True)
     print("[preparar] pronto. Agora: python run.py --demo", flush=True)
     return 0
 

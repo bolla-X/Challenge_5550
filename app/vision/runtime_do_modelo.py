@@ -127,7 +127,7 @@ def garantir_runtime(detector: Any, peso_pt: str) -> str:
         return "pytorch (fallback)"
 
 
-def aquecer_modelos(detectores: list[Any]) -> dict[str, float]:
+def aquecer_modelos(detectores: list[Any], formas: tuple[tuple[int, int], ...] = ((540, 960),)) -> dict[str, float]:
     """Uma inferência em cada modelo no BOOT, antes de qualquer câmera ligar.
 
     Medido no bench (perfil batata, docs/NEXT2026/CHANGELOG.md): sem isto, a
@@ -136,8 +136,10 @@ def aquecer_modelos(detectores: list[Any]) -> dict[str, float]:
     sessão ONNX — e esses 30 s entravam inteiros na latência do primeiro
     alerta. Pago na subida do servidor, onde ninguém está esperando alerta.
     Falha aqui não derruba o boot: o detector já trata erro no `detect`.
+    `formas` (altura, largura): na iGPU cada forma de entrada compila o seu
+    kernel na primeira vez; o `scripts/preparar.py` aquece as das câmeras da demo.
     """
-    quadro = np.zeros((540, 960, 3), dtype=np.uint8)
+    quadros = [np.zeros((h, w, 3), dtype=np.uint8) for h, w in formas]
     tempos: dict[str, float] = {}
     for detector in detectores:
         if detector is None:
@@ -145,7 +147,8 @@ def aquecer_modelos(detectores: list[Any]) -> dict[str, float]:
         inicio = time.perf_counter()
         try:
             detectar = getattr(detector, "detect_lote", None)
-            detectar([quadro]) if detectar else detector.detect(quadro)
+            for quadro in quadros:
+                detectar([quadro]) if detectar else detector.detect(quadro)
         except Exception as exc:  # noqa: BLE001
             logger.warning("aquecimento_falhou", extra={"modelo": getattr(detector, "model_path", "?"), "error": str(exc)})
             continue
