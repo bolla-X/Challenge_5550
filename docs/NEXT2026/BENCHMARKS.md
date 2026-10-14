@@ -186,6 +186,25 @@ diferença a favor do PR3 não é ganho atribuível (o PR3 não mexe no caminho 
 inferência). Custo isolado de cada protótipo: `bench/results/custo-prototipos-*.json`
 (todos ≤ 3,4 % do orçamento do quadro, ver CHANGELOG "PR3").
 
+## Soak do PR4 (13/10, 20 min, 4 câmeras, perfil atual)
+
+`python scripts/bench.py --soak 1200 --rotulo pr4soak` →
+`bench/results/20261013-215640-pr4soak-soak.json`.
+
+| métrica | valor |
+|---|---|
+| erros no console do navegador | **0** |
+| RSS do servidor: início / pico / fim | 1.105 / **1.172** (+6,1 %) / 482 MB |
+| análise por câmera | 0,40–0,41 /s |
+| CPU do servidor | média 433 %, p95 465 % de 1 núcleo |
+| CPU de terceiros antes | **77 %** da máquina (WSL 333 %, Docker, antivírus) |
+
+Critério da missão (crescimento de RSS < 10 %): passa pelo pico (+6,1 %). Ressalva
+honesta: no Windows o RSS do psutil é o *working set*, que o sistema apara sob
+pressão de memória — a queda para 482 MB a partir de ~5 min é isso, não
+liberação real. Working set não é a melhor medida de vazamento; *private bytes*
+seria. Não houve crescimento monotônico no período.
+
 ## Tracker
 
 ByteTrack não reduziu fragmentação de forma consistente e custou até 4,2 % da

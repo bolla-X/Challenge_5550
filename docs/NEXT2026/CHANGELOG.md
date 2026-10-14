@@ -723,3 +723,40 @@ isso:
 | privacidade | depois de `clear_cookies()` a página voltou logada como técnico: uma requisição em andamento devolveu o cookie | teste sai da página antes de limpar |
 | pílula de aproximação, portal | multidão a ~0,5 análise/s (DEGRADADO) com 4 câmeras; o rastreio/histerese não fecha a tempo | como no teste de queda: as outras câmeras param durante o teste e voltam no fim |
 | fala | a 1ª frase veio do Canteiro — o produto fala alertas críticos de qualquer câmera, como a especificação pede | teste aceita qualquer câmera e exige o nome dela na frase |
+
+## PR4 — demo, confiabilidade, docs
+
+| item | o que entrou | evidência |
+|---|---|---|
+| `python run.py --demo` | banco isolado `instance/demo/demo.db` recriado a cada vez; 3 contas com senha gerada e impressa só no terminal; Canteiro/Pátio/Escada das gravações ("GRAVAÇÃO") e a webcam como Portal "AO VIVO" (sem webcam, o Portal usa o Canteiro); zona e planta do Pátio prontas; metas por setor; tema claro; LLM desligado; só capacete, colete e luvas ligados (menos ruído) | `tests/test_demo.py`, `tests/test_falhas_da_demo.py`; boot real medido: ~70 s até responder |
+| `flask --app wsgi demo reset` | pede ao servidor (token local em `instance/demo/token`) para limpar alertas, eventos, clipes e rótulos e recriar os workers; sem servidor, limpa o banco | medido: **7,7–9,7 s** o comando inteiro (0,6–2,6 s no servidor) |
+| câmera "Arquivo" | volta ao início do vídeo (`em_loop`) em vez de contar 15 falhas e reconectar a cada volta | `tests/test_video_stream.py` |
+| testes de falha | modelo ausente, webcam ausente, LLM fora no resumo, banco indisponível no checklist (fonte inválida, banco sem tabela e LLM fora no analisador já tinham teste) | `tests/test_falhas_da_demo.py` |
+| soak 20 min | 0 erros de console; RSS pico +6,1 % | BENCHMARKS "Soak do PR4" |
+| `scripts/bench.py --rapido` | ≤ 5 min, perfil atual, 1 e 4 câmeras — para medir na máquina da banca | DEMO.md |
+| E2E da prova de escala (F10) | o roteiro só usa momentos com E2E; F10 não tinha | `e2e/test_fluxos.py` |
+| docs | DEMO.md (roteiro de 5 min, reset, plano B), BANCA.md (15 perguntas), README | — |
+
+Achados no caminho:
+
+- **O `flask demo reset` levava ~2 min.** Todo comando `flask` cria o app, e o
+  `MonitorService` validava os runtimes (compilando os modelos na GPU) já na
+  construção. A validação passou a ser feita no aquecimento ou na primeira
+  câmera ligada. Mesmo assim o app completo leva 9–20 s só para importar e
+  montar nesta máquina (OpenVINO, OpenCV), então o `wsgi.py` monta um Flask
+  mínimo para esse comando. O reset no servidor também levava 12,6 s: cada
+  `stop()` espera até 2 s pela thread de captura, e as câmeras paravam em
+  sequência. Agora param e religam em paralelo.
+- **`requirements.txt` não declarava o runtime padrão.** O `.venv` desta
+  máquina tinha `openvino` e `onnxruntime` instalados à mão, e o arquivo dizia
+  "OpenVINO fica FORA de propósito". Isso era verdade antes do PR1 (loop
+  síncrono) e deixou de ser no PR2. Num clone novo, o `auto` cairia em PyTorch
+  sem aviso. Agora estão declarados (OpenVINO só em x86-64), junto com
+  `cryptography` (F6) e `playwright` (E2E/bench).
+- **README desatualizado em três pontos** (inferência a 416; "nenhuma regra lê
+  `Fall-Detected`"; "OpenVINO e ONNX não adotados"): reescritos com o estado
+  atual.
+- `.env.example` continua sem edição: a permissão desta máquina nega leitura e
+  escrita nele. Ainda diz `YOLO_IMGSZ=416`, enquanto o código usa 640 por
+  padrão. Quem copia o `.env.example` herda 416 — fica registrado para a equipe
+  corrigir à mão.

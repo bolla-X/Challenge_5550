@@ -2,25 +2,14 @@
 
 Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a cada marco.
 
-## Marco atual: PR3 em validação (Fase 3)
+## Marco atual: PR4 no portão (Fase 4) — última etapa da missão
 
 | PR | Situação | Evidência |
 |---|---|---|
-| PR1 performance + benchmark | **mergeado** (squash `3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
-| PR2 diferenciais + L1 | **mergeado** (squash `753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 — portão: pytest 488, E2E 11/11, CPU-ms/análise −69 a −71 % |
-| PR3 funções criativas | `next-2026` recriada de `753daa0` + cherry-pick do `pr3-wip` | ver abaixo |
-| PR4 | não iniciado | — |
-
-### PR3 — na `next-2026`
-
-- G1 Portal (`/portal`), G2 Você vs. a IA (`/desafio`, GABARITO.md), G3 SOS,
-  G4 imóvel, G5 planta (aba Planta), G6 fala pt-BR, G7 ergonomia, G8 Modo TV
-  (`/tv`, metas por setor, migração `e7f8a9b0c1d2`), G9 rotular (`/rotular`),
-  G10 NR-6 no relatório; laboratório "Pergunte à planta" (desligado).
-- Migrações novas: `e7f8a9b0c1d2` (metas_setor), `f9a0b1c2d3e4` (cameras.planta).
-- pytest 554; ruff ok; build ok. E2E (17 fluxos) rodando: `bench/runtime/e2e-pr3a.out`.
-- Custo por protótipo medido em `pipeline_stats` (etapas `g1_portal`,
-  `g3_g4_g7_sinais`, `g5_planta`, `g8_andon`, `g9_rotulos`).
+| PR1 performance + benchmark | **mergeado** (`3891aaa`) | https://github.com/bolla-X/Challenge_5550/pull/10 |
+| PR2 diferenciais + L1 | **mergeado** (`753daa0`) | https://github.com/bolla-X/Challenge_5550/pull/11 |
+| PR3 funções criativas | **mergeado** (`b8de7ac`) | https://github.com/bolla-X/Challenge_5550/pull/12 |
+| PR4 demo, confiabilidade, docs | portão verde: pytest 569, ruff, tsc, E2E 18/18, soak 20 min (0 erros de console, RSS pico +6,1 %), reset 7,7–9,7 s | PR aberto a seguir |
 
 ## Decisões em vigor
 
@@ -37,15 +26,11 @@ Retomar lendo só este arquivo e `MISSAO.md` (inclui o ADENDO 1). Reescrito a ca
 
 ## Pendências
 
-- `.env.example` negado pelas permissões (ainda `YOLO_IMGSZ=416`).
-- Câmera "Arquivo" pela API não usa `em_loop` (15 falhas a cada volta) → PR4.
-- BENCHMARKS sem rodada com terceiros < 15 % → `scripts/bench.py --rapido` no PR4.
-- Ruído: 5 alertas por pessoa (um por EPI).
+- `.env.example` negado pelas permissões desta máquina (ainda `YOLO_IMGSZ=416`; o código usa 640).
+- Ruído de alertas na multidão (5 por pessoa + troca de ID). A demo liga só 3 EPIs.
+- G3 (SOS) fora do roteiro: sem vídeo de licença livre para verificar.
+- Números absolutos sob carga de terceiros (13–77 %): rodar `scripts/bench.py --rapido` na máquina da banca.
 
 ## Próximo passo exato
 
-1. E2E do PR3 (`e2e-pr3a.out`) 17/17; corrigir o que falhar.
-2. Custo por protótipo (≤ 10 % do orçamento do quadro) lendo `/api/diagnostics/pipeline`
-   com as câmeras rodando; bench CPU-ms PR2 (`753daa0`) × PR3, 3 repetições.
-3. Capturas das telas novas; CHANGELOG do PR3; PR3 → squash; recriar `next-2026`.
-4. PR4 (demo, confiabilidade, docs), incluindo o ruído de alertas (5 por pessoa).
+Merge do PR4; depois, só manutenção.

@@ -449,3 +449,23 @@ def test_voce_vs_ia_mostra_placar_honesto(pagina, servidor):
     assert "0 / 0" in humano, humano  # canteiro-94: ninguém sem capacete
     assert pagina.locator("[data-testid=desafio-linha-ia]").count() == 1
     assert "1 rodada" in pagina.locator("[data-testid=desafio-placar]").inner_text()
+
+
+def test_prova_de_escala_sobe_cameras_virtuais_e_remove(pagina, servidor):
+    """F10: câmeras virtuais com workers reais mostram números desta máquina e somem no fim."""
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name="Prova de escala").click(timeout=30_000)
+    dialogo = pagina.get_by_role("dialog")
+    dialogo.get_by_label("Câmeras").fill("2")
+    dialogo.get_by_role("button", name="Iniciar").click()
+    linhas = dialogo.locator("table.escala-tabela tbody tr:not(.escala-media)")
+    try:
+        pagina.wait_for_function(
+            """() => [...document.querySelectorAll('table.escala-tabela tbody tr:not(.escala-media)')]
+                     .filter(tr => parseFloat(tr.children[2].textContent) > 0).length >= 2""",
+            timeout=120_000,
+        )
+        assert linhas.count() == 2
+    finally:
+        dialogo.get_by_role("button", name="Encerrar e remover").click()
+    linhas.first.wait_for(state="detached", timeout=60_000)
