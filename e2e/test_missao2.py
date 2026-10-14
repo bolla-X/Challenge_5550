@@ -155,8 +155,9 @@ def test_simulador_reprocessa_e_nunca_muda_alerta_real(navegador, servidor):
         pagina.locator("[data-testid=sim-numeros]").wait_for(timeout=60_000)
         pagina.locator("[data-testid=sim-linha]").wait_for()
         # Desliga todos os EPIs e a zona: a proposta não dispara nada.
-        for chip in pagina.locator(".sim-chips .chip-toggle.on").all():
-            chip.click()
+        ligados = pagina.locator(".sim-chips .chip-toggle.on")
+        while ligados.count():
+            ligados.first.click()
         caixa = pagina.get_by_label(re.compile("Zona de risco"))
         if caixa.is_checked():
             caixa.uncheck()
@@ -291,8 +292,13 @@ def test_retrospectiva_exporta_card_em_png(navegador, servidor):
         assert dados[:8] == b"\x89PNG\r\n\x1a\n"
         largura, altura = struct.unpack(">II", dados[16:24])
         assert (largura, altura) == (1080, 1350)
+        # Pausa o avanço automático e confere que → avança um card.
+        pagina.get_by_role("button", name="Pausar").click()
+        antes = int(pagina.locator("[data-testid=retrospectiva]").get_attribute("data-indice"))
         pagina.keyboard.press("ArrowRight")
-        pagina.wait_for_function("document.querySelector('[data-testid=retrospectiva]')?.dataset.indice === '1'", timeout=10_000)
+        pagina.wait_for_function(
+            f"document.querySelector('[data-testid=retrospectiva]')?.dataset.indice === '{antes + 1}'", timeout=10_000
+        )
     finally:
         contexto.close()
 
@@ -300,8 +306,13 @@ def test_retrospectiva_exporta_card_em_png(navegador, servidor):
 def test_liga_missao_cumprida_celebra_e_pontua_o_setor(navegador, servidor):
     """X8: missão configurada pelo supervisor; um rótulo revisado cumpre, a tela celebra; ponto vai para o setor."""
     supervisor = servidor.sessao("supervisor")
-    r = supervisor.post(f"{servidor.base}/api/liga/missoes", json={"titulo": "Revisar 1 recorte (E2E)", "tipo": "rotulo", "alvo": 1},
-                        timeout=10)
+    # Alvo = o que já foi feito neste turno + 1 (outro teste pode ter revisado um recorte antes).
+    sonda = supervisor.post(f"{servidor.base}/api/liga/missoes", json={"titulo": "sonda", "tipo": "rotulo", "alvo": 10000},
+                            timeout=10).json()["missao"]["id"]
+    feitos = next(m["feito"] for m in supervisor.get(f"{servidor.base}/api/liga", timeout=10).json()["missoes"] if m["id"] == sonda)
+    supervisor.delete(f"{servidor.base}/api/liga/missoes/{sonda}", timeout=10)
+    r = supervisor.post(f"{servidor.base}/api/liga/missoes",
+                        json={"titulo": "Revisar mais 1 recorte (E2E)", "tipo": "rotulo", "alvo": feitos + 1}, timeout=10)
     assert r.status_code == 201, r.text
     missao_id = r.json()["missao"]["id"]
     assert servidor.sessao("technical").post(f"{servidor.base}/api/liga/missoes", json={"titulo": "x", "tipo": "rotulo", "alvo": 1},
@@ -360,6 +371,19 @@ def test_pwa_instala_e_avisa_alerta_critico(navegador, servidor):
     """X10: manifesto e service worker (contexto seguro: localhost) e aviso local de alerta crítico com o app aberto."""
     contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
     contexto.grant_permissions(["notifications"], origin=servidor.base)
+    # O Chromium headless responde "denied" a Notification.permission mesmo com a
+    # permissão concedida (não há onde mostrar a notificação). O teste então simula
+    # um navegador que permitiu e grava as chamadas a showNotification — prova o
+    # caminho do NOSSO código; a exibição é do sistema operacional.
+    contexto.add_init_script("""
+        Object.defineProperty(Notification, 'permission', {get: () => 'granted', configurable: true});
+        window.__mostradas = [];
+        const original = ServiceWorkerRegistration.prototype.showNotification;
+        ServiceWorkerRegistration.prototype.showNotification = function (titulo, opcoes) {
+            window.__mostradas.push({titulo, tag: opcoes && opcoes.tag});
+            return Promise.resolve();
+        };
+    """)
     try:
         pagina = contexto.new_page()
         entrar(pagina, servidor, "technical")
@@ -370,6 +394,8 @@ def test_pwa_instala_e_avisa_alerta_critico(navegador, servidor):
         assert manifesto["display"] == "standalone"
         assert pagina.locator("[data-testid=notificacoes]").get_attribute("data-estado") == "granted"
         _abrir_foco(pagina, "Multidão")
-        pagina.wait_for_function("(window.__visionepiNotificacoes || 0) >= 1", timeout=240_000)
+        pagina.wait_for_function("(window.__mostradas || []).length >= 1", timeout=240_000)
+        primeira = pagina.evaluate("window.__mostradas[0]")
+        assert primeira["titulo"].startswith("Alerta crítico"), primeira
     finally:
         contexto.close()

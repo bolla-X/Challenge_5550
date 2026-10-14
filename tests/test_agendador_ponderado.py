@@ -138,13 +138,12 @@ def test_monitor_considera_video_aberto_e_consulta_do_portal():
     assert MonitorService.cameras_em_foco(monitor) == set()
 
 
-def test_prioridade_de_confirmacao_serve_a_camera_da_emergencia_logo():
-    """Análise com sinal de queda: a próxima vaga é da câmera dela, mesmo fora de foco."""
+def test_prioridade_de_confirmacao_e_uma_vaga_so():
+    """Análise com sinal de queda: a próxima vaga é da câmera dela, mesmo fora de foco — só UMA."""
     relogio = _Relogio()
     ag = AgendadorDeInferencia(focadas=lambda: {1}, relogio=relogio)
     for cid in (1, 2, 3, 4):
-        slot = _Slot(cid, _nada, _nada)
-        ag._slots[cid] = slot
+        ag._slots[cid] = _Slot(cid, _nada, _nada)
         ag._ordem.append(cid)
     ag.priorizar(3, 2.0)
     servidos = []
@@ -154,13 +153,9 @@ def test_prioridade_de_confirmacao_serve_a_camera_da_emergencia_logo():
         with ag._cond:
             servidos.append(ag._escolher()[0].camera_id)
         relogio.t += 0.4
-    assert servidos[:4] == [3, 3, 3, 3]  # 1,6 s dentro da janela de 2 s
-    # Depois da janela, volta o rodízio ponderado (a câmera 1, em foco, é a próxima).
-    relogio.t = 2.1
-    for slot in ag._slots.values():
-        slot.pendente = True
-    with ag._cond:
-        assert ag._escolher()[0].camera_id == 1
+    assert servidos[0] == 3
+    assert servidos[1:].count(3) == 0 or servidos[1] != 3  # não monopoliza
+    assert servidos.count(1) >= 2  # o foco segue com a metade
 
 
 def test_maquina_lenta_o_foco_ainda_fica_com_metade():
@@ -170,3 +165,12 @@ def test_maquina_lenta_o_foco_ainda_fica_com_metade():
     assert contagem[2] / len(ordem) >= 0.5, contagem
     outras = [contagem[c] for c in (1, 3, 4)]
     assert min(outras) > 0 and max(outras) - min(outras) <= 1, contagem  # ninguém para de ser servido
+
+
+def test_em_prioridade_acaba_sozinha():
+    relogio = _Relogio()
+    ag = AgendadorDeInferencia(relogio=relogio)
+    ag.priorizar(7, 2.0)
+    assert ag.em_prioridade(7) and not ag.em_prioridade(8)
+    relogio.t = 2.01
+    assert not ag.em_prioridade(7)

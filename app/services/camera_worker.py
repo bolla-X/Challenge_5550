@@ -1081,6 +1081,13 @@ class CameraWorker:
         mais lenta, docs/NEXT2026/BENCHMARKS.md). A tela já rotula fixture como
         GRAVAÇÃO; ao abrir o foco, volta ao tempo real a partir de onde está.
         """
+        # Confirmação de emergência em curso: a GRAVAÇÃO anda devagar por ~2 s
+        # para a 2ª análise ver o mesmo evento (a queda gravada fica no chão
+        # ~1 s; com a máquina carregada uma análise leva mais que isso). A
+        # regra de 2 análises seguidas não muda, e câmera ao vivo não tem como
+        # fazer isso (CapturaContinua só aplica ritmo a arquivo).
+        if self.agendador is not None and self.camera_id is not None and self.agendador.em_prioridade(self.camera_id):
+            return float(self.app.config.get("CAPTURA_FPS_CONFIRMACAO", 4.0))
         if self.espectadores > 0 or not self.app.config.get("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True):
             return None
         return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))

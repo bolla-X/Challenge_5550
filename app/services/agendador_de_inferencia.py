@@ -37,8 +37,8 @@ foco vence: depois de uma vaga fora do foco, a próxima é do foco. As outras
 continuam sendo servidas em rodízio, só mais devagar.
 
 **Prioridade de confirmação.** Uma análise que vê sinal de emergência (a
-classe de queda) pede `priorizar(camera, s)`: por alguns segundos essa câmera
-é servida primeiro sempre que tiver quadro novo. A regra de emergência continua
+classe de queda) pede `priorizar(camera, s)`: a PRÓXIMA vaga dessa câmera
+passa à frente (uma vaga por pedido, válida por `s` segundos). A regra de emergência continua
 exigindo 2 análises seguidas — o que muda é que a 2ª vem logo, em vez de
 esperar a vez no rodízio (a queda da gravação fica no chão ~1 s).
 """
@@ -114,8 +114,12 @@ class AgendadorDeInferencia:
         self._relogio = relogio
         self._slots: dict[int, _Slot] = {}
         self._ordem: list[int] = []
-        # câmera -> até quando (relógio) ela passa à frente (prioridade de confirmação)
+        # Prioridade de confirmação: câmera -> até quando vale e quantas vagas
+        # ainda passa à frente. UMA vaga por pedido: com 2 s de exclusividade,
+        # cada falso positivo isolado da classe de queda roubava as vagas da
+        # câmera em foco (E2E do portal com 4 câmeras).
         self._prioridade_ate: dict[int, float] = {}
+        self._fichas: dict[int, int] = {}
         # A última vaga foi de uma câmera em foco? (garante ≥ 1 de cada 2 ao foco)
         self._ultima_foi_foco = False
         self._cond = threading.Condition()
@@ -158,6 +162,11 @@ class AgendadorDeInferencia:
         """Serve esta câmera primeiro por `segundos` (sinal de emergência a confirmar)."""
         with self._cond:
             self._prioridade_ate[camera_id] = self._relogio() + max(0.0, float(segundos))
+            self._fichas[camera_id] = 1
+
+    def em_prioridade(self, camera_id: int) -> bool:
+        with self._cond:
+            return self._prioridade_ate.get(camera_id, 0.0) > self._relogio()
 
     def pendentes(self) -> int:
         with self._cond:
@@ -227,10 +236,12 @@ class AgendadorDeInferencia:
         escolhidos: list[_Slot] = []
         while pendentes and len(escolhidos) < limite:
             atrasados = [s for s in pendentes if agora - s.ultimo_servico >= self.espera_max_s]
-            urgentes = [s for s in pendentes if self._prioridade_ate.get(s.camera_id, 0.0) > agora]
+            urgentes = [s for s in pendentes
+                        if self._fichas.get(s.camera_id, 0) > 0 and self._prioridade_ate.get(s.camera_id, 0.0) > agora]
             em_foco = [s for s in pendentes if s.camera_id in focadas]
             if urgentes:
                 slot = urgentes[0]
+                self._fichas[slot.camera_id] -= 1
             elif atrasados and em_foco and not self._ultima_foi_foco and len(em_foco) < len(pendentes):
                 # Máquina lenta: a guarda das outras dispararia sempre e o foco
                 # cairia a 1/N. A vaga alterna — o foco nunca fica abaixo de 50 %.

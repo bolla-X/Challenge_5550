@@ -67,7 +67,9 @@ export function Tabs({
 
   return (
     <div className="tabs">
-      <div className="tabs-list" role="tablist" ref={listRef} onKeyDown={onKeyDown}>
+      {/* A faixa visual tem dois filhos: o tablist (só abas, como o ARIA exige) e o "Mais". */}
+      <div className="tabs-list">
+        <div className="tabs-tablist" role="tablist" ref={listRef} onKeyDown={onKeyDown}>
         {naFaixa.map((tab) => {
           const selected = tab.key === active;
           return (
@@ -93,6 +95,7 @@ export function Tabs({
             </button>
           );
         })}
+        </div>
         {noMais.length > 0 && (
           <div className="tabs-more" ref={maisRef}>
             <button

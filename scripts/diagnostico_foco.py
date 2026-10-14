@@ -42,6 +42,7 @@ def main() -> None:
     ap.add_argument("--foco", default="multidao")
     ap.add_argument("--segundos", type=float, default=90)
     ap.add_argument("--zona", action="store_true", help="zona na metade direita da câmera em foco (como o E2E do F3)")
+    ap.add_argument("--portal", action="store_true", help="liga o portal (capacete+colete) na câmera em foco e mede até 'Liberado'")
     ap.add_argument("--env", action="append", default=[])
     a = ap.parse_args()
     porta = _porta_livre()
@@ -98,7 +99,17 @@ def main() -> None:
                 pass
 
         threading.Thread(target=assistir, daemon=True).start()
-        time.sleep(a.segundos)
+        liberado_em = None
+        if a.portal:
+            s.put(f"{base}/api/cameras/{foco}/gate", json={"required": ["helmet", "vest"]}, timeout=10)
+            inicio = time.monotonic()
+            while time.monotonic() - inicio < a.segundos:
+                estado = s.get(f"{base}/api/cameras/{foco}/portal", timeout=10).json()
+                if estado.get("verdict") == "approved" and liberado_em is None:
+                    liberado_em = round(time.monotonic() - inicio, 1)
+                time.sleep(0.6)
+        else:
+            time.sleep(a.segundos)
         d = s.get(f"{base}/api/diagnostics/pipeline?janela_s={int(a.segundos)}", timeout=10).json()
         eventos = s.get(f"{base}/events?limit=500", timeout=10).json().get("items", [])
     finally:
@@ -119,6 +130,7 @@ def main() -> None:
         "inferencias_por_s": round(total / a.segundos, 2),
         "pre_alertas_registrados": sum(1 for e in eventos if e.get("event_type") == "approach_risk_area"),
         "alertas_de_queda": sum(1 for e in eventos if "Queda" in (e.get("message") or "")),
+        "portal_liberado_em_s": liberado_em if a.portal else None,
     }
     destino = RAIZ / "bench" / "results" / f"diagnostico-foco-{datetime.now():%Y%m%d-%H%M%S}.json"
     destino.write_text(json.dumps(saida, indent=2, ensure_ascii=False), encoding="utf-8")

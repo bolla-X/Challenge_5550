@@ -205,13 +205,13 @@ def registrar_evento(evento: EventLog) -> ElodeCustodia:
 
 
 # ------------------------------------------------------------- verificar
-def _recalcular(elo: ElodeCustodia) -> tuple[str | None, str | None]:
+def _recalcular(elo: ElodeCustodia, alertas: dict[int, Alert], eventos: dict[int, EventLog]) -> tuple[str | None, str | None]:
     """(hash recalculado, arquivo que mudou) — hash None = evidência ausente."""
     if elo.tipo == "alerta":
-        alerta = db.session.get(Alert, elo.alert_id) if elo.alert_id else None
+        alerta = alertas.get(elo.alert_id) if elo.alert_id else None
         return (sha256_bytes(conteudo_do_alerta(alerta)) if alerta else None), None
     if elo.tipo in ("privacidade", "evento"):
-        evento = db.session.get(EventLog, int(elo.ref.split(":", 1)[1]))
+        evento = eventos.get(int(elo.ref.split(":", 1)[1]))
         return (sha256_bytes(conteudo_do_evento(evento)) if evento else None), None
     caminho = Path(str((elo.detalhe or {}).get("caminho") or ""))
     if elo.tipo == "snapshot":
@@ -233,6 +233,13 @@ def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
     só é confiável se todos os anteriores também forem.
     """
     elos = ElodeCustodia.query.order_by(ElodeCustodia.id).all()
+    # Fontes em lote (uma consulta por tabela, não uma por elo): a cadeia de um
+    # turno tem milhares de elos e a verificação tinha de caber num clique.
+    conferir = [e for e in elos if alert_ids is None or e.alert_id in alert_ids]
+    ids_alerta = {e.alert_id for e in conferir if e.tipo == "alerta" and e.alert_id}
+    ids_evento = {int(e.ref.split(":", 1)[1]) for e in conferir if e.tipo in ("privacidade", "evento")}
+    alertas = {a.id: a for a in Alert.query.filter(Alert.id.in_(ids_alerta)).all()} if ids_alerta else {}
+    eventos = {v.id: v for v in EventLog.query.filter(EventLog.id.in_(ids_evento)).all()} if ids_evento else {}
     anterior = GENESE
     resultado: list[dict[str, Any]] = []
     primeiro_problema: dict[str, Any] | None = None
@@ -244,7 +251,7 @@ def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
         elif hash_do_elo(elo.id, elo.tipo, elo.ref, elo.conteudo_sha256, elo.anterior_sha256, elo.criado_em) != elo.elo_sha256:
             situacao = "registro_alterado"
         elif alert_ids is None or elo.alert_id in alert_ids:
-            recalculado, arquivo = _recalcular(elo)
+            recalculado, arquivo = _recalcular(elo, alertas, eventos)
             if recalculado is None:
                 situacao = "ausente"
                 ausentes += 1
