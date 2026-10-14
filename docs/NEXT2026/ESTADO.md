@@ -14,15 +14,18 @@ no CHANGELOG.)
 Commit + push de `next-2026` (`origin/next-2026`) a cada marco e antes de
 qualquer tarefa > 10 min em segundo plano.
 
-## Marco atual: PR5 no portão verde, aberto para squash merge
+## Marco atual: PR5 mergeado; PR6 (Fase C) em revisão visual
 
-| item | situação | evidência |
-|---|---|---|
-| Recuperação | pytest 649, ruff, build idênticos ao pré-reinício; wip `2116c1c` no remoto | CHANGELOG "ADENDO 2 / Recuperação" |
-| A. Portal "Liberado" | p50 **5,6 s**, p95 **21,6 s** (antes 16,8 / 81,0) — **meta não atingida** | `bench/results/portal-liberado-adendo2-20261014.json`, CHANGELOG "ADENDO 2 / A" |
-| B. Queda a 0,25× no palco | pronto; alerta ao vivo 12,9 s após entrar na cena | `test_camera_lenta.py`, `test_palco.py`, E2E `test_palco_queda_ao_vivo_em_camera_lenta`, BANCA 21 |
-| Bench antes × PR5 | passa (pior: +6 % CPU/análise, 1 câmera) | BENCHMARKS "Portão do PR5" |
-| Portão do PR5 (rodada única, 14/10) | pytest 658, ruff, build (dist idêntico), E2E 34/34 com 4 câmeras e axe claro/escuro | `bench/runtime/portao-pr5/` (local) |
+- PR5 = https://github.com/bolla-X/Challenge_5550/pull/14, squash `69de586` em
+  `feat/completo-com-rebrand`. Portão: pytest 658, ruff, build, E2E 34/34 com 4
+  câmeras e axe; bench intercalado passa (ver BENCHMARKS "Portão do PR5").
+- `next-2026` recriada: squash do PR5 + o trabalho da Fase C (merge `6dbc2cc`
+  conferido: o diff contra o squash é só o do PR6). Branches `pr6` e `pr6-wip`
+  ficaram no remoto (a exclusão foi negada pela permissão).
+- Capturas: `python e2e/capturas_de_tela.py --rodada rN --folhas` (3 tamanhos ×
+  2 temas, estados forçados nomeados `forcado-*`); "antes" do PR6 em
+  `bench/runtime/capturas/r0` (1920×1080 claro, código do PR5).
+- Ameaças A/B do PR5: ver "Ameaças conhecidas".
 
 ## Decisões em vigor
 
@@ -48,7 +51,6 @@ qualquer tarefa > 10 min em segundo plano.
 
 ## Próximo passo exato
 
-Squash merge do PR5 → recriar `next-2026` de `feat/completo-com-rebrand` →
-trazer a branch `pr6` (Fase C já rebaseada sobre o PR5, commit `6cb3f78` +
-capturas/galeria) → capturas r1 → revisão escrita → correções → r2 → galeria
-e README → portão → PR6.
+Rodada r1 de capturas → crítica escrita por tela (rubrica da Fase C, nota 0–5)
+em `docs/NEXT2026/galeria/index.md` → corrigir o que ficar abaixo de 4 → r2 →
+`scripts/galeria.py --rodada r2 --antes r0` → README de vitrine → portão → PR6.

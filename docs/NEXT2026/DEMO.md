@@ -56,7 +56,7 @@ Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 |---|---|---|---|
 | 1 VisionEPI | abrir | câmeras no ar, pessoas na planta e incidentes ativos **agora**, nesta máquina | `test_palco_pelo_teclado_e_pelo_celular` |
 | 2 Portal de Entrada | um jurado diante da webcam | só os EPIs exigidos; confirmado / faltando / "não verificável neste enquadramento"; "Liberado" com tudo confirmado; check-in conta para a Liga | `test_portal_de_entrada_confirma_itens_e_libera` |
-| 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("viu com 0,31, abaixo do piso — descartado"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
+| 3 Tente enganar a IA | escolher "Boné no lugar do capacete", **Valendo!** | o que o modelo viu e por quê ("o modelo viu com 0,31 (abaixo do piso 0,40) e descartou"); placar da sessão, inclusive quando a IA é enganada | `test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar` |
 | 4 Raio-X | olhar o Pátio | esqueleto, barras de confiança por classe com o piso, detecções descartadas, trilhas de 5 s, vetor de velocidade, decisão separada da confiança | `test_raio_x_liga_pela_tecla_x` |
 | 5 Gêmeo digital | arrastar para orbitar; "Visão de drone"; tocar numa pessoa | cápsulas na cor do estado; linha do tempo e replay da pessoa | `test_gemeo_3d_mostra_pessoas_e_desenha_a_30_fps` |
 | 6 Queda | esperar ~13 s (a gravação toca a 0,25×; dizer em voz alta que é câmera lenta e por quê — BANCA 21) | a queda AO VIVO com "GRAVAÇÃO · 0,25×" sobre o vídeo, a pílula "Queda detectada · Pessoa N" e, ao lado, o incidente com linha causal e replay | `test_palco_queda_ao_vivo_em_camera_lenta` |

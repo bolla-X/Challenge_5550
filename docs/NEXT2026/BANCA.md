@@ -179,8 +179,7 @@ aproximação de demonstração.
 
 **20. "E se a IA for enganada com um boné?"**
 É uma cena da apresentação: o visitante declara a tentativa, fica diante da
-câmera com o Raio-X ligado e o sistema mostra o que viu e por quê ("viu com
-0,31, abaixo do piso de 0,40, descartado"). O placar da sessão conta quantas
+câmera com o Raio-X ligado e o sistema mostra o que viu e por quê ("o modelo viu com 0,31 (abaixo do piso 0,40) e descartou"). O placar da sessão conta quantas
 vezes a IA foi enganada, sem esconder. Cada caso desses é o que alimenta a
 fila de rótulos.
 
