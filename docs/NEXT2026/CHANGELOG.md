@@ -1305,3 +1305,25 @@ expôs três defeitos de setup, corrigidos aqui:
 3. **Auto-instalação do ultralytics** tentou `pip install` no Python **global**
    (3.14) da máquina, fora do venv: `YOLO_AUTOINSTALL=false` no
    `concordancia.py` e no ambiente que o `preparar.py` passa a ele.
+
+**Clone 2** (`release-main` @ `4a127ae`, com as correções 1–3): o `preparar.py`
+aprovou o OpenVINO dinâmico na iGPU para EPI (concordância 1,0), pessoa (1,0) e
+esqueleto (1,0); a fumaça deu **6/6** com os três modelos no OpenVINO. O ONNX
+ainda falhou (`onnxscript` ausente: o `pip` trouxe `torch` 2.14.1, sem pino).
+Correção 4: `torch==2.13.0`, `torchvision==0.28.0` (as versões com que tudo
+foi medido) e `onnxscript==0.7.1` no `requirements.txt`. Clone 3 valida.
+
+### Portão do release-main
+
+Rodada 1 (`bench/runtime/portao-release/`): `ruff` 0 · `pytest` **695 passed**
+(os 664 da feat + os testes da Sprint 4) · build ok · `pytest e2e` **35/36** ·
+`bench --rapido` exit 0, com **81–86 % da CPU tomada por terceiros**.
+A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
+- isolado, o mesmo teste falhou também na `feat` (1/1) e no `release-main` (2/2);
+- diagnóstico com o servidor do E2E: a câmera em foco recebeu **3 inferências
+  em 73 s** (agendador: `servidos` 3, espera máxima 65,9 s), sem o pré-alerta
+  ter chance de medir velocidade;
+- inferência direta, sem o servidor: EPI 1,0–1,4 s e pessoa 0,5–0,8 s na iGPU
+  (horas antes, no clone, a pessoa levava 97 ms) — sem pico de compilação por
+  forma de entrada; CPU da máquina em 100 %, com ~12 processos do Salesforce CLI
+  (`sf`) abertos às 19:44, de fora do projeto.
