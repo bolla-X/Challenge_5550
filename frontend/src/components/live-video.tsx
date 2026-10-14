@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LeitorMultipart } from "../socket/multipart";
+import { useDashboardStore } from "../store/dashboardStore";
+import { desenharRaioX, HistoricoDePes, type RaioX } from "./raiox";
 
 /**
  * Player de vídeo ao vivo em <canvas>, com o overlay desenhado NO NAVEGADOR.
@@ -39,6 +41,8 @@ export type Overlay = {
   zona: [number, number][];
   zona_ativa: boolean;
   opcoes: Record<string, boolean>;
+  /** Dados do Modo Raio-X (X5); servidor anterior não manda. */
+  raiox?: RaioX;
 };
 
 export type EstadoDoStream = "conectando" | "ao_vivo" | "sem_sinal" | "reconectando";
@@ -199,6 +203,7 @@ export function LiveVideo({
     let raf = 0;
     let tentativa = 0;
     let estadoAtual: EstadoDoStream = "conectando";
+    const historico = new HistoricoDePes();
 
     const mudarEstado = (novo: EstadoDoStream) => {
       if (novo === estadoAtual) return;
@@ -230,7 +235,14 @@ export function LiveVideo({
       const dy = (altura - h) / 2;
       ctx.clearRect(0, 0, largura, altura);
       ctx.drawImage(item.bmp, dx, dy, w, h);
-      if (item.ov && item.ov.w) desenharOverlay(ctx, item.ov, dx, dy, w / item.ov.w);
+      if (item.ov && item.ov.w) {
+        desenharOverlay(ctx, item.ov, dx, dy, w / item.ov.w);
+        // Raio-X: o histórico dos pés anda sempre (as trilhas já existem ao ligar).
+        historico.registrar(item.ov.v, item.ov.caixas, item.ov.w, item.ov.h);
+        const raio = useDashboardStore.getState().raioX;
+        if (raio && item.ov.raiox) desenharRaioX(ctx, item.ov.raiox, item.ov.caixas, item.ov.w, item.ov.h, dx, dy, w / item.ov.w, historico);
+        canvas.dataset.raiox = raio && item.ov.raiox ? "1" : "0";
+      }
       canvas.dataset.w = String(item.bmp.width);
       canvas.dataset.h = String(item.bmp.height);
       item.bmp.close();

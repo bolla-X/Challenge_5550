@@ -158,6 +158,49 @@ class ElodeCustodia(db.Model):
         }
 
 
+class PontoDaLiga(db.Model):
+    """Um ponto da Liga de Setores (X8): SÓ indicador positivo, SÓ por setor.
+
+    Nunca há ponto negativo nem por pessoa: gerar ou reportar alerta não tira
+    ponto de ninguém, e "zero alertas" não ganha nada. `ref` evita contar o
+    mesmo fato duas vezes (único por tipo).
+    """
+
+    __tablename__ = "liga_pontos"
+    __table_args__ = (db.UniqueConstraint("tipo", "ref", name="uq_liga_tipo_ref"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    setor = db.Column(db.String(160), nullable=False, index=True)
+    camera_id = db.Column(db.Integer, nullable=True)
+    tipo = db.Column(db.String(40), nullable=False, index=True)
+    pontos = db.Column(db.Integer, nullable=False)
+    ref = db.Column(db.String(120), nullable=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "setor": self.setor, "tipo": self.tipo, "pontos": self.pontos,
+                "criado_em": self.criado_em.isoformat() if self.criado_em else None}
+
+
+class Missao(db.Model):
+    """Missão da equipe por turno (X8), configurada pelo supervisor."""
+
+    __tablename__ = "missoes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    titulo = db.Column(db.String(160), nullable=False)
+    tipo = db.Column(db.String(40), nullable=False)  # checkin_portal | rotulo | reconhecido_rapido | minuto_conforme
+    alvo = db.Column(db.Integer, nullable=False)
+    ate_hora = db.Column(db.String(5), nullable=True)  # "08:00": só conta o que acontecer até essa hora
+    setor = db.Column(db.String(160), nullable=True)  # None = planta inteira
+    ativa = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "titulo": self.titulo, "tipo": self.tipo, "alvo": self.alvo, "ate_hora": self.ate_hora,
+                "setor": self.setor, "ativa": self.ativa}
+
+
 def _aware(valor: datetime) -> datetime:
     """SQLite devolve datetime sem fuso; tudo aqui é gravado em UTC."""
     return valor if valor.tzinfo is not None else valor.replace(tzinfo=timezone.utc)

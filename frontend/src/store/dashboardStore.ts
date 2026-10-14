@@ -3,6 +3,7 @@ import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
 import { calarFala, falarAlerta } from "../audio/fala";
+import { avisarAlertaCritico } from "../pwa";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
@@ -89,6 +90,10 @@ interface DashboardState {
   muted: boolean;
   mutedByProfile: Record<ViewMode, boolean>;
   toggleMuted: () => void;
+
+  /** Modo Raio-X (X5) sobre o vídeo ao vivo; tecla X alterna. */
+  raioX: boolean;
+  alternarRaioX: () => void;
 
   // tema: persistido em localStorage (visionepi-theme). null = sistema decide.
   theme: Theme | null;
@@ -377,6 +382,9 @@ export const useDashboardStore = create<DashboardState>()(
           false,
           "toggleMuted",
         ),
+
+      raioX: false,
+      alternarRaioX: () => set((state) => ({ raioX: !state.raioX }), false, "alternarRaioX"),
 
       theme: readStoredTheme(),
       toggleTheme: () =>
@@ -883,6 +891,8 @@ export function subscribeToServerEvents(): () => void {
     if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
     set({ lastAlertCreatedId: alert.id }, false, "ws:alert_created:lastId");
     const estado = useDashboardStore.getState();
+    // X10: alerta crítico com o app aberto vira notificação do sistema + vibração.
+    avisarAlertaCritico(alert, estado.cameras.find((c) => c.id === alert.camera_id)?.name);
     if (!estado.muted && SEVERITIES_WITH_CHIME.has(alert.severity)) {
       // Crítico: falado em pt-BR (G6); sem voz pt-BR na máquina, o bipe de sempre.
       const camera = estado.cameras.find((c) => c.id === alert.camera_id);

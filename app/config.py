@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -419,6 +420,14 @@ class Config:
     REASSOCIAR_IDS = env_bool("REASSOCIAR_IDS", True)
     # Cadeia de custódia das evidências (X3): alerta, snapshot, clipe e privacidade.
     CUSTODIA_ATIVA = env_bool("CUSTODIA_ATIVA", True)
+    # Trilhas do simulador "E se?" (X2): sem imagem, arquivo rotativo com teto.
+    TRILHAS_ATIVAS = env_bool("TRILHAS_ATIVAS", True)
+    # Liga de Setores e missões (X8): só pontos positivos, por setor.
+    LIGA_ATIVA = env_bool("LIGA_ATIVA", True)
+    TURNOS = os.getenv("TURNOS", "06:00-14:00,14:00-22:00,22:00-06:00")
+    TRILHAS_DIR = os.getenv("TRILHAS_DIR", "")
+    TRILHAS_MB_POR_ARQUIVO = env_float("TRILHAS_MB_POR_ARQUIVO", 16.0)
+    TRILHAS_ARQUIVOS = env_int("TRILHAS_ARQUIVOS", 4)
     REASSOCIAR_DISTANCIA_LARGURAS = env_float("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)
     REASSOCIAR_JANELA_S = env_float("REASSOCIAR_JANELA_S", 2.0)
     POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)
@@ -526,6 +535,9 @@ class TestConfig(Config):
     # caminho de recusa — ela conta com os dois vazios.
     RTSP_USUARIO = ""
     RTSP_SENHA = ""
+    # Trilhas do simulador (X2) numa pasta temporária por processo: a suíte
+    # não escreve no instance/ de quem roda nem herda trilha de outra rodada.
+    TRILHAS_DIR = tempfile.mkdtemp(prefix="visionepi-trilhas-")
 
 
 class AuthTestConfig(TestConfig):

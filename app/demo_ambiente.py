@@ -52,6 +52,13 @@ PLANTAS = {
     "Pátio": PLANTA_PATIO,
     "Escada": {"pontos_camera": _CHAO_NO_VIDEO, "pontos_planta": [[0.05, 0.60], [0.37, 0.60], [0.37, 0.92], [0.05, 0.92]]},
 }
+# Missões da equipe por turno (X8), como um supervisor configuraria.
+MISSOES = [
+    {"titulo": "5 check-ins liberados no portal", "tipo": "checkin_portal", "alvo": 5},
+    {"titulo": "Reconhecer 3 incidentes em até 1 minuto", "tipo": "reconhecido_rapido", "alvo": 3},
+    {"titulo": "Revisar 10 recortes na fila de rótulos", "tipo": "rotulo", "alvo": 10},
+    {"titulo": "60 minutos conformes na planta", "tipo": "minuto_conforme", "alvo": 60},
+]
 METAS = {"Obra": {"minutos_conformes": 30, "checkins_portal": 5}, "Portaria": {"minutos_conformes": 30, "checkins_portal": 10}}
 
 
@@ -68,7 +75,7 @@ def preparar_ambiente() -> None:
                 arquivo.unlink()
         except PermissionError:
             raise SystemExit("[demo] o banco da demo está em uso: já há uma demo rodando? Feche-a e tente de novo.") from None
-    for sub in ("clips", "snapshots", "rotulos"):
+    for sub in ("clips", "snapshots", "rotulos", "trilhas"):
         shutil.rmtree(PASTA / sub, ignore_errors=True)
     os.environ.update({
         "VISIONEPI_DOTENV": "0",
@@ -82,6 +89,7 @@ def preparar_ambiente() -> None:
         "SNAPSHOT_DIR": str(PASTA / "snapshots"),
         "CLEANUP_DIRECTORIES": str(PASTA / "snapshots"),
         "ROTULOS_DIR": str(PASTA / "rotulos"),
+        "TRILHAS_DIR": str(PASTA / "trilhas"),
         "RTSP_FIXTURE_FALLBACK": "",
         "DEFAULT_FEATURES": "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,"
                             "pose,falls,posture,risk_area,sos,ergonomia,imobilidade",
@@ -106,9 +114,9 @@ def resetar_pelo_terminal(porta: int) -> dict[str, Any]:
     with sqlite3.connect(BANCO) as conexao:
         conexao.execute("DELETE FROM alerts")
         conexao.execute("DELETE FROM event_logs")
-        for tabela in ("incidentes", "custodia"):
+        for tabela in ("incidentes", "custodia", "liga_pontos"):
             if conexao.execute("SELECT name FROM sqlite_master WHERE name=?", (tabela,)).fetchone():
                 conexao.execute(f"DELETE FROM {tabela}")
-    for sub in ("clips", "snapshots"):
+    for sub in ("clips", "snapshots", "trilhas"):
         shutil.rmtree(PASTA / sub, ignore_errors=True)
     return {"ok": True, "segundos": round(time.monotonic() - inicio, 2), "via": "banco (servidor fora do ar)"}

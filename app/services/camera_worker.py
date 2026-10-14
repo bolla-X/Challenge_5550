@@ -18,6 +18,7 @@ from app.extensions import db
 from app.llm import redigir_segredos
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
+from app.services import liga
 from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.alert_state_service import AlertStateService
 from app.services.andon import ContadorDeMinutos
@@ -34,6 +35,7 @@ from app.services.risk_rules import RuleAlert, RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
+from app.services.trilhas import GravadorDeTrilhas
 from app.utils.salas import emitir_para_camera, emitir_para_foco
 from app.vision.annotator import FrameAnnotator
 from app.vision.captura_continua import CapturaContinua
@@ -275,6 +277,17 @@ class CameraWorker:
         )
         self._replay_antes_ms = float(app.config.get("REPLAY_ANTES_S", 5.0)) * 1000.0
         self._replay_depois_ms = float(app.config.get("REPLAY_DEPOIS_S", 3.0)) * 1000.0
+        # Trilhas para o simulador "E se?" (X2): posição e EPIs por análise, sem imagem.
+        trilhas_dir = Path(str(app.config.get("TRILHAS_DIR") or Path(app.instance_path) / "trilhas"))
+        self.trilhas = (
+            GravadorDeTrilhas(
+                trilhas_dir / f"camera_{camera_id}",
+                teto_bytes=int(float(app.config.get("TRILHAS_MB_POR_ARQUIVO", 16)) * 1024 * 1024),
+                arquivos=int(app.config.get("TRILHAS_ARQUIVOS", 4)),
+            )
+            if app.config.get("TRILHAS_ATIVAS", True) and camera_id is not None
+            else None
+        )
         replay_dir = Path(str(app.config.get("REPLAY_DIR", "runtime/clips")))
         self.replay_dir = replay_dir if replay_dir.is_absolute() else Path(BASE_DIR) / replay_dir
         self._clipes_pendentes: list[ClipePendente] = []
@@ -409,6 +422,8 @@ class CameraWorker:
         self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)))
         # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
         self.andon = ContadorDeMinutos()
+        if app.config.get("LIGA_ATIVA", True) and camera_id is not None:
+            self.andon.ao_fechar_conforme = self._minuto_conforme_na_liga
         # Aprendizado ativo (G9): fila compartilhada, injetada pelo MonitorService.
         self.fila_de_rotulos = None
         # Planta baixa (G5): calibração (do banco) e os pés da última análise.
@@ -793,11 +808,63 @@ class CameraWorker:
             "h": altura,
             "caixas": caixas,
             "poses": poses,
+            # Raio-X (X5): esqueleto com juntas nomeadas, confiança e decisão por
+            # pessoa, o que o filtro descartou e o piso de cada classe.
+            "raiox": self._dados_do_raiox(analysis, compliance_state, enabled_map),
             "zona": [[round(x, 4), round(y, 4)] for x, y in self.rule_engine.risk_polygon],
             "zona_ativa": bool(enabled_map.get("risk_area", False)),
             "opcoes": self.overlay_options,
         }
         return corpo
+
+    JUNTAS = ("nose", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist",
+              "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle")
+
+    def _dados_do_raiox(self, analysis, compliance_state, enabled_map) -> dict[str, Any]:
+        esqueletos = []
+        if enabled_map.get("pose", False):
+            for pose in analysis.poses or ([analysis.pose] if analysis.pose else []):
+                if not (pose and pose.found):
+                    continue
+                por_nome = {lm.name: lm for lm in pose.landmarks}
+                esqueletos.append({
+                    "t": pose.track_id,
+                    "j": [[round(lm.x, 4), round(lm.y, 4), round(lm.visibility, 2)] if (lm := por_nome.get(n)) else None
+                          for n in self.JUNTAS],
+                })
+        velocidades = self.aproximacao.velocidades() if self.aproximacao is not None else {}
+        estados = {}
+        for estado in list(self.alert_state_service._states.values()):
+            meta = estado.rule_alert.metadata or {}
+            pid = meta.get("person_id")
+            if not pid:
+                continue
+            ativo = estado.snapshot is not None and estado.snapshot.get("status") == "active"
+            estados.setdefault(str(pid), {})[estado.rule_alert.feature] = (
+                "alerta" if ativo else f"confirmando {estado.violation_frames}/{self.alert_state_service.create_after_frames}"
+            )
+        pessoas = []
+        for pessoa in compliance_state.get("people") or []:
+            epis = {
+                chave: [round(float(item.get("confidence") or 0.0), 2), item.get("status")]
+                for chave, item in (pessoa.get("ppe") or {}).items()
+                if item.get("status") not in ("disabled", "unsupported")
+            }
+            tid = pessoa.get("track_id")
+            vel = velocidades.get(tid) if tid is not None else None
+            pessoas.append({
+                "t": tid,
+                "epis": epis,
+                "decisao": estados.get(str(pessoa.get("id")), {}),
+                "vel": [round(vel[0], 4), round(vel[1], 4)] if vel else None,
+            })
+        return {
+            "esqueletos": esqueletos,
+            "pessoas": pessoas,
+            "descartadas": list(getattr(analysis, "descartadas", []) or [])[:20],
+            "pisos": self._pisos_por_classe,
+            "confianca_min": float(self.app.config.get("YOLO_CONFIDENCE", 0.35)),
+        }
 
     def registrar_envio_de_video(self, nbytes: int) -> None:
         """Chamado pelo gerador do MJPEG a cada parte enviada a um cliente."""
@@ -965,6 +1032,7 @@ class CameraWorker:
         overlap_min = self._sobreposicao_min
 
         saida = []
+        descartadas: list[dict[str, Any]] = []
         for det in ppe_detections:
             if det.label == "person" or det.category == "person":
                 if not tem_people:
@@ -972,13 +1040,21 @@ class CameraWorker:
                 continue
             piso = floors.get(det.label)
             if piso is not None and det.confidence < piso:
+                descartadas.append(self._descarte(det, f"abaixo do piso {piso:.2f}"))
                 continue
             if exigir_overlap and not any(
                 det.box.containment_in(pbox) >= overlap_min for pbox in person_boxes
             ):
+                descartadas.append(self._descarte(det, "fora de qualquer pessoa"))
                 continue
             saida.append(det)
+        self._descartadas_na_analise = descartadas
         return saida
+
+    @staticmethod
+    def _descarte(det, motivo: str) -> dict[str, Any]:
+        return {"l": det.label, "c": round(float(det.confidence), 2),
+                "b": [int(det.box.x1), int(det.box.y1), int(det.box.x2), int(det.box.y2)], "m": motivo}
 
     def _taxa_util_de_captura(self) -> float:
         """Quadros/s que alguém consome: o vídeo assistido, ou miniatura + inferência.
@@ -1254,6 +1330,13 @@ class CameraWorker:
                     self._gravar_clipe(pendente, quadros)
         self.stats.duracao("replay", (time.perf_counter() - inicio) * 1000.0)
 
+    def _minuto_conforme_na_liga(self, indice_do_minuto: int) -> None:
+        """X8: um minuto com gente na câmera e todo mundo conforme vale 1 ponto ao setor."""
+        from datetime import datetime, timezone
+
+        liga.registrar("minuto_conforme", ref=f"{self.camera_id}:{indice_do_minuto}", camera_id=self.camera_id,
+                       quando=datetime.fromtimestamp(indice_do_minuto * 60, tz=timezone.utc))
+
     def _gravar_clipe(self, pendente: ClipePendente, quadros) -> None:
         clipe = gravar_clipe(self.replay_dir, pendente, quadros, self.camera_id)
         if self.app.config.get("CUSTODIA_ATIVA", True):
@@ -1351,13 +1434,16 @@ class CameraWorker:
             if nova:
                 inicio = time.perf_counter()
                 portal = self._portal.atualizar(
-                    avaliar_portal(compliance_state, self.gate_required, frame.shape, analysis.poses)
+                    avaliar_portal(compliance_state, self.gate_required, frame.shape, analysis.poses,
+                                   getattr(analysis, "descartadas", None), self._pisos_por_classe)
                 )
                 self.stats.duracao("g1_portal", (time.perf_counter() - inicio) * 1000.0)
                 if portal.get("checkin_novo"):
                     # Conta para a meta do SETOR (G8); sem foto, sem nome, sem ID salvo.
-                    self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
-                                              metadata={"exigidos": list(self.gate_required)})
+                    evento = self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
+                                                       metadata={"exigidos": list(self.gate_required)})
+                    if evento and self.app.config.get("LIGA_ATIVA", True):
+                        liga.registrar("checkin_portal", ref=f"evento:{evento['id']}", camera_id=self.camera_id)
         if nova:
             inicio = time.perf_counter()
             self.andon.registrar(compliance_state.get("people") or [], self.epis_exigidos(), time.time())
@@ -1371,6 +1457,13 @@ class CameraWorker:
                 self.stats.duracao("g5_planta", (time.perf_counter() - inicio) * 1000.0)
             self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
             self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
+            if self.trilhas is not None:
+                inicio = time.perf_counter()
+                try:
+                    self.trilhas.registrar(time.time(), compliance_state.get("people") or [], frame.shape[1], frame.shape[0])
+                except OSError as exc:
+                    logger.warning("trilha_falhou", extra={"error": str(exc)})
+                self.stats.duracao("x2_trilha", (time.perf_counter() - inicio) * 1000.0)
 
         with self._thread_lock:
             self._quadro_bruto = frame
@@ -1887,7 +1980,8 @@ class CameraWorker:
             # `pose` continua sendo a primeira (ou a global) pra nao quebrar
             # quem ja lia esse campo — frontend inclusive.
             pose = poses[0] if poses else None
-        return FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses)
+        descartadas, self._descartadas_na_analise = getattr(self, "_descartadas_na_analise", []), []
+        return FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses, descartadas=descartadas)
 
     def _estimate_poses(self, frame, detections) -> list[PoseResult]:
         """Uma pose por pessoa quando ha caixa de pessoa; senao, a global.

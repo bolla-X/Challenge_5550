@@ -537,6 +537,8 @@ export interface PortalItem {
   key: string;
   estado: "confirmado" | "faltando" | "nao_verificavel";
   motivo: string | null;
+  /** O que o modelo viu e por quê (X9): "visto com 0,62", "viu com 0,31, abaixo do piso — descartado". */
+  explicacao?: string;
 }
 export interface PortalState {
   camera_id: number;

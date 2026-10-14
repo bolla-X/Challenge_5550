@@ -17,6 +17,12 @@ status_bp = Blueprint("status", __name__)
 @status_bp.get("/rotular")
 @status_bp.get("/desafio")
 @status_bp.get("/gemeo")
+@status_bp.get("/simulador")
+@status_bp.get("/auditoria")
+@status_bp.get("/palco")
+@status_bp.get("/palco/controle")
+@status_bp.get("/retrospectiva")
+@status_bp.get("/liga")
 def index():
     # Serve o shell do build React (frontend/vite.config.ts emite aqui).
     # O caminho Jinja antigo (app/templates/ + app/static/app.js|styles.css)
@@ -29,6 +35,21 @@ def index():
                   "localStorage.setItem('visionepi-theme','light')}catch(e){}</script>")
         return current_app.response_class(html.replace("<head>", "<head>" + script, 1), mimetype="text/html")
     return send_from_directory(dist_dir, "index.html")
+
+
+@status_bp.get("/sw.js")
+def service_worker():
+    """Service worker do PWA (X10) servido na RAIZ: só assim o escopo dele é o app inteiro."""
+    dist_dir = Path(current_app.static_folder) / "dist"
+    resposta = send_from_directory(dist_dir, "sw.js", mimetype="text/javascript", max_age=0)
+    resposta.headers["Cache-Control"] = "no-cache"
+    return resposta
+
+
+@status_bp.get("/manifest.webmanifest")
+def manifesto():
+    dist_dir = Path(current_app.static_folder) / "dist"
+    return send_from_directory(dist_dir, "manifest.webmanifest", mimetype="application/manifest+json", max_age=0)
 
 
 @status_bp.get("/status")

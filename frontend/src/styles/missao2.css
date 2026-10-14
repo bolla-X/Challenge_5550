@@ -1,0 +1,233 @@
+/* Telas da MISSÃO 2 (simulador, auditoria, palco, retrospectiva, liga). Só tokens. */
+
+/* ---------- controles compartilhados ---------- */
+input[type="range"] { height: 28px; padding: 0; background: transparent; border: 0; accent-color: var(--accent); }
+.segmented { display: inline-flex; padding: 3px; gap: 2px; background: var(--sunken); border-radius: var(--r-control); }
+.segmented button { height: 32px; border: 0; background: transparent; color: var(--text-2); font-size: 13px; padding: 0 var(--s3); }
+.segmented button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.chip-toggle {
+  height: 32px; padding: 0 var(--s3); border-radius: var(--r-chip); font-size: 13px;
+  background: transparent; border: 1px solid var(--control-line); color: var(--text-2);
+}
+.chip-toggle.on { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.chip-toggle:disabled { opacity: .45; }
+
+/* ---------- simulador (X2) ---------- */
+.sim-grade { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.sim-controles .card-body { display: grid; gap: var(--s4); }
+.sim-campo { display: grid; gap: var(--s2); border: 0; margin: 0; padding: 0; min-width: 0; }
+.sim-campo > span, .sim-campo > legend { font-size: 13px; font-weight: 500; color: var(--text-2); padding: 0; margin-bottom: var(--s2); }
+.sim-chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.sim-check { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 500; }
+.sim-zona { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-control); overflow: hidden; background: var(--sunken); }
+.sim-zona img, .sim-zona svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.sim-zona svg { touch-action: none; }
+.sim-zona-poly { fill: var(--tint-danger); stroke: var(--danger); stroke-width: .004; vector-effect: non-scaling-stroke; }
+.sim-vertice {
+  position: absolute; width: 18px; height: 18px; padding: 0; margin: -9px 0 0 -9px; border-radius: var(--r-chip);
+  background: var(--surface); border: 2px solid var(--danger); cursor: grab; touch-action: none;
+}
+.sim-vertice:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.sim-vazio { display: grid; gap: var(--s2); padding: var(--s6) var(--s4); text-align: center; justify-items: center; }
+.sim-vazio h2 { font-size: 20px; font-weight: 600; letter-spacing: -.012em; }
+.sim-vazio p { color: var(--text-2); max-width: 52ch; }
+.sim-erro { display: flex; gap: var(--s3); align-items: center; padding: var(--s3) var(--s4); border-radius: var(--r-control); background: var(--tint-danger); color: var(--text); margin-bottom: var(--s4); flex-wrap: wrap; }
+.sim-numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s4); margin: 0 0 var(--s5); }
+.sim-numeros > div { display: grid; gap: 2px; }
+.sim-numeros dt { font-size: 13px; color: var(--text-2); }
+.sim-numeros dd { margin: 0; font-size: 40px; line-height: 1.1; font-weight: 600; letter-spacing: -.03em; }
+.sim-linhas { display: grid; gap: var(--s3); margin-bottom: var(--s5); }
+.sim-faixa svg { width: 100%; height: 72px; display: block; }
+.sim-faixa-nome { display: flex; align-items: center; gap: var(--s2); font-size: 13px; color: var(--text-2); margin-bottom: var(--s1); }
+.sim-amostra { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sim-amostra.proposta, .sim-barra.proposta { fill: var(--accent); background: var(--accent); }
+.sim-amostra.real, .sim-barra.real { fill: var(--text-3); background: var(--text-3); }
+.sim-base { stroke: var(--hairline); stroke-width: 1; }
+.sim-alvo { fill: transparent; }
+.sim-foco { fill: color-mix(in srgb, var(--text) 6%, transparent); pointer-events: none; }
+.sim-eixo { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+.sim-tabela { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: var(--s3); }
+.sim-tabela caption { text-align: left; font-size: 13px; font-weight: 600; color: var(--text-2); padding-bottom: var(--s2); }
+.sim-tabela th, .sim-tabela td { padding: 8px 0; border-bottom: 1px solid var(--hairline); text-align: right; }
+.sim-tabela th[scope="row"], .sim-tabela thead th:first-child { text-align: left; font-weight: 500; }
+.sim-tabela thead th { font-size: 12px; font-weight: 500; color: var(--text-3); }
+
+@media (max-width: 960px) {
+  .sim-grade { grid-template-columns: 1fr; }
+  .sim-numeros { grid-template-columns: 1fr 1fr; }
+  .sim-numeros dd { font-size: 32px; }
+}
+
+/* ---------- incidente: linha causal (X4) e custódia (X3) ---------- */
+.incidente-modal { max-width: 760px; display: grid; gap: var(--s5); padding: var(--s5); }
+.causal-cab, .custodia-cab { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s3); }
+.causal h3, .custodia h3, .incidente-alertas h3 { font-size: 15px; font-weight: 600; }
+.causal-passos { list-style: none; margin: 0 0 var(--s2); padding: 0 0 0 var(--s4); border-left: 2px solid var(--hairline); display: grid; gap: var(--s3); }
+.causal-passos li { display: grid; grid-template-columns: 76px 1fr auto; gap: var(--s3); align-items: baseline; font-size: 15px; position: relative; }
+.causal-passos li::before {
+  content: ""; position: absolute; left: calc(-1 * var(--s4) - 5px); top: 7px; width: 8px; height: 8px; border-radius: var(--r-chip);
+  background: var(--surface); border: 2px solid var(--text-3);
+}
+.causal-passos li.violacao::before, .causal-passos li.sinal::before { border-color: var(--danger); background: var(--danger); }
+.causal-passos li.reconhecimento::before { border-color: var(--ok); background: var(--ok); }
+.causal-passos li.duracao::before { display: none; }
+.causal-passos time { color: var(--text-3); font-size: 13px; }
+.causal-seta { color: var(--text-3); text-align: right; }
+.causal-passos li.duracao .causal-texto { color: var(--text-2); }
+.incidente-alertas ul { list-style: none; margin: var(--s2) 0 0; padding: 0; display: grid; gap: 2px; }
+.incidente-alertas li { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); padding: 6px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; }
+.custodia { display: grid; gap: var(--s2); }
+.custodia-resultado { display: grid; gap: var(--s3); padding: var(--s4); border-radius: var(--r-control); background: var(--sunken); }
+.custodia-veredito { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; font-size: 15px; }
+.custodia-veredito .dot { width: 10px; height: 10px; }
+.custodia-resultado.ok .custodia-veredito .dot { color: var(--ok); }
+.custodia-resultado.aviso .custodia-veredito .dot { color: var(--text-3); }
+.custodia-resultado.falha { background: var(--tint-danger); }
+.custodia-resultado.falha .custodia-veredito .dot { color: var(--danger); }
+.custodia-elos { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.custodia-elos li { display: grid; grid-template-columns: 48px 90px 130px 1fr; gap: var(--s2); padding: 4px 0; color: var(--text-2); }
+.custodia-elos li:not(.ok) { color: var(--danger); font-weight: 600; }
+.custodia-hash { color: var(--text-3); font-size: 12px; }
+.auditoria .card + .card { margin-top: var(--s4); }
+.auditoria-tabela th, .auditoria-tabela td { text-align: left; padding-right: var(--s3); }
+
+/* ---------- Raio-X (X5) ---------- */
+.raiox-botao { cursor: pointer; border: 0; font: inherit; height: auto; }
+.raiox-botao:hover { background: var(--overlay); }
+.raiox-botao kbd { font: 600 11px var(--font-mono); padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--on-overlay) 16%, transparent); }
+.raiox-botao.on { box-shadow: inset 0 0 0 2px var(--on-overlay); }
+
+/* ---------- Liga de Setores (X8) ---------- */
+.liga-grade { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.liga-lado { display: grid; gap: var(--s4); }
+.liga-placar { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.liga-placar li { display: grid; grid-template-columns: 32px 1fr auto; gap: var(--s3); align-items: center; }
+.liga-pos { font-size: 20px; font-weight: 600; color: var(--text-3); text-align: center; }
+.liga-placar li:first-child .liga-pos { color: var(--accent); }
+.liga-setor { display: grid; gap: 4px; min-width: 0; }
+.liga-setor strong { font-size: 17px; font-weight: 600; }
+.liga-pontos { font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+.liga-barra { position: relative; display: block; height: 8px; border-radius: var(--r-chip); background: var(--sunken); overflow: hidden; }
+.liga-barra.fina { height: 4px; }
+.liga-barra > span { position: absolute; inset: 0; background: var(--accent); transform-origin: left; transition: transform var(--d-panel) var(--ease-out); }
+.liga-kicker { font-size: 13px; color: var(--text-2); }
+.liga-nivel { display: grid; gap: var(--s2); }
+.liga-nivel-numero { font-size: 64px; line-height: 1; font-weight: 600; letter-spacing: -.04em; }
+.liga-missoes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.liga-missoes li { display: grid; gap: 6px; }
+.liga-missao-linha { display: flex; justify-content: space-between; gap: var(--s3); font-size: 14px; }
+.liga-missoes li.cumprida .liga-barra > span { background: var(--ok); }
+.liga-missoes li.cumprida strong { color: var(--ok); }
+.liga-missoes.compacto .liga-missao-linha { font-size: 13px; }
+.liga-nova { display: grid; grid-template-columns: 2fr 1.4fr .8fr .8fr auto; gap: var(--s2); align-items: end; margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--hairline); }
+.liga-gerenciar { margin-top: var(--s3); font-size: 13px; color: var(--text-2); }
+.liga-gerenciar ul { list-style: none; padding: 0; margin: var(--s2) 0 0; display: grid; gap: 4px; }
+.liga-gerenciar li { display: flex; justify-content: space-between; align-items: center; }
+.liga-resumo { position: relative; background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-1); padding: var(--s5); display: grid; gap: var(--s4); overflow: hidden; margin-top: var(--s4); }
+.liga-resumo header { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.liga-resumo h2 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.liga-resumo-grade { display: grid; grid-template-columns: 1.3fr 1fr; gap: var(--s5); }
+.liga-resumo-lado { display: grid; gap: var(--s4); align-content: start; }
+.liga-aviso {
+  position: fixed; left: 50%; bottom: var(--s6); transform: translateX(-50%); z-index: 120;
+  background: var(--text); color: var(--canvas); padding: var(--s3) var(--s5); border-radius: var(--r-chip);
+  box-shadow: var(--shadow-2); font-weight: 600; animation: aviso-entra var(--d-panel) var(--ease-out);
+}
+.confete { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+@keyframes aviso-entra { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (max-width: 1100px) { .liga-grade, .liga-resumo-grade { grid-template-columns: 1fr; } .liga-nova { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- Retrospectiva (X7) ---------- */
+.retro { display: grid; justify-items: center; gap: var(--s4); padding: var(--s4) 0; }
+.retro-segmentos { display: flex; gap: 6px; width: min(560px, 100%); }
+.retro-segmentos span { position: relative; flex: 1; height: 4px; border-radius: var(--r-chip); background: var(--hairline); overflow: hidden; }
+.retro-segmentos span.cheio { background: var(--accent); }
+.retro-segmentos span i { position: absolute; inset: 0; background: var(--accent); transform-origin: left; animation: retro-progresso linear forwards; }
+@keyframes retro-progresso { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.retro-card {
+  position: relative; width: min(560px, 100%); aspect-ratio: 4 / 5; background: var(--surface); border-radius: 28px;
+  box-shadow: var(--shadow-2); padding: var(--s7) var(--s6); display: flex; flex-direction: column; gap: var(--s4); overflow: hidden;
+}
+.retro-card.entra { animation: retro-entra 420ms var(--ease-out); }
+@keyframes retro-entra { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
+.retro-kicker { font-size: 14px; color: var(--text-2); }
+.retro-card h2 { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -.03em; }
+.retro-valor { margin-top: auto; font-size: clamp(64px, 14vw, 120px); line-height: 1; font-weight: 700; letter-spacing: -.05em; color: var(--accent); word-break: break-word; }
+.retro-unidade { font-size: .45em; letter-spacing: -.02em; }
+.retro-detalhe { font-size: 18px; line-height: 1.4; color: var(--text-2); }
+.retro-zona { position: absolute; top: 0; bottom: 0; width: 35%; background: transparent; border: 0; border-radius: 0; height: auto; padding: 0; }
+.retro-zona:hover { background: transparent; }
+.retro-zona:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+.retro-zona.anterior { left: 0; }
+.retro-zona.proxima { right: 0; }
+.retro-acoes { display: flex; gap: var(--s2); }
+.segmented a.button { display: inline-flex; align-items: center; height: 32px; padding: 0 var(--s3); font-size: 13px; color: var(--text-2); text-decoration: none; border-radius: 8px; }
+.segmented a.button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.tv-retro { position: fixed; inset: 0; z-index: 90; background: var(--canvas); display: grid; place-items: center; }
+@media (prefers-reduced-motion: reduce) {
+  .retro-card.entra, .liga-aviso { animation: none; }
+  .liga-barra > span { transition: none; }
+}
+
+/* ---------- Tente enganar a IA (X9) ---------- */
+.enganar { padding: var(--s5); display: grid; gap: var(--s4); margin-top: var(--s4); }
+.enganar h2 { font-size: 20px; font-weight: 600; letter-spacing: -.012em; }
+.enganar-opcoes { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.enganar-contagem { font-size: 32px; font-weight: 600; }
+.enganar-resultado { padding: var(--s4); border-radius: var(--r-control); background: var(--sunken); display: grid; gap: var(--s1); }
+.enganar-resultado strong { font-size: 22px; letter-spacing: -.02em; }
+.enganar-resultado.enganou { background: var(--tint-danger); }
+.enganar-resultado.enganou strong { color: var(--danger); }
+.enganar-resultado.pegou strong { color: var(--ok); }
+.enganar-placar { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s3); margin: 0; }
+.enganar-placar dt { font-size: 12px; color: var(--text-3); }
+.enganar-placar dd { margin: 0; font-size: 28px; font-weight: 600; }
+.portal-explicacao { color: var(--text-2); }
+.portal-cabeca button.active { background: var(--sunken); color: var(--text); }
+
+/* ---------- Palco (X6) ---------- */
+.palco { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; background: var(--canvas); color: var(--text); }
+.palco-topo { display: flex; align-items: center; gap: var(--s4); padding: var(--s4) var(--s6); }
+.palco-marca { font-weight: 600; letter-spacing: -.01em; }
+.palco-pontos { list-style: none; display: flex; gap: 6px; margin: 0 auto; padding: 0; }
+.palco-pontos li { width: 22px; height: 4px; border-radius: var(--r-chip); background: var(--hairline); transition: background-color var(--d-state) var(--ease-out), width var(--d-state) var(--ease-out); }
+.palco-pontos li.feita { background: var(--text-3); }
+.palco-pontos li.atual { background: var(--accent); width: 40px; }
+.palco-indice { color: var(--text-3); font-size: 14px; }
+.palco-cena { min-height: 0; padding: 0 var(--s6); overflow: auto; }
+.palco-cena.entra { animation: palco-entra 360ms var(--ease-out); }
+@keyframes palco-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.palco-cena .portal, .palco-cena .gemeo { min-height: 0; }
+.palco-cena .screen { padding-top: 0; }
+.palco-legenda { display: flex; align-items: baseline; gap: var(--s4); padding: var(--s4) var(--s6) var(--s5); flex-wrap: wrap; }
+.palco-legenda strong { font-size: 28px; font-weight: 600; letter-spacing: -.024em; }
+.palco-legenda span { font-size: 20px; color: var(--text-2); }
+.palco-proxima { margin-left: auto; color: var(--text-3); font-size: 14px; }
+.palco-hero { min-height: 60vh; display: grid; place-content: center; justify-items: center; text-align: center; gap: var(--s5); }
+.palco-hero h1 { font-size: clamp(56px, 9vw, 120px); line-height: 1; font-weight: 700; letter-spacing: -.05em; }
+.palco-hero p { font-size: 24px; color: var(--text-2); max-width: 36ch; }
+.palco-numeros { display: flex; gap: var(--s7); margin: var(--s4) 0 0; }
+.palco-numeros div { display: grid; gap: 2px; }
+.palco-numeros dt { font-size: 14px; color: var(--text-3); order: 2; }
+.palco-numeros dd { margin: 0; font-size: 56px; font-weight: 600; letter-spacing: -.03em; }
+.palco-video { position: relative; height: calc(100vh - 220px); border-radius: var(--r-card); overflow: hidden; background: var(--overlay); }
+.palco-video canvas.live-video { width: 100%; height: 100%; display: block; }
+.palco-pilula { position: absolute; top: var(--s4); right: var(--s4); max-width: 60%; }
+.palco-vazio { font-size: 20px; color: var(--text-2); text-align: center; padding: var(--s7); }
+.palco-cartao { max-width: 900px; margin: 0 auto; }
+.palco-qr { position: fixed; right: var(--s5); bottom: 96px; width: 132px; display: grid; gap: 4px; justify-items: center; font-size: 12px; color: var(--text-2); background: var(--surface); padding: var(--s3); border-radius: var(--r-control); box-shadow: var(--shadow-2); }
+.palco-qr svg { width: 108px; height: 108px; }
+.palco-qr small { font-size: 10px; text-align: center; color: var(--text-3); }
+.incidente-inline { max-width: 900px; margin: 0 auto; }
+.incidente-inline .replay-cab > button { display: none; }
+
+/* controle no celular */
+.controle { min-height: 100vh; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s6) var(--s5); background: var(--canvas); }
+.controle-kicker { font-size: 13px; color: var(--text-3); }
+.controle-indice { font-size: 15px; color: var(--text-2); }
+.controle h1 { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -.03em; }
+.controle-proxima { color: var(--text-2); }
+.controle-erro { color: var(--danger); }
+.controle-botoes { margin-top: auto; display: grid; grid-template-columns: 1fr 1.6fr; gap: var(--s3); }
+.controle-botoes button { height: 96px; font-size: 20px; border-radius: var(--r-card); }
+@media (prefers-reduced-motion: reduce) { .palco-cena.entra { animation: none; } }

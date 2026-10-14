@@ -142,16 +142,35 @@ def servidor():
 
 
 @pytest.fixture(scope="session")
-def navegador():
+def playwright_sessao():
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
-        # Câmera falsa do Chromium para o F6 (celular como câmera): o
-        # getUserMedia recebe um vídeo sintético e a permissão é concedida
-        # sem diálogo. Não afeta os outros testes.
-        nav = pw.chromium.launch(headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"])
-        yield nav
-        nav.close()
+        yield pw
+
+
+@pytest.fixture(scope="session")
+def navegador(playwright_sessao):
+    # Câmera falsa do Chromium para o F6 (celular como câmera): o
+    # getUserMedia recebe um vídeo sintético e a permissão é concedida
+    # sem diálogo. Não afeta os outros testes.
+    nav = playwright_sessao.chromium.launch(
+        headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
+    )
+    yield nav
+    nav.close()
+
+
+@pytest.fixture(scope="session")
+def navegador_gpu(playwright_sessao):
+    """Chromium com a GPU da máquina (o "perfil normal" de um navegador de verdade).
+
+    O headless padrão desenha WebGL no SwiftShader (software): serve para
+    provar que funciona, não para medir tempo de quadro. Ver CHANGELOG (X1).
+    """
+    nav = playwright_sessao.chromium.launch(headless=True, args=["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"])
+    yield nav
+    nav.close()
 
 
 @pytest.fixture()

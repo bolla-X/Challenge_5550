@@ -286,6 +286,7 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
           data-intervalo-p95={metricas ? metricas.intervaloP95.toFixed(1) : ""}
           data-desenho-p95={metricas ? metricas.desenhoP95.toFixed(1) : ""}
           data-pausado={metricas?.pausado ? "1" : "0"}
+          data-escala={metricas ? metricas.escala.toFixed(2) : ""}
         >
           {modo === "2d" && (
             <Gemeo2D cameras={cameras} onPessoa={selecionar} onZona={(cam) => setSel({ tipo: "zona", camera_id: cam.id, camera_nome: cam.nome, zona_nome: cam.zona_nome })} />

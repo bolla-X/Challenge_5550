@@ -62,6 +62,8 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   // A pílula mostra o INCIDENTE (regra + zona + IDs), não um alerta por pessoa (P0.2).
   const incidente = incidenteCritico(estado);
   const preAlertas = useDashboardStore((s) => s.preAlertas);
+  const raioX = useDashboardStore((s) => s.raioX);
+  const alternarRaioX = useDashboardStore((s) => s.alternarRaioX);
 
   // O relógio do alerta anda sozinho; sem isso o "decorrido" congelava entre
   // dois pollings.
@@ -101,6 +103,17 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 <span className={`dot ${connected ? "ok" : "off"}`} />
                 {connected ? "Conectado" : "Sem conexão"}
               </span>
+              <button
+                type="button"
+                className={`over-pill raiox-botao ${raioX ? "on" : ""}`}
+                aria-pressed={raioX}
+                aria-keyshortcuts="X"
+                title="Modo Raio-X: o que o modelo viu x o que o sistema decidiu (tecla X)"
+                onClick={alternarRaioX}
+                data-testid="raiox-botao"
+              >
+                Raio-X <kbd>X</kbd>
+              </button>
               {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
                 <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
                   <span className="dot" />

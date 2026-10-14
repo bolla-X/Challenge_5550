@@ -152,6 +152,10 @@ def mark_false_positive(alert_id: int):
         metadata={"reason": reason, "false_positive": True},
         broadcast_resolved=True,
     )
+    # X8: revisar um falso positivo é contribuição positiva do setor.
+    from app.services.liga import registrar as liga_registrar
+
+    liga_registrar("falso_positivo_revisado", ref=f"alerta:{alert.id}", camera_id=alert.camera_id)
     return jsonify({"alert": alert_payload, "event": event})
 
 

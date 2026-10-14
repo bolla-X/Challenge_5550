@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { getTv } from "../api/endpoints";
 import type { TvSetor, TvEstado } from "../api/types";
+import { LigaResumo, useLiga } from "./liga";
+import { RetrospectivaStories } from "./retrospectiva";
 
 /**
  * Modo TV / Andon (G8), em `/tv`: legível a 5 m. Um bloco por SETOR com a
@@ -86,7 +88,38 @@ function Setor({ s }: { s: TvSetor }) {
   );
 }
 
+/**
+ * Retrospectiva no fim do turno (X7): nos últimos 10 minutos do turno a TV
+ * abre os stories uma vez (por turno, por aba). `?retro=1` abre na hora.
+ */
+function useRetroNoFimDoTurno(embutido: boolean): [boolean, () => void] {
+  const { liga } = useLiga(30000);
+  const [aberta, setAberta] = useState(() => !embutido && new URLSearchParams(window.location.search).get("retro") === "1");
+  useEffect(() => {
+    if (embutido || !liga) return;
+    const fim = new Date(liga.turno.fim).getTime();
+    const chave = `visionepi-retro-${liga.turno.inicio}`;
+    const agora = Date.now();
+    let vista = false;
+    try {
+      vista = sessionStorage.getItem(chave) === "1";
+    } catch {
+      vista = false;
+    }
+    if (!vista && fim - agora <= 10 * 60 * 1000 && fim > agora) {
+      setAberta(true);
+      try {
+        sessionStorage.setItem(chave, "1");
+      } catch {
+        // sem sessionStorage: abre de novo na próxima leitura, sem problema
+      }
+    }
+  }, [liga, embutido]);
+  return [aberta, () => setAberta(false)];
+}
+
 export function TvScreen({ embutido = false }: { embutido?: boolean }) {
+  const [retroAberta, fecharRetro] = useRetroNoFimDoTurno(embutido);
   const [estado, setEstado] = useState<TvEstado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [agora, setAgora] = useState(() => new Date());
@@ -126,6 +159,12 @@ export function TvScreen({ embutido = false }: { embutido?: boolean }) {
           {estado.setores.map((s) => (
             <Setor key={s.setor} s={s} />
           ))}
+        </div>
+      )}
+      <LigaResumo />
+      {retroAberta && (
+        <div className="tv-retro">
+          <RetrospectivaStories periodo="turno" onFechar={fecharRetro} />
         </div>
       )}
       <footer className="tv-rodape muted">

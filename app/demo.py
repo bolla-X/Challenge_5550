@@ -33,6 +33,7 @@ from app.demo_ambiente import (  # noqa: F401  (reexportados para quem importa a
     FIXTURES,
     GRAVACOES,
     METAS,
+    MISSOES,
     PASTA,
     PLANTA_PATIO,
     PLANTAS,
@@ -61,7 +62,7 @@ def webcam_disponivel(indice: int = 0) -> bool:
 def semear(app) -> dict[str, Any]:
     """Contas, câmeras, zona, planta, portal e metas. Devolve as senhas (só para imprimir)."""
     from app.extensions import db
-    from app.models import Camera, MetaDoSetor
+    from app.models import Camera, MetaDoSetor, Missao
     from app.services.auth_service import AuthService
 
     with app.app_context():
@@ -84,6 +85,8 @@ def semear(app) -> dict[str, Any]:
             cameras[nome].planta = calibracao
         for setor, meta in METAS.items():
             db.session.add(MetaDoSetor(setor=setor, **meta))
+        for missao in MISSOES:
+            db.session.add(Missao(**missao, ativa=True))
         db.session.commit()
 
         senhas = {papel: secrets.token_urlsafe(12) for papel in ("supervisor", "technical", "operator")}
@@ -114,7 +117,7 @@ def resetar_no_servidor(app) -> dict[str, Any]:
     """Executado DENTRO do servidor da demo: para tudo, limpa o histórico e religa
     com workers NOVOS (zera histerese, Andon, portal e sinais, que vivem na memória)."""
     from app.extensions import db
-    from app.models import Alert, ElodeCustodia, EventLog, Incidente
+    from app.models import Alert, ElodeCustodia, EventLog, Incidente, PontoDaLiga
 
     inicio = time.monotonic()
     monitor = app.extensions["monitor_service"]
@@ -135,10 +138,11 @@ def resetar_no_servidor(app) -> dict[str, Any]:
         Alert.query.delete()
         EventLog.query.delete()
         Incidente.query.delete()
+        PontoDaLiga.query.delete()
         # A cadeia de custódia acompanha as evidências que a demo apaga.
         ElodeCustodia.query.delete()
         db.session.commit()
-        for sub in ("clips", "snapshots"):
+        for sub in ("clips", "snapshots", "trilhas"):
             shutil.rmtree(PASTA / sub, ignore_errors=True)
         fila = getattr(monitor, "fila_de_rotulos", None)
         if fila is not None:

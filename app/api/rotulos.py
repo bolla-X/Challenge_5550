@@ -53,11 +53,15 @@ def decidir(ident: str):
         return jsonify({"error": "aprendizado ativo desligado"}), 409
     decisao = (request.get_json(silent=True) or {}).get("decisao")
     try:
-        fila.decidir(ident, str(decisao))
+        meta = fila.decidir(ident, str(decisao))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except LookupError as exc:
         return jsonify({"error": str(exc)}), 404
+    # X8: cada rótulo revisado (confirmado ou rejeitado) é contribuição do setor.
+    from app.services.liga import registrar as liga_registrar
+
+    liga_registrar("rotulo", ref=f"rotulo:{ident}", camera_id=meta.get("camera_id"))
     return jsonify({"contagem": fila.contagem()})
 
 

@@ -9,6 +9,8 @@ from flask import Blueprint, jsonify, request
 from app.extensions import db, socketio
 from app.models import ROLE_OPERATOR, Alert, Incidente
 from app.repositories.event_repository import EventRepository
+from app.services.liga import pontos_do_reconhecimento
+from app.services.liga import registrar as liga_registrar
 from app.utils.auth import (
     _operador_sem_setor,
     camera_permitida,
@@ -86,4 +88,30 @@ def reconhecer_incidente(incidente_id: int):
             metadata={"incidente_id": inc.id, "segundos": payload["reconhecido_em_s"], "papel": inc.reconhecido_papel},
         )
         emitir_para_camera(socketio, "incident_updated", payload, inc.camera_id)
+        tipo = pontos_do_reconhecimento(payload["reconhecido_em_s"])
+        if tipo:  # X8: reconhecer rápido vale ponto ao setor; demorar não tira nada
+            liga_registrar(tipo, ref=f"incidente:{inc.id}", camera_id=inc.camera_id)
     return jsonify({"incidente": inc.to_dict(), "primeira_vez": primeira_vez})
+
+
+@incidentes_bp.get("/api/incidentes/<int:incidente_id>/linha-causal")
+@login_required
+def linha_causal_do_incidente(incidente_id: int):
+    """X4: narrativa determinística por ID de rastreio, com o alerta de cada passo (replay)."""
+    import time
+    from datetime import timedelta
+
+    from app.models import EventLog
+    from app.services.linha_causal import montar
+
+    inc = db.session.get(Incidente, incidente_id)
+    if inc is None:
+        return jsonify({"error": "incidente não encontrado"}), 404
+    if not camera_permitida(inc.camera_id):
+        return erro_fora_do_escopo()
+    inicio = inc.aberto_em - timedelta(minutes=2)
+    fim = (inc.fechado_em or datetime.now(timezone.utc).replace(tzinfo=None)) + timedelta(minutes=2)
+    alertas = Alert.query.filter(Alert.camera_id == inc.camera_id, Alert.created_at >= inicio, Alert.created_at <= fim).all()
+    eventos = EventLog.query.filter(EventLog.camera_id == inc.camera_id, EventLog.event_type == "approach_risk_area",
+                                    EventLog.created_at >= inicio, EventLog.created_at <= fim).all()
+    return jsonify(montar(inc.to_dict(), [a.to_dict() for a in alertas], [e.to_dict() for e in eventos], time.time()))

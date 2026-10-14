@@ -12,6 +12,7 @@ import {
   resolveActiveAlerts,
 } from "../api/endpoints";
 import { pessoasDoIncidente, zonaDoIncidente } from "../utils/incidentes";
+import { IncidenteDetalhe } from "./incidente-detalhe";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { paraDate } from "../utils/datas";
 import { IncidentReplay } from "./replay";
@@ -108,7 +109,9 @@ function AlertRow({ alert, active, reduceMotion = false, animated = false }: { a
 /** Cabeçalho de um incidente: título, zona, IDs de rastreio e "Reconhecer". */
 function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null; total: number; podeReconhecer: boolean }) {
   const showMessage = useDashboardStore((s) => s.showMessage);
+  const nomeDaCamera = useDashboardStore((s) => s.cameras.find((c) => c.id === inc?.camera_id)?.name);
   const [ocupado, setOcupado] = useState(false);
+  const [aberto, setAberto] = useState(false);
   if (!inc) {
     return (
       <summary>
@@ -146,6 +149,18 @@ function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null
           </button>
         )
       )}
+      <button
+        type="button"
+        className="ghost small"
+        data-testid="incidente-abrir"
+        onClick={(e) => {
+          e.preventDefault();
+          setAberto(true);
+        }}
+      >
+        Linha causal
+      </button>
+      {aberto && <IncidenteDetalhe incidente={inc} nomeDaCamera={nomeDaCamera} onClose={() => setAberto(false)} />}
     </summary>
   );
 }

@@ -78,7 +78,7 @@ export type Selecao =
   | { tipo: "zona"; camera_id: number; camera_nome: string; zona_nome: string | null }
   | null;
 
-export type Metricas = { quadros: number; intervaloP95: number; desenhoP95: number; pausado: boolean };
+export type Metricas = { quadros: number; intervaloP95: number; desenhoP95: number; pausado: boolean; escala: number };
 
 function p95(valores: number[]): number {
   if (!valores.length) return 0;
@@ -112,6 +112,10 @@ export class CenaGemeo {
   private custos: number[] = [];
   private ultimoQuadro = 0;
   private quadros = 0;
+  // Regulador: sem GPU de verdade (SwiftShader, máquina fraca) o quadro passa
+  // de 40 ms; a resolução interna cai em degraus até caber em 30 fps.
+  private escala = Math.min(window.devicePixelRatio || 1, 1.75);
+  private ultimaRegulagem = 0;
   private voo: { de: THREE.Vector3; para: THREE.Vector3; alvoDe: THREE.Vector3; alvoPara: THREE.Vector3; t: number } | null = null;
   private reduzirMovimento: boolean;
   private aoSelecionar: (s: Selecao) => void;
@@ -125,7 +129,7 @@ export class CenaGemeo {
     this.cores = lerCores();
     // Lança se o WebGL não existir: quem chama cai para o 2D.
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    this.renderer.setPixelRatio(this.escala);
     this.renderer.domElement.className = "gemeo-canvas";
     this.renderer.domElement.setAttribute("aria-label", "Gêmeo digital da planta em 3D");
     this.renderer.domElement.setAttribute("role", "img");
@@ -438,7 +442,20 @@ export class CenaGemeo {
     this.custos.push(performance.now() - inicio);
     if (this.custos.length > 240) this.custos.shift();
     this.quadros += 1;
+    this.regular(t);
   };
+
+  private regular(t: number): void {
+    if (t - this.ultimaRegulagem < 2000 || this.intervalos.length < 60) return;
+    this.ultimaRegulagem = t;
+    const recente = p95(this.intervalos.slice(-60));
+    if (recente > 40 && this.escala > 0.5) {
+      this.escala = Math.max(0.5, this.escala * 0.75);
+      this.renderer.setPixelRatio(this.escala);
+      this.redimensionar();
+      this.intervalos = [];
+    }
+  }
 
   pausar(): void {
     if (this.raf) cancelAnimationFrame(this.raf);
@@ -453,7 +470,13 @@ export class CenaGemeo {
   }
 
   metricas(): Metricas {
-    return { quadros: this.quadros, intervaloP95: p95(this.intervalos), desenhoP95: p95(this.custos), pausado: this.raf === 0 };
+    return {
+      quadros: this.quadros,
+      intervaloP95: p95(this.intervalos),
+      desenhoP95: p95(this.custos),
+      pausado: this.raf === 0,
+      escala: this.escala,
+    };
   }
 
   destruir(): void {

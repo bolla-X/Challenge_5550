@@ -5,6 +5,7 @@ import { LiveVideo } from "./live-video";
 import { getPortal, startCamera } from "../api/endpoints";
 import type { PortalItem, PortalState } from "../api/types";
 import { PPE_LABELS } from "../api/ppe";
+import { EnganarIA } from "./enganar-ia";
 
 /**
  * Portal de Entrada (G1), em `/portal?camera=N`: a pessoa para diante da câmera
@@ -52,7 +53,7 @@ function usePortal(camId: number | null): PortalState | null {
   return estado;
 }
 
-function Item({ item, indice }: { item: PortalItem; indice: number }) {
+function Item({ item, indice, explicar }: { item: PortalItem; indice: number; explicar: boolean }) {
   const nome = PPE_LABELS[item.key as keyof typeof PPE_LABELS] ?? item.key;
   return (
     <li className={`portal-item ${item.estado}`} style={{ animationDelay: `${indice * 70}ms` }} data-testid={`portal-item-${item.key}`} data-estado={item.estado}>
@@ -61,21 +62,28 @@ function Item({ item, indice }: { item: PortalItem; indice: number }) {
       <span className="portal-estado">
         {ROTULO_ESTADO[item.estado]}
         {item.motivo ? <small> · {item.motivo}</small> : null}
+        {explicar && item.explicacao ? <small className="portal-explicacao"> · {item.explicacao}</small> : null}
       </span>
     </li>
   );
 }
 
-export function PortalScreen() {
+export function PortalScreen({ cameraId, desafioInicial }: { cameraId?: number | null; desafioInicial?: boolean } = {}) {
   const cameras = useDashboardStore((s) => s.cameras);
   const camId = useMemo(() => {
-    const pedida = cameraDaUrl();
+    const pedida = cameraId ?? cameraDaUrl();
     if (pedida != null && cameras.some((c) => c.id === pedida)) return pedida;
     return (cameras.find((c) => c.gate_required) ?? cameras[0])?.id ?? null;
-  }, [cameras]);
+  }, [cameras, cameraId]);
   const camera = cameras.find((c) => c.id === camId);
   const portal = usePortal(camId);
   const [iniciando, setIniciando] = useState(false);
+  // X9: `?desafio=1` (ou o botão) liga o modo "Tente enganar a IA" com o Raio-X.
+  const [desafio, setDesafio] = useState(() => desafioInicial ?? new URLSearchParams(window.location.search).get("desafio") === "1");
+  const raioX = useDashboardStore((s) => s.raioX);
+  useEffect(() => {
+    if (desafio && !useDashboardStore.getState().raioX) useDashboardStore.getState().alternarRaioX();
+  }, [desafio]);
 
   if (camId == null || !camera) return <p className="centered-empty">Nenhuma câmera disponível para o portal.</p>;
   const veredito = portal?.verdict ?? "waiting";
@@ -89,6 +97,9 @@ export function PortalScreen() {
         <span className="portal-contagem t-data" data-testid="portal-checkins">
           {portal?.checkins ?? 0} check-in{portal?.checkins === 1 ? "" : "s"} neste turno
         </span>
+        <button type="button" className={`ghost small ${desafio ? "active" : ""}`} aria-pressed={desafio} onClick={() => setDesafio((d) => !d)} data-testid="portal-desafio">
+          Tente enganar a IA
+        </button>
       </header>
       <div className="portal-corpo">
         <div className="portal-video card">
@@ -112,11 +123,12 @@ export function PortalScreen() {
           ) : (
             <ol className="portal-lista">
               {(portal?.itens.length ? portal.itens : (portal?.required ?? []).map((k) => ({ key: k, estado: "nao_verificavel", motivo: "aguardando pessoa" }) as PortalItem)).map(
-                (item, i) => <Item key={item.key} item={item} indice={i} />,
+                (item, i) => <Item key={item.key} item={item} indice={i} explicar={desafio || raioX} />,
               )}
             </ol>
           )}
           <p className="portal-nota muted">Nenhuma foto é salva. “Não verificável” não conta como confirmado nem como falta.</p>
+          {desafio && <EnganarIA portal={portal} />}
         </section>
       </div>
     </div>

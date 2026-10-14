@@ -94,6 +94,10 @@ class EstimadorDeAproximacao:
         for track_id in [k for k, v in self._trilhas.items() if agora - v.t > self.validade_s]:
             del self._trilhas[track_id]
 
+    def velocidades(self) -> dict[int, Ponto]:
+        """Velocidade suavizada dos pés (fração do quadro por segundo) de quem tem amostras suficientes."""
+        return {tid: t.vel for tid, t in list(self._trilhas.items()) if t.amostras >= self.amostras_minimas}
+
     def avisos(self, poligono: list[Ponto]) -> list[dict]:
         """Um aviso por track que deve ENTRAR na zona em menos de `limite_s`."""
         if len(poligono) < 3:

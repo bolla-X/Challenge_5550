@@ -91,3 +91,21 @@ def test_portal_libera_so_depois_de_n_analises_e_conta_um_checkin():
     assert terceiro["verdict"] == "approved" and terceiro.get("checkin_novo") is True
     assert "checkin_novo" not in estado.atualizar(ok)
     assert estado.checkins == 1
+
+
+
+def test_explicacao_diz_o_que_o_modelo_viu_e_o_que_foi_descartado():
+    """X9: o portal explica cada item — inclusive o "capacete" que o filtro descartou."""
+    from app.services.gate_service import avaliar_portal
+
+    pessoa = {"id": "person_1", "track_id": 1, "box": {"x1": 100, "y1": 50, "x2": 300, "y2": 500},
+              "ppe": {"helmet": {"status": "missing", "confidence": 0.0}, "vest": {"status": "ok", "confidence": 0.81}}}
+    descartadas = [{"l": "helmet", "c": 0.31, "b": [150, 60, 230, 120], "m": "abaixo do piso 0.40"},
+                   {"l": "helmet", "c": 0.9, "b": [600, 60, 700, 120], "m": "fora de qualquer pessoa"}]
+    r = avaliar_portal({"people": [pessoa]}, ["helmet", "vest"], (540, 960, 3), (), descartadas, {"helmet": 0.4})
+    itens = {i["key"]: i for i in r["itens"]}
+    assert itens["vest"]["explicacao"] == "visto com confiança 0,81"
+    assert itens["helmet"]["explicacao"].startswith("o modelo viu com 0,31, abaixo do piso")
+    assert "descartado" in itens["helmet"]["explicacao"]
+    sem = avaliar_portal({"people": [pessoa]}, ["helmet"], (540, 960, 3), (), [], {})
+    assert sem["itens"][0]["explicacao"] == "o modelo não viu este item na pessoa"

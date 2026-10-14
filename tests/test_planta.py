@@ -82,3 +82,19 @@ def test_api_calibra_valida_e_apaga(real_monitor_app):
     assert estado["calibracao"]["pontos_camera"][0] == [0.2, 0.5]
     assert cliente.put(f"/api/cameras/{cid}/planta", json={"pontos_camera": None}).status_code == 200
     assert cliente.get(f"/api/cameras/{cid}/planta").get_json()["calibracao"] is None
+
+
+def test_zona_acima_do_horizonte_e_recortada_ao_chao_calibrado():
+    """A zona padrão (x 0,70–0,98, y 0,10–0,95) sobe acima do chão calibrado (y ≥ 0,5):
+    só a parte no chão vai para a planta, e nunca para fora do quadrilátero."""
+    from app.vision.planta import recortar
+
+    zona = [(0.70, 0.10), (0.98, 0.10), (0.98, 0.95), (0.70, 0.95)]
+    no_chao = recortar(zona, QUAD_CAMERA)
+    assert min(y for _, y in no_chao) == pytest.approx(0.5)
+    na_planta = poligono_na_planta(zona, CAL)
+    assert na_planta and all(-1e-6 <= x <= 1 + 1e-6 and -1e-6 <= y <= 1 + 1e-6 for x, y in na_planta)
+
+
+def test_zona_inteira_fora_do_chao_some():
+    assert poligono_na_planta([(0.1, 0.0), (0.9, 0.0), (0.9, 0.3), (0.1, 0.3)], CAL) == []

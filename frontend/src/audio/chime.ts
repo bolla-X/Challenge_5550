@@ -63,3 +63,10 @@ export function playGateDeniedChime() {
   tone(220, 0, 0.14, 0.1);
   tone(220, 0.2, 0.14, 0.1);
 }
+
+/** Missão cumprida ou nível novo (X8): três notas curtas e baixas — discreto. */
+export function playCelebrationChime() {
+  tone(523, 0, 0.08, 0.04);
+  tone(659, 0.08, 0.08, 0.045);
+  tone(784, 0.16, 0.16, 0.05);
+}

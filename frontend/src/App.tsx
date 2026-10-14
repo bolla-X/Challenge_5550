@@ -17,6 +17,12 @@ import { DesafioScreen } from "./components/desafio";
 
 // Telas pesadas (three.js) só carregam quando abertas.
 const GemeoScreen = lazy(() => import("./components/gemeo/gemeo-screen"));
+const SimuladorScreen = lazy(() => import("./components/simulador"));
+const AuditoriaScreen = lazy(() => import("./components/auditoria"));
+const LigaScreen = lazy(() => import("./components/liga"));
+const PalcoScreen = lazy(() => import("./components/palco"));
+const PalcoControle = lazy(() => import("./components/palco").then((m) => ({ default: m.PalcoControle })));
+const RetrospectivaScreen = lazy(() => import("./components/retrospectiva"));
 
 function CarregandoTela() {
   return <p className="centered-empty" aria-busy="true">Carregando…</p>;
@@ -27,6 +33,9 @@ function CarregandoTela() {
 function SupervisorOverview({ onBack }: { onBack: () => void }) {
   const atalhos: [string, string][] = [
     ["/tv", "Modo TV"],
+    ["/gemeo", "Gêmeo digital"],
+    ["/liga", "Liga de Setores"],
+    ["/palco", "Apresentação"],
     ["/portal", "Portal de Entrada"],
     ["/desafio", "Você vs. a IA"],
     ["/rotular", "Rotular recortes"],
@@ -113,6 +122,19 @@ export default function App() {
   const loadCameras = useDashboardStore((s) => s.loadCameras);
   const setScreen = useDashboardStore((s) => s.setScreen);
 
+  // Tecla X: Modo Raio-X (X5) em qualquer tela com vídeo ao vivo.
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key !== "x" && e.key !== "X") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && (alvo.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(alvo.tagName))) return;
+      useDashboardStore.getState().alternarRaioX();
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, []);
+
   // Primeiro descobre QUEM está logado. Só depois vale a pena abrir socket e
   // buscar dados: sem sessão, tudo isso responderia 401.
   useEffect(() => {
@@ -128,6 +150,15 @@ export default function App() {
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  // Controle da apresentação pelo celular: sem login, só com o token do QR (X6).
+  if (window.location.pathname.startsWith("/palco/controle")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <PalcoControle />
+      </Suspense>
+    );
+  }
 
   if (!authChecked) {
     return <div className="login-shell" aria-busy="true" />;
@@ -150,6 +181,41 @@ export default function App() {
     return (
       <Suspense fallback={<CarregandoTela />}>
         <GemeoScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/palco")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <PalcoScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/liga")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <LigaScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/retrospectiva")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <RetrospectivaScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/auditoria")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <AuditoriaScreen />
+      </Suspense>
+    );
+  }
+  if (window.location.pathname.startsWith("/simulador")) {
+    return (
+      <Suspense fallback={<CarregandoTela />}>
+        <SimuladorScreen />
       </Suspense>
     );
   }

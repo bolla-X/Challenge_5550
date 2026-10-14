@@ -100,9 +100,54 @@ def estado_de_conformidade(pessoa: dict[str, Any]) -> dict[str, Any]:
     return {"estado": estado, "faltando": faltando}
 
 
+def recortar(poligono: list[Ponto], recorte: list[Ponto]) -> list[Ponto]:
+    """Sutherland–Hodgman: a parte de `poligono` dentro do quadrilátero CONVEXO `recorte`."""
+    if len(poligono) < 3 or len(recorte) < 3:
+        return []
+    area = sum(recorte[i][0] * recorte[(i + 1) % len(recorte)][1] - recorte[(i + 1) % len(recorte)][0] * recorte[i][1]
+               for i in range(len(recorte)))
+    sentido = 1.0 if area > 0 else -1.0
+
+    def dentro_da_aresta(p: Ponto, a: Ponto, b: Ponto) -> bool:
+        return sentido * ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) >= 0
+
+    def cruzamento(p: Ponto, q: Ponto, a: Ponto, b: Ponto) -> Ponto:
+        x1, y1, x2, y2, x3, y3, x4, y4 = *p, *q, *a, *b
+        d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if abs(d) < 1e-12:
+            return q
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d
+        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+
+    saida = list(poligono)
+    for i in range(len(recorte)):
+        a, b = recorte[i], recorte[(i + 1) % len(recorte)]
+        entrada, saida = saida, []
+        for j, atual in enumerate(entrada):
+            anterior = entrada[j - 1]
+            if dentro_da_aresta(atual, a, b):
+                if not dentro_da_aresta(anterior, a, b):
+                    saida.append(cruzamento(anterior, atual, a, b))
+                saida.append(atual)
+            elif dentro_da_aresta(anterior, a, b):
+                saida.append(cruzamento(anterior, atual, a, b))
+        if not saida:
+            return []
+    return saida
+
+
 def poligono_na_planta(poligono: list[Ponto], calibracao: dict[str, Any]) -> list[Ponto]:
-    """A zona de risco (desenhada na imagem) levada para a planta."""
+    """A zona de risco (desenhada na imagem) levada para a planta.
+
+    Só a parte da zona que cai no chão CALIBRADO: acima do horizonte a
+    homografia não vale (o ponto vai para longe, ou para o outro lado), e a
+    zona aparecia fora do galpão no gêmeo digital.
+    """
     if not poligono:
         return []
     matriz = homografia(calibracao["pontos_camera"], calibracao["pontos_planta"])
-    return [(round(x, 4), round(y, 4)) for x, y in projetar(matriz, [(float(p[0]), float(p[1])) for p in poligono])]
+    quad = [(float(x), float(y)) for x, y in calibracao["pontos_camera"]]
+    no_chao = recortar([(float(p[0]), float(p[1])) for p in poligono], quad)
+    if len(no_chao) < 3:
+        return []
+    return [(round(x, 4), round(y, 4)) for x, y in projetar(matriz, no_chao)]
