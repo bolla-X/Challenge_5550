@@ -44,8 +44,9 @@ py -3.11 -m venv .venv && .venv\Scripts\python -m pip install -r requirements.tx
 .venv\Scripts\python run.py --demo
 ```
 
-O 2º baixa os pesos (conferindo o SHA-256), as gravações de demonstração e
-aprova os runtimes rápidos; é o único que precisa de internet. O 3º imprime no
+O 2º baixa os pesos (conferindo o SHA-256), as gravações de demonstração,
+aprova os runtimes rápidos e aquece o cache do OpenVINO (`runtime/ov_cache/`);
+é o único que precisa de internet. O 3º imprime no
 terminal as contas da demo e o endereço. Roteiro da apresentação em
 [docs/NEXT2026/DEMO.md](docs/NEXT2026/DEMO.md). macOS/Linux: troque
 `.venv\Scripts\python` por `.venv/bin/python`.

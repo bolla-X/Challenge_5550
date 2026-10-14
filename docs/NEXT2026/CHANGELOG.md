@@ -1170,3 +1170,32 @@ Sistema de design em `docs/NEXT2026/DESIGN.md` (fonte da verdade:
   por processos de fora do projeto (Docker, Teams, Edge, Java). Ao vivo, sem
   navegador, a câmera do portal fez 1,85 análise/s na cena (37 em 20 s) e as
   pausadas 0–1.
+
+### Partida a frio e cache do OpenVINO (1.3)
+
+- Doc oficial lida: *Model Caching Overview* —
+  https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html
+  (`core.set_property({props.cache_dir: ...})`; na GPU gera `.cl_cache`, na CPU
+  `.blob`; dispositivo sem `EXPORT_IMPORT` ignora sem erro — a iGPU daqui
+  anuncia `EXPORT_IMPORT`).
+- Antes: `CACHE_DIR` só na compilação da GPU e por modelo
+  (`models/export/*/ov_cache`). Agora: um diretório, `runtime/ov_cache/` (fora
+  do git; `OV_CACHE_DIR` muda), aplicado ao `Core` inteiro (GPU e CPU).
+- `scripts/preparar.py --so-cache` (e o fim do `preparar.py` completo) sobe o
+  app num banco temporário e aquece os três modelos nas formas das câmeras da
+  demo (960×540, 960×720, 640×480): 56 s.
+- `scripts/medir_partida.py`: de `run.py --demo` até a primeira análise
+  publicada (`bench/results/partida-adendo3-20261014.json`):
+
+  | cache | rodadas (s) | mediana |
+  |---|---|---|
+  | frio (pasta nova e vazia) | 58,3 · 67,8 · 75,9 | **67,8 s** |
+  | aquecido pelo `preparar.py --so-cache` | 50,3 · 67,0 · 53,2 | **53,2 s** |
+
+  Os ~4 min do ADENDO 2 não se repetiram: "frio" aqui é a pasta de cache, com
+  os caches do sistema e do driver da GPU quentes (o PC não foi reiniciado).
+  Hipótese não verificada: os 4 min vieram desses caches, logo após o reinício.
+- Achados do caminho: no Windows o `python.exe` do venv é um lançador e
+  `terminate()` deixava o servidor filho vivo, segurando o banco da demo
+  (`encerrar_arvore` com `taskkill /T` em `e2e/conftest.py`); mesmo assim o
+  SQLite é solto segundos depois, e o `medir_partida.py` espera o banco livre.

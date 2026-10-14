@@ -7,11 +7,22 @@ momento está indicado.
 ## Antes da banca (uma vez, com internet)
 
 ```bash
-python scripts/fetch_fixtures.py
+python scripts/preparar.py
 ```
 
-Baixa as gravações de demonstração para `tests/fixtures/`. Depois disso tudo é
-offline.
+Baixa pesos e gravações, aprova os runtimes rápidos e **aquece o cache do
+OpenVINO** (`runtime/ov_cache/`, fora do git). Depois disso tudo é offline.
+**Na véspera e na manhã da apresentação**, na máquina da apresentação, rode de
+novo só o aquecimento (~1 min):
+
+```bash
+python scripts/preparar.py --so-cache
+```
+
+Ele compila os três modelos na iGPU nas formas das câmeras da demo e o
+OpenVINO guarda o compilado (doc:
+https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html).
+Trocou de máquina, de driver da GPU ou de versão do OpenVINO: rode de novo.
 
 ## Subir
 
@@ -32,10 +43,13 @@ python run.py --demo --https
   gravação `portal.mp4` (um trabalhador de capacete e colete, de perto);
 - **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
 - quatro missões de turno da equipe (Liga de Setores);
-- tema claro (projetor); LLM desligado; boot até responder: ~70 s com o cache
-  dos modelos quente. **Com o cache frio a subida levou ~4 min** (compila os
-  modelos para a iGPU; aconteceu em 14/10, causa não identificada): suba a
-  demo uma vez antes da banca e deixe no ar.
+- tema claro (projetor); LLM desligado.
+- **Tempo de subida** até a primeira análise publicada (`scripts/medir_partida.py`,
+  3 rodadas cada, 14/10): **com o cache aquecido, mediana 53 s** (50–67 s);
+  **a frio** (pasta de cache nova e vazia), **mediana 68 s** (58–76 s). O caso de
+  ~4 min do ADENDO 2 foi logo depois de reiniciar o PC (caches do sistema e do
+  driver frios) e não se repetiu com pasta de cache nova. Mesmo assim: rode
+  `scripts/preparar.py --so-cache`, suba a demo **antes** da banca e deixe no ar.
 
 Abra `https://127.0.0.1:5000`, entre como **supervisor** e vá para
 `/palco` (atalho na Visão geral: "Apresentação").
