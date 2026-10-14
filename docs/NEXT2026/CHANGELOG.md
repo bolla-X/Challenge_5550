@@ -1199,3 +1199,29 @@ Sistema de design em `docs/NEXT2026/DESIGN.md` (fonte da verdade:
   `terminate()` deixava o servidor filho vivo, segurando o banco da demo
   (`encerrar_arvore` com `taskkill /T` em `e2e/conftest.py`); mesmo assim o
   SQLite é solto segundos depois, e o `medir_partida.py` espera o banco livre.
+
+### Portão do PR6 (1.4)
+
+Rodada única, `bench/runtime/portao-pr6-r2/` (saída de cada etapa em arquivo,
+exit code conferido):
+
+| etapa | resultado |
+|---|---|
+| `ruff check .` | 0 erros |
+| `pytest` (unitários) | **664 passed** |
+| `npm run build` (`tsc -b` + Vite) | exit 0 |
+| `pytest e2e` (4 câmeras ligadas, sem pausa de contorno; axe em claro e escuro) | **36 passed** (12 min) |
+| `scripts/bench.py --rapido` | 1 câm.: 1,86 análise/s, alerta 2,9 s; 4 câm.: 0,36 análise/s por câmera, alerta 5,0 s (`bench/results/20261014-134154-rapido.json`; 47–54 % de CPU de terceiros) |
+
+A primeira rodada (`portao-pr6/`) reprovou e foi refeita inteira depois das correções:
+- `test_gpu_que_nao_compila_cai_para_cpu`: o `set_property` do cache, dentro
+  do `try`, fazia o detector desistir de recompilar quando falhava (no teste,
+  um `Core` falso sem o método). Falha ao configurar o cache agora só registra
+  `openvino_sem_cache` e compila assim mesmo; o teste confere o `CACHE_DIR`.
+- 5 E2E nas abas da tela de foco: (1) corrida — o teste decidia entre "aba" e
+  "menu Mais" antes de a faixa terminar de entrar (View Transition do PR6);
+  agora espera a faixa; (2) **bug real de layout**: com a lateral estreita
+  (1280 px, ou a câmera 4:3 do Portal) a última aba transbordava por cima do
+  "Mais" e roubava o clique. A faixa agora mede as abas (ResizeObserver) e
+  manda para o "Mais" as que não cabem (`components/common.tsx`).
+- O `bench --rapido` da 1ª rodada foi interrompido (a rodada ia ser refeita).
