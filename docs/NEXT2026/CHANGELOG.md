@@ -1327,3 +1327,19 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
   (horas antes, no clone, a pessoa levava 97 ms) — sem pico de compilação por
   forma de entrada; CPU da máquina em 100 %, com ~12 processos do Salesforce CLI
   (`sf`) abertos às 19:44, de fora do projeto.
+
+### Depois do merge do PR7 (#16, squash `a6d303b`)
+
+- `main` == `release-main` testado (`git diff` vazio).
+- A partir da própria `main`: `e2e/fumaca_demo.py --raiz .` (sobe `run.py --demo`
+  e confere com o Playwright) → **6/6**: demo no ar em 120 s (com a CPU tomada
+  por outros programas e o clone 3 rodando), 4 câmeras publicando análise,
+  vídeo no canvas, Portal no palco com as outras pausadas e "Liberado".
+- A `fumaca_demo.py` tinha ficado fora do PR7 (foi commitada em `next-2026`
+  depois do squash do PR6) e entrou neste PR, com a espera pelo HTTP alinhada
+  ao limite de subida (os 120 s fixos estouraram com a CPU saturada).
+- Clone 3 (`release-main` com `torch` fixo): `pip install` concluiu na 3ª
+  tentativa (as duas primeiras saíram com erro sem mensagem; hipótese: arquivo
+  preso com a máquina saturada); `preparar.py` aprovou o OpenVINO dinâmico na
+  iGPU para o EPI (concordância 1,0 e 0,99); o restante seguia rodando no
+  encerramento desta sessão.
