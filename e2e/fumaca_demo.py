@@ -72,8 +72,9 @@ class DemoEm:
         threading.Thread(target=ler, daemon=True).start()
         if not pronto.wait(limite_s):
             raise RuntimeError(f"a demo não subiu em {limite_s:.0f} s; ver {self.log}")
-        # As contas saem antes de o servidor HTTP aceitar conexão.
-        fim = time.monotonic() + 120
+        # As contas saem antes de o servidor HTTP aceitar conexão (o aquecimento
+        # dos modelos vem no meio; com a CPU tomada por outros programas passou de 120 s).
+        fim = inicio + limite_s
         while time.monotonic() < fim:
             try:
                 if requests.get(self.base + "/api/auth/me", timeout=1).status_code in (200, 401):
