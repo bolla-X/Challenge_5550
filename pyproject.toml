@@ -7,7 +7,8 @@ addopts = "--strict-markers"
 line-length = 140
 src = ["app", "tests"]
 # Scaffolding gerado pelo Alembic: o estilo dele é o do template, não o nosso.
-extend-exclude = ["migrations"]
+# app/vision/bytetrack: codigo vendorizado (supervision, MIT) no estilo do upstream.
+extend-exclude = ["migrations", "app/vision/bytetrack"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
-from app.models import ROLE_OPERATOR
+from app.models import ROLE_OPERATOR, ROLE_SUPERVISOR, ROLE_TECHNICAL
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
 from app.utils.auth import (
@@ -44,6 +45,7 @@ def list_alerts():
         limit = 100
     severity = request.args.get("severity")
     status = request.args.get("status")
+    feature = request.args.get("feature") or None
     false_positive_raw = request.args.get("false_positive")
     false_positive = None
     if false_positive_raw is not None and false_positive_raw != "":
@@ -61,6 +63,7 @@ def list_alerts():
         status=status,
         false_positive=false_positive,
         camera_id=_camera_filtrada(),
+        feature=feature,
     )
     return jsonify({"items": [item.to_dict() for item in alerts], "count": len(alerts)})
 
@@ -91,6 +94,51 @@ def get_alert_evidence(alert_id: int):
     return send_from_directory(directory, filename, as_attachment=False)
 
 
+def _pasta_do_clipe(alert_id: int):
+    from app.config import BASE_DIR
+
+    base = Path(str(current_app.config.get("REPLAY_DIR", "runtime/clips")))
+    base = base if base.is_absolute() else Path(BASE_DIR) / base
+    return base / f"alert_{int(alert_id)}"
+
+
+@alerts_bp.get("/api/alerts/<int:alert_id>/clip")
+@login_required
+def get_alert_clip(alert_id: int):
+    """Índice do replay do incidente (F1): quadros gravados, overlay e evidências."""
+    alert = AlertRepository().get(alert_id)
+    if alert is None:
+        return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
+    indice = _pasta_do_clipe(alert_id) / "clip.json"
+    if not indice.exists():
+        return jsonify({"error": "replay ainda não disponível para este alerta"}), 404
+    return current_app.response_class(indice.read_text(encoding="utf-8"), mimetype="application/json")
+
+
+@alerts_bp.get("/api/alerts/<int:alert_id>/clip/<int:indice>.jpg")
+@login_required
+def get_alert_clip_frame(alert_id: int, indice: int):
+    alert = AlertRepository().get(alert_id)
+    if alert is None:
+        return jsonify({"error": "alerta não encontrado"}), 404
+    if not camera_permitida(alert.camera_id):
+        return erro_fora_do_escopo()
+    pasta = _pasta_do_clipe(alert_id)
+    # Alerta da mesma análise de outro: os quadros moram na pasta do primeiro.
+    try:
+        compartilhado = json.loads((pasta / "clip.json").read_text(encoding="utf-8")).get("quadros_em")
+    except (OSError, ValueError):
+        compartilhado = None
+    if compartilhado and str(compartilhado).startswith("alert_") and str(compartilhado)[6:].isdigit():
+        pasta = pasta.parent / str(compartilhado)
+    nome = f"{int(indice):04d}.jpg"
+    if not (pasta / nome).exists():
+        return jsonify({"error": "quadro não encontrado"}), 404
+    return send_from_directory(pasta, nome, as_attachment=False, max_age=3600)
+
+
 @alerts_bp.post("/alerts/<int:alert_id>/false-positive")
 @require_role(ROLE_OPERATOR)
 def mark_false_positive(alert_id: int):
@@ -112,6 +160,10 @@ def mark_false_positive(alert_id: int):
         metadata={"reason": reason, "false_positive": True},
         broadcast_resolved=True,
     )
+    # X8: revisar um falso positivo é contribuição positiva do setor.
+    from app.services.liga import registrar as liga_registrar
+
+    liga_registrar("falso_positivo_revisado", ref=f"alerta:{alert.id}", camera_id=alert.camera_id)
     return jsonify({"alert": alert_payload, "event": event})
 
 
@@ -145,6 +197,101 @@ def acknowledge_alert(alert_id: int):
         broadcast_resolved=False,
     )
     return jsonify({"alert": alert_payload, "event": event})
+
+
+@alerts_bp.post("/alerts/acknowledge-all")
+@require_role(ROLE_OPERATOR)
+def acknowledge_all_alerts():
+    """"Avisei todos": marca como tratados os alertas ativos ainda nao tratados.
+
+    O Operador so alcanca o proprio setor (`_camera_filtrada` deixa o escopo
+    vencer o parametro).
+    """
+    if _operador_sem_setor():
+        return erro_fora_do_escopo()
+    payload = request.get_json(silent=True) or {}
+    note = str(payload.get("note", "")).strip()[:200] or None
+    camera_id = _camera_filtrada()
+    total = AlertRepository().acknowledge_all_active(camera_id=camera_id, note=note)
+    _registrar_evento_em_lote("alerts_acknowledged_all", f"{total} alerta(s) marcados como tratados", camera_id, total)
+    return jsonify({"acknowledged": total})
+
+
+@alerts_bp.post("/alerts/resolve-active")
+@require_role(ROLE_TECHNICAL)
+def resolve_active_alerts():
+    """Encerra os alertas ativos (nao apaga nada: viram "resolvidos").
+
+    Se a violacao continua acontecendo, o alerta volta em poucos frames — isto
+    limpa a fila, nao esconde o problema.
+    """
+    camera_id = _camera_filtrada()
+    ativos_antes = len(AlertRepository().list_active(limit=1000, camera_id=camera_id))
+    monitor = current_app.extensions["monitor_service"]
+    resultado = monitor.limpar_alertas_ativos(camera_id=camera_id)
+    silencio = float(current_app.config.get("ALERT_SNOOZE_AFTER_CLEAR_S", 60.0))
+    return jsonify({"active_before": ativos_antes, "silencio_s": silencio, **resultado})
+
+
+@alerts_bp.delete("/alerts/resolved")
+@require_role(ROLE_SUPERVISOR)
+def delete_resolved_alerts():
+    """Apaga o historico de alertas JA RESOLVIDOS. Ativo nunca e apagado.
+
+    Alerta e registro de auditoria de seguranca do trabalho, por isso: so
+    Supervisor, so resolvido, e fica um evento na linha do tempo dizendo quem
+    apagou quantos.
+    """
+    camera_id = _camera_filtrada()
+    older = request.args.get("older_than_days", type=int)
+    if older is not None and older < 0:
+        return jsonify({"error": "older_than_days deve ser >= 0"}), 400
+    apagados, arquivos = AlertRepository().delete_resolved(camera_id=camera_id, older_than_days=older)
+    removidos = _remover_evidencias(arquivos)
+    _registrar_evento_em_lote(
+        "alerts_deleted",
+        f"{apagados} alerta(s) resolvidos apagados",
+        camera_id,
+        apagados,
+        extra={"older_than_days": older, "evidencias_removidas": removidos},
+    )
+    return jsonify({"deleted": apagados, "evidence_files_removed": removidos})
+
+
+def _remover_evidencias(nomes: list[str]) -> int:
+    """Remove snapshots que nenhum alerta restante referencia."""
+    monitor = current_app.extensions.get("monitor_service")
+    try:
+        servico = monitor.snapshot_service
+    except (LookupError, AttributeError):  # sem camera padrao / monitor de teste
+        return 0
+    pasta = Path(servico.absolute_dir)
+    removidos = 0
+    for nome in nomes:
+        alvo = pasta / Path(nome).name  # .name: nunca sai da pasta de evidencias
+        try:
+            if alvo.is_file():
+                alvo.unlink()
+                removidos += 1
+        except OSError as exc:
+            logger.warning("evidencia_nao_removida", extra={"arquivo": nome, "error": str(exc)})
+    return removidos
+
+
+def _registrar_evento_em_lote(tipo: str, mensagem: str, camera_id, total: int, extra: dict | None = None) -> None:
+    from app.utils.auth import current_user
+
+    usuario = current_user()
+    try:
+        EventRepository().create(
+            event_type=tipo,
+            severity="info",
+            message=mensagem,
+            camera_id=camera_id,
+            metadata={"total": total, "por": getattr(usuario, "email", None), **(extra or {})},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("evento_em_lote_nao_gravado", extra={"tipo": tipo, "error": str(exc)})
 
 
 def _subject_of(alert) -> str | None:

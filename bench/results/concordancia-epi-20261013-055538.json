@@ -1,0 +1,140 @@
+{
+ "modelo": "epi",
+ "quadros": 126,
+ "referencia": "pytorch:640",
+ "resultados": {
+  "pytorch:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "helmet": {
+     "batidas": 20,
+     "n_ref": 20,
+     "n_cand": 20,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 89,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 121,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    }
+   },
+   "bancada_ms_p50": 711.7,
+   "bancada_ms_p95": 950.4,
+   "erro": null
+  },
+  "pytorch:512": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 4,
+     "n_ref": 6,
+     "n_cand": 15,
+     "recall_ref": 0.6667,
+     "concordancia": 0.381
+    },
+    "helmet": {
+     "batidas": 2,
+     "n_ref": 20,
+     "n_cand": 3,
+     "recall_ref": 0.1,
+     "concordancia": 0.1739
+    },
+    "mask": {
+     "batidas": 0,
+     "n_ref": 0,
+     "n_cand": 2,
+     "recall_ref": null,
+     "concordancia": 0.0
+    },
+    "person": {
+     "batidas": 0,
+     "n_ref": 6,
+     "n_cand": 0,
+     "recall_ref": 0.0,
+     "concordancia": 0.0
+    },
+    "vest": {
+     "batidas": 79,
+     "n_ref": 89,
+     "n_cand": 95,
+     "recall_ref": 0.8876,
+     "concordancia": 0.8587
+    },
+    "_total": {
+     "batidas": 85,
+     "n_ref": 121,
+     "n_cand": 115,
+     "recall_ref": 0.7025,
+     "concordancia": 0.7203
+    }
+   },
+   "bancada_ms_p50": 494.7,
+   "bancada_ms_p95": 896.5,
+   "erro": null
+  },
+  "openvino-dyn:640": {
+   "por_classe": {
+    "fall_detected": {
+     "batidas": 5,
+     "n_ref": 6,
+     "n_cand": 5,
+     "recall_ref": 0.8333,
+     "concordancia": 0.9091
+    },
+    "helmet": {
+     "batidas": 20,
+     "n_ref": 20,
+     "n_cand": 21,
+     "recall_ref": 1.0,
+     "concordancia": 0.9756
+    },
+    "person": {
+     "batidas": 6,
+     "n_ref": 6,
+     "n_cand": 6,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "vest": {
+     "batidas": 89,
+     "n_ref": 89,
+     "n_cand": 89,
+     "recall_ref": 1.0,
+     "concordancia": 1.0
+    },
+    "_total": {
+     "batidas": 120,
+     "n_ref": 121,
+     "n_cand": 121,
+     "recall_ref": 0.9917,
+     "concordancia": 0.9917
+    }
+   },
+   "bancada_ms_p50": 169.0,
+   "bancada_ms_p95": 370.7,
+   "erro": null
+  }
+ }
+}

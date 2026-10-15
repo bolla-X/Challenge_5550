@@ -3,8 +3,7 @@ import { FEATURE_ORDER, PPE_DESCRIPTIONS, PPE_KEYS, isPpeKey } from "../api/ppe"
 import { Panel } from "./common";
 import type { ComplianceState, FeatureFlag } from "../api/types";
 
-// Perfis derivados das chaves canônicas — antes cada perfil listava as chaves
-// de EPI à mão, então adicionar uma classe nova exigia editar os quatro.
+// Perfis derivados das chaves canônicas.
 const ppeAll = (value: boolean) => Object.fromEntries(PPE_KEYS.map((key) => [key, value]));
 const FEATURE_PROFILES: Record<string, Record<string, boolean>> = {
   basic: { ppe: false, ...ppeAll(false), pose: true, falls: true, posture: true, risk_area: false },
@@ -23,20 +22,6 @@ const SHORT_DESCRIPTION: Record<string, string> = {
   risk_area: "Zona configurável",
 };
 
-// Only universally-recognizable icons are used (helmet/vest/gloves/warning
-// triangle). Postura and Quedas have no obvious symbol, so they get a plain
-// neutral dot instead of an invented icon — the label carries the meaning.
-const FEATURE_ICONS: Record<string, string | null> = {
-  ppe: "M4 12a8 8 0 0 1 16 0v2h1v3H3v-3h1v-2Zm3 2h10v-2a5 5 0 0 0-10 0v2Z",
-  helmet: "M5 13a7 7 0 0 1 14 0v1h2v3H3v-3h2v-1Zm3 1h8v-1a4 4 0 0 0-8 0v1Z",
-  vest: "M8 3h3l1 3 1-3h3l4 5-2 3v10H6V11L4 8l4-5Zm1 8v7h2v-7H9Zm4 0v7h2v-7h-2Z",
-  gloves: "M7 3a2 2 0 0 1 2 2v5h1V4a2 2 0 0 1 4 0v6h1V6a2 2 0 0 1 4 0v7c0 5-3 8-7 8s-7-3-7-8V5a2 2 0 0 1 2-2Z",
-  pose: null,
-  falls: null,
-  posture: null,
-  risk_area: "M12 3 2 21h20L12 3Zm1 14h-2v2h2v-2Zm0-7h-2v5h2v-5Z",
-};
-
 const OVERLAY_LABELS: Record<string, string> = {
   boxes: "Bounding boxes",
   labels: "Labels",
@@ -45,12 +30,48 @@ const OVERLAY_LABELS: Record<string, string> = {
   risk_area: "Zona de risco",
 };
 
-// ciano = dado vivo agora, não "feature ligada". Ligada-mas-parada é texto
-// normal; só quando o item aparece no frame atual (ou dispara alerta, no
-// caso de falls/posture que não têm detecção própria) é que acende.
+// Partes do corpo detectadas pelo SH17. Só contexto visual: ligar/desligar não
+// muda a detecção nem os alertas.
+export const PARTES_DO_CORPO: { key: string; label: string }[] = [
+  { key: "part_head", label: "Cabeça" },
+  { key: "part_face", label: "Rosto" },
+  { key: "part_ear", label: "Orelha" },
+  { key: "part_hands", label: "Mãos" },
+  { key: "part_foot", label: "Pés" },
+  { key: "part_tool", label: "Ferramentas" },
+];
+
+/** Faixa de botões sob o vídeo: liga/desliga cada parte do corpo desenhada. */
+export function PartToggles() {
+  const overlay = useDashboardStore((s) => s.overlay);
+  const updateOverlay = useDashboardStore((s) => s.updateOverlay);
+  if (!overlay) return null;
+  return (
+    <div className="part-toggles" role="group" aria-label="Partes do corpo no vídeo">
+      <span className="t-secondary">Mostrar no vídeo:</span>
+      {PARTES_DO_CORPO.map(({ key, label }) => {
+        const ligado = Boolean(overlay[key as keyof typeof overlay]);
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`ghost small${ligado ? " active" : ""}`}
+            aria-pressed={ligado}
+            onClick={() => updateOverlay({ [key]: !ligado }).catch(console.error)}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// "Vivo" = aparece no frame atual (ou dispara alerta, no caso de falls/
+// posture, que não têm detecção própria). Ligado-mas-parado é texto normal.
 // ponytail: falls/posture não têm payload de detecção dedicado, então a
-// leitura é via o alerta ativo de pose — se o backend ganhar um campo
-// próprio de detecção por sub-feature, trocar por isso.
+// leitura é via o alerta ativo de pose. Se o backend ganhar um campo próprio
+// de detecção por sub-feature, trocar por isso.
 function isFeatureLive(key: string, compliance: ComplianceState | null): boolean {
   if (!compliance) return false;
   switch (key) {
@@ -82,77 +103,62 @@ function supportMessage(key: string, model: ReturnType<typeof useDashboardStore.
   return "disponível";
 }
 
-function NavRow({ feature }: { feature: FeatureFlag }) {
+/** Um recurso na sidebar: nome, descrição curta e o estado em texto. O ponto
+ * só acende quando o item está aparecendo no frame agora. */
+function FeatureRow({ feature }: { feature: FeatureFlag }) {
   const model = useDashboardStore((s) => s.model);
   const compliance = useDashboardStore((s) => s.compliance);
   const updateFeatures = useDashboardStore((s) => s.updateFeatures);
   const checked = feature.enabled;
   const live = checked && isFeatureLive(feature.key, compliance);
-  const iconPath = FEATURE_ICONS[feature.key];
+  // Descrição longa vai para a dica: na lateral estreita ela quebrava em 5 linhas.
+  const descricao = SHORT_DESCRIPTION[feature.key] || feature.description || "";
+  const curta = descricao.length <= 32;
   return (
     <button
       type="button"
-      className={`nav-row ${checked ? "on" : ""} ${live ? "live" : ""}`.trim()}
+      className={`side-item ${checked ? "" : "off"} ${live ? "live" : ""}`.trim()}
+      aria-pressed={checked}
+      title={[curta ? "" : descricao, supportMessage(feature.key, model)].filter(Boolean).join(". ")}
       onClick={() => updateFeatures({ [feature.key]: !checked }).catch(console.error)}
     >
-      <span className={`nav-row-icon ${iconPath ? "" : "dot"}`.trim()}>
-        {iconPath && (
-          <svg viewBox="0 0 24 24">
-            <path d={iconPath} />
-          </svg>
-        )}
+      <span className="dot" />
+      <span className="side-item-body">
+        {feature.label}
+        {curta && <small>{descricao}</small>}
       </span>
-      <span className="nav-row-body">
-        <strong>{feature.label}</strong>
-        <small>{SHORT_DESCRIPTION[feature.key] || feature.description} · {supportMessage(feature.key, model)}</small>
-      </span>
-      <span className="nav-row-state">
-        <span className="nav-row-live-dot" />
-        {checked ? "on" : "off"}
-      </span>
+      <span className="side-item-state">{checked ? "Ligado" : "Desligado"}</span>
     </button>
   );
 }
 
-/** Persistent, always-labeled sidebar. No icon-only affordance anywhere —
- * every row carries a visible label + short status text. */
-export function Sidebar() {
+/** Grupos de perfis e recursos da sidebar. Sempre com rótulo visível. */
+export function FeatureGroups() {
   const features = useDashboardStore((s) => s.features);
   const updateFeatures = useDashboardStore((s) => s.updateFeatures);
   const sorted = [...features].sort((a, b) => FEATURE_ORDER.indexOf(a.key) - FEATURE_ORDER.indexOf(b.key));
 
   return (
-    <nav className="sidebar" aria-label="Features e perfis">
+    <>
       <div className="sidebar-group">
-        <div className="sidebar-group-label">Perfis</div>
-        <div className="profile-pills">
+        <h2>Perfis</h2>
+        <div className="side-profiles">
           {(["basic", "epi", "risk", "full"] as const).map((profile) => (
-            <button
-              key={profile}
-              type="button"
-              className="profile-pill"
-              onClick={() => updateFeatures(FEATURE_PROFILES[profile]).catch(console.error)}
-            >
+            <button key={profile} type="button" className="small" onClick={() => updateFeatures(FEATURE_PROFILES[profile]).catch(console.error)}>
               {PROFILE_TITLES[profile]}
             </button>
           ))}
         </div>
       </div>
       <div className="sidebar-group">
-        <div className="sidebar-group-label">Features</div>
-        <div className="nav-list">
-          {sorted.map((feature) => (
-            <NavRow key={feature.key} feature={feature} />
-          ))}
-        </div>
+        <h2>Recursos</h2>
+        {sorted.map((feature) => (
+          <FeatureRow key={feature.key} feature={feature} />
+        ))}
       </div>
-    </nav>
+    </>
   );
 }
-
-// CameraSidebar (mock por câmera) foi removida — substituída pela <Sidebar>
-// real dentro de camera-focus.tsx desde a integração com o backend
-// (Fase A, Passo 4/6). Ficava aqui sem uso nenhum.
 
 export function OverlayControls() {
   const overlay = useDashboardStore((s) => s.overlay);
@@ -160,13 +166,13 @@ export function OverlayControls() {
   if (!overlay) return null;
   return (
     <Panel id="panel-overlay" title="Overlay do vídeo" description="Controle o que aparece dentro do frame sem misturar dados operacionais.">
-      <div className="features compact">
-        {Object.entries(OVERLAY_LABELS).map(([key, label]) => (
+      <div className="features">
+        {[...Object.entries(OVERLAY_LABELS), ...PARTES_DO_CORPO.map(({ key, label }) => [key, `${label} (parte do corpo)`] as [string, string])].map(([key, label]) => (
           <label className="feature-item" key={key}>
             <span className="switch">
               <input
                 type="checkbox"
-                checked={overlay[key as keyof typeof overlay] !== false}
+                checked={key.startsWith("part_") ? Boolean(overlay[key as keyof typeof overlay]) : overlay[key as keyof typeof overlay] !== false}
                 onChange={(e) => updateOverlay({ [key]: e.target.checked }).catch(console.error)}
               />
               <span className="switch-track">

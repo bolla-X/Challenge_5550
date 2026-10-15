@@ -59,6 +59,29 @@ export interface Alert extends CameraScoped {
   resolved_at: string | null;
 }
 
+// ---- app/models.py: Incidente.to_dict() (MISSÃO 2, P0.2) ------------------
+/** Alertas da mesma (câmera, regra, zona) agrupados. IDs são de rastreio, nunca identidade. */
+export interface Incidente {
+  id: number;
+  camera_id: number | null;
+  rule: string;
+  feature: string | null;
+  zona: string;
+  severity: "critical" | "high" | "medium" | "low" | "info" | string;
+  titulo: string;
+  status: "active" | "resolved" | string;
+  pessoas: (number | string)[];
+  /** Só nos snapshots ao vivo; na listagem do banco vem null. */
+  pessoas_ativas: (number | string)[] | null;
+  alert_ids: number[];
+  pico_pessoas: number;
+  aberto_em: string | null;
+  atualizado_em: string | null;
+  fechado_em: string | null;
+  reconhecido_em: string | null;
+  reconhecido_em_s: number | null;
+}
+
 // ---- app/models.py: EventLog.to_dict() -----------------------------------
 export interface TimelineEvent extends CameraScoped {
   id: number;
@@ -229,6 +252,12 @@ export interface OverlayOptions extends CameraScoped {
   confidence: boolean;
   pose: boolean;
   risk_area: boolean;
+  part_head: boolean;
+  part_face: boolean;
+  part_ear: boolean;
+  part_hands: boolean;
+  part_foot: boolean;
+  part_tool: boolean;
 }
 
 // ---- app/services/monitor_service.py: risk_area_state() ------------------
@@ -277,6 +306,8 @@ export interface VideoStreamStatus {
   modo?: "ao_vivo" | "reconectando" | "fixture";
   /** Fonte em uso, com a credencial já redigida pelo backend. */
   fonte?: string;
+  /** 1 = velocidade original; < 1 = gravação em câmera lenta (cena "Queda" do palco). */
+  velocidade?: number;
 }
 
 // ---- app/services/camera_worker.py: diagnostico() ------------------------
@@ -307,8 +338,29 @@ export interface CameraDiagnostico {
   brilho_minimo?: number;
 }
 
+/** app/services/aproximacao.py: aviso de aproximação (projeção cinemática). */
+export interface PreAlerta {
+  track_id: number;
+  segundos_ate_entrar: number;
+  velocidade: number;
+  metodo: "projecao_cinematica";
+}
+
+/** app/services/controlador_adaptativo.py: resumo(). */
+export interface ModoAdaptativo {
+  nivel: number;
+  nivel_max: number;
+  degradado: boolean;
+  reducoes: string[];
+  motivo: string | null;
+}
+
 export interface MonitorStatus extends CameraScoped {
   running: boolean;
+  /** "apresentacao": rodando, mas sem análise enquanto a cena do palco durar. */
+  pausa?: "apresentacao" | null;
+  /** O que o controlador adaptativo reduziu nesta câmera (null = nunca mexeu). */
+  adaptativo?: ModoAdaptativo | null;
   frame_counter: number;
   last_error: string | null;
   video?: VideoStreamStatus;
@@ -317,11 +369,14 @@ export interface MonitorStatus extends CameraScoped {
   features: Record<string, FeatureFlag>;
   model: ModelDiagnostics;
   active_alerts: Alert[];
+  active_incidents?: Incidente[];
   cleanup: Record<string, unknown> | null;
   overlay: OverlayOptions;
   settings: RuntimeSettings;
   risk_area: RiskAreaState;
   snapshot: SnapshotInfo;
+  /** Modo privacidade (F4): desfoque de rosto em tudo que sai do worker. */
+  privacidade?: { ativa: boolean };
 }
 
 // ---- GET /status: {"system": "VisionEPI", ...status()} -------------------
@@ -352,6 +407,7 @@ export interface PreflightResponse {
 // ---- GET /features -> {features: FeatureFlag[]} --------------------------
 export interface FeaturesResponse {
   features: FeatureFlag[];
+  camera_id?: number | null;
 }
 
 // ---- GET /alerts -> {items: Alert[], count} ------------------------------
@@ -421,6 +477,7 @@ export interface CameraFeatureSet {
   glasses: boolean;
   mask: boolean;
   safety_shoe: boolean;
+  ear_protection: boolean;
   pose: boolean;
   falls: boolean;
   posture: boolean;
@@ -438,11 +495,13 @@ export interface CameraRecord {
   id: number;
   name: string;
   location: string | null;
-  source_type: "USB" | "RTSP" | "Arquivo";
+  source_type: "USB" | "RTSP" | "Arquivo" | "Celular";
   source: string;
   fps: number;
   width: number;
   height: number;
+  rotation: 0 | 90 | 180 | 270;
+  gate_required: string[] | null;
   enabled: boolean;
   features: CameraFeatureSet;
   created_at: string | null;
@@ -470,3 +529,57 @@ export interface CameraDiscoveryResponse {
   count: number;
 }
 
+
+// ---- app/api/cameras.py: modo portaria ------------------------------------
+export interface GateState {
+  camera_id: number;
+  enabled: boolean;
+  required: string[];
+  verdict: "off" | "waiting" | "approved" | "denied";
+  missing: string[];
+  people: number;
+}
+
+/** Portal de Entrada (G1): um estado por EPI exigido. */
+export interface PortalItem {
+  key: string;
+  estado: "confirmado" | "faltando" | "nao_verificavel";
+  motivo: string | null;
+  /** O que o modelo viu e por quê (X9): "visto com 0,62", "viu com 0,31, abaixo do piso — descartado". */
+  explicacao?: string;
+}
+export interface PortalState {
+  camera_id: number;
+  enabled: boolean;
+  required: string[];
+  verdict: "off" | "waiting" | "approved" | "denied";
+  itens: PortalItem[];
+  people: number;
+  checkins: number;
+}
+
+/** Modo TV / Andon (G8): tudo por setor, nada por pessoa. */
+export interface TvCamera {
+  camera_id: number;
+  nome: string;
+  running: boolean;
+  conformidade_atual: number | null;
+  sequencia_min: number;
+}
+export interface TvSetor {
+  setor: string;
+  cameras: TvCamera[];
+  conformidade_atual: number | null;
+  sequencia_min: number;
+  minutos_com_pessoas: number;
+  minutos_conformes: number;
+  checkins_portal: number;
+  alertas_criticos: number;
+  alertas_reconhecidos: number;
+  metas: { setor: string; minutos_conformes: number | null; checkins_portal: number | null };
+  conquistas: { id: string; texto: string }[];
+}
+export interface TvEstado {
+  setores: TvSetor[];
+  janela_h: number;
+}

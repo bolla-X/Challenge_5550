@@ -7,6 +7,8 @@ versão anterior só reabria quando `isOpened()` era falso, a câmera ficava em
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from app.vision import video_stream as vs_module
@@ -359,7 +361,12 @@ def test_arquivo_local_nao_recebe_timeout(relogio, capturas):
     stream.read()
 
     _source, _api, params = capturas["chamadas"][0]
-    assert params is None, f"arquivo local nao deveria receber params: {params}"
+    # O único parâmetro de abertura de um arquivo é o teto de threads do
+    # decoder (ver THREADS_DECODE_PADRAO); timeout de rede, nenhum.
+    pares = dict(zip(params[::2], params[1::2]))
+    assert pares == {int(vs_module.cv2.CAP_PROP_N_THREADS): vs_module.THREADS_DECODE_PADRAO}, (
+        f"arquivo local nao deveria receber timeout: {params}"
+    )
 
 
 # ----------------------------------------------- fixture em loop -----------
@@ -593,3 +600,41 @@ def test_rede_frame_bom_depois_de_falha_zera_o_contador(relogio, capturas):
 
     assert stream.read()[0] is True
     assert stream.status().consecutive_failures == 0
+
+
+def test_decoder_de_arquivo_abre_com_teto_de_threads():
+    """Sem o teto, o FFmpeg do OpenCV abre uma thread de decode por núcleo lógico."""
+    import psutil
+    from app.vision.video_stream import abrir_captura
+
+    fixture = Path(__file__).parent / "fixtures" / "next_multidao.mp4"
+    if not fixture.exists():
+        pytest.skip("fixture ausente (scripts/fetch_fixtures.py)")
+    processo = psutil.Process()
+    antes = processo.num_threads()
+    captura = abrir_captura(str(fixture), threads_decode=2)
+    try:
+        assert captura.read()[0]
+        assert processo.num_threads() - antes <= 2
+    finally:
+        captura.release()
+
+
+def test_pular_avanca_sem_converter_e_falha_como_o_read(relogio, capturas):
+    capturas["fila"].append(FakeCapture([True, True]))
+    stream = VideoStream("tests/fixtures/bench.mp4", 640, 480)
+    assert stream.pular() is False, "sem captura aberta, quem reabre é o read()"
+    assert stream.read()[0] is True
+    assert stream.pular() is True
+
+
+def test_e_arquivo_local(tmp_path):
+    from app.vision.video_stream import e_arquivo_local
+
+    arquivo = tmp_path / "x.mp4"
+    arquivo.write_bytes(b"0")
+    assert e_arquivo_local(str(arquivo))
+    assert not e_arquivo_local("0")
+    assert not e_arquivo_local(0)
+    assert not e_arquivo_local("rtsp://camera/stream")
+    assert not e_arquivo_local(str(tmp_path / "nao-existe.mp4"))

@@ -6,6 +6,8 @@ Roda com `AUTH_REQUIRED=True` (ver AuthTestConfig) — o resto da suíte usa
 """
 from __future__ import annotations
 
+import re
+
 import pytest
 from app import create_app
 from app.config import AuthTestConfig
@@ -209,6 +211,15 @@ PUBLICAS = {
     "auth.me",          # e quem decide se a tela de login aparece
     "status.index",     # shell do SPA (o HTML em si nao tem dado)
     "static",           # assets do build
+    # Celular como câmera (F6): o celular não tem sessão. A página é HTML sem
+    # dado; o envio só aceita token de câmera existente e em monitoramento.
+    # Coberto por tests/test_celular.py (token desconhecido → 404, sem quadro).
+    "celular.pagina",
+    "celular.receber_quadro",
+    # PWA (X10): o service worker e o manifesto são arquivos estáticos do build,
+    # sem dado nenhum; o navegador os pede antes de qualquer login.
+    "status.service_worker",
+    "status.manifesto",
 }
 
 
@@ -223,8 +234,12 @@ def test_toda_rota_exige_sessao(app, client):
         if regra.endpoint in PUBLICAS:
             continue
         metodo = "GET" if "GET" in regra.methods else sorted(regra.methods - {"HEAD", "OPTIONS"})[0]
-        caminho = regra.rule.replace("<int:alert_id>", "1").replace("<int:camera_id>", "1")
-        caminho = caminho.replace("<int:user_id>", "1").replace("<path:filename>", "x.jpg")
+        # Qualquer parâmetro de rota, não só os conhecidos: com `<int:indice>`
+        # literal na URL o Flask devolvia 404 ANTES da autenticação, e a rota
+        # passava sem ser exercitada (o clipe de replay do F1 foi o caso).
+        caminho = re.sub(r"<int:[^>]+>", "1", regra.rule)
+        caminho = re.sub(r"<path:[^>]+>", "x.jpg", caminho)
+        caminho = re.sub(r"<[^>]+>", "x", caminho)
         resposta = client.open(caminho, method=metodo)
         if resposta.status_code != 401:
             desprotegidas.append(f"{metodo} {regra.rule} -> {resposta.status_code}")
@@ -288,3 +303,18 @@ def test_authenticate_devolve_erro_generico(app):
         with pytest.raises(AuthError) as exc:
             AuthService().authenticate("ninguem@fabrica.com", "seja-o-que-for")
         assert "inválidos" in exc.value.message
+
+
+def test_supervisor_cria_operador_so_com_camera_cadastrada(app, client):
+    from app.models import Camera
+
+    with app.app_context():
+        db.session.add(Camera(name="Portaria", source_type="USB", source="0"))
+        db.session.commit()
+        cam_id = Camera.query.first().id
+
+    entrar(client, ROLE_SUPERVISOR)
+    corpo = {"email": "novo@fabrica.com", "name": "Novo", "password": SENHA, "role": "operator"}
+    assert client.post("/api/users", json=corpo).status_code == 400  # sem câmera
+    assert client.post("/api/users", json=corpo | {"camera_id": 9999}).status_code == 400  # não existe
+    assert client.post("/api/users", json=corpo | {"camera_id": cam_id}).status_code == 201

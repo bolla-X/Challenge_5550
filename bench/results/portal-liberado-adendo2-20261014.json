@@ -1,0 +1,120 @@
+{
+  "metodo": "E2E_PORTAL_REPETICOES=10 pytest e2e/test_fluxos.py -k portal_de_entrada; 4 câmeras ligadas (Multidão, Canteiro=portal, Rede, Queda); tempo desde abrir /portal e desde o 1º item na tela até veredito 'approved'; p95 por posto mais próximo (com 10 amostras = o máximo)",
+  "antes": {
+    "config": "3 análises seguidas; análise sem ninguém zera; foco 0,5",
+    "desde_abrir_s": {
+      "p50": 16.82,
+      "p95_posto": 80.99,
+      "valores": [
+        4.66,
+        5.64,
+        6.81,
+        12.36,
+        16.74,
+        16.91,
+        17.64,
+        23.08,
+        26.92,
+        80.99
+      ]
+    },
+    "desde_item_s": {
+      "p50": 14.66,
+      "p95_posto": 80.25,
+      "valores": [
+        4.08,
+        4.53,
+        6.09,
+        11.69,
+        14.56,
+        14.77,
+        16.27,
+        22.58,
+        26.27,
+        80.25
+      ]
+    }
+  },
+  "depois_foco_0_7": {
+    "config": "+ até 2 análises sem ninguém neutras; foco 0,7",
+    "desde_abrir_s": {
+      "p50": 5.41,
+      "p95_posto": 31.89,
+      "valores": [
+        2.53,
+        2.78,
+        3.69,
+        4.41,
+        4.73,
+        6.08,
+        7.06,
+        7.41,
+        16.23,
+        31.89
+      ]
+    },
+    "desde_item_s": {
+      "p50": 4.78,
+      "p95_posto": 30.62,
+      "valores": [
+        1.47,
+        1.83,
+        2.94,
+        3.19,
+        4.0,
+        5.56,
+        6.19,
+        6.66,
+        15.51,
+        30.62
+      ]
+    }
+  },
+  "final": {
+    "config": "+ até 2 análises sem ninguém neutras; foco 0,5",
+    "desde_abrir_s": {
+      "p50": 5.57,
+      "p95_posto": 21.56,
+      "valores": [
+        3.05,
+        3.41,
+        4.48,
+        4.64,
+        5.08,
+        6.06,
+        6.33,
+        16.31,
+        21.0,
+        21.56
+      ]
+    },
+    "desde_item_s": {
+      "p50": 5.01,
+      "p95_posto": 20.89,
+      "valores": [
+        2.47,
+        2.7,
+        3.94,
+        3.95,
+        4.5,
+        5.52,
+        5.67,
+        15.8,
+        20.39,
+        20.89
+      ]
+    },
+    "analises": [
+      "WAWAAW",
+      "WWWWAAA",
+      "WAAA",
+      "DDWAWDDWAWAWDAWWWAAA",
+      "DWWAAA",
+      "AADWWDAADADWAADADAWWAA",
+      "AAWA",
+      "DAAWA",
+      "AWDAAWWWAADWAAWA",
+      "WWWAAA"
+    ]
+  }
+}

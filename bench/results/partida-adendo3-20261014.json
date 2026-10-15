@@ -1,0 +1,52 @@
+{
+ "comando": "python scripts/medir_partida.py --frio 3; python scripts/preparar.py --so-cache; python scripts/medir_partida.py --quente 3",
+ "marco": "de Popen(run.py --demo, DEMO_WEBCAM=0) ate a primeira analise publicada em qualquer camera (analises_publicadas do /api/diagnostics/pipeline)",
+ "rodadas": [
+  {
+   "rotulo": "frio",
+   "cache": "bench\\runtime\\ov_cache_frio_1791991479_0",
+   "ts": 1791991539,
+   "acessos_impressos_s": 57.4,
+   "primeira_analise_s": 58.3
+  },
+  {
+   "rotulo": "frio",
+   "cache": "bench\\runtime\\ov_cache_frio_1791991538_1",
+   "ts": 1791991609,
+   "acessos_impressos_s": 66.8,
+   "primeira_analise_s": 67.8
+  },
+  {
+   "rotulo": "frio",
+   "cache": "bench\\runtime\\ov_cache_frio_1791991609_2",
+   "ts": 1791991687,
+   "acessos_impressos_s": 75.3,
+   "primeira_analise_s": 75.9
+  },
+  {
+   "rotulo": "quente",
+   "cache": "runtime\\ov_cache",
+   "ts": 1791991810,
+   "acessos_impressos_s": 49.1,
+   "primeira_analise_s": 50.3
+  },
+  {
+   "rotulo": "quente",
+   "cache": "runtime\\ov_cache",
+   "ts": 1791991884,
+   "acessos_impressos_s": 66.4,
+   "primeira_analise_s": 67.0
+  },
+  {
+   "rotulo": "quente",
+   "cache": "runtime\\ov_cache",
+   "ts": 1791991941,
+   "acessos_impressos_s": 52.6,
+   "primeira_analise_s": 53.2
+  }
+ ],
+ "preparar_so_cache_s": 56,
+ "frio_mediana_s": 67.8,
+ "quente_mediana_s": 53.2,
+ "observacao": "frio = OV_CACHE_DIR novo e vazio por rodada; caches do sistema operacional e do driver da GPU seguem quentes (o PC nao foi reiniciado). CPU da maquina com carga de fora do projeto."
+}

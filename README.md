@@ -1,5 +1,60 @@
 # VisionEPI
 
+**Segurança do trabalho que enxerga a planta inteira. Por setor, nunca por pessoa.**
+
+Câmeras comuns viram um sistema que vê EPI, queda e zona de risco ao vivo, agrupa
+o que vê em incidentes, prova a integridade de cada evidência e roda inteiro num
+notebook, sem internet. Feito para o FIAP NEXT 2026 (Challenge Metaindústria, SPI
+Integração).
+
+<p align="center">
+  <img src="docs/NEXT2026/galeria/readme/palco.gif" alt="Modo Apresentação percorrendo as cenas da demo: abertura com os números da planta e o Portal de Entrada" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/NEXT2026/galeria/1920x1080-claro/10-gemeo-3d.webp" alt="Gêmeo digital 3D: a planta com as zonas de risco e cada pessoa como uma cápsula na cor do seu estado" width="49%">
+  <img src="docs/NEXT2026/galeria/1920x1080-escuro/07-foco-alerta-critico.webp" alt="Tela de foco de uma câmera com o incidente ativo sobre o vídeo e a lista de incidentes ao lado" width="49%">
+</p>
+
+### Destaques
+
+- **Gêmeo digital 3D** da planta, ao vivo: cada pessoa é uma cápsula na cor do estado, nunca uma foto.
+- **Incidentes, não ruído:** alertas agrupados por câmera, regra e zona, com a linha causal contada só com o que foi registrado.
+- **Cadeia de custódia SHA-256:** mudar um byte de um clipe aponta exatamente o elo quebrado.
+- **Simulador "E se?":** mude a zona ou a regra e veja quantos alertas teriam disparado, sem tocar nos reais.
+- **Raio-X:** o que o modelo viu, separado do que o sistema decidiu (tecla X).
+- **Portal de Entrada e "Tente enganar a IA":** cada EPI confirmado, faltando ou não verificável, com o porquê.
+- **Liga de Setores e Retrospectiva:** gamificação só com indicadores positivos e só por equipe.
+- **Modo Apresentação** com controle pelo celular, Modo TV e PWA do supervisor.
+- **Privacidade por padrão:** rosto desfocado em tudo que sai do servidor; sem reconhecimento facial, sem nome ligado a ID.
+
+Galeria completa, nos dois temas e em três tamanhos: [docs/NEXT2026/galeria](docs/NEXT2026/galeria/index.md).
+
+### Como rodar em 3 comandos (Windows, Python 3.11)
+
+```bash
+py -3.11 -m venv .venv && .venv\Scripts\python -m pip install -r requirements.txt
+```
+
+```bash
+.venv\Scripts\python scripts\preparar.py
+```
+
+```bash
+.venv\Scripts\python run.py --demo
+```
+
+O 2º baixa os pesos (conferindo o SHA-256), as gravações de demonstração,
+aprova os runtimes rápidos e aquece o cache do OpenVINO (`runtime/ov_cache/`);
+é o único que precisa de internet. O 3º imprime no
+terminal as contas da demo e o endereço. Roteiro da apresentação em
+[docs/NEXT2026/DEMO.md](docs/NEXT2026/DEMO.md). macOS/Linux: troque
+`.venv\Scripts\python` por `.venv/bin/python`.
+
+---
+
+## Sobre o projeto
+
 Sistema de monitoramento de segurança industrial em tempo real, desenvolvido para o **Challenge 2026 — Metaindústria** (FIAP × SPI Integração). Usa visão computacional para detectar uso de EPIs, analisar postura e comportamento, e sinalizar risco antes que o incidente aconteça — não apenas registrar a infração depois do fato.
 
 > **Sprint 4 (entrega final de IA):** relatório técnico em [docs/SPRINT4.md](docs/SPRINT4.md) e em PDF ([docs/entrega/](docs/entrega/)), diagrama em [docs/arquitetura_sprint4.png](docs/arquitetura_sprint4.png), tabelas geradas em [docs/avaliacao/RESUMO.md](docs/avaliacao/RESUMO.md), evidências em [docs/evidencias/](docs/evidencias/).
@@ -10,7 +65,7 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 
 ## Funcionalidades
 
-- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos e calçado de segurança, via **peso próprio** (Sprint 4): YOLOv8n treinado no dataset Construction-PPE na resolução em que o pipeline roda, com pessoa, 5 EPIs e 5 classes *negativas* num peso só. Medido por pessoa no teste: precisão do alerta "sem capacete" 0,39 → **0,85**, inferência 354 → **49 ms** ([docs/SPRINT4.md](docs/SPRINT4.md)). O Vyra (14 classes) e a arquitetura dual-model continuam suportados.
+- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos, máscara e calçado de segurança, via modelo YOLOv8 dedicado (Vyra, 14 classes). O segundo modelo para detecção de pessoa continua disponível para pesos que não trazem a classe `Person` (arquitetura dual-model opcional). Alternativa configurável: o peso da Sprint 4 (`models/visionepi_cppe_n416.pt`, YOLOv8n treinado no Construction-PPE, com classes *negativas*; [docs/SPRINT4.md](docs/SPRINT4.md)).
 - **Ausente não é não visto** — cada EPI sai como *detectado*, *visto sem* ou *não detectado*; a política (`PPE_MISSING_POLICY`) decide o que vira alerta, e o alerta diz ao operador se a pessoa foi vista sem o EPI.
 - **Multi-pessoa com identidade estável** — múltiplas pessoas detectadas e avaliadas no mesmo frame, cada uma com id que persiste entre frames (tracking por IoU). O EPI é associado à pessoa por geometria e de forma exclusiva: um capacete pertence a uma pessoa só, mesmo com as caixas se sobrepondo.
 - **Multi-câmera de verdade** — um worker por câmera, modelos YOLO carregados uma única vez e compartilhados. Todo alerta, evento e mensagem de WebSocket carrega `camera_id`.
@@ -24,12 +79,29 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 - **Modo Operador / Técnico / Supervisor** — visão essencial para o campo (com ações reais de "avisei o colaborador" e "marcar falso positivo"), e um painel de diagnóstico completo (FPS, classes do modelo, diagnósticos de detecção) para quem precisa investigar.
 - **Dashboard em tempo real** via WebSocket (Socket.IO) — feed de vídeo, conformidade por pessoa, linha do tempo de eventos, tudo atualizado ao vivo.
 
+### NEXT 2026 (FIAP)
+
+Detalhe, números e decisões em [`docs/NEXT2026/`](docs/NEXT2026/) — CHANGELOG, BENCHMARKS, DEMO, BANCA.
+
+- **Desempenho medido, não estimado:** captura "último quadro vence", um agendador de inferência para todas as câmeras e OpenVINO na iGPU Intel por padrão (com fallback para ONNX e PyTorch). Toda troca de runtime passa por um guarda de concordância ≥ 97 % por classe. No perfil "batata" (2 núcleos de eficiência), o 1º alerta chega em ~2 s (antes, 38 s).
+- **Diferenciais:** replay do incidente com rosto desfocado, queda atribuída a um ID de rastreio, pré-alerta de aproximação da zona, modo privacidade (só o supervisor desliga), diagnóstico do pipeline, celular como câmera via QR, mapa de calor, relatório de turno, prova de escala.
+- **Funções criativas:**
+  - Portal de Entrada (`/portal`) e Você vs. a IA (`/desafio`);
+  - SOS por gesto, pessoa imóvel e ergonomia (estimativa);
+  - planta baixa ao vivo e alerta falado em pt-BR;
+  - Modo TV por setor (`/tv`), com metas e conquistas só positivas;
+  - aprendizado ativo (`/rotular`, exporta dataset YOLO);
+  - relatório ligado aos itens literais da NR-6.
+- **Modo demonstração:** `python run.py --demo` (banco isolado, offline) e `flask --app wsgi demo reset` em menos de 10 s.
+
 ## Stack
 
 **Backend**
 - Python 3.11–3.12 · Flask · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-SocketIO
 - gunicorn em produção (o servidor de desenvolvimento do Werkzeug nunca é usado fora de dev)
-- Ultralytics YOLOv8 — peso próprio `models/visionepi_cppe_n416.pt` (YOLOv8n, 6,2 MB, versionado); Vyra + COCO como alternativa
+- Ultralytics YOLOv8 (detecção de EPI e de pessoa, dual-model) e YOLO11n-pose
+- OpenVINO (iGPU Intel) e ONNX Runtime, escolhidos por `PPE_RUNTIME=auto` só entre exports aprovados no guarda
+- Peso da Sprint 4 `models/visionepi_cppe_n416.pt` (YOLOv8n, 6,2 MB, versionado) como alternativa configurável (ver "Configuração do modelo de EPI")
 - Google Gemini 3.6 Flash (segunda opinião multimodal, opcional)
 - MediaPipe Pose (postura e quedas)
 - SQLite (dev) / PostgreSQL (produção, via Docker)
@@ -39,7 +111,7 @@ O modelo tradicional de segurança industrial é reativo: inspeções periódica
 - Zustand (estado global, assinando os eventos WebSocket)
 - Socket.IO client
 - `motion` (animação declarativa), `@number-flow/react` (transição de números), `cmdk` (command palette)
-- CSS global com design tokens próprios — direção visual "Autoridade Discreta": grafite + acento ciano industrial, tipografia mono para dados, cor usada com raridade
+- CSS global com design tokens próprios. Direção visual calma: superfície neutra clara (escuro suportado), hierarquia por espaço e tipografia Geist, cor guardada para o estado que importa (laranja de perigo pela ABNT NBR 7195, vermelho só no botão Parar, verde só em ponto e rótulo), Geist Mono apenas em número que alinha em coluna
 
 ## Arquitetura
 
@@ -49,7 +121,7 @@ flowchart TB
         direction TB
         FONTE["<b>VideoStream</b><br/>RTSP · USB · arquivo<br/>retry com backoff e teto"]
         LOOP["<b>_loop</b> — um frame por vez"]
-        YOLO["<b>YOLOv8n VisionEPI</b> — 1 peso<br/>pessoa + 5 EPIs + 5 negativas<br/><i>38 ms p50 · inference_lock</i>"]
+        YOLO["YOLO EPI + YOLO pessoa<br/><i>inference_lock compartilhado</i>"]
         POSE["MediaPipe Pose<br/>por pessoa rastreada"]
         REGRAS["RuleEngine + PersonComplianceMatcher<br/><i>detectado · visto sem · não detectado</i>"]
         ALERTA["AlertStateService<br/><i>histerese conta DETECÇÃO</i>"]
@@ -181,15 +253,31 @@ python run.py
 
 Acesse `http://localhost:5000`. A porta vem de `PORT` no `.env` e é a mesma usada por `run.py`, Dockerfile, docker-compose e pelo proxy do Vite.
 
+Para apresentar, use o **modo demonstração** (banco isolado, contas geradas na hora e impressas só no terminal, câmeras das gravações e a webcam como "AO VIVO", offline):
+
+```bash
+python run.py --demo
+```
+
+Roteiro de 5 minutos, reset (`flask --app wsgi demo reset`, < 10 s) e plano B em [docs/NEXT2026/DEMO.md](docs/NEXT2026/DEMO.md).
+
 `python run.py` é o servidor de **desenvolvimento**. Em produção quem serve é o gunicorn sobre `wsgi:app` — é o que o `Dockerfile` faz. `FLASK_DEBUG` nunca deve ser `true` fora da sua máquina: o modo debug do Werkzeug expõe um console interativo que executa código arbitrário.
 
 Para desenvolvimento do frontend com hot-reload, rode `npm run dev` dentro de `frontend/` em paralelo ao `python run.py` — o Vite abre em `http://localhost:5173` e faz proxy das chamadas de API/WebSocket para o Flask.
 
 ### Configuração do modelo de EPI
 
-**Sprint 4 — o default é o peso próprio**, `models/visionepi_cppe_n416.pt`, que **já vem no repositório** (6,2 MB; SHA-256 travado em `tests/test_onboarding.py`). Nada a baixar: `YOLO_CLASSES` vazio e `MULTI_PERSON_DETECTION=false`, porque a classe `Person` deste peso generaliza no domínio (revocação de pessoa 0,90 contra 0,84 do COCO, na validação). Reproduzir o treino: `python scripts/baixar_dataset.py && python scripts/treinar_modelo.py` (~2,6 h em CPU de 2 núcleos). Por que trocou, com todos os números: [docs/SPRINT4.md](docs/SPRINT4.md).
+O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI. O padrão é **`models/vyra_ppe.pt`** ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
 
-O restante desta seção documenta o **Vyra**, peso das Sprints 2 e 3, que continua suportado. Para usá-lo: `PPE_MODEL_PATH=models/vyra_ppe.pt` ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
+**Alternativa: o peso da Sprint 4**, `models/visionepi_cppe_n416.pt`, já vem no repositório (6,2 MB; SHA-256 travado em `tests/test_onboarding.py`). YOLOv8n treinado no Construction-PPE a `imgsz=416`, com pessoa, 5 EPIs e 5 classes negativas num peso só; medido por pessoa, a precisão do alerta "sem capacete" foi de 0,39 para 0,85 ([docs/SPRINT4.md](docs/SPRINT4.md)). Não é o padrão da demo: todas as medições, guardas de qualidade e E2E do NEXT 2026 foram feitos com o Vyra. Para usar, as três linhas juntas no `.env`:
+
+```
+PPE_MODEL_PATH=models/visionepi_cppe_n416.pt
+YOLO_CLASSES=
+MULTI_PERSON_DETECTION=false
+```
+
+Ele roda em PyTorch (o export OpenVINO aprovado no guarda é o do Vyra). `PPE_MISSING_POLICY=ausencia|evidencia` (padrão `ausencia`) decide se "não detectado" vira alerta.
 
 Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve em `models/vyra_ppe.pt`.
 
@@ -206,7 +294,7 @@ O modelo **tem** a classe `Person`, e por isso o projeto nasceu com `MULTI_PERSO
 
 **Consequência:** com `MULTI_PERSON_DETECTION=false`, `person_compliance_matcher.py:83` recebe lista de pessoas vazia. O sistema desenha capacetes e coletes no vídeo e **nunca avalia a conformidade de ninguém** — nenhum alerta de EPI é criado.
 
-Por isso, **com o Vyra**, `MULTI_PERSON_DETECTION=true` é obrigatório — `tests/test_onboarding.py` trava isso se o `.env.example` voltar a apontar para ele. O custo é declarado, não escondido: **−20% de FPS** (24,32 → 19,42 a `imgsz=416`, ver [docs/BENCH.md](docs/BENCH.md)). É o preço de o sistema fazer o que promete.
+Por isso **`MULTI_PERSON_DETECTION=true` é o padrão** do `.env.example`, travado por `tests/test_onboarding.py`. O custo é declarado, não escondido: **−20% de FPS** (24,32 → 19,42 a `imgsz=416`, ver [docs/BENCH.md](docs/BENCH.md)). É o preço de o sistema fazer o que promete.
 
 Isso exige o segundo peso, também não versionado. Baixe uma vez e mova para `models/`:
 
@@ -216,25 +304,34 @@ python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
 
 `PERSON_MODEL_PATH` aponta para `models/yolov8n.pt` de propósito: com o nome solto (`yolov8n.pt`), o ultralytics baixa o peso no diretório de trabalho de quem rodou — fora de `models/`, que é o único lugar ignorado pelo git.
 
-#### `YOLO_IMGSZ=416` está abaixo da resolução de treino
+#### Resolução e runtime (NEXT 2026)
 
-O `args.yaml` publicado com os pesos registra `imgsz: 640`. O projeto infere a **416** por custo — a 640 o YOLO custa **166 ms** contra **82 ms** (medido, [docs/BENCH.md](docs/BENCH.md)). O preço da economia é detecção: na foto de teste, a 416 o modelo encontra **1** caixa e a 640 encontra **2**, e o capacete só aparece a partir de 640.
+A inferência roda a `YOLO_IMGSZ=640`, a resolução de treino do Vyra. O guarda
+de concordância reprovou 416 e 512. O `PPE_RUNTIME=auto` (também para pessoa
+e pose) escolhe o primeiro runtime **aprovado** de
+`RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`: o OpenVINO na iGPU Intel, se
+houver; senão ONNX na CPU; senão o `.pt`.
 
-#### Classes detectadas que nenhuma regra consome
+Os exports ficam em `models/export/`, fora do git como os pesos. Para gerá-los
+e aprová-los:
 
-`Fall-Detected` (0) e `Safety Cone` (12) estão em `YOLO_CLASSES`, são detectadas, **desenhadas no vídeo** (`annotator.py:77,90`) e vão no payload do WebSocket — mas **nenhuma regra as lê**. Quem decide "pessoa caiu" é exclusivamente a geometria de landmarks do MediaPipe (`risk_rules.py:230-243`); a detecção de queda do YOLO é sinal não consumido.
+```bash
+python scripts/concordancia.py
+python scripts/concordancia.py --modelo pessoa
+python scripts/concordancia.py --modelo esqueleto
+```
 
-Removê-las de `YOLO_CLASSES` **não economizaria nada**: o filtro `classes=` do ultralytics é aplicado **depois** do NMS (`ultralytics/utils/ops.py:273`), então o forward pass calcula as 14 classes de qualquer jeito. Por isso elas continuam ali.
+O Diagnóstico mostra qual runtime e qual dispositivo estão rodando. Números
+em [docs/NEXT2026/BENCHMARKS.md](docs/NEXT2026/BENCHMARKS.md).
+
+A classe `Fall-Detected` do Vyra virou regra: queda atribuída a um ID de
+rastreio, que cria o alerta com 2 análises seguidas (ver CHANGELOG do NEXT 2026).
 
 #### Alternativa
 
 Ligue `MULTI_PERSON_DETECTION=true` também ao usar um modelo de EPI sem classe `person` (ex.: `models/epi_pretrained.pt`) — e, nesse caso, **limpe `YOLO_CLASSES`**, porque os índices em `.env.example` são específicos do Vyra.
 
 Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso de "modelo não suportado" — o restante do sistema (detecção de pessoa, pose, área de risco) funciona normalmente mesmo assim.
-
-#### OpenVINO e ONNX: avaliados e não adotados
-
-O código aceita `PPE_MODEL_PATH` apontando para um diretório `*_openvino_model`, mas o `requirements.txt` **não instala OpenVINO** — ele foi avaliado e rejeitado (commit `2d74e96`). O ONNX foi medido nesta máquina com o `best.onnx` que o próprio Hexmon publica: **33% mais lento** que o PyTorch, não os "up to 3x" que a documentação da Ultralytics anuncia. Números em [docs/BENCH.md](docs/BENCH.md). `onnxruntime` **não** está no `requirements.txt`.
 
 ## Autenticação e papéis
 
@@ -301,6 +398,20 @@ Typecheck do frontend:
 npm --prefix frontend run build
 ```
 
+Ponta a ponta (Playwright, servidor real com as gravações de demonstração):
+
+```bash
+python scripts/fetch_fixtures.py
+python -m playwright install chromium
+python -m pytest e2e -q
+```
+
+Benchmark (≤ 5 min, na máquina onde a demo vai rodar):
+
+```bash
+python scripts/bench.py --rapido
+```
+
 ## Estrutura do projeto
 
 ```
@@ -335,7 +446,8 @@ tests/                  Testes backend (pytest)
 - [x] Segunda opinião multimodal ligada no boot — disparo no alerta criado, fora da thread do frame (`submeter()` em 9–13 µs), com re-bench dentro do ruído. O LLM não cria, resolve nem suprime alerta. 11 testes em `tests/test_camera_worker_llm.py`; `LLM_ENABLED=false` é o default e o sistema funciona sem chave.
 - [ ] **Pose por pessoa com instância própria** — os recortes por pessoa já existem (`POSE_PER_PERSON=true`, `tests/test_pose_por_pessoa.py`), mas todas as pessoas passam pela **mesma** instância do MediaPipe em `static_image_mode=True`. Trocar para o modo de stream mediu **2,25x** (34,10 → 15,14 ms de p50), e não foi aplicado: a doc oficial descreve `True` como o modo para "a batch of static, possibly unrelated, images", que é exatamente o que `estimate_for_people` alimenta. O caminho que dá os dois é uma instância por track rastreado. Número e citação em [BENCH.md](docs/BENCH.md).
 - [ ] Feature por câmera em runtime — `PUT /api/cameras/<id>` grava no banco, mas o worker em execução só relê a configuração quando é reconstruído (mudança de fonte/fps/resolução)
-- [ ] Multi-câmera que escala — a contenção está medida e é o `inference_lock` cobrindo YOLO + pose de todas as câmeras (134 a 237 ms de espera pura com 2 câmeras). Dobrar câmeras hoje não aumenta o throughput agregado em nada: cada uma recebe metade.
+- [x] Multi-câmera que escala melhor — um agendador de inferência único em rodízio, captura "último quadro vence" e OpenVINO na iGPU (NEXT 2026). No perfil batata, 4 câmeras: 0,34 análise/s por câmera contra 0,08 antes, com o vídeo desacoplado da análise. A análise continua dividida entre as câmeras: o limite agora é a GPU integrada. Números em [docs/NEXT2026/BENCHMARKS.md](docs/NEXT2026/BENCHMARKS.md).
+- [ ] Ruído de alertas na multidão — 5 alertas por pessoa (um por EPI) e um conjunto novo a cada troca de ID do rastreador. A demo liga só capacete, colete e luvas; agrupar por pessoa fica para depois.
 
 ## Equipe
 

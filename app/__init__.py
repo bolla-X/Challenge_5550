@@ -5,17 +5,30 @@ import logging
 from flask import Flask, jsonify
 from flask import session as socket_session
 from flask_socketio import disconnect as socketio_disconnect
-from flask_socketio import join_room
+from flask_socketio import join_room, leave_room, rooms
 
 from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
 from app.api.cameras import cameras_bp
+from app.api.celular import celular_bp
+from app.api.custodia import custodia_bp
+from app.api.desafio import desafio_bp
 from app.api.diagnostics import runtime_bp
+from app.api.escala import escala_bp
 from app.api.features import features_bp
+from app.api.gemeo import gemeo_bp
+from app.api.incidentes import incidentes_bp
+from app.api.lab import lab_bp
+from app.api.liga import liga_bp
 from app.api.monitor import monitor_bp
+from app.api.palco import palco_bp
+from app.api.relatorio import relatorio_bp
 from app.api.risk import risk_bp
+from app.api.rotulos import rotulos_bp
+from app.api.simulador import simulador_bp
 from app.api.status import status_bp
 from app.api.stream import stream_bp
+from app.api.tv import tv_bp
 from app.cli import register_cli
 from app.config import Config
 from app.extensions import db, migrate, socketio
@@ -23,8 +36,9 @@ from app.models import Alert, User  # noqa: F401  (registra os modelos no metada
 from app.services.feature_manager import FeatureManager
 from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.auth import current_user
+from app.utils.limites_de_cpu import aplicar_limites_de_cpu
 from app.utils.logging_config import configure_logging
-from app.utils.salas import salas_do_usuario
+from app.utils.salas import sala_de_foco, salas_do_usuario
 
 
 def _validar_secret_key(app: Flask) -> None:
@@ -88,6 +102,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         engineio_logger=False,
     )
 
+    app.config["LIMITES_DE_CPU"] = aplicar_limites_de_cpu()
     feature_manager = FeatureManager.from_config(app.config)
     monitor_service = MonitorService(app, socketio, feature_manager)
 
@@ -96,13 +111,30 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(status_bp)
+    app.register_blueprint(tv_bp)
+    app.register_blueprint(rotulos_bp)
+    app.register_blueprint(desafio_bp)
+    app.register_blueprint(lab_bp)
+    if app.config.get("DEMO_MODE"):
+        from app.api.demo import demo_bp
+
+        app.register_blueprint(demo_bp)
     app.register_blueprint(alerts_bp)
+    app.register_blueprint(incidentes_bp)
+    app.register_blueprint(gemeo_bp)
+    app.register_blueprint(custodia_bp)
+    app.register_blueprint(simulador_bp)
+    app.register_blueprint(palco_bp)
+    app.register_blueprint(liga_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
     app.register_blueprint(features_bp)
     app.register_blueprint(stream_bp)
     app.register_blueprint(runtime_bp)
     app.register_blueprint(risk_bp)
+    app.register_blueprint(escala_bp)
+    app.register_blueprint(relatorio_bp)
+    app.register_blueprint(celular_bp)
 
     # Cobre toda rota LEGADA que opera sobre "a câmera padrão" (/start,
     # /stop, /status, /preflight, /settings, /overlay, /risk-area,
@@ -140,6 +172,34 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         for sala in salas_do_usuario(usuario):
             join_room(sala)
         return True
+
+    @socketio.on("focar")
+    def _focar(payload=None):
+        """O cliente diz qual câmera está aberta na tela; entra em `foco:<id>`.
+
+        Validado contra o mesmo escopo do REST: operador só foca a câmera do
+        próprio setor. Sai de qualquer foco anterior (uma câmera por aba).
+        """
+        try:
+            camera_id = int((payload or {}).get("camera_id"))
+        except (TypeError, ValueError):
+            return {"ok": False}
+        if app.config.get("AUTH_REQUIRED", True):
+            usuario = current_user()
+            if usuario is None or not usuario.active:
+                return {"ok": False}
+            if usuario.role == "operator" and usuario.camera_id != camera_id:
+                return {"ok": False}
+        try:
+            for sala in list(rooms()):
+                if str(sala).startswith("foco:"):
+                    leave_room(sala)
+            join_room(sala_de_foco(camera_id))
+        except KeyError:
+            # O cliente desconectou entre o evento e o join (corrida vista no
+            # log do E2E): não há sala para entrar, e não é erro do servidor.
+            return {"ok": False}
+        return {"ok": True}
 
     @socketio.on("revalidate")
     def _revalidate_socket():

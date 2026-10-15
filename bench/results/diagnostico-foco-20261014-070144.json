@@ -1,0 +1,1027 @@
+{
+  "foco": "bench",
+  "segundos": 108,
+  "env": [],
+  "servidos": {
+    "multidao": 58,
+    "bench": 126,
+    "queda": 60,
+    "multidao2": 49
+  },
+  "fracao_foco": 0.43,
+  "maior_espera_s": {
+    "multidao": 4.5,
+    "bench": 3.27,
+    "queda": 3.81,
+    "multidao2": 4.36
+  },
+  "esperas_acima_de_3s": {
+    "multidao": "12/58",
+    "bench": "1/126",
+    "queda": "4/60",
+    "multidao2": "7/50"
+  },
+  "inferencias_por_s": 2.71,
+  "pre_alertas_registrados": 2,
+  "alertas_de_queda": 3,
+  "portal_liberado_em_s": 8.5,
+  "portal": [
+    {
+      "liberado_em_s": 8.5,
+      "brutos": {
+        "approved": 4,
+        "denied": 2,
+        "waiting": 3
+      },
+      "faltas": {
+        "helmet": 1,
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          1,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "D",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 9.4,
+      "brutos": {
+        "approved": 4,
+        "denied": 1,
+        "waiting": 4
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 1.6,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          7,
+          [
+            "helmet",
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 9.9,
+      "brutos": {
+        "approved": 4,
+        "denied": 2,
+        "waiting": 4
+      },
+      "faltas": {
+        "helmet": 1,
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          8,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "D",
+          5,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          2,
+          [
+            "helmet"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          8,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 7.9,
+      "brutos": {
+        "approved": 5,
+        "denied": 1,
+        "waiting": 3
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          3,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 8.4,
+      "brutos": {
+        "approved": 5,
+        "denied": 1,
+        "waiting": 1
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 6.4,
+      "brutos": {
+        "approved": 5,
+        "denied": 1,
+        "waiting": 2
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 10.1,
+      "brutos": {
+        "approved": 6,
+        "denied": 1,
+        "waiting": 6
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          8,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          9,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "helmet",
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 3.3,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          9,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 8.5,
+      "brutos": {
+        "approved": 6,
+        "denied": 1,
+        "waiting": 4
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          8,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 1.5,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 3.5,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 2
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 8.1,
+      "brutos": {
+        "approved": 7,
+        "denied": 2,
+        "waiting": 4
+      },
+      "faltas": {
+        "helmet": 1,
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          5,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          2,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          8,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          9,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 9.1,
+      "brutos": {
+        "approved": 4,
+        "denied": 3,
+        "waiting": 3
+      },
+      "faltas": {
+        "helmet": 3
+      },
+      "sequencia": [
+        [
+          "D",
+          6,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          9,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          5,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          2,
+          [
+            "helmet",
+            "vest"
+          ]
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 11.4,
+      "brutos": {
+        "approved": 5,
+        "denied": 2,
+        "waiting": 6
+      },
+      "faltas": {
+        "helmet": 2
+      },
+      "sequencia": [
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          9,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "D",
+          12,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "D",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "A",
+          4,
+          [
+            "helmet",
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          4,
+          [
+            "vest"
+          ]
+        ],
+        [
+          "W",
+          null,
+          []
+        ],
+        [
+          "A",
+          1,
+          [
+            "vest"
+          ]
+        ]
+      ]
+    }
+  ]
+}

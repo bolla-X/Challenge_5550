@@ -1,0 +1,123 @@
+{
+  "foco": "bench",
+  "segundos": 288,
+  "env": [],
+  "servidos": {
+    "multidao": 92,
+    "bench": 242,
+    "queda": 96,
+    "multidao2": 88
+  },
+  "fracao_foco": 0.467,
+  "inferencias_por_s": 1.8,
+  "pre_alertas_registrados": 0,
+  "alertas_de_queda": 2,
+  "portal_liberado_em_s": 66.1,
+  "portal": [
+    {
+      "liberado_em_s": 66.1,
+      "brutos": {
+        "approved": 19,
+        "denied": 11,
+        "waiting": 13
+      },
+      "faltas": {
+        "helmet": 8,
+        "vest": 3
+      }
+    },
+    {
+      "liberado_em_s": 3.4,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 1
+      },
+      "faltas": {}
+    },
+    {
+      "liberado_em_s": 42.5,
+      "brutos": {
+        "approved": 10,
+        "denied": 5,
+        "waiting": 13
+      },
+      "faltas": {
+        "helmet": 5
+      }
+    },
+    {
+      "liberado_em_s": 71.4,
+      "brutos": {
+        "approved": 23,
+        "denied": 16,
+        "waiting": 19
+      },
+      "faltas": {
+        "helmet": 14,
+        "vest": 2
+      }
+    },
+    {
+      "liberado_em_s": 28.5,
+      "brutos": {
+        "approved": 10,
+        "denied": 2,
+        "waiting": 5
+      },
+      "faltas": {
+        "vest": 2
+      }
+    },
+    {
+      "liberado_em_s": 4.8,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {}
+    },
+    {
+      "liberado_em_s": 9.9,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {}
+    },
+    {
+      "liberado_em_s": 51.5,
+      "brutos": {
+        "approved": 28,
+        "denied": 18,
+        "waiting": 23
+      },
+      "faltas": {
+        "helmet": 14,
+        "vest": 5
+      }
+    },
+    {
+      "liberado_em_s": 2.8,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 1
+      },
+      "faltas": {}
+    },
+    {
+      "liberado_em_s": 7.1,
+      "brutos": {
+        "approved": 7,
+        "denied": 3,
+        "waiting": 3
+      },
+      "faltas": {
+        "helmet": 3
+      }
+    }
+  ]
+}

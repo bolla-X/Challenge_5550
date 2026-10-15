@@ -107,6 +107,7 @@ def test_operador_nao_para_camera_de_outra_area(app, ana):
 def test_operador_nao_ve_o_video_de_outra_area(app, ana):
     """Feed é o dado mais sensível: imagem de pessoas trabalhando."""
     assert ana.get(f"/api/cameras/{app.config['ID_ALMOX']}/video_feed").status_code == 404
+    assert ana.get(f"/api/cameras/{app.config['ID_ALMOX']}/frame.jpg").status_code == 404
 
 
 def test_operador_opera_normalmente_a_propria_camera(app, ana):

@@ -58,9 +58,16 @@ class Detection:
     # Id estável ENTRE frames, atribuído pelo PersonTracker (só para pessoas).
     # None = objeto não rastreado (EPIs) ou tracking desligado.
     track_id: int | None = None
+    # Esqueleto COCO-17 em PIXELS ((x, y, confiança) por ponto), quando a
+    # pessoa veio de um modelo de pose (ver app/vision/yolo_pose_detector.py).
+    # Fora da igualdade e do `to_dict`: é insumo da pose, não da detecção.
+    keypoints: tuple[tuple[float, float, float], ...] | None = field(default=None, compare=False, repr=False)
 
     def with_track_id(self, track_id: int | None) -> "Detection":
         return replace(self, track_id=track_id)
+
+    def with_keypoints(self, keypoints) -> "Detection":
+        return replace(self, keypoints=keypoints)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,6 +149,9 @@ class FrameAnalysis:
     # delas (ou a global, quando nao ha caixa de pessoa) para nao quebrar
     # clientes que ja liam esse campo.
     poses: list[PoseResult] = field(default_factory=list)
+    # Raio-X (X5): o que o modelo VIU e o filtro descartou, com o motivo.
+    # Só para mostrar "confiança bruta x decisão"; nenhuma regra lê isto.
+    descartadas: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         vazio = {"found": False, "person_id": None, "track_id": None, "landmarks": []}

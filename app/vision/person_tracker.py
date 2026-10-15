@@ -36,8 +36,12 @@ class PersonTracker:
     ~12 FPS); oclusão longa ou troca de câmera continuam gerando id novo.
     """
 
-    def __init__(self, *, iou_threshold: float = 0.3, max_age: int = 15) -> None:
+    def __init__(self, *, iou_threshold: float = 0.2, max_age: int = 45, max_center_dist: float = 0.6) -> None:
         self.iou_threshold = iou_threshold
+        # Fallback quando o IoU falha (pessoa sentou, virou, caixa mudou muito):
+        # aceita o par se os centros estão a menos de esta fração do tamanho
+        # da caixa do track. Segura o id em vez de gerar "Pessoa N+1".
+        self.max_center_dist = max_center_dist
         # Quantos frames um track sobrevive sem ser visto. A 12 FPS, 15 frames
         # ≈ 1,2 s — cobre oclusão curta (alguém passa na frente) sem manter
         # fantasma de quem já saiu de cena.
@@ -68,7 +72,7 @@ class PersonTracker:
         # número de pessoas em cena (unidades, não centenas) isto é mais barato
         # e mais previsível que o húngaro.
         pairs = [
-            (track.box.iou(det.box), track_id, index)
+            (self._afinidade(track.box, det.box, track.misses), track_id, index)
             for track_id, track in self._tracks.items()
             for index, det in enumerate(detections)
         ]
@@ -76,8 +80,8 @@ class PersonTracker:
 
         matched_tracks: dict[int, int] = {}
         used_detections: set[int] = set()
-        for iou, track_id, index in pairs:
-            if iou < self.iou_threshold:
+        for afinidade, track_id, index in pairs:
+            if afinidade <= 0:
                 break
             if track_id in matched_tracks or index in used_detections:
                 continue
@@ -106,6 +110,22 @@ class PersonTracker:
         tracked.sort(key=lambda det: det.track_id or 0)
         return tracked
 
+    def _afinidade(self, track_box: BoundingBox, det_box: BoundingBox, misses: int) -> float:
+        """0 = não combina. IoU manda; distância entre centros é o plano B.
+
+        O plano B vale menos (metade) para não roubar o par de quem tem IoU
+        real, e encolhe conforme o track fica tempo sem ser visto.
+        """
+        iou = track_box.iou(det_box)
+        if iou >= self.iou_threshold:
+            return 1.0 + iou
+        tamanho = max(track_box.width, track_box.height, 1)
+        dx = track_box.center[0] - det_box.center[0]
+        dy = track_box.center[1] - det_box.center[1]
+        dist = (dx * dx + dy * dy) ** 0.5 / tamanho
+        limite = self.max_center_dist / (1 + 0.05 * misses)
+        return 0.5 * (1 - dist / limite) if dist < limite else 0.0
+
     def _age_unmatched(self, matched_ids: set[int]) -> None:
         for track_id in list(self._tracks.keys()):
             if track_id in matched_ids:
@@ -114,3 +134,75 @@ class PersonTracker:
             track.misses += 1
             if track.misses > self.max_age:
                 del self._tracks[track_id]
+
+
+class ByteTrackPessoas:
+    """Mesma interface do `PersonTracker`, com ByteTrack por baixo (um por câmera).
+
+    O que o ByteTrack faz que o tracker IoU não faz: a SEGUNDA associação com
+    detecções de baixa confiança (entre 0,1 e o limiar de ativação). Uma pessoa
+    meio encoberta, que o modelo vê com 0,2 de confiança, continua no MESMO
+    track em vez de sumir e voltar como "Pessoa N+1". Por isso o detector de
+    pessoa, com este tracker, entrega a partir de 0,1 (`confianca_minima`) — e
+    só tracks ATIVOS saem daqui: caixa fraca nunca cria pessoa nova.
+
+    Kalman e associação em dois estágios vêm de `app/vision/bytetrack/`
+    (derivado de supervision 0.30.9, MIT). Decisão e números em
+    docs/NEXT2026/CHANGELOG.md (comparação com o tracker IoU nas fixtures).
+    """
+
+    confianca_minima = 0.1
+
+    def __init__(self, *, limiar_ativacao: float = 0.35, max_perdido: int = 15) -> None:
+        from app.vision.bytetrack.core import ByteTrack
+
+        self._limiar = limiar_ativacao
+        self._max_perdido = max_perdido
+        self._bt = ByteTrack(
+            track_activation_threshold=limiar_ativacao,
+            lost_track_buffer=max_perdido,
+            # `frame_rate` só escala o buffer (frame_rate/30 * buffer): 30 deixa
+            # `max_perdido` em INFERÊNCIAS, que é a unidade que o worker vê.
+            frame_rate=30,
+        )
+        self._ativos = 0
+
+    def reset(self) -> None:
+        self._bt.reset()
+        self._ativos = 0
+
+    @property
+    def active_count(self) -> int:
+        return self._ativos
+
+    def update(self, detections: list[Detection]) -> list[Detection]:
+        import numpy as np
+
+        tensores = np.array(
+            [[d.box.x1, d.box.y1, d.box.x2, d.box.y2, d.confidence] for d in detections], dtype=np.float32
+        ).reshape(-1, 5)
+        tracks = self._bt.update_with_tensors(tensores)
+        self._ativos = len(tracks)
+        if not tracks or not detections:
+            return []
+        # Cada track ativo volta para a detecção de ONDE veio (maior IoU entre a
+        # caixa do track — já atualizada com essa detecção — e a da detecção).
+        pares = sorted(
+            (
+                (BoundingBox(*(int(v) for v in t.tlbr)).iou(d.box), ti, di)
+                for ti, t in enumerate(tracks)
+                for di, d in enumerate(detections)
+            ),
+            reverse=True,
+        )
+        usados_t, usados_d, saida = set(), set(), []
+        for iou, ti, di in pares:
+            if iou < 0.3:
+                break
+            if ti in usados_t or di in usados_d:
+                continue
+            usados_t.add(ti)
+            usados_d.add(di)
+            saida.append(detections[di].with_track_id(int(tracks[ti].external_track_id)))
+        saida.sort(key=lambda det: det.track_id or 0)
+        return saida

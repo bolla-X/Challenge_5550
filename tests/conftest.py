@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-import pytest
-from app import create_app
-from app.config import TestConfig
-from app.extensions import db
+import os
+
+# Antes de importar `app`: `app.config` le o arquivo de ambiente local no
+# import. A suite tem que valer igual em qualquer maquina.
+os.environ["VISIONEPI_DOTENV"] = "0"
+
+import pytest  # noqa: E402
+from app import create_app  # noqa: E402
+from app.config import TestConfig  # noqa: E402
+from app.extensions import db  # noqa: E402
 
 
 class DummySocket:
@@ -62,7 +68,7 @@ class DummyMonitor:
         return {"camera_id": None, "target_fps": 12, "snapshot_enabled": True}
 
     def get_overlay(self, camera_id=None):
-        return {"camera_id": None, "boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True}
+        return {"camera_id": None, "boxes": True, "labels": True, "confidence": True, "pose": True, "risk_area": True, "part_face": False}
 
     def update_settings(self, updates, camera_id=None):
         current = self.settings()

@@ -1,7 +1,10 @@
 import { create } from "zustand";
+import { flushSync } from "react-dom";
 import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
+import { calarFala, falarAlerta } from "../audio/fala";
+import { avisarAlertaCritico } from "../pwa";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
@@ -29,6 +32,7 @@ import {
 } from "../api/endpoints";
 import type {
   Alert,
+  Incidente,
   AuthUser,
   CameraFeatureSet,
   CameraRecord,
@@ -38,6 +42,7 @@ import type {
   ModelDiagnostics,
   OverlayOptions,
   PoseResult,
+  PreAlerta,
   RiskAreaState,
   RiskScore,
   RiskTrendResponse,
@@ -51,7 +56,7 @@ export type ViewMode = "operator" | "technical" | "supervisor";
 // Tela dentro do "espaço multi-câmera". Independente de `mode`: o mesmo
 // `mode` pode passear entre grid/foco (Técnico/Supervisor), e Operador fica
 // travado em "kiosk" (ver setMode e setScreenForMode abaixo).
-export type CameraScreen = "grid" | "focus" | "kiosk" | "overview";
+export type CameraScreen = "grid" | "focus" | "kiosk" | "overview" | "home" | "accounts" | "sobre";
 
 // Acesso por papel. A FONTE é a sessão (`user.role`), não um seletor de tela —
 // e o backend valida de novo em cada rota, então isto aqui é só para a UI não
@@ -86,6 +91,14 @@ interface DashboardState {
   muted: boolean;
   mutedByProfile: Record<ViewMode, boolean>;
   toggleMuted: () => void;
+
+  /** Modo Raio-X (X5) sobre o vídeo ao vivo; tecla X alterna. */
+  raioX: boolean;
+  alternarRaioX: () => void;
+
+  // tema: persistido em localStorage (visionepi-theme). null = sistema decide.
+  theme: Theme | null;
+  toggleTheme: () => void;
 
   // Aba ativa por perfil — em memória, não persiste (ver App.tsx e o
   // comentário da Fase 1 sobre não resetar ao alternar perfil e voltar).
@@ -125,6 +138,10 @@ interface DashboardState {
   model: ModelDiagnostics | null;
   compliance: ComplianceState | null;
   activeAlerts: Alert[];
+  /** Incidentes ativos da câmera em foco (alertas agrupados por regra e zona). */
+  activeIncidents: Incidente[];
+  /** Pré-alertas de aproximação da câmera em foco (amarelo, projeção). */
+  preAlertas: PreAlerta[];
   // Set only by the alert_created socket event (never alert_updated) — lets
   // AlertPanel highlight the one row that's genuinely new, not a re-confirm.
   lastAlertCreatedId: number | null;
@@ -144,6 +161,7 @@ interface DashboardState {
   toggleRiskEditor: () => void;
   clearRiskEditorPoints: () => void;
   addRiskEditorPoint: (point: { x: number; y: number }) => void;
+  moveRiskEditorPoint: (index: number, point: { x: number; y: number }) => void;
   resetRiskEditorFromServer: () => void;
 
   // actions
@@ -193,6 +211,42 @@ const fpsSamples: number[] = [];
 const MUTED_STORAGE_KEY = "visionepi-muted"; // legado (pré-Fase 4): boolean único, só lido pra migração
 const MUTED_BY_PROFILE_STORAGE_KEY = "visionepi-muted-by-profile";
 const MODE_STORAGE_KEY = "visionepi-mode";
+const THEME_STORAGE_KEY = "visionepi-theme";
+
+// Tema: "light" | "dark" quando a pessoa escolheu; null = segue o sistema
+// (prefers-color-scheme), que é o padrão. Mesmo padrão de leitura do muted:
+// try/catch porque em janela privada o localStorage lança.
+export type Theme = "light" | "dark";
+
+export function readStoredTheme(): Theme | null {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Marca o tema no <html>. Sem valor, tira o atributo e o CSS volta a
+ * decidir pelo prefers-color-scheme. Troca de tema não recarrega a página. */
+export function applyTheme(theme: Theme | null) {
+  if (theme) document.documentElement.setAttribute("data-theme", theme);
+  else document.documentElement.removeAttribute("data-theme");
+}
+
+function persistTheme(theme: Theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // localStorage indisponível (modo privado etc.), só não persiste
+  }
+}
+
+/** Tema em vigor agora: o escolhido, ou o do sistema quando ninguém escolheu. */
+export function effectiveTheme(theme: Theme | null): Theme {
+  if (theme) return theme;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 const SEVERITIES_WITH_CHIME = new Set(["critical", "high"]);
 // Supervisor nasce mudo (perfil de apresentação/gestão, som de alerta
 // atrapalha reunião); Operador/Técnico mantêm o padrão de sempre (som ligado).
@@ -245,12 +299,30 @@ function readStoredMode(): ViewMode {
  * pode ver, nem por um instante, os alertas e as detecções da anterior. Só
  * `mode`/`screen` ficam de fora porque o login seguinte os define na hora.
  */
+/**
+ * Troca de tela com View Transition (fallback: troca direta). MDN:
+ * https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API/Using
+ */
+export function comTransicao(mudar: () => void): void {
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  const reduzir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!doc.startViewTransition || reduzir) {
+    mudar();
+    return;
+  }
+  doc.startViewTransition(() => {
+    flushSync(mudar);
+  });
+}
+
 const ESTADO_LIMPO: Partial<DashboardState> = {
   cameras: [],
   camerasLoading: true,
   camId: null,
   operatorCam: null,
   activeAlerts: [],
+  activeIncidents: [],
+      preAlertas: [],
   alertHistory: [],
   lastAlertCreatedId: null,
   timeline: [],
@@ -319,12 +391,29 @@ export const useDashboardStore = create<DashboardState>()(
         set(
           (state) => {
             const next = !state.muted;
+            if (next) calarFala();
             const nextByProfile = { ...state.mutedByProfile, [state.mode]: next };
             persistMutedByProfile(nextByProfile);
             return { muted: next, mutedByProfile: nextByProfile };
           },
           false,
           "toggleMuted",
+        ),
+
+      raioX: false,
+      alternarRaioX: () => set((state) => ({ raioX: !state.raioX }), false, "alternarRaioX"),
+
+      theme: readStoredTheme(),
+      toggleTheme: () =>
+        set(
+          (state) => {
+            const next: Theme = effectiveTheme(state.theme) === "dark" ? "light" : "dark";
+            persistTheme(next);
+            applyTheme(next);
+            return { theme: next };
+          },
+          false,
+          "toggleTheme",
         ),
 
       activeTabByMode: { ...DEFAULT_ACTIVE_TAB_BY_MODE },
@@ -351,6 +440,8 @@ export const useDashboardStore = create<DashboardState>()(
       model: null,
       compliance: null,
       activeAlerts: [],
+      activeIncidents: [],
+      preAlertas: [],
       lastAlertCreatedId: null,
       alertHistory: [],
       timeline: [],
@@ -367,6 +458,12 @@ export const useDashboardStore = create<DashboardState>()(
       clearRiskEditorPoints: () => set({ riskEditorPoints: [] }, false, "clearRiskEditorPoints"),
       addRiskEditorPoint: (point) =>
         set((state) => ({ riskEditorPoints: [...state.riskEditorPoints, point] }), false, "addRiskEditorPoint"),
+      moveRiskEditorPoint: (index, point) =>
+        set(
+          (state) => ({ riskEditorPoints: state.riskEditorPoints.map((p, i) => (i === index ? point : p)) }),
+          false,
+          "moveRiskEditorPoint",
+        ),
       resetRiskEditorFromServer: () =>
         set(
           (state) => ({ riskEditorPoints: (state.riskArea?.polygon || []).map((p) => ({ x: p.x, y: p.y })) }),
@@ -387,7 +484,7 @@ export const useDashboardStore = create<DashboardState>()(
             // daquela câmera, nunca no grid (ele não pode "ver as outras").
             // Técnico/Supervisor voltam pro grid — não têm uma câmera "dona"
             // fixa, então grid é o ponto de partida natural dos dois.
-            const nextScreen: CameraScreen = mode === "operator" ? "kiosk" : "grid";
+            const nextScreen: CameraScreen = mode === "operator" ? "kiosk" : mode === "supervisor" ? "home" : "grid";
             const nextCamId = mode === "operator" ? state.operatorCam : state.camId;
             // Som "ao vivo" segue o default/última preferência do perfil pra
             // onde se está indo, não do perfil anterior.
@@ -402,7 +499,7 @@ export const useDashboardStore = create<DashboardState>()(
       camerasLoading: true,
       camId: null,
       operatorCam: null,
-      screen: readStoredMode() === "operator" ? "kiosk" : "grid",
+      screen: readStoredMode() === "operator" ? "kiosk" : readStoredMode() === "supervisor" ? "home" : "grid",
       loadCameras: async () => {
         try {
           const res = await listCameras();
@@ -425,8 +522,32 @@ export const useDashboardStore = create<DashboardState>()(
           set({ camerasLoading: false }, false, "loadCameras:error");
         }
       },
-      setScreen: (screen) => set({ screen }, false, "setScreen"),
-      setCamId: (camId) => set({ camId }, false, "setCamId"),
+      setScreen: (screen) => comTransicao(() => set({ screen }, false, "setScreen")),
+      setCamId: (camId) => {
+        set({ camId }, false, "setCamId");
+        // A zona de risco é de cada câmera: ao trocar o foco, carrega a DESTA
+        // câmera (senão o editor mostraria — e sobrescreveria — a da anterior).
+        getRiskArea(camId)
+          .then((res) => {
+            if (useDashboardStore.getState().camId !== camId) return;
+            set(
+              {
+                riskArea: res.risk_area,
+                riskEditorPoints: (res.risk_area.polygon || []).map((p) => ({ x: p.x, y: p.y })),
+              },
+              false,
+              "setCamId:riskArea",
+            );
+          })
+          .catch(() => undefined);
+        // Recursos ligados/desligados também são de cada câmera.
+        getFeatures(camId)
+          .then((res) => {
+            if (useDashboardStore.getState().camId !== camId) return;
+            set({ features: res.features }, false, "setCamId:features");
+          })
+          .catch(() => undefined);
+      },
       setOperatorCam: (camId) =>
         set(
           (state) => ({
@@ -500,6 +621,7 @@ export const useDashboardStore = create<DashboardState>()(
             videoStream: statusValue?.video ?? null,
             model: statusValue?.model ?? null,
             activeAlerts: statusValue?.active_alerts ?? [],
+            activeIncidents: statusValue?.active_incidents ?? [],
             features: value(featuresRes)?.features ?? [],
             settings: value(settingsRes)?.settings ?? null,
             overlay: value(overlayRes)?.overlay ?? null,
@@ -535,7 +657,7 @@ export const useDashboardStore = create<DashboardState>()(
         set({ running: status.running }, false, "stop");
       },
       updateFeatures: async (updates) => {
-        const res = await apiPatchFeatures(updates);
+        const res = await apiPatchFeatures(updates, useDashboardStore.getState().camId);
         set({ features: res.features }, false, "updateFeatures");
       },
       updateOverlay: async (updates) => {
@@ -548,7 +670,7 @@ export const useDashboardStore = create<DashboardState>()(
       },
       updateRiskArea: async (payload) => {
         try {
-          const res = await apiPatchRiskArea(payload);
+          const res = await apiPatchRiskArea(payload, useDashboardStore.getState().camId);
           set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada no backend.", tone: "ok" } }, false, "updateRiskArea");
         } catch (error) {
           set({ message: { text: error instanceof Error ? error.message : "Falha ao salvar área de risco.", tone: "error" } }, false, "updateRiskArea:error");
@@ -680,7 +802,16 @@ export function subscribeToServerEvents(): () => void {
     teardown.push(() => (socket.off as (event: K, handler: (payload: ServerEvents[K]) => void) => void)(event, wrapped));
   }
 
-  const onConnect = () => set({ connected: true }, false, "ws:connect");
+  const focar = (camId: number | null) => {
+    if (camId !== null && socket.connected) socket.emit("focar", { camera_id: camId });
+  };
+  const onConnect = () => {
+    set({ connected: true }, false, "ws:connect");
+    focar(useDashboardStore.getState().camId);
+  };
+  teardown.push(useDashboardStore.subscribe((s, anterior) => {
+    if (s.camId !== anterior.camId) focar(s.camId);
+  }));
   const onDisconnect = () => set({ connected: false }, false, "ws:disconnect");
   socket.on("connect", onConnect);
   socket.on("disconnect", onDisconnect);
@@ -696,6 +827,7 @@ export function subscribeToServerEvents(): () => void {
         videoStream: status.video ?? null,
         model: status.model,
         activeAlerts: status.active_alerts,
+        activeIncidents: status.active_incidents ?? [],
         overlay: status.overlay,
         settings: status.settings,
         riskArea: status.risk_area,
@@ -704,7 +836,12 @@ export function subscribeToServerEvents(): () => void {
       "ws:monitor_status",
     );
   });
-  on("features_updated", (payload) => set({ features: payload.features }, false, "ws:features_updated"));
+  on("features_updated", (payload) => {
+    // Evento de outra câmera não pode sobrescrever a lista da que está na tela.
+    const atual = useDashboardStore.getState().camId;
+    if (payload.camera_id != null && atual != null && payload.camera_id !== atual) return;
+    set({ features: payload.features }, false, "ws:features_updated");
+  });
   on("model_diagnostics", (model) => {
     if (!belongsToFocusedCamera(model)) return;
     set({ model }, false, "ws:model_diagnostics");
@@ -726,8 +863,12 @@ export function subscribeToServerEvents(): () => void {
   on("compliance_state", (compliance) => {
     if (belongsToFocusedCamera(compliance)) set({ compliance }, false, "ws:compliance_state");
   });
+  on("pre_alertas", (payload) => {
+    if (belongsToFocusedCamera(payload)) set({ preAlertas: payload.items }, false, "ws:pre_alertas");
+  });
   on("active_alerts", (payload) => {
-    if (belongsToFocusedCamera(payload)) set({ activeAlerts: payload.items }, false, "ws:active_alerts");
+    if (belongsToFocusedCamera(payload))
+      set({ activeAlerts: payload.items, activeIncidents: payload.incidentes ?? [] }, false, "ws:active_alerts");
   });
   on("analysis", (payload) => {
     if (!belongsToFocusedCamera(payload)) return;
@@ -740,8 +881,10 @@ export function subscribeToServerEvents(): () => void {
           if (fpsSamples.length > FPS_SAMPLE_WINDOW) fpsSamples.shift();
         }
         const fps = fpsSamples.length ? fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length : state.fps;
+        // `compliance` NÃO entra aqui: o servidor manda `compliance_state` no
+        // mesmo tique (camera_worker._publicar), e escrever duas vezes o mesmo
+        // dado re-renderizava os cartões de conformidade em dobro.
         return {
-          compliance: payload.compliance,
           model: payload.model,
           activeAlerts: payload.alerts,
           lastAnalysisAt: now,
@@ -764,7 +907,14 @@ export function subscribeToServerEvents(): () => void {
   on("alert_created", (alert) => {
     if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
     set({ lastAlertCreatedId: alert.id }, false, "ws:alert_created:lastId");
-    if (!useDashboardStore.getState().muted && SEVERITIES_WITH_CHIME.has(alert.severity)) playAlertChime();
+    const estado = useDashboardStore.getState();
+    // X10: alerta crítico com o app aberto vira notificação do sistema + vibração.
+    avisarAlertaCritico(alert, estado.cameras.find((c) => c.id === alert.camera_id)?.name);
+    if (!estado.muted && SEVERITIES_WITH_CHIME.has(alert.severity)) {
+      // Crítico: falado em pt-BR (G6); sem voz pt-BR na máquina, o bipe de sempre.
+      const camera = estado.cameras.find((c) => c.id === alert.camera_id);
+      if (!falarAlerta(alert, camera?.name) || alert.severity !== "critical") playAlertChime();
+    }
   });
   on("alert", upsertActiveAlert); // legacy alias, same payload as alert_created
   on("alert_updated", (alert) => {

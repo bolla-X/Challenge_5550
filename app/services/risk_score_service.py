@@ -21,6 +21,7 @@ FEATURES: tuple[str, ...] = (
     "glasses",
     "mask",
     "safety_shoe",
+    "ear_protection",
     "falls",
     "posture",
     "risk_area",

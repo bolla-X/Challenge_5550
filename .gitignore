@@ -39,6 +39,17 @@ tests/fixtures/cenas/
 # nem por acidente num `git add -A`. Regenerado sozinho a cada execucao.
 auto.crt
 auto.key
+runtime_server.log
+docs/pitch/*.mp4
+docs/pitch/*.webm
+
+# NEXT 2026: fontes baixadas e saidas efemeras do bench (os JSON de bench/results sao versionados)
+bench/_source/
+bench/runtime/
+# Instalação lateral do ultralytics 8.4 (teste do F8; a aplicação nunca a importa)
+bench/_ul84/
+# Saídas de treino/predict do ultralytics
+runs/
 
 # Sprint 4: dataset de avaliacao/treino (Construction-PPE, AGPL-3.0) e saidas de
 # treino. Reproduzidos por comando, nunca versionados (ver docs/SPRINT4.md).

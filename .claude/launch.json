@@ -2,15 +2,31 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "visionepi-demo",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "run.py",
+        "--demo"
+      ],
+      "port": 5000
+    },
+    {
       "name": "visionepi-flask",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["run.py"],
+      "runtimeArgs": [
+        "run.py"
+      ],
       "port": 5000
     },
     {
       "name": "frontend-vite",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
       "port": 5173
     }
   ]

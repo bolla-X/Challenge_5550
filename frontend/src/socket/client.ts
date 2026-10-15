@@ -6,6 +6,9 @@ import type { ServerEvents } from "./events";
 // socket — sem isso, um socket aberto sobreviveria à revogação do acesso.
 type ClientEvents = {
   revalidate: () => void;
+  // Câmera aberta na tela: o servidor só manda a telemetria de alta
+  // frequência (analysis, compliance_state) para quem a está vendo.
+  focar: (payload: { camera_id: number }) => void;
 };
 
 // Same-origin socket: Vite proxies /socket.io to Flask in dev (vite.config.ts),
@@ -18,4 +21,9 @@ type ClientEvents = {
 // ECONNRESET). Polling is plenty for this app's ~12 FPS analysis rate.
 // Revisit if a real WSGI/ASGI server (gunicorn+eventlet, etc.) replaces the
 // Werkzeug dev server in prod.
-export const socket: Socket<ServerEvents, ClientEvents> = io({ autoConnect: true, transports: ["polling"] });
+//
+// autoConnect: false — quem conecta é subscribeToServerEvents, depois que a
+// sessão é conhecida. Conectando no carregamento do módulo, a tela de login
+// abria um socket que o servidor rejeitava (socket_rejected_unauthenticated,
+// ~37 por rodada de E2E) e o poll seguinte daquele sid voltava 400 no console.
+export const socket: Socket<ServerEvents, ClientEvents> = io({ autoConnect: false, transports: ["polling"] });

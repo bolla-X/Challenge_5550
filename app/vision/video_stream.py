@@ -4,6 +4,7 @@ import logging
 import sys
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from time import monotonic, sleep
 from typing import Any
 
@@ -46,7 +47,15 @@ def capture_api(source: Any) -> int:
     return cv2.CAP_ANY
 
 
-def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
+# Threads do decoder FFmpeg por captura. O padrão do OpenCV é "as many threads
+# as CPU cores" (videoio.hpp, CAP_PROP_N_THREADS, **open-only**): medido, 12
+# threads POR CÂMERA neste i7 de 12 lógicos, mesmo com o processo preso a 2
+# núcleos — 48 threads de decode disputando 2 núcleos com 4 câmeras, e a
+# inferência pagando a conta. 2 sobram para 960x540 a 25 fps.
+THREADS_DECODE_PADRAO = 2
+
+
+def abrir_captura(source: Any, *, open_timeout_ms: int = 5000, threads_decode: int = THREADS_DECODE_PADRAO):
     """Constrói o `VideoCapture` como a produção constrói.
 
     O teto NÃO pode ir por `capture.set()`: a documentação do OpenCV marca a
@@ -66,6 +75,11 @@ def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
     Arquivo local e webcam não recebem teto: não há rede para esperar, e a
     fonte do modo fixture é justamente um arquivo local.
 
+    Arquivo e rede recebem `CAP_PROP_N_THREADS` (também open-only, só FFmpeg):
+    "Set the maximum number of threads to use. Use 0 to use as many threads
+    as CPU cores" (mesmo `videoio.hpp`, OpenCV 4.x). Webcam (DSHOW) não decodifica
+    por FFmpeg e fica sem.
+
     É função de módulo, e não método, porque a sondagem de campo
     (`scripts/sondar_cameras.py`) e o bench (`scripts/bench_pipeline.py`)
     precisam abrir a fonte EXATAMENTE como o worker abre. Cada um com a sua
@@ -73,18 +87,26 @@ def abrir_captura(source: Any, *, open_timeout_ms: int = 5000):
     custou 34 s por tentativa antes (docs/BENCH.md, Fase 2).
     """
     api = capture_api(source)
-    if api != cv2.CAP_FFMPEG or not isinstance(source, str):
+    if not isinstance(source, str) or source.isdigit():
         return cv2.VideoCapture(source, api)
-    teto = max(500, int(open_timeout_ms))
-    return cv2.VideoCapture(
-        source,
-        api,
-        [
-            int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), teto,
-            int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), teto,
-        ],
-    )
+    params: list[int] = []
+    if threads_decode and threads_decode > 0:
+        params += [int(cv2.CAP_PROP_N_THREADS), int(threads_decode)]
+    if api == cv2.CAP_FFMPEG:
+        teto = max(500, int(open_timeout_ms))
+        params += [int(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC), teto, int(cv2.CAP_PROP_READ_TIMEOUT_MSEC), teto]
+    return cv2.VideoCapture(source, api, params) if params else cv2.VideoCapture(source, api)
 
+
+
+def e_arquivo_local(source) -> bool:
+    """Fonte é um arquivo de vídeo no disco (não índice de webcam nem URL)."""
+    if not isinstance(source, str) or source.isdigit() or "://" in source:
+        return False
+    try:
+        return Path(source).is_file()
+    except OSError:
+        return False
 
 class VideoStreamError(RuntimeError):
     pass
@@ -149,6 +171,7 @@ class VideoStream:
         max_backoff_seconds: float = 30.0,
         em_loop: bool = False,
         open_timeout_ms: int = 5000,
+        threads_decode: int = THREADS_DECODE_PADRAO,
         max_grabs_por_leitura: int = 8,
         limiar_grab_ms: float = 5.0,
     ) -> None:
@@ -183,6 +206,7 @@ class VideoStream:
         # do modo fixture isso são ~150 s de câmera parada antes de o demo ter
         # imagem. Medido: 3.037 ms com o teto contra 34.319 ms sem.
         self.open_timeout_ms = max(500, int(open_timeout_ms))
+        self.threads_decode = max(0, int(threads_decode))
         # A ~12 FPS, 15 frames ruins ≈ 1,2 s — tolera engasgo de rede sem
         # derrubar a conexão, mas não deixa a câmera morta indefinidamente.
         self.failures_before_reconnect = max(1, int(failures_before_reconnect))
@@ -190,6 +214,10 @@ class VideoStream:
         self.max_backoff_seconds = max(self.initial_backoff_seconds, float(max_backoff_seconds))
 
         self._capture: cv2.VideoCapture | None = None
+        self.fps_da_fonte: float | None = None
+        # Posição pedida para a PRÓXIMA abertura de um arquivo (cena do palco
+        # que começa perto do evento). Vale uma vez; o loop volta ao início.
+        self.inicio_ms = 0.0
         self._lock = threading.RLock()
         self._latest_frame = None
 
@@ -231,7 +259,7 @@ class VideoStream:
                 raise VideoStreamError(f"Não foi possível abrir a fonte de vídeo: {redigir_segredos(str(self.source))}")
 
     def _abrir_capture(self):
-        return abrir_captura(self.source, open_timeout_ms=self.open_timeout_ms)
+        return abrir_captura(self.source, open_timeout_ms=self.open_timeout_ms, threads_decode=self.threads_decode)
 
     def _open_locked(self) -> bool:
         if self._capture and self._capture.isOpened():
@@ -276,6 +304,16 @@ class VideoStream:
         # implementam. Quem resolve o caso da rede é o descarte explícito em
         # `_ler_do_capture`.
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # FPS declarado pela fonte. Em arquivo, e o ritmo "de verdade" do video:
+        # comparar com os frames lidos por segundo diz se o pipeline toca o
+        # video em tempo real ou em camera lenta (ver scripts/bench.py).
+        try:
+            self.fps_da_fonte = float(capture.get(cv2.CAP_PROP_FPS) or 0.0) or None
+        except Exception:  # noqa: BLE001
+            self.fps_da_fonte = None
+        if self.inicio_ms > 0 and e_arquivo_local(self.source):
+            capture.set(cv2.CAP_PROP_POS_MSEC, self.inicio_ms)
+        self.inicio_ms = 0.0
         self._capture = capture
         self._last_error = None
         logger.info("video_stream_opened", extra={"source": redigir_segredos(str(self.source))})
@@ -302,6 +340,59 @@ class VideoStream:
 
             self._on_failure()
             return False, None
+
+    def pular(self) -> bool:
+        """Avança um quadro sem convertê-lo (`grab()` sem `retrieve()`).
+
+        Para quem só precisa de alguns quadros por segundo, mas tem que manter
+        a fonte no tempo real (ver `CapturaContinua`). Medido num E-core com
+        decoder de 1 thread: `grab()` custa 1,2 ms contra 2,9 ms do `read()`
+        (960x540) e 3,3 contra 6,0 ms (1280x720) — o `grab()` do FFmpeg
+        DECODIFICA; o que ele economiza é a conversão para BGR e a alocação.
+        Mesma semântica de falha e de fim de arquivo em loop do `read()`, e o
+        mesmo descarte de quadro acumulado em fonte de rede: depois de um
+        `pular()` bem-sucedido a captura está no quadro mais novo, e
+        `converter()` entrega ESSE quadro. Sem captura aberta devolve False e
+        quem chamou cai no `read()`, que é quem sabe reabrir.
+        """
+        with self._lock:
+            if self._capture is None:
+                return False
+            if self._avancar_locked():
+                self._consecutive_failures = 0
+                self._rebobinando = False
+                return True
+            self._on_failure()
+            return False
+
+    def converter(self) -> tuple[bool, Any]:
+        """O quadro em que o último `pular()` parou (`retrieve()`)."""
+        with self._lock:
+            if self._capture is None:
+                return False, None
+            ok, frame = self._capture.retrieve()
+            if ok and frame is not None:
+                self._on_success(frame)
+                return True, frame
+            self._on_failure()
+            return False, None
+
+    def _avancar_locked(self) -> bool:
+        """`grab()`; em fonte de rede, até o quadro corrente (ver `_ler_do_capture`)."""
+        if not self._descartar_atrasados:
+            return bool(self._capture.grab())
+        inicio = monotonic()
+        if not self._capture.grab():
+            return False
+        grabs = 1
+        esperou_pela_rede = (monotonic() - inicio) * 1000.0 >= self.limiar_grab_ms
+        while not esperou_pela_rede and grabs < self.max_grabs_por_leitura:
+            inicio = monotonic()
+            if not self._capture.grab():
+                return False
+            grabs += 1
+            esperou_pela_rede = (monotonic() - inicio) * 1000.0 >= self.limiar_grab_ms
+        return True
 
     def _ler_do_capture(self) -> tuple[bool, Any]:
         """Lê um frame. Em fonte de REDE, o mais NOVO disponível.
@@ -332,11 +423,13 @@ class VideoStream:
         `grab()` da leitura já for lento, não havia fila e nada é descartado —
         o custo no caso normal é zero.
 
-        `grab()` avança sem decodificar e `retrieve()` decodifica só o último
-        (doc oficial: "The method/function combines VideoCapture::grab() and
-        VideoCapture::retrieve() in one call" —
-        https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html), então
-        descartar N frames custa N demux e UM decode, não N decodes.
+        `read()` = `grab()` + `retrieve()` (doc oficial: "The method/function
+        combines VideoCapture::grab() and VideoCapture::retrieve() in one call"
+        — https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html).
+        Correção de 13/10: este comentário dizia que descartar N frames custa
+        "N demux e UM decode". Medido, não é assim no backend FFmpeg: o `grab()`
+        já decodifica (1,2 ms contra 2,9 ms do `read()` a 960x540); o que se
+        economiza é a conversão para BGR e a cópia (ver `pular`).
         """
         if not self._descartar_atrasados:
             return self._capture.read()
@@ -371,7 +464,11 @@ class VideoStream:
     def _on_success(self, frame) -> None:
         if self._state != LIVE:
             logger.info("video_stream_live", extra={"source": redigir_segredos(str(self.source))})
-        self._latest_frame = frame.copy()
+        # Referência, não cópia: `VideoCapture.read()` aloca um array novo a cada
+        # chamada e nenhuma etapa do pipeline altera o quadro no lugar (rotação,
+        # redução e anotação produzem arrays novos). A cópia (2,7 MB a 720p, a
+        # cada quadro) só acontece em `latest_frame()`, quando alguém pede.
+        self._latest_frame = frame
         self._state = LIVE
         self._rebobinando = False
         self._consecutive_failures = 0

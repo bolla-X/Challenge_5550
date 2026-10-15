@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from app.services.feature_manager import FeatureManager
 from app.vision.person_compliance_matcher import PPE_KEYS, PersonComplianceMatcher
+from app.vision.quedas import atribuir_quedas
 from app.vision.schemas import Detection, PoseResult
+
+logger = logging.getLogger(__name__)
 
 # feature -> (mensagem, severidade). Fonte única das regras de EPI: a mesma
 # lista de tuplas aparecia duplicada em dois pontos deste arquivo.
@@ -22,6 +27,20 @@ PPE_RULES: dict[str, tuple[str, str]] = {
     "glasses": ("Sem óculos de proteção", "high"),
     "mask": ("Sem máscara", "medium"),
     "safety_shoe": ("Sem calçado de segurança", "medium"),
+    "ear_protection": ("Sem protetor auricular", "medium"),
+}
+
+# Mensagem do alerta quando o EPI está PRESENTE mas fora da posição esperada
+# (ex.: capacete na mão) — ver `PersonComplianceMatcher._assign_incorretos`.
+# Mesma severidade da ausência: uso incorreto não protege mais que a ausência.
+PPE_INCORRECT_MESSAGES: dict[str, str] = {
+    "helmet": "Capacete em uso incorreto",
+    "vest": "Colete em uso incorreto",
+    "gloves": "Luvas em uso incorreto",
+    "glasses": "Óculos em uso incorreto",
+    "mask": "Máscara em uso incorreto",
+    "safety_shoe": "Calçado em uso incorreto",
+    "ear_protection": "Protetor auricular em uso incorreto",
 }
 
 
@@ -56,6 +75,27 @@ class RuleAlert:
         return f"{self.rule}:{self.feature}:{subject}"
 
 
+QUEDA_CONTINUIDADE_S = 5.0
+QUEDA_CONTINUIDADE_LARGURAS = 1.5
+
+
+def _chave_do_sujeito(sujeito: dict[str, Any]) -> str:
+    return str(sujeito.get("person_id") or sujeito.get("subject") or "global")
+
+
+def _queda_continua(queda: Detection, recentes: list[tuple[float, Detection, dict[str, Any]]]) -> dict[str, Any] | None:
+    """O sujeito da queda recente mais próxima, se estiver a ≤ 1,5 largura de caixa."""
+    melhor, menor = None, float("inf")
+    cx, cy = queda.box.center
+    for _t, antes, sujeito in reversed(recentes):
+        ax, ay = antes.box.center
+        limite = QUEDA_CONTINUIDADE_LARGURAS * max(queda.box.width, antes.box.width, 1)
+        d = ((cx - ax) ** 2 + (cy - ay) ** 2) ** 0.5
+        if d <= limite and d < menor:
+            melhor, menor = sujeito, d
+    return melhor
+
+
 class RuleEngine:
     def __init__(
         self,
@@ -73,6 +113,16 @@ class RuleEngine:
         # Com "evidencia", EPI nao detectado vira "unverified" e NAO gera
         # alerta: so gera quem teve a classe negativa detectada.
         self.person_matcher = PersonComplianceMatcher(missing_policy=missing_policy)
+        # Continuidade da queda: o rastreador troca o ID de quem cai (a caixa em
+        # pé e a caixa no chão quase não se sobrepõem) e a confirmação de
+        # emergência, que conta análises seguidas da MESMA chave, nunca fechava.
+        # Medido com as 4 câmeras (scripts/diagnostico_foco.py --foco queda):
+        # pares p14→p3 (3,1 s) e p5→p4 (3,6 s) na mesma queda; a única
+        # confirmada manteve o ID. Queda nova perto (≤ 1,5 largura) de uma
+        # queda vista há ≤ QUEDA_CONTINUIDADE_S herda o sujeito dela.
+        self.queda_continuidade_s = QUEDA_CONTINUIDADE_S
+        self.relogio: Callable[[], float] = time.monotonic
+        self._quedas_recentes: list[tuple[float, Detection, dict[str, Any]]] = []
 
     def analyze(
         self,
@@ -89,6 +139,7 @@ class RuleEngine:
         alerts: list[RuleAlert] = []
         alerts.extend(self._evaluate_ppe(detections, pose, people))
         alerts.extend(self._evaluate_pose(poses_avaliadas, frame_shape))
+        alerts.extend(self._evaluate_quedas_do_modelo(detections, people))
         alerts.extend(self._evaluate_risk_area(people, pose))
         return RuleEvaluation(alerts=alerts, people=people, poses=poses_avaliadas)
 
@@ -126,7 +177,12 @@ class RuleEngine:
                     if not self.feature_manager.is_enabled(feature_key) or feature_key not in supported_ppe:
                         continue
                     check = person_state["ppe"][feature_key]
-                    if check["status"] != "missing":
+                    status = check["status"]
+                    if status == "missing":
+                        rule, texto = f"missing_{feature_key}", message
+                    elif status == "incorrect":
+                        rule, texto = f"incorrect_{feature_key}", PPE_INCORRECT_MESSAGES[feature_key]
+                    else:
                         continue
                     # Sprint 4: o operador precisa saber se o sistema VIU a
                     # pessoa sem o EPI ou só não achou o EPI. São erros de
@@ -135,9 +191,9 @@ class RuleEngine:
                     sufixo = " (visto sem o EPI)" if evidencia == "negativa_detectada" else ""
                     alerts.append(
                         RuleAlert(
-                            rule=f"missing_{feature_key}",
+                            rule=rule,
                             severity=severity,
-                            message=f"{message} — {person_state['label']}{sufixo}",
+                            message=f"{texto} · {person_state['label']}{sufixo}",
                             feature=feature_key,
                             metadata={
                                 "evidence": evidencia,
@@ -146,6 +202,8 @@ class RuleEngine:
                                 "person_box": person_state["box"],
                                 "present_labels": sorted(labels),
                                 "supported_ppe": sorted(supported_ppe),
+                                # Zona do incidente (P0.2): dentro da área de risco ou fora.
+                                "na_zona": person_state.get("risk_area", {}).get("status") == "inside",
                             },
                         )
                     )
@@ -208,6 +266,44 @@ class RuleEngine:
                 )
         return alerts
 
+    def _evaluate_quedas_do_modelo(self, detections: list[Detection], people: list[dict[str, Any]]) -> list[RuleAlert]:
+        """Queda pela classe `fall_detected` do modelo de EPI (F2), atribuída a um ID.
+
+        Independe da pose: a pessoa caída costuma não ser vista pelo detector
+        de pessoa (ver app/vision/quedas.py). Sem pessoa que contenha a caixa
+        (rastreamento desligado), o sujeito é a própria queda.
+        """
+        if not self.feature_manager.is_enabled("falls"):
+            return []
+        alertas = []
+        agora = self.relogio()
+        recentes = [r for r in self._quedas_recentes if agora - r[0] <= self.queda_continuidade_s]
+        vistas: list[tuple[float, Detection, dict[str, Any]]] = []
+        for queda, pessoa in atribuir_quedas(detections, people):
+            if pessoa is not None:
+                sujeito = {"person_id": pessoa["id"], "person_label": pessoa["label"], "person_box": pessoa["box"]}
+            else:
+                sujeito = {"subject": "queda_sem_pessoa", "person_box": queda.box.to_dict()}
+            anterior = _queda_continua(queda, recentes)
+            if anterior is not None and _chave_do_sujeito(anterior) != _chave_do_sujeito(sujeito):
+                sujeito = {k: v for k, v in anterior.items() if k != "person_box"} | {
+                    "person_box": sujeito["person_box"], "continuidade_de": _chave_do_sujeito(sujeito)}
+            rotulo = f" · {sujeito['person_label']}" if sujeito.get("person_label") else ""
+            vistas.append((agora, queda, sujeito))
+            logger.info("queda_vista", extra={"sujeito": _chave_do_sujeito(sujeito), "confianca": round(queda.confidence, 2),
+                                              "continuidade_de": sujeito.get("continuidade_de")})
+            alertas.append(
+                RuleAlert(
+                    rule="fall_detected",
+                    severity="critical",
+                    message=f"Queda detectada{rotulo}",
+                    feature="falls",
+                    metadata={**sujeito, "method": "modelo_epi_fall_detected", "confianca": round(queda.confidence, 2)},
+                )
+            )
+        self._quedas_recentes = recentes + vistas
+        return alertas
+
     @staticmethod
     def _pose_subject(pose: PoseResult) -> dict[str, Any]:
         if pose.person_id:
@@ -216,7 +312,7 @@ class RuleEngine:
 
     @staticmethod
     def _pose_label(pose: PoseResult) -> str:
-        return f" — Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
+        return f" · Pessoa {pose.track_id}" if pose.person_id and pose.track_id is not None else ""
 
     def _torso_px(self, pose: PoseResult, frame_shape: tuple[int, int, int]):
         """Centro dos ombros e dos quadris, em pixels. None se nao der pra confiar."""
@@ -284,7 +380,7 @@ class RuleEngine:
             RuleAlert(
                 rule="risk_area_presence",
                 severity="high",
-                message=f"Pessoa em área de risco — {person['label']}",
+                message=f"Pessoa em área de risco · {person['label']}",
                 feature="risk_area",
                 metadata={
                     "person_id": person["id"],

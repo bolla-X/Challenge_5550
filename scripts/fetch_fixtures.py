@@ -56,6 +56,20 @@ class Fixture:
     autor: str
     pagina: str
     por_que: str
+    # FPS gravado no derivado. None = o da origem. Existe porque ha webm cujo
+    # cabecalho declara 1000 fps (timebase de milissegundo): o derivado sairia
+    # com 15 s de video tocando em 0,4 s.
+    fps_saida: float | None = None
+    # Chega ao frame inicial lendo quadro a quadro em vez de
+    # `CAP_PROP_POS_FRAMES`. Em ogv/webm o seek do OpenCV cai no keyframe mais
+    # proximo, e o recorte mudaria de conteudo entre versoes de FFmpeg.
+    leitura_sequencial: bool = False
+    # Recorte (x, y, largura, altura) em pixels da ORIGEM, aplicado antes de
+    # redimensionar. None = o quadro inteiro.
+    recorte: tuple[int, int, int, int] | None = None
+    # Quantas vezes grava a janela de ida e de volta (ida, volta, ida, volta...),
+    # sem emenda. 0 = so a ida. Para um plano curto demais para a duracao pedida.
+    vai_e_volta: int = 0
 
     @property
     def arquivo_origem(self) -> Path:
@@ -84,6 +98,67 @@ FIXTURES: tuple[Fixture, ...] = (
         autor="Acabashi",
         pagina="https://commons.wikimedia.org/wiki/File:Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
         por_que="Canteiro de obra real, capacete e colete visiveis, pessoa de corpo inteiro.",
+    ),
+    # --- NEXT 2026: cenarios do benchmark e do modo demo (docs/NEXT2026/ATRIBUICOES.md) ---
+    Fixture(
+        nome="multidao",
+        destino="next_multidao.mp4",
+        url="https://upload.wikimedia.org/wikipedia/commons/a/ae/Video_Codec_Test_pedestrian_area_1080p25.y4m.webm",
+        sha256_origem="bfadaa62cccb42db875d50bb842aa0964fbf72040432e4097c1df59e043e0c26",
+        # O arquivo inteiro: 375 quadros a 25 fps. O cabecalho declara 1000 fps.
+        frame_inicial=0,
+        frame_final=375,
+        largura=960,
+        altura=540,
+        licenca="CC0",
+        autor="Taurus Media Technik",
+        pagina="https://commons.wikimedia.org/wiki/File:Video_Codec_Test_pedestrian_area_1080p25.y4m.webm",
+        por_que="Varias pessoas cruzando o quadro, nenhuma com EPI: tracking, violacao e aproximacao de zona.",
+        fps_saida=25.0,
+        leitura_sequencial=True,
+    ),
+    Fixture(
+        nome="queda",
+        destino="next_queda.mp4",
+        url="https://upload.wikimedia.org/wikipedia/commons/1/19/Bits_%26_Pieces_-_BP152_Falling_down_the_stairs_-_EYE_FLM7636_-_OB_105118.ogv",
+        sha256_origem="5e2599550425e6630c4ac15d3599aeee926722a88485525ee6ae3f16060f9fc6",
+        # t = 52 s a 72 s (25 fps): pessoa caida no pe da escada e varias pessoas
+        # em volta. Filme mudo antigo (preto e branco): penaliza o detector, o que
+        # e honesto para um cenario de queda — nao e uma encenacao feita para o modelo.
+        frame_inicial=1300,
+        frame_final=1800,
+        largura=720,
+        altura=576,
+        licenca="Public domain",
+        autor="Autor desconhecido (EYE Filmmuseum, colecao Bits & Pieces)",
+        pagina="https://commons.wikimedia.org/wiki/File:Bits_%26_Pieces_-_BP152_Falling_down_the_stairs_-_EYE_FLM7636_-_OB_105118.ogv",
+        por_que="Pessoa deitada no chao (queda) com varias pessoas em cena.",
+        leitura_sequencial=True,
+    ),
+    Fixture(
+        nome="portal",
+        destino="portal.mp4",
+        url="https://upload.wikimedia.org/wikipedia/commons/f/f4/Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
+        sha256_origem="363c0dc47800d27a894a26bbbf570729d5e7c4a190f33fdd092a37aa546c6b46",
+        # Quadros 7000 a 7084 do original (29,97 fps, contados lendo em sequencia):
+        # o close de um armador de frente para a camera, capacete branco e colete.
+        # O recorte deixa so ele (os dois colegas atras ficam de fora), ampliado
+        # 1,6x — e o que a camera do Portal veria (ADENDO 3 da MISSAO 2). Escolhido
+        # por medicao: e o unico plano das fontes testadas em que o Vyra ve
+        # capacete >= 0,40 na maioria dos quadros (capacete 12/16, colete 11/16
+        # amostras). O plano tem 2,8 s; em vai-e-volta 3x, 16,8 s.
+        frame_inicial=7000,
+        frame_final=7084,
+        largura=960,
+        altura=720,
+        licenca="CC BY-SA 4.0",
+        autor="Acabashi",
+        pagina="https://commons.wikimedia.org/wiki/File:Building_construction_Moira_Close_Broadwater_Farm_Haringey_2025_13.webm",
+        por_que="Um trabalhador de capacete e colete de perto, de frente: cenario realista do Portal de Entrada.",
+        recorte=(520, 210, 600, 450),
+        # O seek do OpenCV neste webm cai ~5 s adiante (medido): pegaria outro plano.
+        leitura_sequencial=True,
+        vai_e_volta=3,
     ),
 )
 
@@ -208,7 +283,7 @@ def recortar(fixture: Fixture) -> None:
     if not captura.isOpened():
         raise SystemExit(f"OpenCV nao conseguiu abrir {origem}. Instalacao de codec incompleta?")
 
-    fps = captura.get(cv2.CAP_PROP_FPS)
+    fps = fixture.fps_saida or captura.get(cv2.CAP_PROP_FPS)
     destino.parent.mkdir(parents=True, exist_ok=True)
     escritor = cv2.VideoWriter(
         str(destino), cv2.VideoWriter_fourcc(*"mp4v"), fps, (fixture.largura, fixture.altura)
@@ -217,18 +292,39 @@ def recortar(fixture: Fixture) -> None:
         captura.release()
         raise SystemExit(f"OpenCV nao conseguiu escrever {destino} com o codec mp4v.")
 
-    captura.set(cv2.CAP_PROP_POS_FRAMES, fixture.frame_inicial)
+    if fixture.leitura_sequencial:
+        for _ in range(fixture.frame_inicial):
+            if not captura.grab():
+                break
+    else:
+        captura.set(cv2.CAP_PROP_POS_FRAMES, fixture.frame_inicial)
     escritos = 0
+    volta: list = []  # quadros da ida, em JPEG (a volta os escreve ao contrario)
     for _ in range(fixture.frame_final - fixture.frame_inicial):
         ok, quadro = captura.read()
         if not ok:
             break
-        escritor.write(cv2.resize(quadro, (fixture.largura, fixture.altura)))
+        if fixture.recorte:
+            x, y, w, h = fixture.recorte
+            quadro = quadro[y:y + h, x:x + w]
+        quadro = cv2.resize(quadro, (fixture.largura, fixture.altura))
+        escritor.write(quadro)
         escritos += 1
+        if fixture.vai_e_volta:
+            volta.append(cv2.imencode(".jpg", quadro, [int(cv2.IMWRITE_JPEG_QUALITY), 95])[1])
+    # Ida ja escrita; cada volta desce ate o 1o quadro e, se houver outra, sobe de novo.
+    for volta_n in range(fixture.vai_e_volta):
+        ordem = list(range(len(volta) - 2, -1, -1))
+        if volta_n < fixture.vai_e_volta - 1:
+            ordem += list(range(1, len(volta)))
+        for indice in ordem:
+            escritor.write(cv2.imdecode(volta[indice], cv2.IMREAD_COLOR))
+            escritos += 1
     captura.release()
     escritor.release()
 
-    esperados = fixture.frame_final - fixture.frame_inicial
+    n = fixture.frame_final - fixture.frame_inicial
+    esperados = n + (n - 1) * max(0, 2 * fixture.vai_e_volta - 1)
     if escritos != esperados:
         raise SystemExit(f"Esperava {esperados} quadros, escrevi {escritos}. Fixture incompleta.")
     print(

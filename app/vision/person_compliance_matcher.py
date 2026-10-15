@@ -6,7 +6,7 @@ from typing import Any
 from app.vision.schemas import BoundingBox, Detection
 from app.vision.yolo_ppe_detector import PPE_NEGATIVE_CLASSES
 
-PPE_KEYS = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe")
+PPE_KEYS = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe", "ear_protection")
 
 # Rótulo em pt-BR de cada EPI. Fonte única: o ComplianceService e o
 # FrameAnnotator liam de listas próprias que podiam divergir.
@@ -17,7 +17,16 @@ PPE_LABELS: dict[str, str] = {
     "glasses": "Óculos",
     "mask": "Máscara",
     "safety_shoe": "Calçado de segurança",
+    "ear_protection": "Protetor auricular",
 }
+
+# Estados possíveis de um item de EPI para uma pessoa. "incorrect" é distinto
+# de "missing": o item foi detectado SOBRE a pessoa, só que fora da região do
+# corpo onde ele funciona (ex.: capacete na mão, não na cabeça) — ver
+# `_assign_incorretos`. É o EPI "presente, mas em uso incorreto".
+STATUS_OK = "ok"
+STATUS_MISSING = "missing"
+STATUS_INCORRECT = "incorrect"
 
 @dataclass(frozen=True)
 class _Zone:
@@ -44,16 +53,19 @@ _ZONES: dict[str, _Zone] = {
     "helmet": _Zone(0.00, 0.08, 0.30, 1),
     "glasses": _Zone(0.00, 0.10, 0.25, 1),
     "mask": _Zone(0.02, 0.14, 0.30, 1),
+    "ear_protection": _Zone(0.00, 0.09, 0.27, 1),
     "vest": _Zone(0.18, 0.42, 0.70, 1),
     "gloves": _Zone(0.30, 0.62, 0.95, 2),
     "safety_shoe": _Zone(0.78, 0.95, 1.00, 2),
 }
 
 # Quanto da caixa do EPI precisa cair dentro da caixa da pessoa para a
-# associação ser sequer considerada.
+# associação ser sequer considerada — vale tanto para "em uso" (dentro da
+# faixa) quanto para "uso incorreto" (fora da faixa, ver `_assign_incorretos`).
 _MIN_CONTAINMENT = 0.5
 # Tolerância (em fração da altura da pessoa) para o EPI ficar FORA da faixa e
-# ainda ser considerado — cobre pessoa agachada ou caixa mal ajustada.
+# ainda ser considerado "em uso" — cobre pessoa agachada ou caixa mal ajustada.
+# Além disso vira candidato a "uso incorreto" (ver abaixo), nunca "ausente".
 _OUT_OF_ZONE_TOLERANCE = 0.15
 
 # O que fazer quando NADA foi detectado para um EPI (nem a caixa positiva nem
@@ -107,23 +119,27 @@ class PersonComplianceMatcher:
             people = sorted(people, key=lambda item: (item.box.x1, item.box.y1))
 
         ppes = [item for item in detections if item.label in PPE_KEYS]
-        assignments = self._assign(people, ppes)
-        # Negativas competem entre si, num pool separado: uma caixa "cabeça sem
-        # capacete" nunca disputa com uma caixa de capacete, e nunca conta como
-        # EPI presente.
+        assignments, used_ppes = self._assign(people, ppes)
+        incorretos = self._assign_incorretos(people, ppes, used_ppes, assignments)
+        # Negativas (Sprint 4) competem entre si, num pool separado: uma caixa
+        # "cabeça sem capacete" nunca disputa com uma caixa de capacete, e nunca
+        # conta como EPI presente.
         negatives = [item for item in detections if item.label in PPE_NEGATIVE_CLASSES]
-        negative_assignments = self._assign(people, negatives, key_of=lambda item: PPE_NEGATIVE_CLASSES[item.label])
+        negative_assignments, _ = self._assign(people, negatives, key_of=lambda item: PPE_NEGATIVE_CLASSES[item.label])
 
         result: list[dict[str, Any]] = []
         for index, person in enumerate(people, start=1):
             person_id = f"person_{person.track_id}" if person.track_id is not None else f"person_{index}"
             matched = assignments[id(person)]
+            fora_da_zona = incorretos[id(person)]
             negated = negative_assignments[id(person)]
             compliance: dict[str, dict[str, Any]] = {}
             for key in PPE_KEYS:
-                positive_conf = max([item.confidence for item in matched[key]], default=0.0)
+                itens_ok = matched[key]
+                itens_incorretos = fora_da_zona[key]
+                positive_conf = max([item.confidence for item in itens_ok], default=0.0)
                 negative_conf = max([item.confidence for item in negated[key]], default=0.0)
-                evidence = self._evidence(key, matched[key], negated[key], positive_conf, negative_conf)
+                evidence = self._evidence(key, itens_ok, negated[key], positive_conf, negative_conf)
                 if not enabled_ppe.get(key, False):
                     status = "disabled"
                     message = "Feature desativada"
@@ -131,27 +147,32 @@ class PersonComplianceMatcher:
                     status = "unsupported"
                     message = "Classe não suportada pelo modelo atual"
                 elif evidence == "detectado":
-                    status = "ok"
+                    status = STATUS_OK
                     message = "Detectado"
+                elif itens_incorretos:
+                    status = STATUS_INCORRECT
+                    message = f"{PPE_LABELS[key]} presente, mas fora da posição esperada (uso incorreto)"
                 elif evidence == "negativa_detectada":
-                    status = "missing"
+                    status = STATUS_MISSING
                     message = "Ausente (visto sem o EPI)"
                 elif self.missing_policy == "ausencia":
-                    status = "missing"
+                    status = STATUS_MISSING
                     message = "Ausente"
                 else:
                     status = "unverified"
                     message = "Não verificado"
 
+                itens = itens_ok or itens_incorretos
                 compliance[key] = {
                     "key": key,
                     "label": PPE_LABELS[key],
                     "status": status,
                     "message": message,
                     "evidence": evidence,
-                    "detections": [item.to_dict() for item in matched[key]],
+                    "detections": [item.to_dict() for item in itens],
                     "negative_detections": [item.to_dict() for item in negated[key]],
-                    "confidence": negative_conf if evidence == "negativa_detectada" else positive_conf,
+                    "confidence": (negative_conf if evidence == "negativa_detectada" and not itens
+                                   else max([item.confidence for item in itens], default=0.0)),
                 }
 
             risk_status = self._risk_status(person.box, risk_polygon, frame_shape)
@@ -194,16 +215,20 @@ class PersonComplianceMatcher:
         ppes: list[Detection],
         *,
         key_of=lambda item: item.label,
-    ) -> dict[int, dict[str, list[Detection]]]:
+    ) -> tuple[dict[int, dict[str, list[Detection]]], set[int]]:
         """Atribuição gulosa: melhor par (EPI, pessoa) primeiro, cada EPI usado
         uma única vez e respeitando o limite por pessoa de cada tipo.
 
         `key_of` diz em qual EPI a detecção conta — o próprio rótulo para as
         positivas, o EPI negado para as negativas (no_helmet -> helmet), que
-        assim herdam a mesma faixa vertical esperada."""
+        assim herdam a mesma faixa vertical esperada.
+
+        Só considera pares DENTRO (ou perto o bastante) da faixa esperada —
+        `_score` já devolve 0 para o resto. O que sobra sem par aqui é
+        candidato a "uso incorreto" em `_assign_incorretos`, não "ausente"."""
         matched: dict[int, dict[str, list[Detection]]] = {id(person): {key: [] for key in PPE_KEYS} for person in people}
         if not people or not ppes:
-            return matched
+            return matched, set()
 
         scored: list[tuple[float, int, int]] = []
         for ppe_index, ppe in enumerate(ppes):
@@ -225,7 +250,47 @@ class PersonComplianceMatcher:
                 continue
             bucket.append(ppe)
             used_ppes.add(ppe_index)
-        return matched
+        return matched, used_ppes
+
+    def _assign_incorretos(
+        self,
+        people: list[Detection],
+        ppes: list[Detection],
+        used_ppes: set[int],
+        matched: dict[int, dict[str, list[Detection]]],
+    ) -> dict[int, dict[str, list[Detection]]]:
+        """Segunda passada, só com quem sobrou de `_assign`: EPI que está
+        sobre o CORPO da pessoa (contenção real) mas fora de qualquer faixa
+        esperada — capacete na mão, luva pendurada no cinto. Isso é "em uso
+        incorreto", não "ausente". Nunca rebaixa quem já tem o item OK: se a
+        pessoa já está com o capacete na cabeça, um segundo capacete solto por
+        perto não muda o veredito dela."""
+        incorretos: dict[int, dict[str, list[Detection]]] = {id(person): {key: [] for key in PPE_KEYS} for person in people}
+        restantes = [i for i in range(len(ppes)) if i not in used_ppes]
+        if not people or not restantes:
+            return incorretos
+
+        scored: list[tuple[float, int, int]] = []
+        for ppe_index in restantes:
+            ppe = ppes[ppe_index]
+            for person_index, person in enumerate(people):
+                containment = ppe.box.containment_in(person.box)
+                if containment < _MIN_CONTAINMENT:
+                    continue
+                scored.append((containment * max(0.05, ppe.confidence), ppe_index, person_index))
+        scored.sort(key=lambda item: item[0], reverse=True)
+
+        usados: set[int] = set()
+        for _score, ppe_index, person_index in scored:
+            if ppe_index in usados:
+                continue
+            ppe = ppes[ppe_index]
+            person = people[person_index]
+            if matched[id(person)][ppe.label]:
+                continue  # já tem o item OK — sobra não rebaixa o veredito
+            incorretos[id(person)][ppe.label].append(ppe)
+            usados.add(ppe_index)
+        return incorretos
 
     def _score(self, person_box: BoundingBox, ppe: Detection, key: str | None = None) -> float:
         """0 = não pode ser desta pessoa. Maior = associação mais plausível."""

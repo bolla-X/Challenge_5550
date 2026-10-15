@@ -2,12 +2,29 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from functools import cached_property
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from app.vision.schemas import BoundingBox, Detection
+
+RAIZ = Path(__file__).resolve().parent.parent.parent
+
+
+def pasta_do_cache_openvino() -> Path:
+    """Onde o OpenVINO guarda o modelo compilado entre execuções (`OV_CACHE_DIR`).
+
+    Padrão `runtime/ov_cache/` (fora do git). Um diretório só para os três
+    modelos: o OpenVINO nomeia cada blob pelo hash do modelo e da configuração
+    (https://docs.openvino.ai/2025/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html).
+    `scripts/preparar.py` o aquece antes da apresentação.
+    """
+    valor = os.getenv("OV_CACHE_DIR", "").strip()
+    pasta = Path(valor) if valor else RAIZ / "runtime" / "ov_cache"
+    return pasta if pasta.is_absolute() else RAIZ / pasta
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +65,24 @@ PPE_CLASS_ALIASES = {
     "safety shoe": "safety_shoe",
     "safety shoes": "safety_shoe",
     "boots": "safety_shoe",
+    "shoes": "safety_shoe",
+    "shoe": "safety_shoe",
     "safety boots": "safety_shoe",
     "safety cone": "safety_cone",
     "safety_cone": "safety_cone",
     "person": "person",
     "worker": "person",
+    # protetor auricular — no peso SH17 corrigido (best_corrigido.pt) a classe
+    # "Earmuffs" do dataset original foi renomeada "ear-acessorio" (confirmado
+    # em F:/treino_sh17/yolo_labels/sh17.yaml: indice 2 = "ear-mufs"). "ear"
+    # sozinho continua sendo so a orelha nua (rotulo anatomico, nao EPI).
+    "ear-acessorio": "ear_protection",
+    "ear_acessorio": "ear_protection",
+    "ear-mufs": "ear_protection",
+    "earmuffs": "ear_protection",
+    "ear muffs": "ear_protection",
+    "ear protection": "ear_protection",
+    "ear_protection": "ear_protection",
     # --- Classes NEGATIVAS (Sprint 4): a pessoa foi vista SEM o EPI. -------
     # Nao sao EPI: nunca contam como item presente. O matcher usa essas caixas
     # para separar "ausente" (negativa detectada) de "nao visto" (nada
@@ -95,7 +125,7 @@ PPE_CORE_CLASSES = ("helmet", "vest", "gloves")
 # como "unsupported" ate entrar um peso que a tenha. Um modelo so com o
 # nucleo continua PRONTO — marcar estas como obrigatorias faria todo peso
 # de 3 classes ja em uso reportar "modelo parcial" sem nada ter piorado.
-PPE_OPTIONAL_CLASSES = ("glasses", "mask", "safety_shoe")
+PPE_OPTIONAL_CLASSES = ("glasses", "mask", "safety_shoe", "ear_protection")
 PPE_REQUIRED_CLASSES = PPE_CORE_CLASSES + PPE_OPTIONAL_CLASSES
 
 
@@ -109,10 +139,21 @@ class YoloPPEDetector:
         max_detections: int = 100,
         require_person: bool = True,
         imgsz: int = 640,
+        augment: bool = False,
+        half: bool = False,
     ) -> None:
         self.model_path = model_path
         self.confidence = confidence
         self.device = device
+        # FP16 so faz sentido em GPU — na CPU o ultralytics ou ignora ou fica
+        # mais lento (a maioria dos kernels de CPU nao tem caminho half
+        # otimizado). "cpu"/None/vazio nunca liga, mesmo se pedido.
+        device_str = str(device or "").strip().lower()
+        self.half = bool(half) and device_str not in ("", "cpu")
+        # TTA no predict: infere em escalas/flips e funde. Ajuda objeto
+        # pequeno/baixo contraste (oculos fino, luva escura), a ~2x o custo.
+        # Ligado so onde compensa (modelos extras nano) via config.
+        self.augment = bool(augment)
         # Lado maior da entrada da rede (ver Config.YOLO_IMGSZ). O ultralytics
         # exige múltiplo de 32 e arredonda sozinho avisando; arredondar aqui
         # evita o aviso a cada frame quando alguém põe 500 no .env.
@@ -124,6 +165,140 @@ class YoloPPEDetector:
         # é outro YoloPPEDetector (ver MonitorService.person_detector).
         self.require_person = require_person
         self._last_diagnostics: dict[str, Any] | None = None
+        self.load_ms: float | None = None
+        self._sessao_onnx_ajustada = False
+        self._openvino_dinamico_verificado = False
+        # Dispositivo e precisão do OpenVINO (CPU | GPU; fp32 | fp16). O
+        # resolvedor de runtime ajusta por modelo; as variáveis de ambiente
+        # servem ao guarda de qualidade e ao bench. `dispositivo_ativo` é o que
+        # de fato compilou (aparece no diagnóstico), inclusive o fallback.
+        self.dispositivo_openvino = os.getenv("OPENVINO_DEVICE", "CPU").strip().upper() or "CPU"
+        self.precisao_openvino = os.getenv("OPENVINO_PRECISAO", "").strip().lower()
+        self.dispositivo_ativo: str | None = None
+
+    @property
+    def runtime(self) -> str:
+        """pytorch | onnx | openvino — o que está de fato executando o modelo."""
+        if self.is_openvino:
+            return "openvino"
+        return "onnx" if str(self.model_path).lower().endswith(".onnx") else "pytorch"
+
+    def _ajustar_sessao_onnx(self) -> None:
+        """Recria a sessão do ONNX Runtime com provider e threads explícitos.
+
+        O ultralytics 8.3.40 cria `InferenceSession(w, providers=...)` com o
+        PRIMEIRO provider disponível e sem `SessionOptions`
+        (`ultralytics/nn/autobackend.py`). No onnxruntime 1.29 desta máquina o
+        primeiro é o `AzureExecutionProvider` ("Preferring ONNX Runtime
+        AzureExecutionProvider" no log). E sem opções cada sessão abre um pool
+        de threads do tamanho dos núcleos físicos, com *spinning* ligado — que,
+        segundo a doc, "consumes more CPU cycles"
+        (https://onnxruntime.ai/docs/performance/tune-performance/threading.html).
+        Com três sessões (EPI, pessoa, pose) no perfil de 2 núcleos isso é
+        oversubscription. Aqui: CPU explícita, `intra_op_num_threads` =
+        VISIONEPI_THREADS quando definido, e spinning desligado.
+        """
+        if self._sessao_onnx_ajustada or self.runtime != "onnx":
+            return
+        self._sessao_onnx_ajustada = True
+        backend = getattr(getattr(self.model, "predictor", None), "model", None)
+        if backend is None or not hasattr(backend, "session"):
+            return
+        try:
+            import onnxruntime as ort
+
+            opcoes = ort.SessionOptions()
+            threads = os.getenv("VISIONEPI_THREADS", "").strip()
+            if threads.isdigit() and int(threads) > 0:
+                opcoes.intra_op_num_threads = int(threads)
+            # ONNX_SPINNING=1 religa a espera ativa (padrão 0; ver BENCHMARKS.md).
+            spinning = "1" if os.getenv("ONNX_SPINNING", "0").strip() == "1" else "0"
+            opcoes.add_session_config_entry("session.intra_op.allow_spinning", spinning)
+            backend.session = ort.InferenceSession(str(self.model_path), sess_options=opcoes, providers=["CPUExecutionProvider"])
+            logger.info("sessao_onnx_ajustada", extra={"model_path": self.model_path, "threads": threads or "padrao"})
+        except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com a sessão do ultralytics)
+            logger.warning("sessao_onnx_nao_ajustada", extra={"error": str(exc)})
+
+    def _marcar_openvino_dinamico(self) -> bool:
+        """Liga o letterbox retangular quando o modelo OpenVINO tem entrada dinâmica.
+
+        O ultralytics 8.3.40 só preenche `AutoBackend.dynamic` para ONNX e
+        TensorRT (`ultralytics/nn/autobackend.py`); no OpenVINO fica False e o
+        predictor usa o letterbox QUADRADO (`engine/predictor.py`,
+        `auto=... getattr(self.model, "dynamic", False)`) mesmo num export com
+        `dynamic=True` (`shape="?,3,?,?"` no .xml). Resultado medido: o export
+        dinâmico dava a mesma concordância do estático (95,04 %). Devolve True
+        se mudou algo (a chamada que acabou de rodar deve ser refeita).
+        """
+        self._openvino_dinamico_verificado = True
+        backend = getattr(getattr(self.model, "predictor", None), "model", None)
+        compilado = getattr(backend, "ov_compiled_model", None)
+        if compilado is None or getattr(backend, "dynamic", False):
+            return False
+        self._recompilar_openvino(backend)
+        try:
+            dinamico = backend.ov_compiled_model.input(0).get_partial_shape().is_dynamic
+        except Exception:  # noqa: BLE001
+            return False
+        if dinamico:
+            backend.dynamic = True
+            logger.info("openvino_entrada_dinamica", extra={"model_path": self.model_path})
+        return bool(dinamico)
+
+    def _recompilar_openvino(self, backend) -> None:
+        """Recompila no dispositivo pedido (CPU por padrão), com fallback para CPU.
+
+        CPU: hint LATENCY e teto de threads = VISIONEPI_THREADS. O ultralytics
+        8.3.40 compila com `device_name="AUTO"` e sem teto; pela doc do plugin de
+        CPU, no LATENCY o padrão de `INFERENCE_NUM_THREADS` é "P-cores ou
+        P-cores+E-cores" (10 num i7-1355U) e não há pinning no Windows
+        (https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device/performance-hint-and-thread-scheduling.html).
+
+        GPU (iGPU Intel): shape dinâmico é "preview" no plugin de GPU e cada
+        shape novo compila kernel na primeira vez
+        (https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/gpu-device.html);
+        aqui cada câmera tem UM shape (a resolução cadastrada), então isso é
+        pago uma vez por câmera — e o aquecimento no boot paga o 960x540.
+        O cache (`pasta_do_cache_openvino`) vale para o `Core` inteiro: o blob
+        compilado da GPU (`.cl_cache`) e o da CPU (`.blob`) ficam entre
+        execuções. Falhou na GPU → CPU, e o diagnóstico mostra "CPU (fallback da GPU)".
+        """
+        try:
+            import openvino as ov
+
+            xml = next(Path(self.model_path).glob("*.xml"))
+            core = ov.Core()
+            modelo = core.read_model(model=str(xml), weights=str(xml.with_suffix(".bin")))
+            if modelo.get_parameters()[0].get_layout().empty:
+                modelo.get_parameters()[0].set_layout(ov.Layout("NCHW"))
+        except Exception as exc:  # noqa: BLE001  (sem ajuste, segue com o compilado do ultralytics)
+            logger.warning("openvino_nao_recompilado", extra={"error": str(exc)})
+            return
+        try:
+            cache = pasta_do_cache_openvino()
+            cache.mkdir(parents=True, exist_ok=True)
+            core.set_property({"CACHE_DIR": str(cache)})
+        except Exception as exc:  # noqa: BLE001  (sem cache só compila mais devagar; nunca impede de compilar)
+            logger.warning("openvino_sem_cache", extra={"error": str(exc)})
+        pedido = self.dispositivo_openvino
+        tentativas = [pedido] if pedido == "CPU" else [pedido, "CPU"]
+        for dispositivo in tentativas:
+            config: dict[str, Any] = {"PERFORMANCE_HINT": "LATENCY"}
+            if dispositivo == "CPU":
+                threads = os.getenv("VISIONEPI_THREADS", "").strip()
+                if threads.isdigit() and int(threads) > 0:
+                    config["INFERENCE_NUM_THREADS"] = int(threads)
+            if self.precisao_openvino in ("fp16", "fp32") and dispositivo == pedido:
+                config["INFERENCE_PRECISION_HINT"] = "f16" if self.precisao_openvino == "fp16" else "f32"
+            try:
+                backend.ov_compiled_model = core.compile_model(modelo, device_name=dispositivo, config=config)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("openvino_dispositivo_falhou", extra={"dispositivo": dispositivo, "error": str(exc)})
+                continue
+            self.dispositivo_ativo = dispositivo if dispositivo == pedido else f"{dispositivo} (fallback da {pedido})"
+            logger.info("openvino_recompilado", extra={"model_path": self.model_path, "dispositivo": self.dispositivo_ativo,
+                                                       "precisao": self.precisao_openvino or "da IR"})
+            return
 
     @property
     def is_openvino(self) -> bool:
@@ -180,9 +355,13 @@ class YoloPPEDetector:
         logger.info("loading_yolo_model", extra={"model_path": self.model_path, "openvino": self.is_openvino})
         # task="detect" só é obrigatório no OpenVINO, mas informar sempre é
         # correto (este projeto só faz detecção) e evita um ramo a mais.
-        modelo = YOLO(self.model_path, task="detect")
+        inicio = time.perf_counter()
+        modelo = YOLO(self.model_path, task=getattr(self, "task", "detect"))
         if self.is_openvino:
             self._validar_imgsz(modelo)
+        # Tempo de carga do peso (sem a primeira inferencia, que tem warmup
+        # proprio). Sai no diagnostico e no bench.
+        self.load_ms = round((time.perf_counter() - inicio) * 1000.0, 1)
         return modelo
 
     def _validar_imgsz(self, modelo) -> None:
@@ -209,15 +388,27 @@ class YoloPPEDetector:
             )
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
+        return self.detect_lote([frame])[0]
+
+    def detect_lote(self, frames: list[np.ndarray]) -> list[list[Detection]]:
+        """Uma chamada `predict` para N frames (lista vira lote no ultralytics).
+
+        `detect(frame)` é o caso N=1, para que os dois caminhos não possam
+        divergir no tratamento de erro nem na conversão das caixas.
+        """
+        if not frames:
+            return []
         try:
             results = self.model.predict(
-                source=frame,
+                source=frames if len(frames) > 1 else frames[0],
                 conf=self.confidence,
                 device=self.device,
                 classes=self.classes,
                 verbose=False,
                 max_det=self.max_detections,
                 imgsz=self.imgsz,
+                augment=self.augment,
+                half=self.half,
             )
         except Exception as exc:  # noqa: BLE001
             # Modelo ausente/corrompido não pode derrubar o frame inteiro —
@@ -228,16 +419,23 @@ class YoloPPEDetector:
             # aqui só evita propagar e travar o restante do pipeline.
             self._last_diagnostics = self._build_diagnostics(names={}, error=str(exc))
             self._log_model_warning_once(self._last_diagnostics)
-            return []
-        detections: list[Detection] = []
+            return [[] for _ in frames]
+        if not self._sessao_onnx_ajustada and self.runtime == "onnx":
+            self._ajustar_sessao_onnx()
+        if not self._openvino_dinamico_verificado and self.runtime == "openvino" and self._marcar_openvino_dinamico():
+            # A primeira chamada saiu com o letterbox quadrado; refaz com o certo.
+            return self.detect_lote(frames)
+        results = list(results or [])
         if not results:
-            return detections
-
-        result = results[0]
-        names = getattr(result, "names", {}) or getattr(self.model, "names", {}) or {}
+            return [[] for _ in frames]
+        names = getattr(results[0], "names", {}) or getattr(self.model, "names", {}) or {}
         self._last_diagnostics = self._build_diagnostics(names=names, error=None)
         self._log_model_warning_once(self._last_diagnostics)
+        saida = [self._converter(result, names) for result in results]
+        return saida + [[] for _ in range(len(frames) - len(saida))]
 
+    def _converter(self, result, names) -> list[Detection]:
+        detections: list[Detection] = []
         boxes = getattr(result, "boxes", None)
         if boxes is None:
             return detections
@@ -325,6 +523,7 @@ class YoloPPEDetector:
 
         return {
             "model_path": self.model_path,
+            "runtime": self.runtime,
             "confidence": self.confidence,
             "device": self.device,
             "class_filter": self.classes,

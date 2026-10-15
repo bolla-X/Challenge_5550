@@ -1,0 +1,620 @@
+{
+  "foco": "bench",
+  "segundos": 90,
+  "env": [
+    "INFERENCIA_FRACAO_FOCO=0.5"
+  ],
+  "servidos": {
+    "multidao": 46,
+    "bench": 115,
+    "queda": 50,
+    "multidao2": 43
+  },
+  "fracao_foco": 0.453,
+  "maior_espera_s": {
+    "multidao": 5.23,
+    "bench": 3.8,
+    "queda": 3.23,
+    "multidao2": 4.95
+  },
+  "esperas_acima_de_3s": {
+    "multidao": "4/46",
+    "bench": "1/115",
+    "queda": "2/51",
+    "multidao2": "5/43"
+  },
+  "inferencias_por_s": 2.82,
+  "pre_alertas_registrados": 3,
+  "alertas_de_queda": 2,
+  "portal_liberado_em_s": 9.4,
+  "portal": [
+    {
+      "liberado_em_s": 9.4,
+      "brutos": {
+        "approved": 5,
+        "denied": 3,
+        "waiting": 2
+      },
+      "faltas": {
+        "helmet": 3
+      },
+      "sequencia": [
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "D",
+          5
+        ],
+        [
+          "D",
+          2
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 22.0,
+      "brutos": {
+        "approved": 11,
+        "denied": 7,
+        "waiting": 14
+      },
+      "faltas": {
+        "helmet": 7
+      },
+      "sequencia": [
+        [
+          "A",
+          2
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "D",
+          2
+        ],
+        [
+          "A",
+          7
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "D",
+          8
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "D",
+          7
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          6
+        ],
+        [
+          "D",
+          2
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 2.0,
+      "brutos": {
+        "approved": 3,
+        "denied": 0,
+        "waiting": 0
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          4
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "A",
+          6
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 5.6,
+      "brutos": {
+        "approved": 4,
+        "denied": 0,
+        "waiting": 3
+      },
+      "faltas": {},
+      "sequencia": [
+        [
+          "A",
+          6
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          4
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 8.5,
+      "brutos": {
+        "approved": 3,
+        "denied": 1,
+        "waiting": 2
+      },
+      "faltas": {
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "D",
+          3
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          7
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          6
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 7.9,
+      "brutos": {
+        "approved": 5,
+        "denied": 1,
+        "waiting": 4
+      },
+      "faltas": {
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          7
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "A",
+          6
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 10.7,
+      "brutos": {
+        "approved": 6,
+        "denied": 3,
+        "waiting": 6
+      },
+      "faltas": {
+        "helmet": 3
+      },
+      "sequencia": [
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "D",
+          6
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "A",
+          4
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 5.9,
+      "brutos": {
+        "approved": 5,
+        "denied": 2,
+        "waiting": 1
+      },
+      "faltas": {
+        "helmet": 1,
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          4
+        ],
+        [
+          "D",
+          4
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "D",
+          2
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "A",
+          1
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 6.1,
+      "brutos": {
+        "approved": 5,
+        "denied": 1,
+        "waiting": 4
+      },
+      "faltas": {
+        "helmet": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          1
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          6
+        ],
+        [
+          "W",
+          null
+        ]
+      ]
+    },
+    {
+      "liberado_em_s": 11.9,
+      "brutos": {
+        "approved": 7,
+        "denied": 2,
+        "waiting": 5
+      },
+      "faltas": {
+        "helmet": 1,
+        "vest": 1
+      },
+      "sequencia": [
+        [
+          "A",
+          10
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "D",
+          1
+        ],
+        [
+          "D",
+          3
+        ],
+        [
+          "A",
+          4
+        ],
+        [
+          "A",
+          2
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          1
+        ],
+        [
+          "W",
+          null
+        ],
+        [
+          "A",
+          9
+        ],
+        [
+          "A",
+          4
+        ]
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -17,20 +18,43 @@ from app.extensions import db
 from app.llm import redigir_segredos
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
+from app.services import liga
+from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.alert_state_service import AlertStateService
+from app.services.andon import ContadorDeMinutos
+from app.services.aproximacao import EstimadorDeAproximacao
 from app.services.compliance_service import ComplianceService
+from app.services.custodia import registrar_clipe
 from app.services.feature_manager import FeatureManager
-from app.services.risk_rules import RuleEngine
+from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
+from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
+from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
+from app.services.pipeline_stats import EstatisticasDoPipeline
+from app.services.replay import BufferDeReplay, ClipePendente, gravar_clipe
+from app.services.risk_rules import RuleAlert, RuleEngine
 from app.services.risk_score_service import compute_risk_score
 from app.services.snapshot_service import SnapshotService
 from app.services.storage_cleanup_service import StorageCleanupService
-from app.utils.salas import emitir_para_camera
+from app.services.trilhas import GravadorDeTrilhas
+from app.utils.salas import emitir_para_camera, emitir_para_foco
 from app.vision.annotator import FrameAnnotator
-from app.vision.person_tracker import PersonTracker
+from app.vision.captura_continua import CapturaContinua
+from app.vision.fonte_celular import FonteDeCelular, e_celular
+from app.vision.person_compliance_matcher import PPE_KEYS
+from app.vision.person_tracker import ByteTrackPessoas, PersonTracker
+from app.vision.planta import pes_na_planta
 from app.vision.pose_estimator import MediaPipePoseEstimator
+from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
+from app.vision.quedas import pessoas_com_quedas
+from app.vision.reassociacao import RastreadorComReassociacao, ReassociadorDeIds
 from app.vision.schemas import FrameAnalysis, PoseResult
-from app.vision.video_stream import VideoStream
+from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
+from app.vision.video_stream import VideoStream, e_arquivo_local
+from app.vision.yolo_pose_detector import associar_esqueletos, pose_da_deteccao
 from app.vision.yolo_ppe_detector import YoloPPEDetector
+
+# G9: EPIs que só se vê no rosto — não viram recorte com a privacidade ligada.
+EPIS_DO_ROSTO = frozenset({"glasses", "mask", "ear_protection"})
 
 logger = logging.getLogger(__name__)
 
@@ -97,21 +121,40 @@ class CameraWorker:
         fps: int,
         width: int = 960,
         height: int = 540,
+        rotation: int = 0,
+        risk_polygon: list | None = None,
+        gate_required: list | None = None,
         detector: YoloPPEDetector,
         person_detector: YoloPPEDetector,
         pose_estimator: MediaPipePoseEstimator,
         inference_lock: threading.Lock,
+        pose_detector: Any | None = None,
         servico_llm: Any | None = None,
+        agendador: AgendadorDeInferencia | None = None,
+        gravador: Any | None = None,
     ) -> None:
         self.app = app
         self.socketio = socketio
         self.feature_manager = feature_manager
         self.camera_id = camera_id
         self.target_fps = max(1, int(fps))
+        # So um destes 4 valores tem sentido pra `cv2.rotate` — qualquer outro
+        # vira 0 (sem rotacao) em vez de derrubar o worker.
+        self.rotation = int(rotation) if int(rotation) in (0, 90, 180, 270) else 0
         self._running = threading.Event()
+        # Pedido de "limpar alertas ativos" vindo da rota HTTP. Quem executa e o
+        # proprio loop do worker: o estado dos alertas e os objetos do ORM sao
+        # dele, e mexer neles de outra thread ja causou erro de sessao.
+        self._limpeza_alertas_pedida = threading.Event()
         self._thread_lock = threading.RLock()
         self._task = None
         self._latest_jpeg: bytes | None = None
+        # Instante (epoch, ms) em que o frame do `_latest_jpeg` saiu da captura.
+        # Vai no cabecalho de cada parte do MJPEG para o navegador medir a
+        # idade do quadro na tela (ver `scripts/bench.py`).
+        self._latest_capture_ts_ms: float | None = None
+        # Percentis por etapa e taxas, sempre ligados (ver pipeline_stats.py).
+        self.stats = EstatisticasDoPipeline()
         self._latest_analysis: dict[str, Any] | None = None
         self._last_error: str | None = None
         # Ultimo estado de captura JA comunicado — so emite evento na transicao,
@@ -121,17 +164,23 @@ class CameraWorker:
         self._last_risk_score_emit_at = 0.0
         self.risk_score_interval_seconds = 30
 
-        # Área de risco/polígono ainda vem do .env global — cada câmera ter
-        # sua própria zona configurável fica pro backlog de câmera-config
-        # (o CameraConfigPanel mock do frontend já reserva esse espaço).
-        risk_polygon = self._parse_risk_polygon(app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON))
+        # Polígono próprio da câmera (Camera.risk_polygon); sem ele, o padrão do
+        # .env. Cada câmera enxerga um trecho diferente da planta.
+        risk_polygon = self._normalizar_poligono(risk_polygon) or self._parse_risk_polygon(
+            app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON)
+        )
         self.risk_area_name = str(app.config.get("RISK_AREA_NAME", "Área de risco"))
-        self.video_stream = VideoStream(
+        # Celular como câmera (F6): o navegador do celular empurra quadros.
+        self.video_stream = FonteDeCelular(source, width, height) if e_celular(source) else VideoStream(
             source=source,
             width=width,
             height=height,
             # So tem efeito em fonte de rede (ver VideoStream._ler_do_capture).
             limiar_grab_ms=float(app.config.get("RTSP_LIMIAR_GRAB_MS", 5.0)),
+            threads_decode=int(app.config.get("CAPTURA_THREADS_DECODE", 2)),
+            # Gravação no disco volta ao início no fim, em vez de contar 15
+            # falhas e reabrir com backoff a cada volta (~1 s sem vídeo).
+            em_loop=e_arquivo_local(source),
         )
         # ---- modo fixture: estado de PRIMEIRA CLASSE, não degradação muda --
         # A fonte configurada da câmera, guardada separada de
@@ -142,6 +191,15 @@ class CameraWorker:
         # CRUD de câmera) veria "mudou" e reconstruiria o worker, derrubando o
         # modo fixture no meio do demo.
         self.fonte_configurada = source
+        # Câmera lenta de gravação (cena "Queda" do palco, ADENDO 2): fração
+        # da velocidade original. Só arquivo; a tela mostra o valor (ver
+        # `tocar_gravacao`).
+        self.velocidade_gravacao = 1.0
+        # Pausada pelo palco (ADENDO 3): a cena do Portal deixa só a câmera dela
+        # analisando. Pausa LEVE — a captura cai a 1 quadro/s e nada vai ao
+        # agendador; alertas, incidentes e histerese ficam como estavam (parar
+        # e religar o worker resolveria tudo isso). Ver MonitorService.pausar_pelo_palco.
+        self.pausada_pelo_palco = False
         reserva = str(app.config.get("RTSP_FIXTURE_FALLBACK", "") or "")
         self.fonte_reserva = str(Path(BASE_DIR) / reserva) if reserva and not Path(reserva).is_absolute() else reserva
         self.tentativas_antes_da_reserva = max(1, int(app.config.get("RTSP_MAX_TENTATIVAS", 5)))
@@ -161,11 +219,115 @@ class CameraWorker:
         self.detector = detector
         self.person_detector = person_detector
         self.pose_estimator = pose_estimator
+        # YOLO-pose multi-pessoa (POSE_BACKEND=yolo). None = MediaPipe por recorte.
+        self.pose_detector = pose_detector
+        # Pose a cada K inferências (o controlador adaptativo sobe K na máquina
+        # fraca). Entre uma e outra, cada track reaproveita o último esqueleto
+        # que teve — por até `_idade_max_esqueleto` inferências.
+        self.pose_a_cada_k = max(1, int(app.config.get("POSE_A_CADA_N", 1)))
+        self._contador_pose = 0
+        self._esqueletos: dict[int, tuple[int, tuple]] = {}
+        self._idade_max_esqueleto = 3
         self.inference_lock = inference_lock
+        # Agendador único de inferência (ver agendador_de_inferencia.py). Com
+        # ele, o loop vira assíncrono: captura em thread própria, inferência no
+        # agendador e o worker só publica. Sem ele (testes de caracterização,
+        # uso isolado), o loop síncrono de sempre continua valendo.
+        self.agendador = agendador
+        # Escrita de evidência fora do loop (ver gravador_assincrono.py). None =
+        # síncrono, como antes (testes de caracterização).
+        self.gravador = gravador
+        self.captura: CapturaContinua | None = None
+        self._analise_recente: FrameAnalysis | None = None
+        self._versao_analise = 0
+        self._ts_analise_ms: float | None = None
+        self._analise_pronta_em: float | None = None
+        # Resultado da última publicação reaproveitável (ver `_publicar`).
+        self._cache_publicacao: dict[str, Any] | None = None
+        self._opiniao_publicada: Any = None
+        self._versao_consumida = 0
+        # Estado do ÚLTIMO quadro publicado, guardado cru: o JPEG (cru ou
+        # anotado) e o overlay em JSON só são produzidos se alguém pedir, uma
+        # vez por versão, e compartilhados entre todos os espectadores.
+        self._quadro_bruto = None
+        self._quadro_estado: tuple | None = None
+        self._cache_saidas: dict[str, tuple[int, Any]] = {}
+        # RLock: o JPEG anotado pede o quadro anotado, que usa o mesmo cache.
+        self._cache_lock = threading.RLock()
+        self.espectadores = 0
+        # Pré-alerta de aproximação (F3): projeção cinemática por track.
+        self.aproximacao = (
+            EstimadorDeAproximacao(limite_s=float(app.config.get("APROXIMACAO_LIMITE_S", 3.0)))
+            if app.config.get("APROXIMACAO_ATIVA", True)
+            else None
+        )
+        self._pre_alertas: list[dict[str, Any]] = []
+        # Sinais que dependem de duração, por ID (G3 SOS, G4 imóvel, G7 ergonomia).
+        # Atualizados só em análise nova; valem até a próxima.
+        self.sinais = SinaisPorId(
+            ConfigSinais(
+                sos_segundos=float(app.config.get("SOS_SEGUNDOS", 3.0)),
+                imovel_segundos=float(app.config.get("IMOVEL_SEGUNDOS", 20.0)),
+                imovel_limiar=float(app.config.get("IMOVEL_LIMIAR", 0.08)),
+                ergonomia_graus=float(app.config.get("ERGONOMIA_GRAUS", 45.0)),
+                ergonomia_segundos=float(app.config.get("ERGONOMIA_SEGUNDOS", 10.0)),
+            )
+        )
+        self._alertas_temporais: list[RuleAlert] = []
+        # Modo privacidade (F4). Por câmera, em memória: volta ao padrão (ligado)
+        # a cada reinício — o estado seguro é o default, não o último clique.
+        self.privacidade_ativa = bool(app.config.get("PRIVACIDADE_PADRAO", True))
+        # Replay de incidente (F1).
+        self.replay = (
+            BufferDeReplay(segundos=float(app.config.get("REPLAY_ANTES_S", 5.0)) + float(app.config.get("REPLAY_DEPOIS_S", 3.0)),
+                           fps_max=float(app.config.get("REPLAY_FPS", 10.0)))
+            if app.config.get("REPLAY_ATIVO", True)
+            else None
+        )
+        self._replay_antes_ms = float(app.config.get("REPLAY_ANTES_S", 5.0)) * 1000.0
+        self._replay_depois_ms = float(app.config.get("REPLAY_DEPOIS_S", 3.0)) * 1000.0
+        # Trilhas para o simulador "E se?" (X2): posição e EPIs por análise, sem imagem.
+        trilhas_dir = Path(str(app.config.get("TRILHAS_DIR") or Path(app.instance_path) / "trilhas"))
+        self.trilhas = (
+            GravadorDeTrilhas(
+                trilhas_dir / f"camera_{camera_id}",
+                teto_bytes=int(float(app.config.get("TRILHAS_MB_POR_ARQUIVO", 16)) * 1024 * 1024),
+                arquivos=int(app.config.get("TRILHAS_ARQUIVOS", 4)),
+            )
+            if app.config.get("TRILHAS_ATIVAS", True) and camera_id is not None
+            else None
+        )
+        replay_dir = Path(str(app.config.get("REPLAY_DIR", "runtime/clips")))
+        self.replay_dir = replay_dir if replay_dir.is_absolute() else Path(BASE_DIR) / replay_dir
+        self._clipes_pendentes: list[ClipePendente] = []
+        # Mapa de calor de risco (F7): pés de quem está em violação, com meia-vida.
+        self.mapa_de_calor = MapaDeCalor(meia_vida_s=float(app.config.get("MAPA_DE_CALOR_MEIA_VIDA_S", 900.0)))
+        # Linha do tempo de conformidade por ID de rastreio (F2).
+        self.linha_do_tempo = LinhaDoTempoPorId()
+        self._pre_alerta_registrado: dict[int, float] = {}
+        # Resumo do controlador adaptativo (o MonitorService escreve aqui).
+        self.modo_adaptativo: dict[str, Any] | None = None
         # Um tracker POR câmera (ver docstring de PersonTracker): os modelos
         # YOLO são compartilhados, então o estado de tracking não pode morar
         # dentro deles.
-        self.person_tracker = PersonTracker()
+        # TRACKER=bytetrack liga o ByteTrack por câmera (laboratório: reduziu
+        # fragmentação nas fixtures mas custou > 1 ms p95 — ver CHANGELOG).
+        self.person_tracker = (
+            ByteTrackPessoas(limiar_ativacao=float(app.config.get("YOLO_CONFIDENCE", 0.35)))
+            if str(app.config.get("TRACKER", "iou")).lower() == "bytetrack"
+            else PersonTracker()
+        )
+        # Re-associação (MISSÃO 2, P0.2): track novo perto de onde outro sumiu,
+        # em até 2 s, herda o ID — a pessoa não vira "Pessoa N+1" (nem abre
+        # alertas novos) a cada oclusão curta.
+        if app.config.get("REASSOCIAR_IDS", True):
+            self.person_tracker = RastreadorComReassociacao(
+                self.person_tracker,
+                ReassociadorDeIds(
+                    distancia_larguras=float(app.config.get("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)),
+                    janela_s=float(app.config.get("REASSOCIAR_JANELA_S", 2.0)),
+                ),
+            )
         # Detecção intercalada (ver Config.DETECTION_EVERY_N_FRAMES). Contador
         # e último resultado são POR câmera: cada uma tem seu próprio ritmo, e
         # misturar as caixas de uma com as da outra seria pior que o lag.
@@ -223,6 +385,18 @@ class CameraWorker:
             resolve_after_frames=app.config.get("ALERT_RESOLVE_AFTER_FRAMES", 5),
             camera_id=camera_id,
             intervalo_touch=app.config.get("ALERT_TOUCH_INTERVAL_SECONDS", 2.0),
+            silencio_apos_limpar=app.config.get("ALERT_SNOOZE_AFTER_CLEAR_S", 60.0),
+            create_after_seconds=float(app.config.get("ALERT_CREATE_AFTER_SECONDS", 0)) or None,
+            min_confirmacoes=app.config.get("ALERT_MIN_CONFIRMATIONS", 2),
+            resolve_after_seconds=float(app.config.get("ALERT_RESOLVE_AFTER_SECONDS", 0)) or None,
+            min_confirmacoes_resolver=app.config.get("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3),
+            regras_de_emergencia=frozenset(
+                r.strip() for r in str(app.config.get("ALERT_EMERGENCY_RULES", "fall_detected")).split(",") if r.strip()
+            ),
+            confirmacoes_emergencia=int(app.config.get("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)),
+            # Zona do incidente (P0.2): o nome da área de risco, se houver uma desenhada.
+            nome_da_zona=lambda: self.risk_area_name if self.rule_engine.risk_polygon else None,
+            custodia=bool(app.config.get("CUSTODIA_ATIVA", True)),
         )
         self.compliance_service = ComplianceService(feature_manager, self.rule_engine)
         cleanup_dirs = str(app.config.get("CLEANUP_DIRECTORIES", "runtime/snapshots,runtime/frames,runtime/tmp")).split(",")
@@ -238,6 +412,7 @@ class CameraWorker:
             snapshot_dir=str(app.config.get("SNAPSHOT_DIR", "runtime/snapshots")),
             enabled=bool(app.config.get("SNAPSHOT_ENABLED", True)),
             jpeg_quality=int(app.config.get("SNAPSHOT_JPEG_QUALITY", 86)),
+            custodia=bool(app.config.get("CUSTODIA_ATIVA", True)),
         )
         self.event_repository = EventRepository()
         self._last_cleanup: dict[str, Any] | None = None
@@ -247,8 +422,30 @@ class CameraWorker:
             "confidence": bool(app.config.get("OVERLAY_SHOW_CONFIDENCE", True)),
             "pose": bool(app.config.get("OVERLAY_SHOW_POSE", True)),
             "risk_area": bool(app.config.get("OVERLAY_SHOW_RISK_AREA", True)),
+            **{
+                f"part_{parte}": parte in {p.strip() for p in str(app.config.get("OVERLAY_SHOW_PARTS", "")).split(",")}
+                for parte in ("head", "face", "ear", "hands", "foot", "tool")
+            },
         }
         self.annotator = FrameAnnotator(risk_polygon=risk_polygon)
+        self._ler_config()
+        self.gate_required: list[str] | None = list(gate_required) if gate_required else None
+        self._gate = GateState()
+        # Portal de Entrada (G1): mesmos EPIs exigidos da portaria, contado em análises.
+        self._portal = PortalState(int(app.config.get("PORTAL_CONFIRMACOES", 3)),
+                                   int(app.config.get("PORTAL_AUSENCIAS_TOLERADAS", 2)))
+        # Modo TV (G8): minutos conformes desta câmera no turno (desde o início do processo).
+        self.andon = ContadorDeMinutos()
+        self._rotulos_de_emergencia = frozenset(
+            r.strip() for r in str(app.config.get("ROTULOS_DE_EMERGENCIA", "fall_detected")).split(",") if r.strip()
+        )
+        if app.config.get("LIGA_ATIVA", True) and camera_id is not None:
+            self.andon.ao_fechar_conforme = self._minuto_conforme_na_liga
+        # Aprendizado ativo (G9): fila compartilhada, injetada pelo MonitorService.
+        self.fila_de_rotulos = None
+        # Planta baixa (G5): calibração (do banco) e os pés da última análise.
+        self.planta: dict[str, Any] | None = None
+        self.pes_na_planta: list[dict[str, Any]] = []
 
     def start(self) -> dict[str, Any]:
         with self._thread_lock:
@@ -264,8 +461,24 @@ class CameraWorker:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("stale_alert_cleanup_failed", extra={"error": str(exc)})
             self.alert_state_service.reset()
+            try:
+                # Incidentes "ativos" de uma execução anterior fecham junto (P0.2).
+                self.alert_state_service.incidentes.fechar_orfaos()
+                db.session.commit()
+            except Exception as exc:  # noqa: BLE001
+                db.session.rollback()
+                logger.warning("stale_incident_cleanup_failed", extra={"error": str(exc)})
             self._emitir("active_alerts", {"camera_id": self.camera_id, "items": [], "count": 0})
             self._latest_jpeg = None
+            self._latest_capture_ts_ms = None
+            self._quadro_bruto = None
+            self._quadro_estado = None
+            with self._cache_lock:
+                self._cache_saidas.clear()
+            self._analise_recente = None
+            self._ts_analise_ms = None
+            self._versao_analise = self._versao_consumida = 0
+            self.stats.limpar()
             self._latest_analysis = None
             self._last_error = None
             self._frame_counter = 0
@@ -284,6 +497,26 @@ class CameraWorker:
             self._ultima_amostra_de_brilho = 0.0
             self._escuro_desde = None
             self.person_tracker.reset()
+            if self.aproximacao is not None:
+                self.aproximacao.reset()
+            self._pre_alertas = []
+            self._pre_alerta_registrado.clear()
+            self.sinais = SinaisPorId(self.sinais.config)
+            self._alertas_temporais = []
+            self.linha_do_tempo.limpar()
+            if self.replay is not None:
+                self.replay.limpar()
+            self._clipes_pendentes = []
+            if self.agendador is not None and self.camera_id is not None:
+                self.agendador.registrar(
+                    self.camera_id,
+                    self._inferir,
+                    self._receber_analise,
+                    stats=self.stats,
+                    detectar_lote=self._detectar_lote,
+                    pos_lote=self._pos_inferencia,
+                    preparar=self._preparar_quadro,
+                )
             self._running.set()
             self._task = self.socketio.start_background_task(self._loop)
             logger.info("monitor_started", extra={"camera_id": self.camera_id, "cleanup": self._last_cleanup})
@@ -293,6 +526,12 @@ class CameraWorker:
 
     def stop(self) -> dict[str, Any]:
         self._running.clear()
+        # A thread de captura PRIMEIRO: soltar a fonte com ela viva deixaria o
+        # próximo `read()` reabrir o dispositivo logo depois do release.
+        if self.captura is not None:
+            self.captura.parar()
+        if self.agendador is not None and self.camera_id is not None:
+            self.agendador.remover(self.camera_id)
         self.video_stream.release()
         try:
             resolved_payloads = self.alert_state_service.resolve_all(reason="monitor_stopped")
@@ -310,6 +549,8 @@ class CameraWorker:
         return {
             "camera_id": self.camera_id,
             "running": self._running.is_set(),
+            # "apresentacao": rodando, mas sem análise enquanto a cena do palco durar.
+            "pausa": "apresentacao" if self.pausada_pelo_palco else None,
             "frame_counter": self._frame_counter,
             "last_error": self._last_error,
             # Estado da captura (live/reconnecting/unavailable + backoff): sem
@@ -323,6 +564,7 @@ class CameraWorker:
             "features": self.feature_manager.as_dict(),
             "model": self._safe_model_diagnostics(),
             "active_alerts": self.alert_state_service.active_alerts(),
+            "active_incidents": self.alert_state_service.active_incidents(),
             "cleanup": self._last_cleanup,
             "overlay": self.overlay_options,
             "settings": self.settings(),
@@ -331,6 +573,12 @@ class CameraWorker:
             # Estado da camada de segunda opiniao. `habilitado: false` e o
             # default e nao e erro — o dashboard mostra "desligada", nao falha.
             "llm": self._estado_do_llm(),
+            # O que o controlador adaptativo reduziu (banner DEGRADADO na tela).
+            "adaptativo": self.modo_adaptativo,
+            # Pré-alertas de aproximação (amarelo): projeção, não alerta.
+            "pre_alertas": list(self._pre_alertas),
+            "privacidade": {"ativa": self.privacidade_ativa},
+            "replay": self.replay.estado() if self.replay is not None else None,
         }
 
     def _estado_do_llm(self) -> dict[str, Any]:
@@ -414,8 +662,8 @@ class CameraWorker:
         return {"checks": checks, "summary": summary, "can_start": summary["error"] == 0}
 
     def latest_jpeg(self) -> bytes | None:
-        with self._thread_lock:
-            return self._latest_jpeg
+        """JPEG ANOTADO do último quadro (contrato de sempre das rotas legadas)."""
+        return self.jpeg_do_quadro(anotado=True)
 
     def latest_jpeg_versionado(self) -> tuple[bytes | None, int]:
         """O frame e um número que muda a cada frame novo.
@@ -428,7 +676,219 @@ class CameraWorker:
         de quadros parecendo alta, porque as repetições contam.
         """
         with self._thread_lock:
-            return self._latest_jpeg, self._frame_counter
+            versao = self._frame_counter
+        return self.jpeg_do_quadro(anotado=True), versao
+
+    def latest_jpeg_com_carimbo(self, *, anotado: bool = False) -> tuple[bytes | None, int, float | None]:
+        """JPEG do último quadro, a versão e o instante de captura (epoch ms).
+
+        O default é o quadro CRU: o player do navegador desenha o overlay em
+        canvas a partir de `overlay_do_quadro()`. `anotado=True` é para quem
+        consome o MJPEG direto (um <img>, o VLC) e quer as caixas no pixel.
+        """
+        with self._thread_lock:
+            versao, carimbo = self._frame_counter, self._latest_capture_ts_ms
+        return self.jpeg_do_quadro(anotado=anotado), versao, carimbo
+
+    # ------------------------------------------------- saídas sob demanda --
+    # Antes: anotar (cópias do frame inteiro por camada) e codificar JPEG a
+    # cada quadro, com ou sem alguém assistindo — medido na baseline como a
+    # etapa mais cara do loop depois da inferência. Agora o worker só guarda o
+    # quadro e o estado; quem precisa (stream, miniatura, snapshot, LLM) pede,
+    # e a saída é calculada UMA vez por versão e reaproveitada.
+    def _versao_atual(self) -> int:
+        with self._thread_lock:
+            return self._frame_counter
+
+    def _sob_demanda(self, chave: str, produzir) -> Any:
+        versao = self._versao_atual()
+        with self._cache_lock:
+            em_cache = self._cache_saidas.get(chave)
+            if em_cache is not None and em_cache[0] == versao:
+                return em_cache[1]
+            valor = produzir()
+            if valor is not None:
+                self._cache_saidas[chave] = (versao, valor)
+            return valor
+
+    def _quadro_publico(self):
+        """O quadro como pode SAIR do worker: com rosto desfocado se o modo estiver ligado."""
+        quadro, estado = self._quadro_bruto, self._quadro_estado
+        if quadro is None or estado is None or not self.privacidade_ativa:
+            return quadro
+        inicio = time.perf_counter()
+        with self._thread_lock:
+            capturado, analisado = self._latest_capture_ts_ms, self._ts_analise_ms
+        idade_s = max(0.0, (capturado - analisado) / 1000.0) if capturado and analisado else 0.0
+        publico = desfocar(quadro, regioes_de_rosto(estado[0], quadro.shape, idade_s=idade_s))
+        self.stats.duracao("privacidade", (time.perf_counter() - inicio) * 1000.0)
+        return publico
+
+    def _quadro_para_recorte(self, frame, analysis):
+        """G9: rosto (olhos e nariz) desfocado, capacete visível. None = não recorta."""
+        if not self.privacidade_ativa:
+            return frame
+        regioes = regioes_de_olhos_e_nariz(analysis.detections, frame.shape)
+        return None if regioes is None else desfocar(frame, regioes)
+
+    def quadro_publico(self):
+        return self._sob_demanda("publico", self._quadro_publico)
+
+    def definir_privacidade(self, ativa: bool) -> None:
+        self.privacidade_ativa = bool(ativa)
+        # A versão do quadro não muda com o clique: sem isto o cache serviria o
+        # JPEG antigo (com ou sem desfoque) até o próximo quadro.
+        with self._cache_lock:
+            self._cache_saidas.clear()
+        # A telemetria publicada (`latest_analysis`) também diz o estado da
+        # privacidade: força refazê-la no próximo quadro.
+        self._cache_publicacao = None
+
+    def _quadro_anotado(self):
+        quadro, estado = self.quadro_publico(), self._quadro_estado
+        if quadro is None or estado is None:
+            return None
+        analysis, compliance_state, enabled_map = estado
+        inicio = time.perf_counter()
+        anotado = self.annotator.annotate(
+            quadro,
+            analysis.detections,
+            analysis.poses or ([analysis.pose] if analysis.pose else []),
+            enabled_map,
+            compliance_state,
+            self.overlay_options,
+        )
+        self.stats.duracao("anotacao", (time.perf_counter() - inicio) * 1000.0)
+        return anotado
+
+    def _codificar(self, quadro) -> bytes | None:
+        if quadro is None:
+            return None
+        inicio = time.perf_counter()
+        ok, buffer = cv2.imencode(".jpg", quadro, [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality])
+        self.stats.duracao("encode", (time.perf_counter() - inicio) * 1000.0)
+        self.stats.contar("encodes")
+        return buffer.tobytes() if ok else None
+
+    def quadro_anotado(self):
+        """O último quadro com overlay desenhado (ndarray), calculado uma vez por versão."""
+        return self._sob_demanda("anotado", self._quadro_anotado)
+
+    def jpeg_do_quadro(self, *, anotado: bool) -> bytes | None:
+        if anotado:
+            return self._sob_demanda("jpeg_anotado", lambda: self._codificar(self.quadro_anotado()))
+        return self._sob_demanda("jpeg_bruto", lambda: self._codificar(self.quadro_publico()))
+
+    def overlay_do_quadro(self) -> bytes | None:
+        """Metadados do overlay do último quadro, em JSON, para o canvas do navegador."""
+        return self._sob_demanda(
+            "overlay", lambda: (lambda d: json.dumps(d, separators=(",", ":")).encode("utf-8") if d else None)(self.overlay_dict())
+        )
+
+    def overlay_dict(self) -> dict[str, Any] | None:
+        return self._sob_demanda("overlay_dict", self._produzir_overlay)
+
+    def _produzir_overlay(self) -> dict[str, Any] | None:
+        quadro, estado = self._quadro_bruto, self._quadro_estado
+        if quadro is None or estado is None:
+            return None
+        analysis, compliance_state, enabled_map = estado
+        altura, largura = quadro.shape[:2]
+        sem_epi = self.annotator._caixas_sem_epi(compliance_state)
+        aproximando = {a["track_id"]: a["segundos_ate_entrar"] for a in self._pre_alertas}
+        partes = FrameAnnotator._PARTES
+        caixas = []
+        for det in analysis.detections:
+            rotulo = det.label.lower()
+            if rotulo in partes and not self.overlay_options.get(f"part_{partes[rotulo]}", False):
+                continue
+            e_pessoa = det.label == "person" or det.category == "person"
+            box = (det.box.x1, det.box.y1, det.box.x2, det.box.y2)
+            tipo = "pessoa" if e_pessoa else ("queda" if det.label == "fall_detected" else "epi")
+            caixas.append({
+                "l": det.label,
+                "n": FrameAnnotator._display_label(det.label) if not e_pessoa else None,
+                "c": round(float(det.confidence), 2),
+                "b": [int(v) for v in box],
+                "t": det.track_id,
+                "k": tipo,
+                "r": bool(e_pessoa and box in sem_epi),
+                # Segundos até entrar na zona (pré-alerta amarelo), se houver.
+                "a": aproximando.get(det.track_id) if e_pessoa else None,
+            })
+        poses = []
+        if enabled_map.get("pose", False) and self.overlay_options.get("pose", True):
+            for pose in analysis.poses or ([analysis.pose] if analysis.pose else []):
+                if pose and pose.found:
+                    poses.append([[round(lm.x, 4), round(lm.y, 4)] for lm in pose.landmarks if lm.visibility >= 0.45])
+        corpo = {
+            "v": self._versao_atual(),
+            "w": largura,
+            "h": altura,
+            "caixas": caixas,
+            "poses": poses,
+            # Raio-X (X5): esqueleto com juntas nomeadas, confiança e decisão por
+            # pessoa, o que o filtro descartou e o piso de cada classe.
+            "raiox": self._dados_do_raiox(analysis, compliance_state, enabled_map),
+            "zona": [[round(x, 4), round(y, 4)] for x, y in self.rule_engine.risk_polygon],
+            "zona_ativa": bool(enabled_map.get("risk_area", False)),
+            "opcoes": self.overlay_options,
+        }
+        return corpo
+
+    JUNTAS = ("nose", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist",
+              "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle")
+
+    def _dados_do_raiox(self, analysis, compliance_state, enabled_map) -> dict[str, Any]:
+        esqueletos = []
+        if enabled_map.get("pose", False):
+            for pose in analysis.poses or ([analysis.pose] if analysis.pose else []):
+                if not (pose and pose.found):
+                    continue
+                por_nome = {lm.name: lm for lm in pose.landmarks}
+                esqueletos.append({
+                    "t": pose.track_id,
+                    "j": [[round(lm.x, 4), round(lm.y, 4), round(lm.visibility, 2)] if (lm := por_nome.get(n)) else None
+                          for n in self.JUNTAS],
+                })
+        velocidades = self.aproximacao.velocidades() if self.aproximacao is not None else {}
+        estados = {}
+        for estado in list(self.alert_state_service._states.values()):
+            meta = estado.rule_alert.metadata or {}
+            pid = meta.get("person_id")
+            if not pid:
+                continue
+            ativo = estado.snapshot is not None and estado.snapshot.get("status") == "active"
+            estados.setdefault(str(pid), {})[estado.rule_alert.feature] = (
+                "alerta" if ativo else f"confirmando {estado.violation_frames}/{self.alert_state_service.create_after_frames}"
+            )
+        pessoas = []
+        for pessoa in compliance_state.get("people") or []:
+            epis = {
+                chave: [round(float(item.get("confidence") or 0.0), 2), item.get("status")]
+                for chave, item in (pessoa.get("ppe") or {}).items()
+                if item.get("status") not in ("disabled", "unsupported")
+            }
+            tid = pessoa.get("track_id")
+            vel = velocidades.get(tid) if tid is not None else None
+            pessoas.append({
+                "t": tid,
+                "epis": epis,
+                "decisao": estados.get(str(pessoa.get("id")), {}),
+                "vel": [round(vel[0], 4), round(vel[1], 4)] if vel else None,
+            })
+        return {
+            "esqueletos": esqueletos,
+            "pessoas": pessoas,
+            "descartadas": list(getattr(analysis, "descartadas", []) or [])[:20],
+            "pisos": self._pisos_por_classe,
+            "confianca_min": float(self.app.config.get("YOLO_CONFIDENCE", 0.35)),
+        }
+
+    def registrar_envio_de_video(self, nbytes: int) -> None:
+        """Chamado pelo gerador do MJPEG a cada parte enviada a um cliente."""
+        self.stats.contar("frames_enviados")
+        self.stats.contar("bytes_video", nbytes)
 
     def latest_analysis(self) -> dict[str, Any] | None:
         with self._thread_lock:
@@ -436,7 +896,11 @@ class CameraWorker:
 
     def _attach_snapshots_and_log_events(self, alert_state: dict[str, Any], frame) -> None:
         created_ids = {item.get("id") for item in alert_state.get("created", []) if item.get("id")}
-        if created_ids:
+        if created_ids and self.gravador is not None and frame is not None:
+            # Disco fora do loop: UM quadro para todos os alertas da análise (o
+            # quadro anotado é um array novo, vai para outro thread sem cópia).
+            self.gravador.enfileirar(self._gravar_snapshot_lote, sorted(created_ids), frame)
+        elif created_ids:
             for runtime_state in self.alert_state_service._states.values():  # runtime state owns the live SQLAlchemy object
                 alert = runtime_state.alert
                 if alert is None or alert.id not in created_ids:
@@ -448,6 +912,20 @@ class CameraWorker:
                 # Linha do tempo registra apenas alertas que saíram do estado ativo.
         for payload in alert_state.get("resolved", []):
             self._emit_resolved_alert_event_once(payload)
+
+    def _gravar_snapshot(self, alert_id: int, frame) -> None:
+        """Roda no thread do GravadorAssincrono, com sessão própria."""
+        self._gravar_snapshot_lote([alert_id], frame)
+
+    def _gravar_snapshot_lote(self, alert_ids: list[int], frame) -> None:
+        """Um arquivo para todos os alertas da análise; um commit; um elo na custódia."""
+        from app.models import Alert
+
+        alertas = Alert.query.filter(Alert.id.in_(alert_ids)).order_by(Alert.id).all()
+        if not alertas:
+            return
+        for atualizado in self.snapshot_service.attach_to_alerts(alertas, frame):
+            self._emitir("alert_updated", atualizado.to_dict())
 
     def _emit_resolved_alert_event_once(self, payload: dict[str, Any], *, false_positive: bool = False) -> dict[str, Any] | None:
         metadata = payload.get("metadata") or {}
@@ -511,13 +989,213 @@ class CameraWorker:
             polygon.append((float(x), float(y)))
         return polygon
 
+    def _ler_config(self) -> None:
+        """Lê do `app.config` o que o caminho do frame usa, UMA vez.
+
+        O loop rodava `app.config.get(...)` e re-parseava PPE_CONF_MIN_BY_CLASS
+        a cada frame. Barato isoladamente, mas é trabalho repetido no caminho
+        crítico e impede mudar a configuração de forma atômica. Chamado no
+        construtor e de novo por `recarregar_config()` / `update_settings()`.
+        """
+        cfg = self.app.config
+        self._multi_pessoa = bool(cfg.get("MULTI_PERSON_DETECTION", True))
+        self._pose_por_pessoa = bool(cfg.get("POSE_PER_PERSON", True))
+        # "yolo": o detector de pessoa é um YOLO-pose e a pose sai junto (ver
+        # yolo_pose_detector.py). "mediapipe": recorte por pessoa, como antes.
+        self._pose_backend = "yolo" if self.pose_detector is not None else "mediapipe"
+        self._pose_max_pessoas = int(cfg.get("POSE_MAX_PEOPLE", 4))
+        self._exigir_sobreposicao = bool(cfg.get("PPE_REQUIRE_PERSON_OVERLAP", True))
+        self._sobreposicao_min = float(cfg.get("PPE_PERSON_OVERLAP_MIN", 0.35))
+        self._jpeg_quality = int(cfg.get("JPEG_QUALITY", 80))
+        self._pisos_por_classe = self._conf_floors()
+
+    def recarregar_config(self) -> dict[str, Any]:
+        """Relê a configuração desta câmera sem parar o worker nem a captura."""
+        self._ler_config()
+        self.detect_every_n = max(1, int(self.app.config.get("DETECTION_EVERY_N_FRAMES", 1)))
+        return self.settings()
+
+    def _conf_floors(self) -> dict[str, float]:
+        """Piso de confianca POR classe de EPI (PPE_CONF_MIN_BY_CLASS).
+
+        YOLO_CONFIDENCE e um piso unico e cego: baixo o bastante pra pegar
+        oculos/luva (classes fracas) deixa entrar capacete fantasma em
+        qualquer objeto amarelo. Aqui cada classe tem o seu — capacete/colete
+        exigentes, oculos permissivo. Formato: "helmet:0.4,gloves:0.3".
+        """
+        raw = str(self.app.config.get("PPE_CONF_MIN_BY_CLASS", "") or "")
+        floors: dict[str, float] = {}
+        for par in raw.split(","):
+            par = par.strip()
+            if not par or ":" not in par:
+                continue
+            chave, valor = par.split(":", 1)
+            try:
+                floors[chave.strip()] = float(valor)
+            except ValueError:
+                continue
+        return floors
+
+    def _gate_ppe_to_people(self, ppe_detections: list, people: list) -> list:
+        """Descarta EPI fora de qualquer pessoa e abaixo do piso da classe.
+
+        Dois filtros baratos que atacam o falso positivo sem mexer no modelo:
+        - piso de confianca por classe (ver _conf_floors);
+        - a caixa do EPI precisa cair DENTRO de alguma pessoa (containment >=
+          PPE_PERSON_OVERLAP_MIN). Mata capacete/luva detectados numa mochila
+          no canto do quarto. So aplica quando ha pessoa detectada — sem
+          referencia, preserva tudo pra nao apagar o frame inteiro.
+        """
+        floors = self._pisos_por_classe
+        tem_people = bool(people)
+        person_boxes = [d.box for d in people]
+        person_boxes += [d.box for d in ppe_detections if d.label == "person" or d.category == "person"]
+        exigir_overlap = self._exigir_sobreposicao and bool(person_boxes)
+        overlap_min = self._sobreposicao_min
+
+        saida = []
+        descartadas: list[dict[str, Any]] = []
+        for det in ppe_detections:
+            if det.label == "person" or det.category == "person":
+                if not tem_people:
+                    saida.append(det)  # sem lista `people`, mantem como antes
+                continue
+            piso = floors.get(det.label)
+            if piso is not None and det.confidence < piso:
+                descartadas.append(self._descarte(det, f"abaixo do piso {piso:.2f}"))
+                continue
+            if exigir_overlap and not any(
+                det.box.containment_in(pbox) >= overlap_min for pbox in person_boxes
+            ):
+                descartadas.append(self._descarte(det, "fora de qualquer pessoa"))
+                continue
+            saida.append(det)
+        self._descartadas_na_analise = descartadas
+        return saida
+
+    @staticmethod
+    def _descarte(det, motivo: str) -> dict[str, Any]:
+        return {"l": det.label, "c": round(float(det.confidence), 2),
+                "b": [int(det.box.x1), int(det.box.y1), int(det.box.x2), int(det.box.y2)], "m": motivo}
+
+    def _taxa_util_de_captura(self) -> float:
+        """Quadros/s que alguém consome: o vídeo assistido, ou miniatura + inferência.
+
+        Acima disso a captura só avança a fonte (ver CapturaContinua). Medido
+        (micro-bench, 2 E-cores, 4 fontes em tempo real): inferência EPI ONNX
+        1178 ms com todas as fontes convertendo cada quadro, 981 ms convertendo
+        só ~2,5 quadros/s por fonte, 791 ms sem vídeo nenhum.
+        """
+        if self.pausada_pelo_palco:
+            return 1.0
+        if self.espectadores > 0:
+            return float(self.target_fps)
+        return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
+
+    def _ritmo_de_gravacao(self) -> float | None:
+        """Gravação (arquivo) sem espectador avança na taxa útil; com espectador, tempo real.
+
+        Política de GRAVAÇÃO, não de câmera ao vivo: webcam e RTSP seguem em
+        tempo real com "último quadro vence". Uma gravação que ninguém está
+        vendo não precisa andar no relógio — e mantê-la no relógio custava
+        decodificar 25–30 quadros/s por gravação (batata 4 câm.: análise ~35 %
+        mais lenta, docs/NEXT2026/BENCHMARKS.md). A tela já rotula fixture como
+        GRAVAÇÃO; ao abrir o foco, volta ao tempo real a partir de onde está.
+        """
+        # Câmera lenta pedida pelo palco: ritmo fixo, também durante a
+        # confirmação de emergência — o rótulo "GRAVAÇÃO · 0,25×" na tela tem
+        # de continuar verdadeiro.
+        if self.velocidade_gravacao < 1.0:
+            fps = getattr(self.video_stream, "fps_da_fonte", None)
+            return float(fps) * self.velocidade_gravacao if fps else None
+        # Confirmação de emergência em curso: a GRAVAÇÃO anda devagar por ~2 s
+        # para a 2ª análise ver o mesmo evento (a queda gravada fica no chão
+        # ~1 s; com a máquina carregada uma análise leva mais que isso). A
+        # regra de 2 análises seguidas não muda, e câmera ao vivo não tem como
+        # fazer isso (CapturaContinua só aplica ritmo a arquivo).
+        if self.agendador is not None and self.camera_id is not None and self.agendador.em_prioridade(self.camera_id):
+            return float(self.app.config.get("CAPTURA_FPS_CONFIRMACAO", 4.0))
+        if self.espectadores > 0 or not self.app.config.get("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True):
+            return None
+        return float(self.app.config.get("CAPTURA_FPS_SEM_ESPECTADOR", 4.0))
+
+    def tocar_gravacao(self, velocidade: float = 1.0, inicio_s: float = 0.0) -> bool:
+        """Toca a gravação a `velocidade` × a original; `inicio_s` vale na próxima abertura.
+
+        Só arquivo: câmera ao vivo não tem como andar devagar (devolve False e
+        fica em 1×). A posição inicial só pega quando a fonte reabre — o palco
+        para e liga a câmera logo depois.
+        """
+        if not e_arquivo_local(self.video_stream.source):
+            self.velocidade_gravacao = 1.0
+            return False
+        self.velocidade_gravacao = min(1.0, max(0.05, float(velocidade)))
+        self.video_stream.inicio_ms = max(0.0, float(inicio_s)) * 1000.0
+        return True
+
+    def _preparar_quadro(self, frame):
+        """Resolução da câmera e rotação: o mesmo para o quadro publicado e o inferido."""
+        frame = self._ajustar_resolucao(frame)
+        return self._aplicar_rotacao(frame) if self.rotation else frame
+
+    def _ajustar_resolucao(self, frame):
+        """Reduz o quadro para a resolução cadastrada da câmera, se vier maior.
+
+        Webcam e RTSP respeitam (ou não) o pedido de resolução; arquivo nunca
+        respeita — a fixture de 1280x720 atravessava o pipeline inteiro numa
+        câmera cadastrada em 960x540, e encode e banda pagavam ~1,8x à toa (o
+        modelo infere a 416, então o quadro maior não melhora a detecção).
+        A resolução REAL da fonte continua no diagnóstico (`_resolucao_da_fonte`).
+        """
+        altura, largura = frame.shape[:2]
+        self._resolucao_original = (largura, altura)
+        limite = max(int(self.video_stream.width or 0), int(self.video_stream.height or 0))
+        if not limite or max(largura, altura) <= limite * 1.05:
+            return frame
+        escala = limite / max(largura, altura)
+        return cv2.resize(frame, (int(round(largura * escala)), int(round(altura * escala))), interpolation=cv2.INTER_AREA)
+
+    def _aplicar_rotacao(self, frame):
+        """Corrige montagem física da câmera ANTES de qualquer detecção.
+
+        Precisa ser o primeiro passo do frame — YOLO, pose (assume corpo
+        vertical), overlay e o vídeo que o navegador recebe têm que ver a
+        mesma imagem já corrigida. Fazer depois (ex.: só no overlay) deixaria
+        o modelo analisando a imagem torta enquanto a tela mostra corrigida.
+        """
+        if self.rotation == 90:
+            return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        if self.rotation == 180:
+            return cv2.rotate(frame, cv2.ROTATE_180)
+        if self.rotation == 270:
+            return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return frame
+
+    def pedir_limpeza_alertas(self) -> None:
+        self._limpeza_alertas_pedida.set()
+
+    def _limpar_alertas_ativos(self) -> None:
+        resolvidos = self.alert_state_service.resolve_all(
+            reason="manual_clear", silenciar_s=self.alert_state_service.silencio_apos_limpar
+        )
+        for payload in resolvidos:
+            self._emit_resolved_alert_event_once(payload, false_positive=False)
+        # Ativos que ficaram no banco sem dono (ex.: o processo anterior caiu).
+        AlertRepository().resolve_all_active(reason="manual_clear", camera_id=self.camera_id)
+        self._emit_timeline_event(
+            "alerts_cleared", "Alertas ativos resolvidos manualmente", "info", metadata={"resolvidos": len(resolvidos)}
+        )
+
     def _loop(self) -> None:
+        if self.agendador is not None:
+            self._loop_assincrono()
+            return
         target_fps = self.target_fps
         frame_interval = 1.0 / target_fps
-        jpeg_quality = int(self.app.config.get("JPEG_QUALITY", 80))
 
         with self.app.app_context():
             while self._running.is_set():
+                self._atender_pedidos()
                 start_time = time.perf_counter()
                 self._perf_inicio()
                 try:
@@ -526,118 +1204,423 @@ class CameraWorker:
                     if not ok or frame is None:
                         self._handle_capture_failure()
                         continue
+                    ts_captura_ms = time.time() * 1000.0
+                    self.stats.contar("frames_lidos")
+                    self.stats.quadro_lido(ts_captura_ms)
+                    frame = self._ajustar_resolucao(frame)
+                    if self.rotation:
+                        frame = self._aplicar_rotacao(frame)
+                    self._perf_marca("preprocessamento")
 
                     analysis = self._analyze_frame(frame)
-                    self._registrar_diagnostico(frame, analysis, self._analise_foi_nova)
-                    self._perf_marca("analise")
-                    # UMA passada de regras por frame. O resultado (alertas +
-                    # estado por pessoa) alimenta tanto o AlertStateService
-                    # quanto o ComplianceService — que antes refazia todo o
-                    # trabalho por conta própria.
-                    evaluation = self.rule_engine.analyze(
-                        analysis.detections,
-                        analysis.pose,
-                        frame.shape,
-                        poses=analysis.poses,
-                    )
-                    self._perf_marca("regras")
-                    # `deteccao_nova` impede que uma inferência reaproveitada
-                    # conte como confirmação nova na histerese.
-                    alert_state = self.alert_state_service.process(
-                        evaluation.alerts, deteccao_nova=self._analise_foi_nova
-                    )
-                    self._perf_marca("alertas")
-                    model_diagnostics = self._safe_model_diagnostics()
-                    compliance_state = self.compliance_service.build_state(
-                        detections=analysis.detections,
-                        pose=analysis.pose,
-                        frame_shape=frame.shape,
-                        model_diagnostics=model_diagnostics,
-                        active_alerts=alert_state["active"],
-                        evaluation=evaluation,
-                    )
-
-                    enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
-                    annotated = self.annotator.annotate(
-                        frame,
-                        analysis.detections,
-                        analysis.poses or ([analysis.pose] if analysis.pose else []),
-                        enabled_map,
-                        compliance_state,
-                        self.overlay_options,
-                    )
-                    self._perf_marca("anotacao")
-                    self._attach_snapshots_and_log_events(alert_state, annotated)
-                    alert_state["active"] = self.alert_state_service.active_alerts()
-                    encode_ok, buffer = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
-                    self._perf_marca("encode")
-                    jpeg: bytes | None = None
-                    if encode_ok:
-                        jpeg = buffer.tobytes()
-                        with self._thread_lock:
-                            self._latest_jpeg = jpeg
-                            self._latest_analysis = analysis.to_dict() | {
-                                "alerts": alert_state["active"],
-                                "alert_changes": alert_state["changed"],
-                                "alert_resolved": alert_state["resolved"],
-                                "compliance": compliance_state,
-                                "model": model_diagnostics,
-                                # Campo PRÓPRIO, ao lado dos alertas e nunca
-                                # dentro deles: é opinião, não veredito.
-                                "segunda_opiniao": self._segunda_opiniao,
-                            }
-                            self._frame_counter += 1
-
-                    # Fora da thread do loop: `submeter()` só marca o slot e
-                    # entrega ao executor (11 microssegundos, docs/SPRINT3.md).
-                    # Reaproveita o JPEG acima — não há segundo encode.
-                    self._submeter_ao_llm(alert_state, jpeg)
-                    # Segundo gatilho: "não verificado" confirmado. Se o mesmo
-                    # frame já criou alerta, a chamada acima já leva esta imagem.
-                    if self._nao_verificado_confirmou(evaluation.people) and not alert_state.get("created"):
-                        self._submeter_ao_llm({"created": [{"motivo": "nao_verificado"}]}, jpeg)
-
-                    # camera_id em TODO payload: o dashboard usa isso pra
-                    # descartar o que não é da câmera em foco. Sem o carimbo,
-                    # duas câmeras rodando sobrescreviam o estado uma da outra
-                    # a cada frame.
-                    if self._last_stream_state not in (None, "live"):
-                        self._last_stream_state = "live"
-                        self._emit_timeline_event(
-                            "camera_reconnected",
-                            "Sinal restabelecido",
-                            "info",
-                            metadata=self.video_stream.status().to_dict(),
-                        )
-                        self._emitir("monitor_status", self.status())
-
-                    # Telemetria com taxa própria, separada da do vídeo. O
-                    # `analysis` sozinho pesa ~26 KB (detecções + landmarks de
-                    # pose por pessoa); mandá-lo a 24 FPS por duas câmeras
-                    # empurrava ~1,2 MB/s pro navegador, e cada evento dispara
-                    # re-render. As caixas que aparecem no vídeo NÃO dependem
-                    # disto — vêm desenhadas no MJPEG.
-                    #
-                    # Mudança de alerta fura o intervalo: quando alguém tira o
-                    # capacete, o painel tem que reagir na hora, não no
-                    # próximo tique.
-                    mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"])
-                    if mudou_alerta or self._deve_emitir_telemetria():
-                        payload = self.latest_analysis() or {}
-                        self._emitir("analysis", payload | {"camera_id": self.camera_id})
-                        self._emitir("compliance_state", compliance_state | {"camera_id": self.camera_id})
-                        self._emitir_diagnostico_se_mudou(model_diagnostics)
-                    self._maybe_emit_risk_score()
-                    self._perf_marca("emissao")
-                    self._perf_fim()
+                    self._publicar(frame, analysis, self._analise_foi_nova, ts_captura_ms)
+                    if self._analise_foi_nova:
+                        self._registrar_analise_publicada(ts_captura_ms)
                     self._last_error = None
                 except Exception as exc:  # noqa: BLE001
                     self._last_error = redigir_segredos(str(exc))
                     logger.exception("monitor_loop_error", extra={"camera_id": self.camera_id, "error": str(exc)})
+                    self._recuperar_sessao()
                     time.sleep(1.0)
 
                 elapsed = time.perf_counter() - start_time
+                self.stats.duracao("loop_total", elapsed * 1000.0)
                 time.sleep(max(0.0, frame_interval - elapsed))
+
+    def _atender_pedidos(self) -> None:
+        if self._limpeza_alertas_pedida.is_set():
+            self._limpeza_alertas_pedida.clear()
+            try:
+                self._limpar_alertas_ativos()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("limpeza_de_alertas_falhou", extra={"error": str(exc)})
+
+    def _loop_assincrono(self) -> None:
+        """Captura em thread, inferência no agendador, este loop só publica.
+
+        Dirigido pela CHEGADA de frame (não por relógio próprio): espera o
+        próximo frame da captura, entrega uma cópia de referência ao agendador
+        e publica com a análise mais recente disponível — que pode ser de um
+        frame anterior, como já acontecia com DETECTION_EVERY_N_FRAMES. O vídeo
+        sai na taxa da fonte (limitada por `fps` da câmera); a detecção, na
+        taxa que a máquina aguenta.
+        """
+        self.captura = CapturaContinua(
+            lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}", taxa_util=self._taxa_util_de_captura,
+            ritmo_de_gravacao=self._ritmo_de_gravacao,
+        )
+        self.captura.iniciar()
+        intervalo_minimo = 1.0 / max(1, self.target_fps)
+        # Sem ninguém no MJPEG, o vídeo só alimenta a miniatura (1 quadro/s por
+        # cartão, camera-grid.tsx) e o snapshot de alerta: publicar a 12 fps
+        # custava resize + regras + emissão a cada quadro de cada câmera.
+        # Medido no batata 4 câm.: a análise ficava ~2x mais lenta disputando
+        # os 2 núcleos com esse vídeo que ninguém via.
+        intervalo_sem_espectador = 1.0 / max(0.5, float(self.app.config.get("VIDEO_FPS_SEM_ESPECTADOR", 2.0)))
+        ultimo_seq = 0
+        proxima_publicacao = 0.0
+        contador = 0
+        try:
+            with self.app.app_context():
+                while self._running.is_set():
+                    self._atender_pedidos()
+                    item = self.captura.esperar_novo(ultimo_seq, timeout=0.5)
+                    if item is None:
+                        if self.captura.falhando:
+                            self._handle_capture_failure()
+                        continue
+                    frame, ts_captura_ms, ultimo_seq = item
+                    # Cada quadro que chega vai ao slot do agendador (só troca a
+                    # referência; o resize é feito por ele, e só no quadro que
+                    # for de fato inferido). Assim a análise pega o quadro mais
+                    # novo mesmo quando o vídeo publica devagar.
+                    contador += 1
+                    if self.pausada_pelo_palco:
+                        pass  # sem análise; o vídeo segue (a 1 quadro/s) para a miniatura
+                    elif self.detect_every_n <= 1 or contador % self.detect_every_n == 1 or self._analise_recente is None:
+                        self.agendador.submeter(self.camera_id, frame, ts_captura_ms)
+                    agora = time.monotonic()
+                    # Análise nova fura a cadência do vídeo: o alerta não espera
+                    # a próxima vaga de publicação.
+                    nova_pendente = self._versao_analise != self._versao_consumida
+                    intervalo = intervalo_minimo if self.espectadores > 0 else intervalo_sem_espectador
+                    # Fonte mais rápida que o `fps` da câmera: publica no teto
+                    # pedido e conta o excedente (não é falha, é escolha).
+                    if agora < proxima_publicacao and not nova_pendente:
+                        self.stats.contar("frames_acima_do_alvo")
+                        continue
+                    proxima_publicacao = max(proxima_publicacao + intervalo, agora) if proxima_publicacao else agora
+                    inicio = time.perf_counter()
+                    self._perf_inicio()
+                    try:
+                        frame = self._preparar_quadro(frame)
+                        self._perf_marca("preprocessamento")
+                        with self._thread_lock:
+                            analise = self._analise_recente
+                            versao = self._versao_analise
+                            ts_analise_ms = self._ts_analise_ms
+                        nova = versao != self._versao_consumida
+                        self._versao_consumida = versao
+                        if analise is None:
+                            analise = FrameAnalysis(detections=[], pose=None, risk_events=[], poses=[])
+                        self._perf_marca("espera_da_analise")
+                        self._publicar(frame, analise, nova, ts_captura_ms)
+                        if nova and ts_analise_ms is not None:
+                            self._registrar_analise_publicada(ts_analise_ms)
+                        self._last_error = None
+                    except Exception as exc:  # noqa: BLE001
+                        self._last_error = redigir_segredos(str(exc))
+                        logger.exception("monitor_loop_error", extra={"camera_id": self.camera_id, "error": str(exc)})
+                        # Sem rollback, uma falha de banco (ex.: "database is locked")
+                        # deixava a sessão desta thread inutilizável e o worker
+                        # repetia o mesmo erro para sempre (E2E da MISSÃO 2).
+                        self._recuperar_sessao()
+                        time.sleep(0.5)
+                    self.stats.duracao("loop_total", (time.perf_counter() - inicio) * 1000.0)
+        finally:
+            self.captura.parar()
+
+    def _atualizar_aproximacao(self, analysis: FrameAnalysis, frame_shape) -> None:
+        """Alimenta a projeção cinemática com os pés de cada track (só em análise nova)."""
+        if self.aproximacao is None or not self.feature_manager.is_enabled("risk_area"):
+            if self._pre_alertas:
+                self._pre_alertas = []
+                self._emitir("pre_alertas", {"camera_id": self.camera_id, "items": []})
+            return
+        altura, largura = frame_shape[:2]
+        pes = [
+            (det.track_id, ((det.box.x1 + det.box.x2) / 2 / max(1, largura), det.box.y2 / max(1, altura)))
+            for det in analysis.detections
+            if (det.label == "person" or det.category == "person") and det.track_id is not None
+        ]
+        agora = time.monotonic()
+        self.aproximacao.atualizar(pes, agora)
+        anteriores = {a["track_id"] for a in self._pre_alertas}
+        self._pre_alertas = self.aproximacao.avisos(self.rule_engine.risk_polygon)
+        atuais = {a["track_id"] for a in self._pre_alertas}
+        if atuais != anteriores:
+            self._emitir("pre_alertas", {"camera_id": self.camera_id, "items": self._pre_alertas})
+        for aviso in self._pre_alertas:
+            # Linha do tempo: um registro por pessoa a cada 30 s, não por quadro.
+            if agora - self._pre_alerta_registrado.get(aviso["track_id"], -1e9) >= 30.0:
+                self._pre_alerta_registrado[aviso["track_id"]] = agora
+                self._emit_timeline_event(
+                    "approach_risk_area",
+                    f"Aproximação da área de risco · Pessoa {aviso['track_id']} "
+                    f"(projeção cinemática: ~{aviso['segundos_ate_entrar']:.1f} s)",
+                    "warning",
+                    subject=f"Pessoa {aviso['track_id']}",
+                    metadata=aviso,
+                )
+
+    def _atualizar_sinais(self, evaluation, frame_shape) -> None:
+        """G3/G4/G7: sinais por ID que só existem no tempo (app/vision/sinais_por_id.py)."""
+        ligados = {k for k in ("sos", "imobilidade", "ergonomia") if self.feature_manager.is_enabled(k)}
+        if not self.feature_manager.is_enabled("pose"):
+            ligados -= {"sos", "ergonomia"}
+        if not ligados:
+            self._alertas_temporais = []
+            return
+        brutos = self.sinais.atualizar(evaluation.poses, evaluation.people, frame_shape, time.monotonic(), ligados)
+        self._alertas_temporais = [RuleAlert(**a) for a in brutos]
+
+    def _alimentar_replay(self, ts_captura_ms: float, alert_state: dict[str, Any]) -> None:
+        """Grava o quadro público (desfocado) no buffer e fecha clipes vencidos."""
+        if self.replay is None:
+            return
+        inicio = time.perf_counter()
+        if self.replay.deve_gravar(ts_captura_ms):
+            self.replay.gravar(self.quadro_publico(), ts_captura_ms, self.overlay_dict())
+        criados = [c for c in (alert_state.get("created", []) or []) if c.get("id")]
+        if criados:
+            # Um replay para todos os alertas da análise (mesma janela, mesmos quadros).
+            self._clipes_pendentes.append(ClipePendente(
+                alert_id=int(criados[0]["id"]), t0_ms=ts_captura_ms, inicio_ms=ts_captura_ms - self._replay_antes_ms,
+                fim_ms=ts_captura_ms + self._replay_depois_ms, alerta=criados[0], acompanhantes=criados[1:],
+            ))
+        prontos = [c for c in self._clipes_pendentes if ts_captura_ms >= c.fim_ms]
+        if prontos:
+            self._clipes_pendentes = [c for c in self._clipes_pendentes if ts_captura_ms < c.fim_ms]
+            for pendente in prontos:
+                quadros = self.replay.entre(pendente.inicio_ms, pendente.fim_ms)
+                if self.gravador is not None:
+                    self.gravador.enfileirar(self._gravar_clipe, pendente, quadros)
+                else:
+                    self._gravar_clipe(pendente, quadros)
+        self.stats.duracao("replay", (time.perf_counter() - inicio) * 1000.0)
+
+    @staticmethod
+    def _recuperar_sessao() -> None:
+        try:
+            db.session.rollback()
+        except Exception:  # noqa: BLE001  (a sessão já pode estar sem conexão; a próxima volta abre outra)
+            pass
+
+    def _minuto_conforme_na_liga(self, indice_do_minuto: int) -> None:
+        """X8: um minuto com gente na câmera e todo mundo conforme vale 1 ponto ao setor."""
+        from datetime import datetime, timezone
+
+        liga.registrar("minuto_conforme", ref=f"{self.camera_id}:{indice_do_minuto}", camera_id=self.camera_id,
+                       quando=datetime.fromtimestamp(indice_do_minuto * 60, tz=timezone.utc))
+
+    def _gravar_clipe(self, pendente: ClipePendente, quadros) -> None:
+        clipe = gravar_clipe(self.replay_dir, pendente, quadros, self.camera_id)
+        if self.app.config.get("CUSTODIA_ATIVA", True):
+            registrar_clipe(pendente.alert_id, self.camera_id, [Path(x) for x in clipe["pastas"]],
+                            alert_ids=[pendente.alert_id, *(int(o["id"]) for o in pendente.acompanhantes)])
+        for alert_id in [pendente.alert_id, *(int(o["id"]) for o in pendente.acompanhantes)]:
+            self._emitir("clip_pronto", {"camera_id": self.camera_id, "alert_id": alert_id, "total": clipe["total"]})
+
+    def _receber_analise(self, analise: FrameAnalysis, ts_ms: float) -> None:
+        """Callback do agendador (thread dele): guarda a análise pronta."""
+        # Sinal de emergência: a próxima análise desta câmera vem logo, para a
+        # regra de 2 análises seguidas caber na janela curta do evento.
+        if self.agendador is not None and self.camera_id is not None and any(
+            d.label in self._rotulos_de_emergencia for d in analise.detections
+        ):
+            self.agendador.priorizar(self.camera_id, float(self.app.config.get("PRIORIDADE_EMERGENCIA_S", 2.0)))
+        with self._thread_lock:
+            self._analise_recente = analise
+            self._versao_analise += 1
+            self._ts_analise_ms = ts_ms
+            self._analise_pronta_em = time.perf_counter()
+        self._cached_analysis = analise
+
+    def _registrar_analise_publicada(self, ts_captura_analisada_ms: float) -> None:
+        """Métricas principais do portão: FPS de análise e idade da análise.
+
+        Idade da análise = do instante de captura do quadro ANALISADO até o
+        resultado dele sair (regras, alertas e emissão feitos). É diferente de
+        `idade_publicacao`, que mede o quadro de VÍDEO: o vídeo pode estar
+        fresco enquanto as caixas e os alertas são de segundos atrás.
+        """
+        self.stats.contar("analises_publicadas")
+        self.stats.duracao("idade_analise", time.time() * 1000.0 - ts_captura_analisada_ms)
+        if self._analise_pronta_em is not None:
+            # Da análise pronta (callback do agendador) até sair: fila do loop
+            # de publicação, regras, alertas e emissão.
+            self.stats.duracao("espera_publicacao", (time.perf_counter() - self._analise_pronta_em) * 1000.0)
+
+    def _publicar(self, frame, analysis: FrameAnalysis, nova: bool, ts_captura_ms: float) -> None:
+        """Tudo que acontece depois da análise, igual nos dois loops."""
+        self._registrar_diagnostico(frame, analysis, nova)
+        self._perf_marca("analise")
+        enabled_map = {item.key: item.enabled for item in self.feature_manager.list()}
+        # Regras, matcher e conformidade são função pura de (análise, quadro,
+        # zona, recursos ligados) — sem relógio, sem estado. Entre duas análises
+        # novas o loop publica o MESMO resultado a cada quadro de vídeo (~95 %
+        # dos quadros); refazer tudo, mais o `to_dict()` com as poses da
+        # multidão, era trabalho idêntico jogado fora (batata 4 câm.: CPU-ms por
+        # análise +12 % sobre a base, docs/NEXT2026/BENCHMARKS.md).
+        chave = (id(analysis), frame.shape[:2], repr(self.rule_engine.risk_polygon), tuple(sorted(enabled_map.items())))
+        cache = self._cache_publicacao
+        reaproveitavel = not nova and cache is not None and cache["chave"] == chave
+        # UMA passada de regras por análise. O resultado (alertas + estado por
+        # pessoa) alimenta tanto o AlertStateService quanto o ComplianceService
+        # — que antes refazia todo o trabalho por conta própria.
+        if reaproveitavel:
+            evaluation = cache["evaluation"]
+            self.stats.contar("publicacoes_reaproveitadas")
+        else:
+            evaluation = self.rule_engine.analyze(
+                analysis.detections,
+                analysis.pose,
+                frame.shape,
+                poses=analysis.poses,
+            )
+        self._perf_marca("regras")
+        if nova:
+            self._atualizar_aproximacao(analysis, frame.shape)
+            inicio = time.perf_counter()
+            self._atualizar_sinais(evaluation, frame.shape)
+            self.stats.duracao("g3_g4_g7_sinais", (time.perf_counter() - inicio) * 1000.0)
+        # `deteccao_nova` impede que uma inferência reaproveitada conte como
+        # confirmação nova na histerese.
+        alert_state = self.alert_state_service.process(
+            evaluation.alerts + self._alertas_temporais if self._alertas_temporais else evaluation.alerts,
+            deteccao_nova=nova,
+            features_desligadas=self._features_desligadas(),
+        )
+        self._perf_marca("alertas")
+        mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"] or alert_state.get("created"))
+        # Lista de ativos também muda por fora (limpeza manual pela API).
+        assinatura = tuple((a.get("id"), a.get("status"), a.get("occurrences")) for a in alert_state["active"])
+        if reaproveitavel and cache.get("assinatura") != assinatura:
+            mudou_alerta = True
+        recalculado = not (reaproveitavel and not mudou_alerta)
+        if recalculado:
+            model_diagnostics = self._safe_model_diagnostics()
+            compliance_state = self.compliance_service.build_state(
+                detections=analysis.detections,
+                pose=analysis.pose,
+                frame_shape=frame.shape,
+                model_diagnostics=model_diagnostics,
+                active_alerts=alert_state["active"],
+                evaluation=evaluation,
+            )
+            self._cache_publicacao = {"chave": chave, "evaluation": evaluation, "compliance": compliance_state,
+                                      "model": model_diagnostics, "assinatura": assinatura}
+        else:
+            model_diagnostics, compliance_state = cache["model"], cache["compliance"]
+
+        if self.gate_required:
+            self._gate.atualizar(avaliar_quadro(compliance_state, self.gate_required))
+            if nova:
+                inicio = time.perf_counter()
+                portal = self._portal.atualizar(
+                    avaliar_portal(compliance_state, self.gate_required, frame.shape, analysis.poses,
+                                   getattr(analysis, "descartadas", None), self._pisos_por_classe)
+                )
+                self.stats.duracao("g1_portal", (time.perf_counter() - inicio) * 1000.0)
+                if portal.get("checkin_novo"):
+                    # Conta para a meta do SETOR (G8); sem foto, sem nome, sem ID salvo.
+                    evento = self._emit_timeline_event("portal_checkin", "Check-in de EPI liberado no portal", "info",
+                                                       metadata={"exigidos": list(self.gate_required)})
+                    if evento and self.app.config.get("LIGA_ATIVA", True):
+                        liga.registrar("checkin_portal", ref=f"evento:{evento['id']}", camera_id=self.camera_id)
+        if nova:
+            inicio = time.perf_counter()
+            self.andon.registrar(compliance_state.get("people") or [], self.epis_exigidos(), time.time())
+            self.stats.duracao("g8_andon", (time.perf_counter() - inicio) * 1000.0)
+            if self.planta:
+                inicio = time.perf_counter()
+                try:
+                    self.pes_na_planta = pes_na_planta(compliance_state.get("people") or [], frame.shape, self.planta)
+                except (ValueError, KeyError):
+                    self.pes_na_planta = []
+                self.stats.duracao("g5_planta", (time.perf_counter() - inicio) * 1000.0)
+            self.mapa_de_calor.somar(pes_em_risco(compliance_state, frame.shape))
+            self.linha_do_tempo.registrar(compliance_state.get("people") or [], time.time())
+            if self.trilhas is not None:
+                inicio = time.perf_counter()
+                try:
+                    self.trilhas.registrar(time.time(), compliance_state.get("people") or [], frame.shape[1], frame.shape[0])
+                except OSError as exc:
+                    logger.warning("trilha_falhou", extra={"error": str(exc)})
+                self.stats.duracao("x2_trilha", (time.perf_counter() - inicio) * 1000.0)
+
+        with self._thread_lock:
+            self._quadro_bruto = frame
+            self._quadro_estado = (analysis, compliance_state, enabled_map)
+            self._latest_capture_ts_ms = ts_captura_ms
+            self._frame_counter += 1
+        if nova and self.fila_de_rotulos is not None:
+            # G9: recorte do quadro PÚBLICO (desfocado) da detecção mais duvidosa.
+            inicio = time.perf_counter()
+            if self.fila_de_rotulos.talvez_coletar(
+                self.camera_id, lambda: self._quadro_para_recorte(frame, analysis), analysis.detections,
+                excluir=EPIS_DO_ROSTO if self.privacidade_ativa else frozenset(),
+            ):
+                self.stats.duracao("g9_rotulos", (time.perf_counter() - inicio) * 1000.0)
+        self.stats.contar("frames_publicados")
+        self.stats.duracao("idade_publicacao", time.time() * 1000.0 - ts_captura_ms)
+        self._perf_marca("conformidade")
+
+        self._alimentar_replay(ts_captura_ms, alert_state)
+        # Snapshot só quando um alerta NASCE (raro): é o único consumidor do
+        # quadro anotado que existe sem ninguém assistindo.
+        anotado = self.quadro_anotado() if alert_state.get("created") else None
+        self._attach_snapshots_and_log_events(alert_state, anotado)
+        alert_state["active"] = self.alert_state_service.active_alerts()
+        if not recalculado and self._latest_analysis is not None and self._opiniao_publicada is self._segunda_opiniao:
+            # Mesmo resultado: só zera as mudanças de alerta, que já saíram.
+            if self._latest_analysis.get("alert_changes") or self._latest_analysis.get("alert_resolved"):
+                with self._thread_lock:
+                    self._latest_analysis = self._latest_analysis | {"alert_changes": [], "alert_resolved": []}
+        else:
+            self._opiniao_publicada = self._segunda_opiniao
+            self._atualizar_latest_analysis(analysis, alert_state, compliance_state, model_diagnostics)
+        nao_verificado = bool(nova) and self._nao_verificado_confirmou(evaluation.people, nova=True)
+        self._depois_de_publicar(alert_state, compliance_state, model_diagnostics, nao_verificado)
+
+    def _atualizar_latest_analysis(self, analysis, alert_state, compliance_state, model_diagnostics) -> None:
+        with self._thread_lock:
+            self._latest_analysis = analysis.to_dict() | {
+                "alerts": alert_state["active"],
+                "alert_changes": alert_state["changed"],
+                "alert_resolved": alert_state["resolved"],
+                "compliance": compliance_state,
+                "model": model_diagnostics,
+                # Campo PRÓPRIO, ao lado dos alertas e nunca dentro deles: é
+                # opinião, não veredito.
+                "segunda_opiniao": self._segunda_opiniao,
+            }
+
+    def _depois_de_publicar(self, alert_state, compliance_state, model_diagnostics, nao_verificado: bool = False) -> None:
+        # O LLM recebe o MESMO JPEG anotado que o stream usaria (cache por
+        # versão): nunca há um segundo encode do mesmo quadro.
+        precisa = alert_state.get("created") or nao_verificado
+        jpeg = self.jpeg_do_quadro(anotado=True) if self.servico_llm is not None and precisa else None
+        self._submeter_ao_llm(alert_state, jpeg)
+        # Segundo gatilho (Sprint 4): "não verificado" confirmado. Se o mesmo
+        # quadro já criou alerta, a chamada acima já leva esta imagem.
+        if nao_verificado and not alert_state.get("created"):
+            self._submeter_ao_llm({"created": [{"motivo": "nao_verificado"}]}, jpeg)
+
+        # camera_id em TODO payload: o dashboard usa isso pra descartar o que
+        # não é da câmera em foco.
+        if self._last_stream_state not in (None, "live"):
+            self._last_stream_state = "live"
+            self._emit_timeline_event(
+                "camera_reconnected",
+                "Sinal restabelecido",
+                "info",
+                metadata=self.video_stream.status().to_dict(),
+            )
+            self._emitir("monitor_status", self.status())
+
+        # Telemetria com taxa própria, separada da do vídeo (TELEMETRY_HZ).
+        # Mudança de alerta fura o intervalo: quando alguém tira o capacete, o
+        # painel tem que reagir na hora, não no próximo tique.
+        mudou_alerta = bool(alert_state["changed"] or alert_state["resolved"])
+        if mudou_alerta or self._deve_emitir_telemetria():
+            payload = self.latest_analysis() or {}
+            emitir_para_foco(self.socketio, "analysis", payload | {"camera_id": self.camera_id}, self.camera_id)
+            emitir_para_foco(self.socketio, "compliance_state", compliance_state | {"camera_id": self.camera_id}, self.camera_id)
+            self._emitir_diagnostico_se_mudou(model_diagnostics)
+        self._maybe_emit_risk_score()
+        self._perf_marca("emissao")
+        self._perf_fim()
 
     # ------------------------------------------------------- perfil do loop -
     # Diagnóstico de "por que o vídeo está travado". FPS médio engana: quadros
@@ -652,17 +1635,19 @@ class CameraWorker:
         emitir_para_camera(self.socketio, evento, payload, self.camera_id)
 
     def _perf_inicio(self) -> None:
-        if not self._perf_ativo:
-            return
         self._perf_t = time.perf_counter()
-        self._perf_atual = {}
+        if self._perf_ativo:
+            self._perf_atual = {}
 
     def _perf_marca(self, etapa: str) -> None:
-        if not self._perf_ativo:
-            return
+        # Sempre alimenta `self.stats` (custo: um perf_counter e um append);
+        # o log agregado continua so com PROFILE_FRAMES.
         agora = time.perf_counter()
-        self._perf_atual[etapa] = (agora - self._perf_t) * 1000.0
+        ms = (agora - self._perf_t) * 1000.0
         self._perf_t = agora
+        self.stats.duracao(etapa, ms)
+        if self._perf_ativo:
+            self._perf_atual[etapa] = ms
 
     def _perf_fim(self) -> None:
         if not self._perf_ativo:
@@ -715,7 +1700,7 @@ class CameraWorker:
         self._ultimo_diagnostico = assinatura
         self._emitir("model_diagnostics", diagnostics | {"camera_id": self.camera_id})
 
-    def _nao_verificado_confirmou(self, people: list[dict[str, Any]]) -> bool:
+    def _nao_verificado_confirmou(self, people: list[dict[str, Any]], nova: bool | None = None) -> bool:
         """Segundo gatilho do LLM (Sprint 4): alguém com capacete ou colete
         "unverified" por N detecções NOVAS seguidas — o mesmo N que confirma um
         alerta (ALERT_CREATE_AFTER_FRAMES). Dispara UMA vez, na borda; volta a
@@ -727,7 +1712,7 @@ class CameraWorker:
         alerta — e é justamente onde a Sprint 3 mostrou o LLM distinguindo
         ausente de não visível.
         """
-        if not self._analise_foi_nova:
+        if not (self._analise_foi_nova if nova is None else nova):
             return False
         nao_verificado = any(
             pessoa["ppe"].get(chave, {}).get("status") == "unverified" for pessoa in people for chave in ("helmet", "vest")
@@ -841,7 +1826,8 @@ class CameraWorker:
         agora = time.monotonic()
         self._instantes_de_frame.append(agora)
         altura, largura = frame.shape[:2]
-        self._resolucao_da_fonte = (largura, altura)
+        # A resolução que CHEGOU da fonte (antes do ajuste para a da câmera).
+        self._resolucao_da_fonte = getattr(self, "_resolucao_original", None) or (largura, altura)
         self._amostrar_brilho(frame, agora)
         if not foi_nova:
             return
@@ -893,6 +1879,8 @@ class CameraWorker:
             # A fonte em uso, redigida: e o que distingue "fixture" de "ao
             # vivo" na tela sem obrigar o operador a abrir o banco.
             "fonte": redigir_segredos(str(self.video_stream.source)),
+            # 1.0 = velocidade original; < 1 = câmera lenta de gravação (palco).
+            "velocidade": self.velocidade_gravacao,
         }
 
     def _assumir_fonte_reserva(self) -> None:
@@ -924,6 +1912,7 @@ class CameraWorker:
             width=self.video_stream.width,
             height=self.video_stream.height,
             em_loop=True,
+            threads_decode=int(self.app.config.get("CAPTURA_THREADS_DECODE", 2)),
         )
         self._modo_fixture = True
         self._last_stream_state = None  # força reemitir o estado novo
@@ -937,7 +1926,7 @@ class CameraWorker:
         )
         self._emit_timeline_event(
             "camera_modo_fixture",
-            f"Modo fixture — fonte de demonstração após {self.tentativas_antes_da_reserva} tentativas",
+            f"Modo fixture: fonte de demonstração após {self.tentativas_antes_da_reserva} tentativas",
             "warning",
             metadata=self.video_state(),
         )
@@ -967,7 +1956,7 @@ class CameraWorker:
             if estado.state in ("reconnecting", "unavailable"):
                 self._emit_timeline_event(
                     "camera_disconnected",
-                    f"Sinal perdido — tentando reconectar (tentativa {estado.reconnect_attempts + 1})",
+                    f"Sinal perdido, tentando reconectar (tentativa {estado.reconnect_attempts + 1})",
                     "warning",
                     metadata=estado.to_dict(),
                 )
@@ -994,34 +1983,111 @@ class CameraWorker:
                 return self._cached_analysis
         self._analise_foi_nova = True
 
-        detections = []
-        pose = None
-        poses: list[PoseResult] = []
-        # inference_lock: modelos são compartilhados entre workers (Passo 4)
-        # — serializa quem usa a GPU por vez. Numa GPU só isso não perde
-        # paralelismo real (ela já processa um kernel de cada vez), só evita
-        # dois threads chamando forward() no mesmo objeto simultaneamente.
+        # inference_lock: modelos são compartilhados entre workers (Passo 4).
+        # No modo assíncrono quem serializa é o agendador; aqui, no síncrono,
+        # continua sendo o lock.
         self._perf_marca("espera_do_lock_pre")
         with self.inference_lock:
             self._perf_marca("espera_do_lock")
-            if self._needs_yolo_detection():
-                detections = self.detector.detect(frame)
-                self._perf_marca("yolo")
-                if self.app.config.get("MULTI_PERSON_DETECTION", True):
-                    # Só as pessoas passam pelo tracker — EPIs são associados
-                    # geometricamente a elas (PersonComplianceMatcher), não
-                    # rastreados por conta própria.
-                    people = self.person_tracker.update(self.person_detector.detect(frame))
-                    detections = detections + people
-            if self.feature_manager.is_enabled("pose"):
-                poses = self._estimate_poses(frame, detections)
-                self._perf_marca("pose")
-                # `pose` continua sendo a primeira (ou a global) pra nao quebrar
-                # quem ja lia esse campo — frontend inclusive.
-                pose = poses[0] if poses else None
-        analise = FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses)
+            analise = self._inferir(frame, self._perf_marca)
         self._cached_analysis = analise
         return analise
+
+    def _pose_devida(self) -> bool:
+        """Roda o YOLO-pose nesta inferência? (a cada `pose_a_cada_k`)."""
+        if self.pose_detector is None or not self.feature_manager.is_enabled("pose"):
+            return False
+        self._contador_pose += 1
+        return self.pose_a_cada_k <= 1 or self._contador_pose % self.pose_a_cada_k == 1
+
+    def _detectar(self, frame, marcar) -> tuple[list, list, list | None]:
+        """As chamadas de modelo de UM frame: EPI, pessoa e (opcional) pose."""
+        if not self._needs_yolo_detection():
+            return [], [], None
+        ppe_detections = self.detector.detect(frame)
+        marcar("inferencia_epi")
+        pessoas: list = []
+        if self._multi_pessoa:
+            pessoas = self.person_detector.detect(frame)
+            marcar("inferencia_pessoa")
+        esqueletos = None
+        if self._pose_devida():
+            esqueletos = self.pose_detector.detect(frame)
+            marcar("inferencia_pose")
+        return ppe_detections, pessoas, esqueletos
+
+    def _detectar_lote(self, frames: list) -> list[tuple[list, list, list | None]]:
+        """Como `_detectar`, para vários frames numa chamada de modelo só."""
+        if not self._needs_yolo_detection():
+            return [([], [], None) for _ in frames]
+        epis = self.detector.detect_lote(frames)
+        pessoas = self.person_detector.detect_lote(frames) if self._multi_pessoa else [[] for _ in frames]
+        esqueletos = self.pose_detector.detect_lote(frames) if self._pose_devida() else [None for _ in frames]
+        return list(zip(epis, pessoas, esqueletos, strict=True))
+
+    def _anexar_esqueletos(self, people: list, esqueletos: list | None) -> list:
+        """Esqueleto novo por IoU; sem passada de pose agora, o último do track."""
+        if esqueletos is not None:
+            people = associar_esqueletos(people, esqueletos)
+            for pessoa in people:
+                if pessoa.track_id is not None and pessoa.keypoints:
+                    self._esqueletos[pessoa.track_id] = (0, pessoa.keypoints)
+            return people
+        saida = []
+        for pessoa in people:
+            guardado = self._esqueletos.get(pessoa.track_id) if pessoa.track_id is not None else None
+            if guardado is not None and guardado[0] < self._idade_max_esqueleto:
+                self._esqueletos[pessoa.track_id] = (guardado[0] + 1, guardado[1])
+                pessoa = pessoa.with_keypoints(guardado[1])
+            saida.append(pessoa)
+        return saida
+
+    def _inferir(self, frame, marcar) -> FrameAnalysis:
+        return self._pos_inferencia(frame, self._detectar(frame, marcar), marcar)
+
+    def _pos_inferencia(self, frame, bruto: tuple[list, list], marcar) -> FrameAnalysis:
+        """Tracking, filtro EPI↔pessoa e pose — o que vem depois do modelo."""
+        ppe_detections, pessoas_detectadas, esqueletos = bruto if len(bruto) == 3 else (*bruto, None)
+        detections: list = []
+        pose = None
+        poses: list[PoseResult] = []
+        if self._needs_yolo_detection():
+            people: list = []
+            if self._multi_pessoa:
+                # Só as pessoas passam pelo tracker — EPIs são associados
+                # geometricamente a elas (PersonComplianceMatcher), não
+                # rastreados por conta própria.
+                # Queda que nenhuma pessoa detectada contém vira pessoa antes do
+                # rastreador: é assim que o alerta de queda ganha um ID (F2).
+                pessoas_detectadas = pessoas_com_quedas(pessoas_detectadas, ppe_detections)
+                people = self.person_tracker.update(pessoas_detectadas)
+                marcar("tracking")
+                if self._pose_backend == "yolo":
+                    people = self._anexar_esqueletos(people, esqueletos)
+            else:
+                # Sem detector de pessoa separado, as pessoas são a classe
+                # `Person` do próprio modelo de EPI. Elas TAMBÉM passam pelo
+                # rastreador: sem ID de rastreio, a projeção de aproximação (F3)
+                # nunca disparava neste modo (o padrão), e o ID da pessoa era a
+                # posição na cena — mudava a cada quadro e quebrava a chave do
+                # alerta e a linha do tempo (F2). A queda que nenhuma pessoa
+                # contém entra como pessoa do mesmo jeito.
+                vistas = [d for d in ppe_detections if d.label == "person" or d.category == "person"]
+                outras = [d for d in ppe_detections if not (d.label == "person" or d.category == "person")]
+                rastreadas = self.person_tracker.update(pessoas_com_quedas(vistas, ppe_detections))
+                marcar("tracking")
+                ppe_detections = outras + rastreadas
+            ppe_detections = self._gate_ppe_to_people(ppe_detections, people)
+            marcar("filtro_epi")
+            detections = ppe_detections + people
+        if self.feature_manager.is_enabled("pose"):
+            poses = self._estimate_poses(frame, detections)
+            marcar("pose")
+            # `pose` continua sendo a primeira (ou a global) pra nao quebrar
+            # quem ja lia esse campo — frontend inclusive.
+            pose = poses[0] if poses else None
+        descartadas, self._descartadas_na_analise = getattr(self, "_descartadas_na_analise", []), []
+        return FrameAnalysis(detections=detections, pose=pose, risk_events=[], poses=poses, descartadas=descartadas)
 
     def _estimate_poses(self, frame, detections) -> list[PoseResult]:
         """Uma pose por pessoa quando ha caixa de pessoa; senao, a global.
@@ -1030,7 +2096,19 @@ class CameraWorker:
         MediaPipe ainda encontra um corpo — comportamento de sempre, mantido
         como rede de seguranca.
         """
-        if not bool(self.app.config.get("POSE_PER_PERSON", True)):
+        if self._pose_backend == "yolo":
+            # Os esqueletos já foram associados aos tracks em `_pos_inferencia`
+            # (uma passada de YOLO-pose para todas as pessoas, não uma por pessoa).
+            poses = []
+            for item in detections:
+                if (item.label == "person" or item.category == "person") and item.keypoints:
+                    rotulo = f"person_{item.track_id}" if item.track_id is not None else None
+                    pose = pose_da_deteccao(item, frame.shape, person_id=rotulo)
+                    if pose is not None:
+                        poses.append(pose)
+            return poses
+
+        if not self._pose_por_pessoa:
             global_pose = self.pose_estimator.estimate(frame)
             return [global_pose] if global_pose.found else []
 
@@ -1048,7 +2126,7 @@ class CameraWorker:
             poses = self.pose_estimator.estimate_for_people(
                 frame,
                 alvos,
-                max_people=int(self.app.config.get("POSE_MAX_PEOPLE", 4)),
+                max_people=self._pose_max_pessoas,
             )
             if poses:
                 return poses
@@ -1056,9 +2134,19 @@ class CameraWorker:
         global_pose = self.pose_estimator.estimate(frame)
         return [global_pose] if global_pose.found else []
 
+    def _features_desligadas(self) -> set[str]:
+        """Features cujos alertas devem acabar: as desligadas, mais as que
+        dependem de uma chave-mestra desligada (ppe -> cada EPI; pose -> queda e postura)."""
+        desligadas = {item.key for item in self.feature_manager.list() if not item.enabled}
+        if "ppe" in desligadas:
+            desligadas |= set(PPE_KEYS)
+        if "pose" in desligadas:
+            desligadas |= {"falls", "posture"}
+        return desligadas
+
     def _needs_yolo_detection(self) -> bool:
         return bool(
-            self.app.config.get("MULTI_PERSON_DETECTION", True)
+            self._multi_pessoa
             or self.feature_manager.is_enabled("ppe")
             or self.feature_manager.is_enabled("risk_area")
         )
@@ -1152,6 +2240,7 @@ class CameraWorker:
             self.detector.confidence = value
         if "multi_person_detection" in updates:
             self.app.config["MULTI_PERSON_DETECTION"] = bool(updates["multi_person_detection"])
+        self._ler_config()
         if "cleanup_on_monitor_start" in updates:
             self.cleanup_service.enabled = bool(updates["cleanup_on_monitor_start"])
         if "snapshot_enabled" in updates:
@@ -1175,21 +2264,36 @@ class CameraWorker:
             "enabled": self.feature_manager.is_enabled("risk_area"),
         }
 
-    def update_risk_area(self, payload: dict[str, Any]) -> dict[str, Any]:
-        raw_polygon = payload.get("polygon")
-        if not isinstance(raw_polygon, list) or len(raw_polygon) < 3:
+    @staticmethod
+    def _normalizar_poligono(raw) -> list[tuple[float, float]] | None:
+        """Aceita lista de {x,y} ou [x,y]; devolve pontos 0..1, ou None se vazio.
+
+        Levanta ValueError se vier algo preenchido mas inválido — melhor
+        recusar do que salvar uma zona quebrada em silêncio.
+        """
+        if raw is None or raw == []:
+            return None
+        if not isinstance(raw, list) or len(raw) < 3:
             raise ValueError("polygon deve conter pelo menos 3 pontos")
         polygon: list[tuple[float, float]] = []
-        for point in raw_polygon:
+        for point in raw:
             if isinstance(point, dict):
                 x, y = point.get("x"), point.get("y")
             elif isinstance(point, (list, tuple)) and len(point) >= 2:
                 x, y = point[0], point[1]
             else:
                 raise ValueError("cada ponto deve conter x e y")
-            xf = max(0.0, min(1.0, float(x)))
-            yf = max(0.0, min(1.0, float(y)))
-            polygon.append((xf, yf))
+            try:
+                xf, yf = float(x), float(y)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("cada ponto deve conter x e y numéricos") from exc
+            polygon.append((max(0.0, min(1.0, xf)), max(0.0, min(1.0, yf))))
+        return polygon
+
+    def update_risk_area(self, payload: dict[str, Any]) -> dict[str, Any]:
+        polygon = self._normalizar_poligono(payload.get("polygon"))
+        if polygon is None:
+            raise ValueError("polygon deve conter pelo menos 3 pontos")
         self.rule_engine.risk_polygon = polygon
         self.annotator.risk_polygon = polygon
         if str(payload.get("name", "")).strip():
@@ -1199,11 +2303,45 @@ class CameraWorker:
         self._emitir("risk_area_updated", state)
         return state
 
+    def gate_state(self) -> dict[str, Any]:
+        base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}
+        if not self.gate_required:
+            return base | {"verdict": "off", "missing": [], "people": 0}
+        return base | self._gate.atual
+
+    def epis_exigidos(self) -> list[str]:
+        """O que o setor exige: os da portaria, se houver; senão os EPIs ligados que o modelo verifica."""
+        if self.gate_required:
+            return list(self.gate_required)
+        suportados = self.rule_engine.supported_ppe()
+        return [k for k in PPE_KEYS if k in suportados and self.feature_manager.is_enabled("ppe")
+                and self.feature_manager.is_enabled(k)]
+
+    def andon_resumo(self) -> dict[str, Any]:
+        resumo = self.andon.resumo()
+        return {"camera_id": self.camera_id, "running": self._running.is_set(), **resumo,
+                "checkins_portal": self._portal.checkins, "_ok": self.andon.ultimo_ok, "_total": self.andon.ultimo_total}
+
+    def portal_state(self) -> dict[str, Any]:
+        base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}
+        if not self.gate_required:
+            return base | {"verdict": "off", "itens": [], "people": 0, "checkins": 0}
+        estado = {k: v for k, v in self._portal.atual.items() if k not in ("checkin_novo", "track_id")}
+        return base | estado | {"checkins": self._portal.checkins,
+                                 "diagnostico": {"brutos": dict(self._portal.brutos), "faltas": dict(self._portal.faltas),
+                                                 "sequencia": [[v[0].upper(), t, ok] for v, t, ok in self._portal.sequencia]}}
+
+    def set_gate(self, required: list[str] | None) -> None:
+        self.gate_required = list(required) if required else None
+        self._gate.reset()
+        self._portal.reset()
+
     def get_overlay(self) -> dict[str, Any]:
         return {"camera_id": self.camera_id, **self.overlay_options}
 
     def update_overlay(self, updates: dict[str, Any]) -> dict[str, Any]:
-        for key in ("boxes", "labels", "confidence", "pose", "risk_area"):
+        partes = (f"part_{p}" for p in ("head", "face", "ear", "hands", "foot", "tool"))
+        for key in ("boxes", "labels", "confidence", "pose", "risk_area", *partes):
             if key in updates:
                 self.overlay_options[key] = bool(updates[key])
         self._emitir("overlay_updated", self.get_overlay())

@@ -74,6 +74,13 @@ cameras_cli = AppGroup("cameras", help="Cadastra e lista as câmeras monitoradas
 @click.option("--fps", type=int, default=12, show_default=True)
 @click.option("--largura", type=int, default=960, show_default=True)
 @click.option("--altura", type=int, default=540, show_default=True)
+@click.option(
+    "--rotacao",
+    type=click.Choice(["0", "90", "180", "270"]),
+    default="0",
+    show_default=True,
+    help="Graus pra corrigir câmera montada física de lado/invertida.",
+)
 def add_camera(
     name: str,
     host: str | None,
@@ -85,6 +92,7 @@ def add_camera(
     fps: int,
     largura: int,
     altura: int,
+    rotacao: str,
 ) -> None:
     """Cadastra uma câmera.
 
@@ -132,6 +140,7 @@ def add_camera(
         fps=max(1, min(60, fps)),
         width=largura,
         height=altura,
+        rotation=int(rotacao),
         features_json=dict(DEFAULT_CAMERA_FEATURES),
     )
     db.session.add(camera)
@@ -155,6 +164,20 @@ def list_cameras() -> None:
         )
 
 
+demo_cli = AppGroup("demo", help="Modo demonstração (python run.py --demo).")
+
+
+@demo_cli.command("reset")
+def demo_reset() -> None:
+    """Volta a demo ao começo (< 10 s): histórico limpo, câmeras religadas."""
+    from app.config import Config
+    from app.demo_ambiente import resetar_pelo_terminal
+
+    resultado = resetar_pelo_terminal(int(Config.PORT))
+    click.echo(f"[demo] reset em {resultado['segundos']} s ({resultado.get('via', 'servidor')}).")
+
+
 def register_cli(app: Flask) -> None:
     app.cli.add_command(users_cli)
     app.cli.add_command(cameras_cli)
+    app.cli.add_command(demo_cli)

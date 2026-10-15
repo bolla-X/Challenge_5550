@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -9,7 +10,13 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# VISIONEPI_DOTENV=0 ignora o arquivo de ambiente local. Dois consumidores
+# precisam disso: a suite de testes (o arquivo de quem desenvolve vazava para
+# `Config` e derrubava `test_default_features_liga_todos_os_epis` quando a
+# maquina tinha outro DEFAULT_FEATURES) e o `scripts/bench.py`/modo demo, que
+# precisam de configuracao reproduzivel, igual em qualquer maquina.
+if os.getenv("VISIONEPI_DOTENV", "1").strip() != "0":
+    load_dotenv(BASE_DIR / ".env")
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -183,6 +190,22 @@ class Config:
     # industrial tem jitter, e ali a separacao entre os dois pode ser outra.
     # Ver docs/DEMO.md para o sintoma de errar para cada lado.
     RTSP_LIMIAR_GRAB_MS = env_float("RTSP_LIMIAR_GRAB_MS", 5.0)
+    # Threads do decoder FFmpeg por câmera (arquivo e rede). 0 = padrão do
+    # OpenCV, um por núcleo lógico — ver app/vision/video_stream.py.
+    CAPTURA_THREADS_DECODE = env_int("CAPTURA_THREADS_DECODE", 2)
+    # Publicação de vídeo de câmera SEM espectador no MJPEG (só miniatura e
+    # snapshot). Análise nova sai na hora, independente disto.
+    VIDEO_FPS_SEM_ESPECTADOR = env_float("VIDEO_FPS_SEM_ESPECTADOR", 2.0)
+    # Quadros/s CONVERTIDOS pela captura de câmera sem espectador (miniatura +
+    # inferência); os demais só avançam a fonte (grab sem retrieve).
+    CAPTURA_FPS_SEM_ESPECTADOR = env_float("CAPTURA_FPS_SEM_ESPECTADOR", 4.0)
+    # Gravação (arquivo) sem espectador avança a CAPTURA_FPS_SEM_ESPECTADOR em
+    # vez de no relógio (ver CameraWorker._ritmo_de_gravacao). false = sempre
+    # tempo real. Câmera ao vivo não é afetada.
+    GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL = env_bool("GRAVACAO_SEM_ESPECTADOR_NA_TAXA_UTIL", True)
+    # Uma inferência em cada modelo antes de servir (run.py). Ver
+    # app/vision/runtime_do_modelo.py:aquecer_modelos.
+    AQUECER_MODELOS_NO_BOOT = env_bool("AQUECER_MODELOS_NO_BOOT", True)
 
     # --- fonte CEGA: o frame chega, a imagem nao --------------------------
     # Brilho medio abaixo do qual o frame conta como "sem imagem". MEDIDO: uma
@@ -225,13 +248,59 @@ class Config:
     LLM_PROMPT_VERSION = os.getenv("LLM_PROMPT_VERSION", "v2")
 
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
-    # Modelo dedicado a detectar "person" (classe 0 COCO). Só é necessário quando
-    # PPE_MODEL_PATH aponta pra um modelo de EPI sem classe "person" própria
-    # (ex: epi_pretrained.pt). O Vyra já traz "Person" (classe 11), então roda
-    # desligado por padrão — ver MULTI_PERSON_DETECTION abaixo.
-    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "yolov8n.pt")
+    # Modelos de EPI ADICIONAIS, rodados no mesmo frame que o PPE_MODEL_PATH e
+    # com o resultado fundido (ver EnsemblePPEDetector). Serve pra cobrir
+    # classes que o modelo principal detecta mal: o Vyra acerta capacete/colete
+    # e erra oculos/mascara/luva; um YOLOv8n dedicado a esses tres tapa o buraco.
+    # Lista separada por virgula. Vazio = so o PPE_MODEL_PATH, comportamento
+    # antigo. Cada modelo extra roda SEM o filtro YOLO_CLASSES (os indices sao
+    # do Vyra) — usa todas as classes do proprio peso.
+    PPE_EXTRA_MODELS = os.getenv("PPE_EXTRA_MODELS", "")
+    # Resolucao de entrada dos modelos EXTRAS (o principal segue em YOLO_IMGSZ).
+    # Objeto pequeno/fino — oculos, luva a distancia — depende muito disto:
+    # subir de 416 pra 960 e o que mais melhora a recall dessas classes. Os
+    # extras costumam ser nano (baratos), entao 960 aqui e viavel. 0 = usa
+    # YOLO_IMGSZ.
+    PPE_EXTRA_MODELS_IMGSZ = env_int("PPE_EXTRA_MODELS_IMGSZ", 960)
+    # TTA (augment) nos extras: infere em varias escalas/flips e funde. +2-5%
+    # de recall em objeto pequeno/baixo contraste, a ~2x o custo do extra.
+    PPE_EXTRA_MODELS_AUGMENT = env_bool("PPE_EXTRA_MODELS_AUGMENT", True)
+    # Classes que NENHUM modelo extra pode contribuir pro ensemble — a saida
+    # delas fica so a cargo do PPE_MODEL_PATH principal. Existe porque um
+    # modelo extra pode ser confiavelmente ERRADO numa classe especifica: o
+    # epi_pretrained.pt (nano) deu "Gloves" 0.78 numa mao NUA (o Vyra, no
+    # mesmo frame, se absteve certo). Piso de confianca nao resolve isso — a
+    # deteccao errada veio com confianca alta. Lista separada por virgula,
+    # nomes normalizados (helmet/vest/gloves/glasses/mask/safety_shoe).
+    PPE_EXTRA_MODELS_EXCLUDE_LABELS = os.getenv("PPE_EXTRA_MODELS_EXCLUDE_LABELS", "gloves")
+    # Piso de confianca POR classe de EPI, "classe:valor" separado por virgula.
+    # YOLO_CONFIDENCE e o piso global (cego); este afina por classe: capacete e
+    # colete exigentes (senao qualquer objeto amarelo vira capacete), oculos e
+    # luva permissivos (sao as classes fracas). Classe fora da lista usa so o
+    # piso global. Vazio = comportamento antigo.
+    PPE_CONF_MIN_BY_CLASS = os.getenv(
+        "PPE_CONF_MIN_BY_CLASS",
+        "helmet:0.40,vest:0.40,gloves:0.30,mask:0.30,glasses:0.15",
+    )
+    # Exige que a caixa do EPI caia dentro de alguma pessoa (containment >=
+    # PPE_PERSON_OVERLAP_MIN) pra valer. Mata EPI detectado em objeto solto no
+    # fundo. So aplica quando ha pessoa no frame.
+    PPE_REQUIRE_PERSON_OVERLAP = env_bool("PPE_REQUIRE_PERSON_OVERLAP", True)
+    PPE_PERSON_OVERLAP_MIN = env_float("PPE_PERSON_OVERLAP_MIN", 0.35)
+    # Modelo dedicado a detectar "person" (classe 0 COCO). O Vyra tem a classe
+    # "Person" (11), mas medido nas fixtures (13/10, docs/NEXT2026/CHANGELOG.md)
+    # ela quase não dispara: pessoas por quadro Vyra 0,1 / 0,0 / 0,0 contra
+    # yolov8n 7,1 / 1,0 / 2,0 (multidão, canteiro, queda). Por isso o detector
+    # dedicado é LIGADO por padrão — ver MULTI_PERSON_DETECTION abaixo.
+    # Caminho dentro de models/: "yolov8n.pt" solto faria o ultralytics baixar
+    # o peso da internet quando não o achasse no diretório de trabalho.
+    PERSON_MODEL_PATH = os.getenv("PERSON_MODEL_PATH", "models/yolov8n.pt")
     YOLO_CONFIDENCE = env_float("YOLO_CONFIDENCE", 0.35)
     YOLO_DEVICE = os.getenv("YOLO_DEVICE", None)
+    # FP16 na GPU: quase metade do tempo de inferencia na mesma RTX, sem perda
+    # de precisao que se note em deteccao (nao e treino). So tem efeito com
+    # YOLO_DEVICE apontando pra GPU — em CPU o proprio detector ignora.
+    YOLO_HALF = env_bool("YOLO_HALF", True)
     YOLO_CLASSES = os.getenv("YOLO_CLASSES", "")
     YOLO_MAX_DETECTIONS = env_int("YOLO_MAX_DETECTIONS", 100)
     # Lado maior da imagem que entra na rede. O ultralytics usa 640 quando não
@@ -244,11 +313,93 @@ class Config:
     # últimas caixas. Serve para desacoplar a fluidez do vídeo da velocidade da
     # inferência — com N=1 o comportamento é exatamente o de antes.
     DETECTION_EVERY_N_FRAMES = env_int("DETECTION_EVERY_N_FRAMES", 1)
+    # Pipeline assíncrono (NEXT 2026): captura em thread por câmera e UM
+    # agendador de inferência em rodízio entre câmeras. false = loop síncrono
+    # antigo, sob inference_lock (mantido para comparação no bench).
+    INFERENCIA_ASSINCRONA = env_bool("INFERENCIA_ASSINCRONA", True)
+    # Runtime dos modelos (ver app/vision/runtime_do_modelo.py): pytorch | onnx |
+    # openvino | auto. Só entra export APROVADO no guarda de qualidade.
+    # Padrão "auto" (13/10): o primeiro APROVADO de RUNTIME_ORDEM que exista em
+    # models/export/aprovados.json; sem export aprovado no disco, PyTorch.
+    # Decisão medida (docs/NEXT2026/BENCHMARKS.md, batata 1 câm., mediana de 3
+    # rodadas intercaladas): idade da análise p95 ONNX 2571 ms, OpenVINO 2891,
+    # PyTorch 3997. Exportar e aprovar: python scripts/concordancia.py.
+    PPE_RUNTIME = os.getenv("PPE_RUNTIME", "auto")
+    PERSON_RUNTIME = os.getenv("PERSON_RUNTIME", "auto")
+    POSE_RUNTIME = os.getenv("POSE_RUNTIME", "auto")
+    # openvino-gpu primeiro (13/10, ADENDO 1 L1): na iGPU Intel o CPU-ms do
+    # servidor por análise caiu 78 % contra o ONNX (batata 1 câm., 3 rodadas);
+    # sem GPU visível ao OpenVINO, o resolvedor pula para o ONNX.
+    RUNTIME_ORDEM = os.getenv("RUNTIME_ORDEM", "openvino-gpu,onnx,pytorch")
+    # Junta as câmeras pendentes numa chamada `predict` só. Ver CHANGELOG.
+    INFERENCIA_LOTE = env_bool("INFERENCIA_LOTE", False)
+    # Rodízio ponderado (MISSÃO 2, P0.1): a câmera em foco na UI recebe ≥ 50 %
+    # das inferências; nenhuma outra espera mais que isto sem análise.
+    INFERENCIA_ESPERA_MAX_S = env_float("INFERENCIA_ESPERA_MAX_S", 2.5)
+    # Fração das vagas da câmera em foco quando ninguém está atrasado (0,5–0,7;
+    # ADENDO 2). A guarda de espera acima continua valendo para as outras.
+    INFERENCIA_FRACAO_FOCO = env_float("INFERENCIA_FRACAO_FOCO", 0.5)
+    # Quanto tempo uma consulta do portal (polling) mantém a câmera em foco.
+    FOCO_LEASE_S = env_float("FOCO_LEASE_S", 3.0)
+    # Prioridade de confirmação: análise que vê um destes rótulos pede a próxima
+    # análise da câmera logo (a regra de emergência continua exigindo 2 seguidas).
+    ROTULOS_DE_EMERGENCIA = os.getenv("ROTULOS_DE_EMERGENCIA", "fall_detected")
+    PRIORIDADE_EMERGENCIA_S = env_float("PRIORIDADE_EMERGENCIA_S", 2.0)
+    # Controlador adaptativo (ver app/services/controlador_adaptativo.py). Mexe
+    # só em frequência de inferência, de pose e de telemetria — nunca no imgsz.
+    # Modo privacidade (F4): desfoque de rosto em tudo que sai do worker.
+    # Ligado por padrão; só o supervisor desliga, e cada troca é auditada.
+    PRIVACIDADE_PADRAO = env_bool("PRIVACIDADE_PADRAO", True)
+    # Mapa de calor (F7): meia-vida do decaimento.
+    MAPA_DE_CALOR_MEIA_VIDA_S = env_float("MAPA_DE_CALOR_MEIA_VIDA_S", 900.0)
+    # Replay de incidente (F1): buffer circular em memória por câmera e clipe
+    # de REPLAY_ANTES_S antes a REPLAY_DEPOIS_S depois do alerta.
+    REPLAY_ATIVO = env_bool("REPLAY_ATIVO", True)
+    REPLAY_DIR = os.getenv("REPLAY_DIR", "runtime/clips")
+    REPLAY_ANTES_S = env_float("REPLAY_ANTES_S", 5.0)
+    REPLAY_DEPOIS_S = env_float("REPLAY_DEPOIS_S", 3.0)
+    REPLAY_FPS = env_float("REPLAY_FPS", 10.0)
+    # Pré-alerta de aproximação da zona de risco (projeção cinemática, F3).
+    APROXIMACAO_ATIVA = env_bool("APROXIMACAO_ATIVA", True)
+    APROXIMACAO_LIMITE_S = env_float("APROXIMACAO_LIMITE_S", 3.0)
+    # Sinais por duração (PR3): SOS por gesto (G3), pessoa imóvel na zona (G4),
+    # ergonomia estimada (G7). Ver app/vision/sinais_por_id.py.
+    SOS_SEGUNDOS = env_float("SOS_SEGUNDOS", 3.0)
+    IMOVEL_SEGUNDOS = env_float("IMOVEL_SEGUNDOS", 20.0)
+    IMOVEL_LIMIAR = env_float("IMOVEL_LIMIAR", 0.08)
+    ERGONOMIA_GRAUS = env_float("ERGONOMIA_GRAUS", 45.0)
+    ERGONOMIA_SEGUNDOS = env_float("ERGONOMIA_SEGUNDOS", 10.0)
+    # Portal de Entrada (G1): análises seguidas com tudo confirmado para liberar.
+    PORTAL_CONFIRMACOES = env_int("PORTAL_CONFIRMACOES", 3)
+    # Análises seguidas SEM ninguém detectado que não zeram uma confirmação em
+    # curso ("não detectado" não é "ausente"; ver PortalState).
+    PORTAL_AUSENCIAS_TOLERADAS = env_int("PORTAL_AUSENCIAS_TOLERADAS", 2)
+    # Aprendizado ativo (G9): recortes de EPI com confiança no meio da faixa.
+    APRENDIZADO_ATIVO = env_bool("APRENDIZADO_ATIVO", True)
+    ROTULOS_LIMITE = env_int("ROTULOS_LIMITE", 300)
+    ROTULOS_CONF_MIN = env_float("ROTULOS_CONF_MIN", 0.25)
+    ROTULOS_CONF_MAX = env_float("ROTULOS_CONF_MAX", 0.5)
+    ROTULOS_INTERVALO_S = env_float("ROTULOS_INTERVALO_S", 5.0)
+    # Laboratório "Pergunte à planta": desligado por padrão; exige também LLM ligado e chave.
+    LAB_PERGUNTE_ATIVO = env_bool("LAB_PERGUNTE_ATIVO", False)
+    # Pasta da fila de recortes (G9); vazio = instance/rotulos.
+    ROTULOS_DIR = os.getenv("ROTULOS_DIR", "")
+    # Modo demonstração (`python run.py --demo`): tema claro e /api/demo/reset.
+    DEMO_MODE = env_bool("DEMO_MODE", False)
+    ADAPTATIVO = env_bool("ADAPTATIVO", True)
+    ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
+    ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
+    ADAPTATIVO_LIMITE_BAIXO_MS = env_float("ADAPTATIVO_LIMITE_BAIXO_MS", 600.0)
     # Segundos entre gravações de um alerta que continua ativo. Cada gravação
     # é um commit (9,2 ms aqui) feito DENTRO do loop de captura, e antes
     # acontecia por alerta a cada frame — o vídeo travava justamente quando
     # havia infração. Criar e resolver seguem imediatos. 0 volta ao antigo.
     ALERT_TOUCH_INTERVAL_SECONDS = env_float("ALERT_TOUCH_INTERVAL_SECONDS", 2.0)
+    # Depois de "Resolver todos", segundos em que o MESMO alerta (regra + pessoa)
+    # nao e recriado enquanto a violacao continua. Sem isso quem segue sem EPI
+    # recriava o alerta em ~1 s e o botao parecia nao fazer nada. Passado o
+    # tempo, se ainda estiver sem EPI o alerta volta. 0 desliga a soneca.
+    ALERT_SNOOZE_AFTER_CLEAR_S = env_float("ALERT_SNOOZE_AFTER_CLEAR_S", 60.0)
     # Quantas vezes por segundo a telemetria (analysis/compliance) vai pro
     # navegador. O VÍDEO não passa por aqui — ele é MJPEG com as caixas já
     # desenhadas — então baixar isto não deixa a imagem menos fluida; evita
@@ -258,7 +409,7 @@ class Config:
     # 0 = desligado (padrao). Use quando o video estiver travado pra ver ONDE
     # o tempo vai, em vez de adivinhar pelo FPS medio.
     PROFILE_FRAMES = env_int("PROFILE_FRAMES", 0)
-    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", False)
+    MULTI_PERSON_DETECTION = env_bool("MULTI_PERSON_DETECTION", True)
     # Sprint 4: o que fazer quando NENHUMA caixa (positiva ou negativa) de um
     # EPI foi associada a pessoa. "ausencia" = alerta (Sprints 1-3);
     # "evidencia" = "nao verificado", sem alerta — so alerta quem foi visto
@@ -268,14 +419,51 @@ class Config:
     # Uma pose POR PESSOA (recorte da caixa) em vez de uma pose global do
     # frame. E o que permite atribuir queda/postura a um individuo. Custa N
     # inferencias por frame, entao POSE_MAX_PEOPLE limita o pior caso.
+    # Pose (NEXT 2026): "yolo" = um YOLO-pose é o detector de pessoa e devolve o
+    # esqueleto de todos numa passada (substitui yolov8n + MediaPipe por
+    # recorte); "mediapipe" = caminho anterior. Decisão e números no CHANGELOG.
+    POSE_BACKEND = os.getenv("POSE_BACKEND", "yolo").strip().lower()
+    POSE_MODEL_PATH = os.getenv("POSE_MODEL_PATH", "models/yolo11n-pose.pt")
+    POSE_IMGSZ = env_int("POSE_IMGSZ", 640)
+    # Pose a cada N inferências (1 = sempre). O controlador adaptativo sobe.
+    POSE_A_CADA_N = env_int("POSE_A_CADA_N", 1)
+    # "iou" (padrão) ou "bytetrack" (laboratório; o detector de pessoa passa a
+    # entregar a partir de 0,1 para a segunda associação). Ver CHANGELOG.
+    TRACKER = os.getenv("TRACKER", "iou").strip().lower()
+    # Re-associação de ID (MISSÃO 2, P0.2): track novo a até N larguras de
+    # caixa de onde outro sumiu, em até J s, herda o ID antigo.
+    REASSOCIAR_IDS = env_bool("REASSOCIAR_IDS", True)
+    # Cadeia de custódia das evidências (X3): alerta, snapshot, clipe e privacidade.
+    CUSTODIA_ATIVA = env_bool("CUSTODIA_ATIVA", True)
+    # Trilhas do simulador "E se?" (X2): sem imagem, arquivo rotativo com teto.
+    TRILHAS_ATIVAS = env_bool("TRILHAS_ATIVAS", True)
+    # Liga de Setores e missões (X8): só pontos positivos, por setor.
+    LIGA_ATIVA = env_bool("LIGA_ATIVA", True)
+    TURNOS = os.getenv("TURNOS", "06:00-14:00,14:00-22:00,22:00-06:00")
+    TRILHAS_DIR = os.getenv("TRILHAS_DIR", "")
+    TRILHAS_MB_POR_ARQUIVO = env_float("TRILHAS_MB_POR_ARQUIVO", 16.0)
+    TRILHAS_ARQUIVOS = env_int("TRILHAS_ARQUIVOS", 4)
+    REASSOCIAR_DISTANCIA_LARGURAS = env_float("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)
+    REASSOCIAR_JANELA_S = env_float("REASSOCIAR_JANELA_S", 2.0)
     POSE_PER_PERSON = env_bool("POSE_PER_PERSON", True)
     POSE_MAX_PEOPLE = env_int("POSE_MAX_PEOPLE", 4)
     POSE_MIN_DETECTION_CONFIDENCE = env_float("POSE_MIN_DETECTION_CONFIDENCE", 0.5)
     POSE_MIN_TRACKING_CONFIDENCE = env_float("POSE_MIN_TRACKING_CONFIDENCE", 0.5)
 
     ALERT_COOLDOWN_SECONDS = env_int("ALERT_COOLDOWN_SECONDS", 0)
-    ALERT_CREATE_AFTER_FRAMES = env_int("ALERT_CREATE_AFTER_FRAMES", 3)
-    ALERT_RESOLVE_AFTER_FRAMES = env_int("ALERT_RESOLVE_AFTER_FRAMES", 5)
+    ALERT_CREATE_AFTER_FRAMES = env_int("ALERT_CREATE_AFTER_FRAMES", 8)
+    ALERT_RESOLVE_AFTER_FRAMES = env_int("ALERT_RESOLVE_AFTER_FRAMES", 20)
+    # Histerese também por tempo (ver AlertStateService): cria quando a violação
+    # se sustenta por N s com pelo menos M inferências novas seguidas, mesmo
+    # que a máquina não chegue aos 8 quadros. 0 desliga (só quadros).
+    ALERT_CREATE_AFTER_SECONDS = env_float("ALERT_CREATE_AFTER_SECONDS", 2.0)
+    ALERT_MIN_CONFIRMATIONS = env_int("ALERT_MIN_CONFIRMATIONS", 2)
+    ALERT_RESOLVE_AFTER_SECONDS = env_float("ALERT_RESOLVE_AFTER_SECONDS", 6.0)
+    ALERT_MIN_RESOLVE_CONFIRMATIONS = env_int("ALERT_MIN_RESOLVE_CONFIRMATIONS", 3)
+    # Emergência breve (queda pelo modelo): N análises novas seguidas criam o
+    # alerta, sem esperar o tempo mínimo (ver AlertStateService, PR3).
+    ALERT_EMERGENCY_RULES = os.getenv("ALERT_EMERGENCY_RULES", "fall_detected")
+    ALERT_EMERGENCY_MIN_CONFIRMATIONS = env_int("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)
     SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
@@ -292,10 +480,12 @@ class Config:
     OVERLAY_SHOW_CONFIDENCE = env_bool("OVERLAY_SHOW_CONFIDENCE", True)
     OVERLAY_SHOW_POSE = env_bool("OVERLAY_SHOW_POSE", True)
     OVERLAY_SHOW_RISK_AREA = env_bool("OVERLAY_SHOW_RISK_AREA", True)
+    # Partes do corpo do SH17 (contexto visual): cada uma liga/desliga sozinha.
+    OVERLAY_SHOW_PARTS = os.getenv("OVERLAY_SHOW_PARTS", "")
 
     DEFAULT_FEATURES = os.getenv(
         "DEFAULT_FEATURES",
-        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area",
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area,sos,ergonomia,imobilidade",
     )
     RISK_AREA_POLYGON = os.getenv("RISK_AREA_POLYGON", "0.70,0.10;0.98,0.10;0.98,0.95;0.70,0.95")
 
@@ -343,10 +533,26 @@ class TestConfig(Config):
     # sobe com AUTH_REQUIRED=True e verifica rota por rota — inclusive uma
     # varredura que falha se aparecer rota nova desprotegida.
     AUTH_REQUIRED = False
-    DEFAULT_FEATURES = "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,pose,falls,posture,risk_area"
+    DEFAULT_FEATURES = (
+        "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,pose,falls,posture,risk_area,sos,ergonomia,imobilidade"
+    )
     # Explicito, e nao herdado: um .env com LLM_ENABLED=true na maquina de quem
     # roda a suite nao pode fazer os testes tentarem rede.
     LLM_ENABLED = False
+    # Mesmo motivo: o runtime "auto" leria models/export/aprovados.json DA
+    # MÁQUINA (fora do git). A suíte não pode depender de export local.
+    PPE_RUNTIME = "pytorch"
+    PERSON_RUNTIME = "pytorch"
+    POSE_RUNTIME = "pytorch"
+    # Mesmo motivo: um .env com credencial RTSP de planta real configurada
+    # (necessaria pra rodar contra camera de verdade) nao pode fazer
+    # test_add_recusa_host_sem_credencial_configurada deixar de testar o
+    # caminho de recusa — ela conta com os dois vazios.
+    RTSP_USUARIO = ""
+    RTSP_SENHA = ""
+    # Trilhas do simulador (X2) numa pasta temporária por processo: a suíte
+    # não escreve no instance/ de quem roda nem herda trilha de outra rodada.
+    TRILHAS_DIR = tempfile.mkdtemp(prefix="visionepi-trilhas-")
     # Mesmo motivo: um .env com PPE_MISSING_POLICY=evidencia mudaria quais
     # alertas nascem e quebraria testes que nada tem a ver com politica. Quem
     # testa a outra politica pede explicitamente (test_matcher_evidencia.py).

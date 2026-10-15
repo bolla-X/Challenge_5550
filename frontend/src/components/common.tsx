@@ -1,8 +1,10 @@
-import { useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import NumberFlow from "@number-flow/react";
 
-const EASE = [0.16, 1, 0.3, 1] as const; // matches tokens.css --ease
+// Mesma curva de tokens.css (--ease-out).
+const EASE = [0.23, 1, 0.32, 1] as const;
 
 export interface TabItem {
   key: string;
@@ -10,31 +12,102 @@ export interface TabItem {
   content: ReactNode;
 }
 
-/** Tab strip + panels, same active-pill pattern as Topbar's .mode-toggle
- * (layoutId slides instead of an abrupt color swap in two places at once).
- * Panels are full existing card components (Panel-wrapped) — Fase 1 swaps
- * which one is visible, it doesn't restructure their internals. */
-export function Tabs({ tabs, active, onChange, idPrefix }: { tabs: TabItem[]; active: string; onChange: (key: string) => void; idPrefix: string }) {
+/** Faixa de abas em pílula + painéis. Troca por seta e Home/End no teclado. */
+export function Tabs({
+  tabs,
+  active,
+  onChange,
+  idPrefix,
+  primary,
+}: {
+  tabs: TabItem[];
+  active: string;
+  onChange: (key: string) => void;
+  idPrefix: string;
+  /** Chaves que ficam na faixa. As demais vão para o menu "Mais". Sem isto, todas ficam na faixa. */
+  primary?: string[];
+}) {
+  const [maisAberto, setMaisAberto] = useState(false);
+  const maisRef = useRef<HTMLDivElement>(null);
+  const faixaRef = useRef<HTMLDivElement>(null);
+  const primarias = primary ? tabs.filter((t) => primary.includes(t.key)) : tabs;
+  // Quantas primárias cabem na faixa (com "Mais"). As que não cabem vão para o
+  // menu: com a lateral estreita (1280 px, vídeo 4:3) a última aba pintava por
+  // cima do "Mais" e roubava o clique (ADENDO 3). Só com `primary`: sem ele não há menu.
+  const [cabem, setCabem] = useState(primarias.length);
+  const larguras = useRef<Record<string, number>>({});
+  const naFaixa = primary ? primarias.slice(0, Math.max(1, cabem)) : tabs;
+  const noMais = primary ? [...primarias.slice(Math.max(1, cabem)), ...tabs.filter((t) => !primary.includes(t.key))] : [];
+  const ativaNoMais = noMais.find((t) => t.key === active);
+  const chavesPrimarias = primarias.map((t) => t.key).join("|");
+
+  useLayoutEffect(() => {
+    const faixa = faixaRef.current;
+    if (!primary || !faixa || typeof ResizeObserver === "undefined") return undefined;
+    const medir = () => {
+      faixa.querySelectorAll<HTMLElement>('[role="tab"]').forEach((el) => {
+        if (el.dataset.key) larguras.current[el.dataset.key] = el.offsetWidth;
+      });
+      // 6 = padding da faixa; 2 = gap entre abas; 64 = "Mais" ainda não desenhado.
+      const disponivel = faixa.clientWidth - 6 - (maisRef.current?.offsetWidth ?? 64) - 2;
+      let soma = 0;
+      let n = 0;
+      for (const tab of primarias) {
+        const largura = larguras.current[tab.key];
+        if (largura === undefined) break; // ainda não medida: fica onde está até a próxima medida
+        soma += largura + 2;
+        if (soma > disponivel) break;
+        n += 1;
+      }
+      const todasMedidas = primarias.every((t) => larguras.current[t.key] !== undefined);
+      setCabem(todasMedidas ? n : primarias.length);
+    };
+    const observador = new ResizeObserver(medir);
+    observador.observe(faixa);
+    medir();
+    return () => observador.disconnect();
+    // Remede quando muda o conjunto de primárias; a largura das abas fica em `larguras`.
+  }, [chavesPrimarias, Boolean(primary)]);
+
+  // Fecha o menu ao clicar fora ou apertar Esc.
+  useEffect(() => {
+    if (!maisAberto) return undefined;
+    const fora = (e: MouseEvent) => {
+      if (maisRef.current && !maisRef.current.contains(e.target as Node)) setMaisAberto(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMaisAberto(false);
+    };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [maisAberto]);
+
   const listRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
-  const activeIndex = Math.max(0, tabs.findIndex((t) => t.key === active));
+  const activeIndex = Math.max(0, naFaixa.findIndex((t) => t.key === active));
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     let nextIndex = activeIndex;
-    if (event.key === "ArrowRight") nextIndex = (activeIndex + 1) % tabs.length;
-    else if (event.key === "ArrowLeft") nextIndex = (activeIndex - 1 + tabs.length) % tabs.length;
+    if (event.key === "ArrowRight") nextIndex = (activeIndex + 1) % naFaixa.length;
+    else if (event.key === "ArrowLeft") nextIndex = (activeIndex - 1 + naFaixa.length) % naFaixa.length;
     else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = tabs.length - 1;
+    else if (event.key === "End") nextIndex = naFaixa.length - 1;
     else return;
     event.preventDefault();
-    onChange(tabs[nextIndex].key);
+    onChange(naFaixa[nextIndex].key);
     listRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
   };
 
   return (
     <div className="tabs">
-      <div className="tabs-list" role="tablist" ref={listRef} onKeyDown={onKeyDown}>
-        {tabs.map((tab) => {
+      {/* A faixa visual tem dois filhos: o tablist (só abas, como o ARIA exige) e o "Mais". */}
+      <div className="tabs-list" ref={faixaRef}>
+        <div className="tabs-tablist" role="tablist" ref={listRef} onKeyDown={onKeyDown}>
+        {naFaixa.map((tab) => {
           const selected = tab.key === active;
           return (
             <button
@@ -42,6 +115,7 @@ export function Tabs({ tabs, active, onChange, idPrefix }: { tabs: TabItem[]; ac
               type="button"
               role="tab"
               id={`${idPrefix}-tab-${tab.key}`}
+              data-key={tab.key}
               aria-selected={selected}
               aria-controls={`${idPrefix}-panel-${tab.key}`}
               tabIndex={selected ? 0 : -1}
@@ -52,13 +126,46 @@ export function Tabs({ tabs, active, onChange, idPrefix }: { tabs: TabItem[]; ac
                 <motion.span
                   className="tab-pill"
                   layoutId={`${idPrefix}-tab-pill`}
-                  transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.16, ease: EASE }}
                 />
               )}
               <span className="tab-label">{tab.label}</span>
             </button>
           );
         })}
+        </div>
+        {noMais.length > 0 && (
+          <div className="tabs-more" ref={maisRef}>
+            <button
+              type="button"
+              className={`tab ${ativaNoMais ? "active" : ""}`.trim()}
+              aria-haspopup="menu"
+              aria-expanded={maisAberto}
+              onClick={() => setMaisAberto((v) => !v)}
+            >
+              {ativaNoMais && <span className="tab-pill" />}
+              <span className="tab-label">{ativaNoMais ? ativaNoMais.label : "Mais"} ▾</span>
+            </button>
+            {maisAberto && (
+              <div className="tabs-more-menu" role="menu">
+                {noMais.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="menuitem"
+                    className={tab.key === active ? "active" : ""}
+                    onClick={() => {
+                      onChange(tab.key);
+                      setMaisAberto(false);
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {tabs.map((tab) => (
         <div
@@ -69,17 +176,15 @@ export function Tabs({ tabs, active, onChange, idPrefix }: { tabs: TabItem[]; ac
           aria-labelledby={`${idPrefix}-tab-${tab.key}`}
           hidden={tab.key !== active}
         >
-          {/* Troca de posição instantânea, não crossfade: o painel antigo já
-              some no mesmo commit (React desmonta, não há AnimatePresence),
-              então as duas abas nunca ocupam espaço ao mesmo tempo — sem
-              isso, abas de altura bem diferente (Checklist vs Modelo)
-              pulariam de layout durante a sobreposição. Só a entrada anima. */}
+          {/* Troca instantânea de posição, só a entrada anima: o painel
+              antigo já some no mesmo commit, então abas de altura diferente
+              não pulam de layout durante a sobreposição. */}
           {tab.key === active && (
             <motion.div
               key={tab.key}
               initial={shouldReduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: shouldReduceMotion ? 0.001 : 0.15, ease: EASE }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.16, ease: EASE }}
             >
               {tab.content}
             </motion.div>
@@ -119,25 +224,58 @@ export function Panel({
   );
 }
 
+/** Chip de estado. Conforme usa --ok no ponto e no texto; falha usa o
+ * tingimento de perigo; o resto fica neutro. */
 export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "ok" | "warn" | "error" | "info"; children: ReactNode }) {
-  const cls = tone === "neutral" ? "badge" : `badge ${tone}`;
-  return <span className={cls}>{children}</span>;
+  const cls = tone === "ok" ? "chip ok" : tone === "error" ? "chip miss" : "chip";
+  return (
+    <span className={cls}>
+      {tone === "ok" && <span className="dot" />}
+      {children}
+    </span>
+  );
 }
 
-export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="empty-state">{children}</div>;
+/**
+ * Estado vazio do sistema: ilustração original + uma frase + (de preferência)
+ * uma ação. `children` sozinho continua funcionando para os vazios curtos
+ * dentro de painéis.
+ */
+export function EmptyState({
+  children,
+  titulo,
+  ilustracao,
+  acao,
+}: {
+  children?: ReactNode;
+  titulo?: string;
+  ilustracao?: ReactNode;
+  acao?: ReactNode;
+}) {
+  if (!titulo && !ilustracao && !acao) return <div className="empty-state">{children}</div>;
+  return (
+    <div className="empty-state rico" role="status">
+      {ilustracao}
+      {titulo && <h3>{titulo}</h3>}
+      {children && <p>{children}</p>}
+      {acao && <div className="empty-state-acao">{acao}</div>}
+    </div>
+  );
 }
 
-/** Placeholder desenhado pros primeiros segundos antes do bootstrap()
- * resolver — substitui o "pisca vazio->populado" por um estado que comunica
- * "carregando", não "sem dados". CSS puro (respeita prefers-reduced-motion
- * via a regra global que já zera todas as animation-duration). */
+/** Placeholder dos primeiros segundos antes do bootstrap() resolver:
+ * comunica "carregando", não "sem dados". Estático, sem brilho. */
 export function PanelSkeleton({ lines = 3 }: { lines?: number }) {
   return (
     <div className="panel-skeleton" aria-hidden="true">
       {Array.from({ length: lines }).map((_, i) => (
-        <div className="skeleton-block skeleton-line" key={i} style={{ width: i === lines - 1 ? "55%" : "100%" }} />
+        <div className={`skeleton-block skeleton-line ${i === lines - 1 ? "short" : ""}`.trim()} key={i} />
       ))}
     </div>
   );
+}
+
+/** Número que muda ao vivo: anima a troca (NumberFlow), sem salto; parado com reduced-motion. */
+export function Numero({ valor, className }: { valor: number; className?: string }) {
+  return <NumberFlow className={className} value={valor} respectMotionPreference locales="pt-BR" />;
 }

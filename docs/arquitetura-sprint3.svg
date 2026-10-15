@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" font-family="Segoe UI, Arial, sans-serif" role="img" aria-label="Arquitetura do VisionEPI com a camada de LLM multimodal">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#475569"/>
+    </marker>
+    <marker id="setaLlm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#9333ea"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="560" fill="#ffffff"/>
+  <text x="500" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">VisionEPI: visão computacional + LLM multimodal</text>
+
+  <!-- linha principal -->
+  <rect x="24" y="80" width="130" height="70" rx="10" fill="#e2e8f0" stroke="#475569"/>
+  <text x="89" y="110" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a">Câmera</text>
+  <text x="89" y="130" text-anchor="middle" font-size="11" fill="#334155">webcam / RTSP</text>
+
+  <rect x="190" y="80" width="130" height="70" rx="10" fill="#e2e8f0" stroke="#475569"/>
+  <text x="255" y="108" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a">Captura</text>
+  <text x="255" y="128" text-anchor="middle" font-size="11" fill="#334155">CameraWorker</text>
+  <text x="255" y="142" text-anchor="middle" font-size="11" fill="#334155">rotação por câmera</text>
+
+  <rect x="356" y="64" width="250" height="102" rx="10" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="481" y="90" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a">Visão computacional (Sprint 2)</text>
+  <text x="481" y="110" text-anchor="middle" font-size="11" fill="#1e3a8a">Ensemble YOLO: Vyra + SH17</text>
+  <text x="481" y="126" text-anchor="middle" font-size="11" fill="#1e3a8a">Rastreador de pessoas · MediaPipe Pose</text>
+  <text x="481" y="142" text-anchor="middle" font-size="11" fill="#1e3a8a">Regras: EPI por pessoa, zona de risco, queda</text>
+
+  <rect x="642" y="80" width="150" height="70" rx="10" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="717" y="108" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a">Alertas</text>
+  <text x="717" y="128" text-anchor="middle" font-size="11" fill="#14532d">histerese: criar 8 quadros,</text>
+  <text x="717" y="142" text-anchor="middle" font-size="11" fill="#14532d">resolver 20</text>
+
+  <rect x="828" y="70" width="150" height="90" rx="10" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="903" y="96" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a">Saídas</text>
+  <text x="903" y="116" text-anchor="middle" font-size="11" fill="#14532d">Dashboard (Flask + React)</text>
+  <text x="903" y="132" text-anchor="middle" font-size="11" fill="#14532d">Banco SQLite · Portaria</text>
+  <text x="903" y="148" text-anchor="middle" font-size="11" fill="#14532d">Aviso externo (planejado)</text>
+
+  <line x1="154" y1="115" x2="188" y2="115" stroke="#475569" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="320" y1="115" x2="354" y2="115" stroke="#475569" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="606" y1="115" x2="640" y2="115" stroke="#475569" stroke-width="2" marker-end="url(#seta)"/>
+  <line x1="792" y1="115" x2="826" y2="115" stroke="#475569" stroke-width="2" marker-end="url(#seta)"/>
+
+  <!-- camada LLM -->
+  <rect x="340" y="250" width="300" height="130" rx="12" fill="#f3e8ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="490" y="278" text-anchor="middle" font-size="15" font-weight="700" fill="#581c87">LLM multimodal (Sprint 3)</text>
+  <text x="490" y="300" text-anchor="middle" font-size="12" fill="#581c87">Gemini · prompt v2 · saída JSON</text>
+  <text x="490" y="320" text-anchor="middle" font-size="11" fill="#6b21a8">roda FORA do loop de vídeo</text>
+  <text x="490" y="336" text-anchor="middle" font-size="11" fill="#6b21a8">1 chamada por câmera, descarta em vez de enfileirar</text>
+  <text x="490" y="352" text-anchor="middle" font-size="11" fill="#6b21a8">latência medida: 16 a 38 s</text>
+
+  <rect x="700" y="250" width="270" height="130" rx="12" fill="#f3e8ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="835" y="278" text-anchor="middle" font-size="15" font-weight="700" fill="#581c87">Validação (schema)</text>
+  <text x="835" y="300" text-anchor="middle" font-size="11" fill="#6b21a8">nivel_risco · epis_ausentes · justificativa</text>
+  <text x="835" y="316" text-anchor="middle" font-size="11" fill="#6b21a8">confianca · acao_recomendada</text>
+  <text x="835" y="340" text-anchor="middle" font-size="11" fill="#6b21a8">resposta fora do schema é descartada:</text>
+  <text x="835" y="356" text-anchor="middle" font-size="11" fill="#6b21a8">nunca vira alerta</text>
+
+  <rect x="340" y="440" width="630" height="70" rx="12" fill="#fef9c3" stroke="#ca8a04"/>
+  <text x="655" y="468" text-anchor="middle" font-size="14" font-weight="700" fill="#713f12">Segunda opinião, só informativa</text>
+  <text x="655" y="488" text-anchor="middle" font-size="12" fill="#713f12">Aparece na aba "Segunda opinião" e no evento llm_segunda_opiniao. NÃO cria, resolve nem apaga alerta.</text>
+  <text x="655" y="504" text-anchor="middle" font-size="11" fill="#713f12">Quem decide é o operador.</text>
+
+  <!-- setas para o LLM -->
+  <path d="M717 150 L717 200 L490 200 L490 248" fill="none" stroke="#9333ea" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#setaLlm)"/>
+  <text x="600" y="192" text-anchor="middle" font-size="11" fill="#6b21a8">alerta CRIADO → frame JPEG já codificado</text>
+  <line x1="640" y1="315" x2="698" y2="315" stroke="#9333ea" stroke-width="2" marker-end="url(#setaLlm)"/>
+  <path d="M835 382 L835 410 L655 410 L655 438" fill="none" stroke="#9333ea" stroke-width="2" marker-end="url(#setaLlm)"/>
+  <path d="M970 475 L985 475 L985 165" fill="none" stroke="#ca8a04" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#seta)"/>
+
+  <!-- legenda -->
+  <rect x="24" y="250" width="290" height="260" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="40" y="276" font-size="13" font-weight="700" fill="#0f172a">Como ler</text>
+  <text x="40" y="300" font-size="12" fill="#334155">Azul: detecção (rápida, ~8 a 10 fps em GPU)</text>
+  <text x="40" y="322" font-size="12" fill="#334155">Roxo: interpretação da cena (lenta, sob demanda)</text>
+  <text x="40" y="344" font-size="12" fill="#334155">Verde: decisão e saída do sistema</text>
+  <text x="40" y="376" font-size="12" font-weight="600" fill="#0f172a">Por que o LLM não decide sozinho</text>
+  <text x="40" y="396" font-size="11" fill="#334155">Modelo de linguagem pode errar ou inventar.</text>
+  <text x="40" y="412" font-size="11" fill="#334155">Em segurança do trabalho, apagar um alerta</text>
+  <text x="40" y="428" font-size="11" fill="#334155">com base em texto gerado seria esconder</text>
+  <text x="40" y="444" font-size="11" fill="#334155">uma violação. Ele complementa o detector.</text>
+</svg>

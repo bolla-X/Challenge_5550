@@ -57,10 +57,10 @@ def test_env_example_nao_liga_auto_create_tables():
 def test_env_example_aponta_para_peso_que_o_requirements_instala():
     """`PPE_MODEL_PATH` nao pode apontar para um runtime que nao e instalado.
 
-    O `.env.example` apontava para um diretorio `*_openvino_model`, mas o
-    `requirements.txt` deliberadamente NAO instala OpenVINO — e explica por que
-    num comentario. O README, por sua vez, documenta `models/vyra_ppe.pt`.
-    Os dois discordavam entre si; quem seguisse o `.env.example` nao subia.
+    O `.env.example` ja apontou para um diretorio `*_openvino_model` quando o
+    OpenVINO nao era instalado, e quem o seguia nao subia. Desde o NEXT 2026 o
+    caminho e sempre o `.pt`: o runtime (`PPE_RUNTIME=auto`) escolhe sozinho o
+    export aprovado no guarda e cai para o `.pt` se nada estiver aprovado.
     """
     caminho = ler_env_example()["PPE_MODEL_PATH"]
     assert caminho.endswith(".pt"), (
@@ -97,22 +97,23 @@ def test_env_example_liga_o_detector_de_pessoa():
         assert valores["MULTI_PERSON_DETECTION"] == "true"
 
 
-def test_env_example_com_o_peso_da_sprint4_usa_um_modelo_so():
-    """Sprint 4: com o peso proprio, o segundo YOLO sai — por medicao.
+def test_env_example_documenta_o_peso_da_sprint4_como_opcao():
+    """Integração com a main (MISSÃO 2, ADENDO 3): o padrão segue o Vyra.
 
-    O peso treinado no Construction-PPE tem classe Person que generaliza no
-    dominio: revocacao de pessoa 0,90 na validacao contra 0,84 do COCO. Somar
-    o COCO piorou o F1 do alerta de capacete (0,88 -> 0,83, validacao) e
-    dobrou o custo (47 -> 98 ms/imagem). Ver docs/SPRINT4.md.
-
-    O inverso do teste acima, e pela mesma razao: a configuracao documentada
-    tem que ser a medida. E YOLO_CLASSES vazio, porque os indices do Vyra
-    filtrariam as classes erradas deste peso em silencio.
+    Todas as medições, guardas de qualidade e E2E do NEXT 2026 foram feitos com
+    o Vyra (e o export OpenVINO aprovado é dele). O peso da Sprint 4 fica como
+    opção documentada — e documentada com as TRÊS linhas juntas, pela mesma
+    razão do teste original da main: com ele, o segundo YOLO sai (classe Person
+    própria, medida) e `YOLO_CLASSES` vazio (os índices do Vyra filtrariam as
+    classes erradas deste peso em silêncio). Ver docs/SPRINT4.md.
     """
     valores = ler_env_example()
-    assert valores["PPE_MODEL_PATH"] == "models/visionepi_cppe_n416.pt"
-    assert valores["MULTI_PERSON_DETECTION"] == "false"
-    assert valores["YOLO_CLASSES"] == ""
+    assert valores["PPE_MODEL_PATH"] == "models/vyra_ppe.pt"
+    assert valores["MULTI_PERSON_DETECTION"] == "true"
+    assert valores["YOLO_CLASSES"] == "0,1,2,3,5,11,12,13"
+    texto = (RAIZ / ".env.example").read_text(encoding="utf-8")
+    for linha in ("PPE_MODEL_PATH=models/visionepi_cppe_n416.pt", "YOLO_CLASSES=", "MULTI_PERSON_DETECTION=false"):
+        assert re.search(rf"^#\s+{re.escape(linha)}\s*$", texto, re.M), f"opção da Sprint 4 sem a linha {linha!r}"
 
 
 def test_peso_da_sprint4_esta_versionado_e_e_o_avaliado():
@@ -571,3 +572,12 @@ def test_limiar_e_janela_de_brilho_chegam_no_worker():
         "o limiar em uso tem que aparecer no diagnostico: sem ele, quem le "
         '"fonte sem imagem" nao sabe contra que numero foi comparado'
     )
+
+
+def test_env_example_infere_a_640():
+    """416 foi reprovado no guarda de qualidade (capacete 8 % contra a referência a 640).
+
+    O código já usava 640 por padrão, mas o `.env.example` dizia 416 — e quem o
+    copiava herdava a resolução reprovada sem saber (MISSÃO 2, P0.3).
+    """
+    assert ler_env_example()["YOLO_IMGSZ"] == "640"

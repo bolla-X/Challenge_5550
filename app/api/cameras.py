@@ -8,13 +8,16 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.api.placeholder import placeholder_jpeg
 from app.extensions import db
 from app.llm import MARCA_DE_REDACAO
-from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_TECHNICAL, Camera
-from app.utils.auth import camera_permitida, camera_scope, erro_fora_do_escopo, login_required, require_role
+from app.models import DEFAULT_CAMERA_FEATURES, ROLE_OPERATOR, ROLE_SUPERVISOR, ROLE_TECHNICAL, Camera
+from app.services.gate_service import normalizar_exigidos
+from app.utils.auth import camera_permitida, camera_scope, current_user, erro_fora_do_escopo, login_required, require_role
+from app.vision.fonte_celular import PREFIXO as PREFIXO_CELULAR
+from app.vision.fonte_celular import novo_token
 from app.vision.video_stream import capture_api
 
 cameras_bp = Blueprint("cameras", __name__)
 
-VALID_SOURCE_TYPES = {"USB", "RTSP", "Arquivo"}
+VALID_SOURCE_TYPES = {"USB", "RTSP", "Arquivo", "Celular"}
 # Mesmas 8 chaves de FeatureManager.AVAILABLE_FEATURES — validado aqui pra
 # nunca deixar entrar uma chave de feature que o resto do sistema (Sidebar,
 # RuleEngine) não reconhece.
@@ -37,7 +40,7 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
     — (None, 200) se tudo certo. Compartilhado entre create/update pra não
     duplicar as mesmas regras em dois lugares e um dia divergir."""
     if not isinstance(payload, dict):
-        return "Payload inválido — esperado um objeto JSON.", 400
+        return "Payload inválido: esperado um objeto JSON.", 400
 
     if is_create or "name" in payload:
         name = str(payload.get("name", "")).strip()
@@ -55,7 +58,12 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
             return f"'source_type' deve ser um de {sorted(VALID_SOURCE_TYPES)}.", 400
         camera.source_type = source_type
 
-    if is_create or "source" in payload:
+    if camera.source_type == "Celular":
+        # Celular como câmera (F6): a fonte é um token gerado aqui, nunca
+        # digitado — é a única credencial do celular (ver app/vision/fonte_celular.py).
+        if not str(camera.source or "").startswith(PREFIXO_CELULAR):
+            camera.source = PREFIXO_CELULAR + novo_token()
+    elif is_create or "source" in payload:
         source = str(payload.get("source", "")).strip()
         if not source:
             return "'source' é obrigatório (índice USB, URL RTSP ou caminho de arquivo).", 400
@@ -88,6 +96,15 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
             camera.height = max(120, min(2160, int(payload["height"])))
         except (TypeError, ValueError):
             return "'height' deve ser um número inteiro.", 400
+
+    if "rotation" in payload:
+        try:
+            rotation = int(payload["rotation"])
+        except (TypeError, ValueError):
+            return "'rotation' deve ser um número inteiro.", 400
+        if rotation not in (0, 90, 180, 270):
+            return "'rotation' deve ser um de [0, 90, 180, 270].", 400
+        camera.rotation = rotation
 
     if "enabled" in payload:
         camera.enabled = bool(payload["enabled"])
@@ -247,7 +264,7 @@ def camera_status(camera_id: int):
     except LookupError:
         # Câmera existe no banco mas não tem worker ativo (ex.: enabled=False,
         # ou criada há pouco e o reload ainda não rodou).
-        return jsonify({"running": False, "error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"running": False, "error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.post("/api/cameras/<int:camera_id>/start")
@@ -262,7 +279,7 @@ def camera_start(camera_id: int):
     try:
         return jsonify(monitor.start(camera_id=camera_id))
     except LookupError:
-        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.post("/api/cameras/<int:camera_id>/stop")
@@ -277,7 +294,7 @@ def camera_stop(camera_id: int):
     try:
         return jsonify(monitor.stop(camera_id=camera_id))
     except LookupError:
-        return jsonify({"error": "câmera sem worker ativo — verifique se está habilitada"}), 409
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/video_feed")
@@ -291,6 +308,13 @@ def camera_video_feed(camera_id: int):
         return jsonify({"error": "câmera não encontrada"}), 404
     monitor = current_app.extensions["monitor_service"]
     target_fps = max(1, int(camera.fps or 12))
+    # ?meta=1: quadro CRU + uma parte JSON com o overlay antes de cada quadro.
+    # É o que o player em canvas do dashboard usa (desenha caixas, pose e zona
+    # no navegador). Um <img> comum não pode receber parte JSON, por isso o
+    # default continua sendo só imagem.
+    # ?anotado=1: overlay desenhado no próprio pixel (para <img>, VLC, legado).
+    com_meta = request.args.get("meta") == "1"
+    anotado = request.args.get("anotado") == "1"
 
     def generate():
         # Manda cada frame UMA vez, esperando aparecer um novo em vez de
@@ -303,24 +327,201 @@ def camera_video_feed(camera_id: int):
         limite_ocioso = max(1.0, 2 / target_fps)  # sem frame novo? reenvia pra manter a conexão viva
         ultima_versao = -1
         ultimo_envio = time.monotonic()
-        while True:
-            try:
-                jpeg, versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
-            except LookupError:
-                jpeg, versao = None, -1
+        monitor.registrar_espectador(camera_id, +1)
+        try:
+            while True:
+                try:
+                    worker = monitor.worker_da_camera(camera_id)
+                    with worker._thread_lock:
+                        versao = worker._frame_counter
+                except LookupError:
+                    worker, versao = None, -1
 
-            agora = time.monotonic()
-            novo = versao != ultima_versao
-            if not novo and agora - ultimo_envio < limite_ocioso:
-                time.sleep(espera)
-                continue
+                agora = time.monotonic()
+                novo = versao != ultima_versao
+                if not novo and agora - ultimo_envio < limite_ocioso:
+                    time.sleep(espera)
+                    continue
 
-            ultima_versao = versao
-            ultimo_envio = agora
-            body = jpeg or placeholder_jpeg(f"Camera {camera_id}: parada ou sem frame")
-            yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + body + b"\r\n"
+                # Encode SÓ aqui, e uma vez por versão para todos os espectadores
+                # (cache no worker): sem ninguém assistindo, não há encode.
+                jpeg, capturado_em, overlay = None, None, None
+                if worker is not None:
+                    jpeg, versao, capturado_em = worker.latest_jpeg_com_carimbo(anotado=anotado)
+                    if com_meta and jpeg:
+                        overlay = worker.overlay_do_quadro()
+                ultima_versao = versao
+                ultimo_envio = agora
+                body = jpeg or placeholder_jpeg("Sem sinal")
+                # X-Capture-Ts: instante de captura (epoch ms). Quem le o stream
+                # por fetch (bench, player em canvas) mede a idade do quadro na tela.
+                carimbo = f"X-Frame-Id: {versao}\r\nX-Capture-Ts: {capturado_em:.1f}\r\n" if jpeg and capturado_em else ""
+                parte = b""
+                if overlay:
+                    parte += (
+                        b"--frame\r\nContent-Type: application/json\r\nContent-Length: " + str(len(overlay)).encode()
+                        + b"\r\n\r\n" + overlay + b"\r\n"
+                    )
+                parte += (
+                    b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(body)).encode()
+                    + b"\r\n" + carimbo.encode() + b"\r\n" + body + b"\r\n"
+                )
+                if worker is not None:
+                    worker.registrar_envio_de_video(len(parte))
+                yield parte
+        finally:
+            # Cliente fechou a aba: o Werkzeug fecha o gerador (GeneratorExit).
+            monitor.registrar_espectador(camera_id, -1)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/conformidade-por-id")
+@login_required
+def camera_ids_rastreados(camera_id: int):
+    """IDs de rastreio com linha do tempo (F2). ID de rastreio não é identidade."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify({"camera_id": camera_id, "items": monitor.worker_da_camera(camera_id).linha_do_tempo.ids()})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/conformidade-por-id/<pessoa_id>")
+@login_required
+def camera_linha_do_tempo_do_id(camera_id: int, pessoa_id: str):
+    """Mudanças de estado (EPIs, queda, zona) de UM ID de rastreio (F2)."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        linha = monitor.worker_da_camera(camera_id).linha_do_tempo.obter(pessoa_id)
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+    if linha is None:
+        return jsonify({"error": "ID de rastreio não visto recentemente nesta câmera"}), 404
+    return jsonify(linha | {"camera_id": camera_id})
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/planta")
+@login_required
+def camera_planta(camera_id: int):
+    """Planta baixa ao vivo (G5): calibração, pés projetados, zona e calor na planta."""
+    from app.vision.planta import homografia, poligono_na_planta, projetar
+
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    calibracao = camera.planta
+    resposta = {"camera_id": camera_id, "calibracao": calibracao, "pes": [], "zona": [], "calor": []}
+    if not calibracao:
+        return jsonify(resposta)
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        worker = monitor.worker_da_camera(camera_id)
+    except LookupError:
+        return jsonify(resposta)
+    resposta["pes"] = worker.pes_na_planta
+    try:
+        resposta["zona"] = poligono_na_planta(list(worker.rule_engine.risk_polygon or []), calibracao)
+        calor = worker.mapa_de_calor.exportar()
+        celulas = [((c + 0.5) / calor["colunas"], (lin + 0.5) / calor["linhas"], v)
+                   for lin, linha in enumerate(calor["grade"]) for c, v in enumerate(linha) if v >= 0.05]
+        if celulas:
+            matriz = homografia(calibracao["pontos_camera"], calibracao["pontos_planta"])
+            projetados = projetar(matriz, [(x, y) for x, y, _ in celulas])
+            resposta["calor"] = [[round(x, 4), round(y, 4), v] for (x, y), (_, _, v) in zip(projetados, celulas, strict=True)
+                                 if -0.1 <= x <= 1.1 and -0.1 <= y <= 1.1]
+    except (ValueError, KeyError):
+        pass
+    return jsonify(resposta)
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/planta")
+@require_role(ROLE_TECHNICAL)
+def definir_planta(camera_id: int):
+    """Body: {"pontos_camera": 4x[x,y], "pontos_planta": 4x[x,y]} (0–1); {"pontos_camera": null} apaga."""
+    from app.vision.planta import homografia, validar_pontos
+
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    corpo = request.get_json(silent=True) or {}
+    if corpo.get("pontos_camera") is None:
+        camera.planta = None
+    else:
+        try:
+            calibracao = {"pontos_camera": validar_pontos(corpo.get("pontos_camera")),
+                          "pontos_planta": validar_pontos(corpo.get("pontos_planta"))}
+            homografia(calibracao["pontos_camera"], calibracao["pontos_planta"])
+        except ValueError as exc:
+            return _validation_error(str(exc))
+        camera.planta = {k: [list(p) for p in v] for k, v in calibracao.items()}
+    db.session.commit()
+    try:
+        worker = current_app.extensions["monitor_service"].worker_da_camera(camera_id)
+        worker.planta = camera.planta
+        worker.pes_na_planta = []
+    except LookupError:
+        pass
+    return jsonify({"camera_id": camera_id, "calibracao": camera.planta})
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/mapa-de-calor")
+@login_required
+def camera_mapa_de_calor(camera_id: int):
+    """Onde as violações aconteceram (F7), em grade normalizada, com meia-vida."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify(monitor.worker_da_camera(camera_id).mapa_de_calor.exportar() | {"camera_id": camera_id})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.patch("/api/cameras/<int:camera_id>/privacidade")
+@require_role(ROLE_SUPERVISOR)
+def camera_privacidade(camera_id: int):
+    """Liga/desliga o desfoque de rosto. Só supervisor; toda troca é auditada."""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload.get("ativa"), bool):
+        return jsonify({"error": "'ativa' (true/false) é obrigatório"}), 400
+    monitor = current_app.extensions["monitor_service"]
+    usuario = current_user()
+    try:
+        return jsonify(monitor.definir_privacidade(camera_id, payload["ativa"], usuario=usuario,
+                                                   motivo=str(payload.get("motivo", ""))))
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/frame.jpg")
+@login_required
+def camera_frame(camera_id: int):
+    """UM quadro e a conexao fecha. E o que o painel usa nas miniaturas:
+    o video continuo (MJPEG) de cada camera prendia uma das 6 conexoes que o
+    navegador permite por site, e com 6 cameras ligadas os cliques (portaria,
+    recursos...) ficavam na fila ate um F5."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        # Miniatura com as caixas desenhadas: a anotação e o encode só rodam
+        # porque alguém pediu (1 por segundo por cartão), não a cada quadro.
+        jpeg, _versao = monitor.latest_jpeg_versionado(camera_id=camera_id)
+    except LookupError:
+        jpeg = None
+    resposta = Response(jpeg or placeholder_jpeg("Sem sinal"), mimetype="image/jpeg")
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
 
 
 @cameras_bp.get("/api/cameras/<int:camera_id>/analysis")
@@ -351,3 +552,91 @@ def _emit_cameras_updated() -> None:
         monitor.socketio.emit("cameras_updated", {})
         if hasattr(monitor, "load_cameras_from_db"):
             monitor.load_cameras_from_db()
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/gate")
+@login_required
+def get_camera_gate(camera_id: int):
+    """Configuração + veredito atual da portaria. Câmera parada: 'waiting'."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify(monitor.gate_state(camera_id))
+    except LookupError:
+        exigidos = camera.gate_required
+        return jsonify(
+            {
+                "camera_id": camera_id,
+                "enabled": exigidos is not None,
+                "required": exigidos or [],
+                "verdict": "waiting" if exigidos else "off",
+                "missing": [],
+                "people": 0,
+            }
+        )
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/portal")
+@login_required
+def get_camera_portal(camera_id: int):
+    """Portal de Entrada (G1): cada EPI exigido como confirmado, faltando ou não verificável."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    camera = db.session.get(Camera, camera_id)
+    if camera is None:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    try:
+        return jsonify(current_app.extensions["monitor_service"].portal_state(camera_id))
+    except LookupError:
+        exigidos = camera.gate_required or []
+        return jsonify({"camera_id": camera_id, "enabled": bool(exigidos), "required": exigidos,
+                        "verdict": "waiting" if exigidos else "off", "itens": [], "people": 0, "checkins": 0})
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/gate")
+@require_role(ROLE_TECHNICAL)
+def put_camera_gate(camera_id: int):
+    """Body: {"required": ["helmet","vest"]} liga; {"required": null} desliga."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or "required" not in payload:
+        return _validation_error('Envie {"required": [...]} ou {"required": null}.')
+    try:
+        exigidos = normalizar_exigidos(payload["required"])
+        monitor = current_app.extensions["monitor_service"]
+        return jsonify(monitor.update_gate(camera_id, exigidos))
+    except ValueError as exc:
+        return _validation_error(str(exc))
+    except LookupError:
+        return jsonify({"error": "câmera não encontrada"}), 404
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/risk-area")
+@login_required
+def get_camera_risk_area(camera_id: int):
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify({"risk_area": monitor.risk_area_state(camera_id=camera_id)})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/risk-area")
+@cameras_bp.patch("/api/cameras/<int:camera_id>/risk-area")
+@require_role(ROLE_TECHNICAL)
+def put_camera_risk_area(camera_id: int):
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return _validation_error("Payload inválido: esperado um objeto JSON.")
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})
+    except ValueError as exc:
+        return _validation_error(str(exc))
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409

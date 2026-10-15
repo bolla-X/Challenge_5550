@@ -1,0 +1,20 @@
+{
+  "rotulo": "antes-bench",
+  "raiz": "..\\ch5550-antes",
+  "fixture": "bench.mp4",
+  "segundos": 150.0,
+  "carga_de_fundo_pct": 98.0,
+  "inferencias": 307,
+  "alertas_criados": 3,
+  "alertas_por_regra": {
+    "missing_glasses": 1,
+    "missing_gloves": 1,
+    "missing_mask": 1
+  },
+  "ids_de_pessoa_com_alerta": 1,
+  "incidentes_criados": null,
+  "max_itens_no_painel_antigo": 3,
+  "max_alertas_ativos_mesma_regra": 1,
+  "max_incidentes_ativos": null,
+  "max_incidentes_mesma_regra_e_zona": null
+}

@@ -8,7 +8,7 @@ import type { CameraFeatureSet } from "./types";
  * camera-grid, operator-kiosk) — habilitar óculos/máscara/calçado exigia achar
  * as quatro cópias, e esquecer uma deixava a tela mentindo em silêncio.
  */
-export const PPE_KEYS = ["helmet", "vest", "gloves", "glasses", "mask", "safety_shoe"] as const;
+export const PPE_KEYS = ["helmet", "vest", "gloves", "glasses", "mask", "safety_shoe", "ear_protection"] as const;
 export type PpeKey = (typeof PPE_KEYS)[number];
 
 export const PPE_LABELS: Record<PpeKey, string> = {
@@ -18,6 +18,7 @@ export const PPE_LABELS: Record<PpeKey, string> = {
   glasses: "Óculos",
   mask: "Máscara",
   safety_shoe: "Calçado",
+  ear_protection: "Protetor auricular",
 };
 
 /** Descrição curta usada na sidebar de features. */
@@ -28,6 +29,7 @@ export const PPE_DESCRIPTIONS: Record<PpeKey, string> = {
   glasses: "Proteção ocular",
   mask: "Proteção respiratória",
   safety_shoe: "Proteção dos pés",
+  ear_protection: "Proteção auricular",
 };
 
 /** Chaves de detecção que NÃO são EPI, na ordem em que a UI as apresenta. */
