@@ -21,6 +21,32 @@ https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo (baixar an
 - `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
 - Ou `git revert` do squash do PR7.
 
+## Verificação final (15/10, a partir da `main` @ `d76941b`)
+
+Tudo **sob carga**: CPU de terceiros em 30 s antes de começar, média 27 %
+(pico 85 %; Edge/WebView2, WhatsApp, WSL, Docker Desktop), acima do teto de
+15 %; no fim, 97 % (WSL, Edge, `fe-diaria`). Nenhum processo de terceiros foi
+encerrado. Evidência em `bench/runtime/verificacao-final/` (fora do git).
+
+- **E2E completo, rodada única, 4 câmeras** (Multidão, Canteiro, Rede, Queda):
+  **36/36 em 10 min 9 s**. A pílula de aproximação passou de primeira; o plano
+  de 5 rodadas isoladas não foi necessário e nenhuma correção entrou.
+- **Clone limpo da `main`** (`../ch5550-clone-4`, clonado do GitHub), README à
+  risca: `pip install` de primeira (9 min; `torch` 2.13.0, `onnx` 1.22.0,
+  `onnxscript` 0.7.1, `onnxruntime` 1.29.0); `preparar.py` exit 0 (22 min)
+  aprovou, para EPI, pessoa e esqueleto, OpenVINO dinâmico na iGPU e **ONNX
+  dinâmico (concordância 1,0 nos três)**. O traceback `No Adapter To Version
+  $17 for Resize` no meio do export é aviso do exportador do `torch`: o export
+  segue e termina em "export success".
+- `e2e/fumaca_demo.py` contra o clone: **6/6 com OpenVINO** (padrão, demo no ar
+  em 62 s) e **6/6 com ONNX** (`RUNTIME_ORDEM=onnx,pytorch`, 46 s; o log do
+  servidor carregou os três `.onnx` e não caiu para o PyTorch). É o caminho
+  ONNX que o clone 3 não tinha confirmado.
+- PRs abertos: só o #9 (`rebrand/calma`). O conteúdo já está na `main` (os 11
+  commits são ancestrais de `feat/completo-com-rebrand`, que entrou pelo PR7),
+  mas o autor é a conta `lukiin-z`, não a `lucas-baraldi` que rodou a
+  verificação: **não foi fechado**; fechar fica com o dono.
+
 ## Números que valem (14/10, máquina i7-1355U com iGPU Intel)
 
 - Portal até "Liberado" com `portal.mp4` e 4 câmeras (10×): **no palco p50 3,5 s
@@ -56,5 +82,6 @@ https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo (baixar an
 ## Worktrees e pastas de apoio (fora do repositório)
 
 - `../ch5550-release-ensaio`: worktree do `release-main` (integração).
-- `../ch5550-clone-1`, `-2`, `-3`: testes de clone limpo (README à risca).
+- `../ch5550-clone-1`, `-2`, `-3`, `-4`: testes de clone limpo (README à risca;
+  o `-4` é a `main` final, 15/10).
 - `../ch5550-antes`: medições "antes" da missão.

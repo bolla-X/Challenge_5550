@@ -4,6 +4,10 @@ Só entra aqui o que passou no E2E (`e2e/test_fluxos.py`, `e2e/test_missao2.py`)
 com as **4 câmeras ligadas** e sem pausa de contorno. O teste que sustenta cada
 momento está indicado.
 
+**Última verificação: 15/10, `main` @ `d76941b`, sob carga** (27 % de CPU de
+terceiros): E2E **36/36** com as 4 câmeras numa rodada só; clone limpo pelo
+README com a fumaça **6/6 no OpenVINO e 6/6 no ONNX**. Detalhe em `ESTADO.md`.
+
 ## Antes da banca (uma vez, com internet)
 
 ```bash
@@ -119,7 +123,7 @@ python scripts/bench.py --rapido
 | sem WebGL no projetor | o gêmeo cai para a planta 2D sozinho | seguir |
 | sem internet | nada muda: a demo é offline | — |
 | porta 5000 ocupada | `run.py` não sobe | `PORT=5050` nos dois comandos |
-| GPU Intel indisponível | runtime cai para ONNX/CPU (aparece no Diagnóstico) | seguir; a análise fica mais lenta, o vídeo não |
+| GPU Intel indisponível | runtime cai para ONNX/CPU (aparece no Diagnóstico; fumaça 6/6 nesse caminho em clone limpo, 15/10) | seguir; a análise fica mais lenta, o vídeo não |
 
 ## Vídeo de backup (plano B)
 
