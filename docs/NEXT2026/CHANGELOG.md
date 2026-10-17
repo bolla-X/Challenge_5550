@@ -1566,3 +1566,33 @@ pede `blob:`/`unsafe-eval`; uma CSP restritiva quebraria os dois. Caminho: nonce
 - O CSRF compara `Origin` com `request.host_url` só quando o navegador não manda `Sec-Fetch-Site`. Atrás de proxy que
   termina TLS, repasse o esquema (`ProxyFix`) para essa comparação bater.
 - Sessões abertas de uma conta caem quando o Supervisor muda o papel ou o setor dela (login de novo).
+
+## Portão do PR9 — classificação das falhas do E2E completo (MISSÃO 4)
+
+1ª rodada (sobre `9aae8a1`): interrompida pelo fim da sessão; o log `-q` só tinha o progresso (8 F) e nenhuma falha
+pôde ser classificada. 2ª rodada, única, sobre `d250824` (dist gerado do HEAD): **9 falhas, 62 passaram, 2 skips**
+(os 2 skips de sempre, porta OPC UA ocupada e broker fora, cobertos em `tests/test_integracao_industrial.py`),
+1 h 50 min. A partir desta rodada o E2E grava as inferências/s de cada câmera a cada 2 s
+(`bench/runtime/e2e-inferencia.jsonl`) e a janela de cada teste (`bench/runtime/e2e-testes.jsonl`);
+`scripts/e2e_carga.py` cruza os dois.
+
+Regra: (a) bug de produto; (b) premissa errada do teste; (c) sensível à carga **só** se passar isolado e a câmera
+envolvida tiver recebido < 1 inferência/s durante a espera. Sem essa evidência, (a) ou (b).
+
+| Falha | Classe | Evidência |
+|---|---|---|
+| `test_falhas::test_camera_cai_a_tela_diz_reconectando_e_volta` | (b) | Falha também isolada. `inner_text()` devolve `RECONECTANDO · TENTATIVA 2`: o `.feed-badge` tem `text-transform: uppercase` desde o PR7 (`global.css`), e o regex `Reconectando\|Sem sinal` diferencia caixa. O texto do DOM é `Reconectando · tentativa 2`. Correção: o assert lê `text_content()` (texto do DOM, independente do CSS), mesmo regex |
+| `test_falhas::test_webcam_ausente_diz_sem_sinal_e_nao_derruba_as_outras` | (b) | Mesma causa (`RECONECTANDO · TENTATIVA 4`), mesma correção |
+| `test_falhas::test_sessao_expirada_no_meio_de_uma_acao_avisa_e_volta_depois_do_login` | (b) | Falha também isolada; a captura mostra o select "Câmera" na tela. Caso mínimo no Chromium: a árvore de acessibilidade dá `combobox "Câmera"` (nome certo), mas `get_by_label("Câmera", exact=True)` compara o texto inteiro do `<label>`, que inclui as opções (`Câmera Multidão Canteiro…`) → 0 elementos. Correção: `get_by_role("combobox", name="Câmera", exact=True)` (nome acessível, mais estrito) |
+| `test_jornada_04_investigacao::test_investigacao_busca_nas_trilhas_e_simulador_com_regra_editada` | (b) | Mesmo localizador, mesma correção |
+| `test_fase4::test_relatorio_mensal_abre_sem_pessoa_nem_email` | (b) | Falha também isolada. `"Pessoa " not in html` pegou "Pessoa em área de risco" e "Pessoa imóvel na área de risco", nomes de **regra**, não rótulo de rastreio. Correção: regex `\bPessoa\s+(?![a-zà-ú])\S` (barra "Pessoa 3", "Pessoa A7", "Pessoa #2"; nome de regra continua em minúscula) |
+| `test_jornada_09_gamificacao::test_checkin_no_portal_…_retrospectiva` | (b) | Falha também isolada. A conferência da API (`missoes ≥ 1`) vinha **depois** do `finally` que apaga a missão; a retrospectiva conta só missões ativas (`retrospectiva.py:99`), então deu 0 ("Nenhuma missão configurada pelo supervisor"). Correção: conferir antes da limpeza |
+| `test_todos_os_botoes[operator-light]`, `[technical-light]`, `[supervisor-light]`: "não foi possível acionar: Ajuda / Rever tour / Enviar feedback" | (b) | Os três ficam no menu "Mais" (`<details>`). Depois que um item abre outra aba o menu fecha, e o clique seguinte esperava 5 s um item escondido. Reprodução isolada antes da correção: mesmo padrão (Ajuda → nova aba, os seguintes "falhou ao acionar"). Correção: o crawler abre o menu pelo summary **antes** de tirar a assinatura de "antes" e, ao comparar, reabre o menu, para que abrir ou fechar o menu não conte como efeito (sem isso, um item sem efeito passaria). Verificado: kiosk do operador com Ajuda → nova aba, Rever tour e Enviar feedback → mudança de estado, 0 bugs |
+| `test_todos_os_botoes[technical-light]` em `/regras`: "botão sem efeito: Ajuda sobre esta tela" | (b) provisório | **Não reproduziu** em 2 rodadas isoladas (nova aba nas duas; no supervisor, na mesma rodada completa, também nova aba). A rodada completa não deixou captura (o JSON do crawler e o `e2e.log` foram sobrescritos pelas reproduções). Hipótese, não verificada: a aba nova chegou depois da janela de 2,5 s do crawler. Para não ficar sem evidência de novo, todo "sem efeito" agora grava a tela, a URL e se uma aba nova apareceu tarde (`diagnostico` no JSON do crawler e `bench/runtime/e2e-falhas/crawler-*.png`). Só registra: o item continua contado como bug. Se repetir, a classe sai desse registro |
+
+Nenhuma falha entrou em (c): todas reproduzem isoladas e nenhuma depende de inferência (o cruzamento de
+`scripts/e2e_carga.py` está nos registros acima, por teste).
+
+Comportamento de produto observado (não é falha de teste, fica como pendência): apagar uma missão já cumprida a tira
+também da contagem de "Missões cumpridas" da retrospectiva, inclusive de turnos passados, porque a contagem é refeita
+sobre as missões ativas.

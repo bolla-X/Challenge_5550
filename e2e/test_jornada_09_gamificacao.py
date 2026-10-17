@@ -99,13 +99,15 @@ def test_checkin_no_portal_cumpre_a_missao_pontua_na_liga_e_aparece_na_retrospec
             vistos.append(cartao.get_attribute("data-chave"))
         assert CARTOES_DA_RETROSPECTIVA <= set(vistos) and len(vistos) == len(set(vistos)), vistos
         assert "Pessoa " not in pagina.locator("[data-testid=retrospectiva]").inner_text()
+
+        # A API da retrospectiva traz os mesmos números que os cartões mostram. Confere ANTES da limpeza:
+        # a missão apagada no `finally` deixa de contar como configurada (e cumprida) no turno.
+        cartoes = {c["chave"]: c for c in supervisor.get(f"{servidor.base}/api/retrospectiva", timeout=20).json()["cards"]}
+        assert cartoes["checkins"]["valor"] >= 1 and cartoes["missoes"]["valor"] >= 1, cartoes
     finally:
         contexto.close()
         supervisor.delete(f"{servidor.base}/api/liga/missoes/{missao_id}", timeout=20)
         tecnico.put(f"{servidor.base}/api/cameras/{cid}/gate", json={"required": None}, timeout=20)
-    # A API da retrospectiva traz os mesmos números que os cartões mostram.
-    cartoes = {c["chave"]: c for c in supervisor.get(f"{servidor.base}/api/retrospectiva", timeout=20).json()["cards"]}
-    assert cartoes["checkins"]["valor"] >= 1 and cartoes["missoes"]["valor"] >= 1, cartoes
 
 
 def test_liga_missao_cumprida_celebra_e_pontua_o_setor(navegador, servidor):

@@ -54,7 +54,7 @@ def test_camera_cai_a_tela_diz_reconectando_e_volta(pagina, servidor):
     try:
         def caiu():
             estado = badge.get_attribute("data-estado") or ""
-            return estado in ("reconectando", "sem_sinal") and (estado, badge.inner_text())
+            return estado in ("reconectando", "sem_sinal") and (estado, badge.text_content() or "")
 
         estado, texto = esperar(caiu, 90, 0.3, msg="a queda da fonte não apareceu na tela")
         assert re.search(r"Reconectando|Sem sinal", texto), (estado, texto)
@@ -87,7 +87,8 @@ def test_webcam_ausente_diz_sem_sinal_e_nao_derruba_as_outras(pagina, servidor):
         badge = pagina.locator(".feed-badge").first
         esperar(lambda: badge.get_attribute("data-estado") in ("sem_sinal", "reconectando"), 90, 0.5,
                 msg="a tela não disse que a webcam está sem sinal")
-        assert re.search(r"Sem sinal|Reconectando", badge.inner_text()), badge.inner_text()
+        texto = badge.text_content() or ""
+        assert re.search(r"Sem sinal|Reconectando", texto), texto
 
         # Nada mais caiu: as outras câmeras seguem rodando e a sessão continua boa.
         assert _todas_rodando(tecnico, servidor) == dict.fromkeys(NOMES_DAS_CAMERAS, True)
@@ -110,7 +111,7 @@ def test_sessao_expirada_no_meio_de_uma_acao_avisa_e_volta_depois_do_login(pagin
     pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
     pagina.goto(servidor.base + "/busca")
     pagina.locator("[data-testid=busca-trilhas]").wait_for(timeout=60_000)
-    pagina.get_by_label("Câmera", exact=True).wait_for(timeout=60_000)
+    pagina.get_by_role("combobox", name="Câmera", exact=True).wait_for(timeout=60_000)
 
     pagina.context.clear_cookies()
     try:
@@ -126,7 +127,7 @@ def test_sessao_expirada_no_meio_de_uma_acao_avisa_e_volta_depois_do_login(pagin
     pagina.get_by_role("button", name="Entrar").click()
     pagina.wait_for_url("**/busca", timeout=60_000)
     pagina.locator("[data-testid=busca-trilhas]").wait_for(timeout=60_000)
-    pagina.get_by_label("Câmera", exact=True).wait_for(timeout=60_000)
+    pagina.get_by_role("combobox", name="Câmera", exact=True).wait_for(timeout=60_000)
     pagina.locator("[data-testid=busca-filtrar]").click()
     pagina.locator("[data-testid=busca-estado][data-estado=pronto]").wait_for(timeout=60_000)
 

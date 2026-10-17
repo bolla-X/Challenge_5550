@@ -39,7 +39,7 @@ def test_investigacao_busca_nas_trilhas_e_simulador_com_regra_editada(navegador,
         # 1. Busca: trilhas da Multidão sem capacete.
         pagina.goto(servidor.base + "/busca")
         pagina.locator("[data-testid=busca-trilhas]").wait_for(timeout=60_000)
-        pagina.get_by_label("Câmera", exact=True).select_option(str(multidao))
+        pagina.get_by_role("combobox", name="Câmera", exact=True).select_option(str(multidao))
         pagina.get_by_role("checkbox", name="Capacete").check()
         pagina.locator("[data-testid=busca-filtrar]").click()
         pagina.locator("[data-testid=busca-estado][data-estado=pronto]").wait_for(timeout=60_000)

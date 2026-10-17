@@ -23,6 +23,10 @@ from datetime import date, timedelta
 
 from conftest import entrar, esperar
 
+# Rótulo de rastreio: "Pessoa 3", "Pessoa A7"... O nome de uma regra continua em minúscula
+# ("Pessoa em área de risco", "Pessoa imóvel na área de risco") e não é rótulo de ninguém.
+ROTULO_DE_RASTREIO = re.compile(r"\bPessoa\s+(?![a-záàâãéêíóôõúç])\S")
+
 TITULO_DA_INTERVENCAO = "E2E: capacete obrigatório no portão da Multidão"
 
 
@@ -145,7 +149,7 @@ def test_relatorio_mensal_abre_sem_pessoa_nem_email(pagina, servidor):
     bruto = supervisor.get(f"{servidor.base}/relatorio/mensal", timeout=60)
     assert bruto.status_code == 200 and bruto.headers["Content-Type"].startswith("text/html"), bruto.status_code
     sem_estilo = re.sub(r"<style\b.*?</style>", "", bruto.text, flags=re.DOTALL | re.IGNORECASE)
-    assert "Pessoa " not in sem_estilo, "o relatório mensal não pode trazer rótulo de rastreio"
+    assert not ROTULO_DE_RASTREIO.search(sem_estilo), "o relatório mensal não pode trazer rótulo de rastreio"
     assert "@" not in sem_estilo, "o relatório mensal não pode trazer e-mail nem menção"
 
     entrar(pagina, servidor, "supervisor")
@@ -155,7 +159,7 @@ def test_relatorio_mensal_abre_sem_pessoa_nem_email(pagina, servidor):
     for secao in ("Alertas", "Incidentes", "Fonte de cada número"):
         pagina.get_by_role("heading", name=secao, exact=True).wait_for(timeout=15_000)
     visivel = pagina.locator("body").inner_text()
-    assert "Pessoa " not in visivel and "@" not in visivel, visivel[:500]
+    assert not ROTULO_DE_RASTREIO.search(visivel) and "@" not in visivel, visivel[:500]
     # Mês inválido: mensagem em português, não uma página quebrada.
     invalido = supervisor.get(f"{servidor.base}/api/relatorio/mensal", params={"mes": "2026-13"}, timeout=20)
     assert invalido.status_code == 400 and "AAAA-MM" in invalido.json()["error"], invalido.text

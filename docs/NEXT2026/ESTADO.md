@@ -57,6 +57,8 @@ Já na branch desde o PR8: E2E da Fase 4 (`e2e/test_fase4.py`), as 10 jornadas e
 3. **PR10, item de copy (Fase 5):** unificar os 67 textos "Falha ao…" de `frontend/src` no formato
    "Não foi possível <verbo> <objeto>." (`GLOSSARIO.md`/`MARCA.md`) e criar um teste de copy que falha se
    "Falha ao" aparecer em `frontend/src`.
+   **PR10, pendência de produto:** apagar uma missão já cumprida a tira da contagem da retrospectiva (também de
+   turnos passados; `retrospectiva.py` conta só missões ativas). Avaliar guardar a missão cumprida por turno.
 4. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica + galeria.
 5. Fase 5 item 7: clone limpo seguindo o README até `e2e/fumaca_demo.py` passar. Fase 5 item 1: QA My App
    (run-all), ou o motivo registrado de não ter sido possível.
