@@ -1,3 +1,4 @@
+import { eFalhaDeRede } from "../utils/erros";
 import { mensagemDeErro } from "../utils/erros";
 import { create } from "zustand";
 import { flushSync } from "react-dom";
@@ -519,8 +520,11 @@ export const useDashboardStore = create<DashboardState>()(
             "loadCameras",
           );
         } catch (error) {
-          console.error("[loadCameras] failed", error);
           set({ camerasLoading: false }, false, "loadCameras:error");
+          // Falha de rede sobe para quem chamou (App.tsx tenta de novo em 2 s);
+          // engolir aqui fazia toda navegação virar "erro" no console.
+          if (eFalhaDeRede(error)) throw error;
+          console.error("[loadCameras] failed", error);
         }
       },
       setScreen: (screen) => comTransicao(() => set({ screen }, false, "setScreen")),
@@ -940,7 +944,7 @@ export function subscribeToServerEvents(): () => void {
   const trendInterval = setInterval(() => {
     getRiskTrend()
       .then((riskTrend) => set({ riskTrend }, false, "trend:refresh"))
-      .catch((err) => console.error("[risk-trend] refresh failed", err));
+      .catch((err) => !eFalhaDeRede(err) && console.error("[risk-trend] refresh failed", err));
   }, 5 * 60 * 1000);
   teardown.push(() => clearInterval(trendInterval));
 

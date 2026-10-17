@@ -8,3 +8,8 @@ export function mensagemDeErro(err: unknown, padrao: string): string {
   if (err instanceof TypeError) return "Sem conexão com o servidor.";
   return err instanceof Error && err.message ? err.message : padrao;
 }
+
+/** Falha de REDE (fetch abortado por navegação, servidor fora): não é erro do app. */
+export function eFalhaDeRede(err: unknown): boolean {
+  return err instanceof TypeError && /fetch/i.test(err.message);
+}

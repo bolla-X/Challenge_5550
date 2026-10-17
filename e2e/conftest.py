@@ -219,7 +219,10 @@ def pagina(navegador, servidor):
     contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
     pagina = contexto.new_page()
     pagina.erros_console = []
+    pagina.falhas_de_rede = []
     pagina.on("console", lambda m: pagina.erros_console.append(m.text) if m.type == "error" else None)
+    # Diagnóstico: QUAL requisição falhou e por quê (net::ERR_*), para não adivinhar.
+    pagina.on("requestfailed", lambda r: pagina.falhas_de_rede.append(f"{r.method} {r.url} — {r.failure}"))
     yield pagina
     contexto.close()
 
@@ -251,7 +254,8 @@ def pytest_runtest_makereport(item, call):
     try:
         pagina.screenshot(path=str(pasta / f"{item.name}.png"))
         (pasta / f"{item.name}.txt").write_text(
-            f"url: {pagina.url}\nerros de console: {getattr(pagina, 'erros_console', [])}\n\n" + pagina.inner_text("body")[:5000],
+            f"url: {pagina.url}\nerros de console: {getattr(pagina, 'erros_console', [])}\n"
+            f"falhas de rede: {getattr(pagina, 'falhas_de_rede', [])}\n\n" +pagina.inner_text("body")[:5000],
             encoding="utf-8",
         )
     except Exception:  # noqa: BLE001  (diagnóstico nunca derruba o relatório)
