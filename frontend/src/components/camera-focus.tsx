@@ -279,7 +279,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
     setError(null);
     startCamera(camera.id)
       .then(setStatus)
-      .catch((err) => setError(mensagemDeErro(err, "Falha ao iniciar câmera")))
+      .catch((err) => setError(mensagemDeErro(err, "Não foi possível iniciar a câmera.")))
       .finally(() => setPending(false));
   };
 
