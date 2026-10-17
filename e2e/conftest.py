@@ -77,10 +77,14 @@ class ServidorE2E:
         # Replay e trilhas próprios e zerados: os ids de alerta recomeçam com o
         # banco, e uma pasta alert_1 de outra rodada (ou da demo) quebraria a
         # cadeia de custódia (X3) sem ninguém ter adulterado nada.
-        for pasta in ("e2e-clips", "e2e-trilhas"):
+        for pasta in ("e2e-clips", "e2e-trilhas", "e2e-referencias", "e2e-evacuacoes"):
             shutil.rmtree(runtime / pasta, ignore_errors=True)
         self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda", "portal")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
+        # Integração industrial (M2) ligada no E2E, em portas livres: as jornadas
+        # leem os nós OPC UA e os tópicos MQTT com clientes reais.
+        self.porta_opcua = _porta_livre()
+        self.porta_mqtt = _porta_livre()
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}
         self.emails = {papel: f"{papel}@e2e.local" for papel in self.senhas}
         self.env = os.environ.copy() | {
@@ -105,6 +109,13 @@ class ServidorE2E:
             # Sem limpeza a cada câmera ligada: apagaria evidência da cadeia de custódia (X3).
             "CLEANUP_ON_MONITOR_START": "false",
             "PYTHONUNBUFFERED": "1",
+            "OPCUA_ATIVO": "true",
+            "OPCUA_PORTA": str(self.porta_opcua),
+            "MQTT_ATIVO": "true",
+            "MQTT_BROKER_EMBUTIDO": "true",
+            "MQTT_PORTA": str(self.porta_mqtt),
+            "SAUDE_VISUAL_DIR": "bench/runtime/e2e-referencias",
+            "EVACUACAO_DIR": "bench/runtime/e2e-evacuacoes",
         }
         self.log = runtime / "e2e.log"
         self.proc: subprocess.Popen | None = None

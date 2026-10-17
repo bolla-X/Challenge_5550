@@ -139,6 +139,10 @@ def _rotas_por_papel(servidor) -> dict[str, list[tuple[str, str, str | None]]]:
         ("rotular", "/rotular", None),
         ("simulador", f"/simulador?camera={multidao}", None),
         ("auditoria", "/auditoria", None),
+        ("torre", "/torre", None),
+        ("evacuacao", "/evacuacao", None),
+        ("regras", "/regras", None),
+        ("permissoes", "/permissoes", None),
     ]
     painel = [
         ("grade", "/", None),
