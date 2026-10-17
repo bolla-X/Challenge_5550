@@ -132,7 +132,7 @@ function EditorDeZona({ cameraId, zona, onZona }: { cameraId: number; zona: [num
           aria-label={`Vértice ${i + 1} da zona: selecione e use as setas para mover`}
           aria-pressed={selecionado === i}
           data-testid="sim-vertice"
-          onClick={() => setSelecionado((atual) => (atual === i ? null : i))}
+          onClick={() => setSelecionado(i)}
           onPointerDown={(e) => {
             e.preventDefault();
             setSelecionado(i);
