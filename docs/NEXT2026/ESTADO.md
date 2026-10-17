@@ -11,27 +11,31 @@ Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGEL
   - tag `pre-missao-4` = `75d0de6` (push feito);
   - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-## Em andamento (commit `f5bb471`, wip)
+## Pronto e verificado (branch `missao-4`, último commit `54f1b53`)
 
-- Fontes verificadas (NR-33, NR-35, NR-6, licenças asyncua/paho/amqtt, OPC UA, MQTT, OpenAPI, COCO): no CHANGELOG, seção MISSÃO 4.
-- M3 backend pronto: `app/services/evacuacao.py`, `app/api/evacuacao.py` (registrado), elo `evacuacao` na custódia;
-  `pytest tests/test_evacuacao.py tests/test_custodia.py` → 43 passed.
-- Escritos, ainda sem ligação/E2E: `e2e/test_todos_os_botoes.py` (crawler), `frontend/src/components/evacuacao.tsx`,
-  `torre.tsx`, `styles/missao4.css`, token `--sinal-amarelo`.
-- Em execução por agentes (arquivos podem estar incompletos no wip): matriz de permissões
-  (`tests/test_matriz_de_permissoes.py`), bug hunt (só relatório), revisão de copy + GLOSSARIO, M1
-  `app/vision/saude_visual.py`, M2 `app/services/integracao/`, M4 regras do editor, M5 permissões de trabalho.
-- Bugs de UI já vistos no crawler (técnico, grade): modal "Prova de escala" não fecha com Esc; `navigator.vibrate`
-  sem gesto do usuário gera erro no console (`frontend/src/pwa.ts`); fetch abortado vira `console.error`.
+| Item | Evidência |
+|---|---|
+| Fase 1.3 matriz de permissões | `tests/test_matriz_de_permissoes.py` 1403 passed; 8 divergências de segurança corrigidas (D1–D8) + `focar`; `docs/NEXT2026/PERMISSOES.md` |
+| Fase 1.4 bug hunt | 7 bugs confirmados (C1–C7) corrigidos com regressão: `tests/test_regressao_bug_hunt.py`, `tests/test_regressao_c1_poligono.py` |
+| Fase 1.5 copy | revisão pt-BR em todas as telas + `docs/NEXT2026/GLOSSARIO.md` |
+| M1 saúde visual | `tests/test_saude_visual.py` 83 passed; E2E `test_m1_*` (MJPEG tampada: 3,8 s até OBSTRUÍDA, 9,9 s até o alerta) |
+| M2 integração | `tests/test_integracao_industrial.py` 73 + `tests/test_estado_da_planta.py` (OPC UA/MQTT reais); E2E `test_m2_*`; `docs/NEXT2026/INTEGRACAO.md` |
+| M3 evacuação | `tests/test_evacuacao.py`; E2E `test_m3_*` (pela tela até o elo na custódia íntegra) |
+| M4 editor de regras | `tests/test_regras_editor.py` 111 (equivalência com as 17 nativas); E2E `test_m4_*` (testada no histórico e disparando ao vivo) |
+| M5 permissão de trabalho | `tests/test_permissoes.py` 52; E2E `test_m5_*` (sem vigia → crítico; com vigia → some) |
+
+Telas novas: `/torre`, `/evacuacao`, `/regras`, `/permissoes` (E2E sem erro de console).
+
+## Em andamento
+
+- Crawler botão a botão nos 4 papéis (`e2e/test_todos_os_botoes.py`) rodando; resultado vai para `docs/NEXT2026/QA.md`.
+- Agentes: identidade visual (Fase 3.1), páginas de exceção (3.9), primeiro acesso (3.2).
 
 ## Próximo passo exato
 
-1. Quando cada agente terminar: revisar o diff, rodar o teste do módulo, integrar no `camera_worker`/`MonitorService`
-   (M1 saúde visual, M2 gerente de integração + `/api/integracao/estado`, M4 avaliador do editor, M5 avaliador de permissão),
-   registrar blueprints e ligar as telas no `App.tsx`.
-2. Corrigir as divergências da matriz de permissões e os bugs confirmados do bug hunt (squad fix, com regressão).
-3. Crawler verde para os 4 papéis; E2E de M1 (MJPEG tampada), M2 (OPC UA/MQTT), M3, M4, M5.
-4. Portão do PR8 → squash → tag `missao-4-pr8`.
+1. Corrigir o que o crawler apontar e rodar de novo até zero botão morto/erro de console.
+2. Ligar no `App.tsx` as entregas dos agentes da Fase 3 (exceções, `/primeiro-acesso`, marca).
+3. Portão do PR8: pytest completo, ruff, build, E2E completo (4 câmeras), crawler, axe → PR8 → squash → tag `missao-4-pr8`.
 
 ## Rollback
 
