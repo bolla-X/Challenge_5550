@@ -11,7 +11,7 @@ Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGEL
   - tag `pre-missao-4` = `75d0de6` (push feito);
   - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-## Pronto e verificado (branch `missao-4`, último commit `54f1b53`)
+## Pronto e verificado (branch `missao-4`; portão do PR9 rodando sobre `d250824`)
 
 | Item | Evidência |
 |---|---|
@@ -40,13 +40,28 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
 
 ## Próximo passo exato (PR9 → depois PR10)
 
-1. E2E das features da Fase 4 (busca nas trilhas, escalonamento, intervenções, relatório mensal, /api/docs).
-2. Fase 5: jornadas em arquivos próprios `e2e/test_jornada_NN_*.py` (as que faltam: 2 turno do operador,
-   3 incidente completo, 4 investigação, 9 gamificação, 10 palco; 1, 5, 6, 7, 8 já existem em `test_missao4.py`),
-   injeção de falhas (item 4), revisão de segurança (item 5).
-3. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica + galeria.
-4. Fase 6: cenas novas do `/palco`, vídeo, README/DEMO/BANCA, clone limpo, portão final, tags `missao-4-pr10` e
-   `final-next-2026`.
+Já na branch desde o PR8: E2E da Fase 4 (`e2e/test_fase4.py`), as 10 jornadas em arquivos próprios
+(`e2e/test_jornada_01…10_*.py`), injeção de falhas (`e2e/test_falhas.py`), auditoria de segurança (72 testes em
+`tests/test_seguranca_missao4.py`), identidade (`MARCA.md`).
+
+1. **Portão do PR9.** A 1ª rodada (sobre `9aae8a1`) foi interrompida pelo fim da sessão: o log só tinha o
+   progresso (8 F), sem nome nem traceback, e não dá para classificar falha sem nome. Rodada nova sobre `d250824`
+   (dist gerado do HEAD, texto novo do erro de câmera), com `-rfEs`, junit em `bench/runtime/portao9b.xml` e
+   inferências/s por câmera (`bench/runtime/e2e-inferencia.jsonl`, lido por `scripts/e2e_carga.py`).
+   Cada falha recebe uma classe, registrada no CHANGELOG: (a) bug de produto → squad fix, reproduzir antes, com
+   teste de regressão; (b) premissa errada do teste → corrigir o teste sem afrouxar o que ele verifica;
+   (c) sensível à carga → só se passar isolado **e** a câmera tiver recebido < 1 inferência/s na espera.
+   Se houver mudança de código, roda-se o portão completo de novo, numa rodada única, com build novo do HEAD.
+2. Depois do portão: pytest completo, `QA.md` regenerado, PR9 aberto (com o commit que o portão completo testou
+   e a verificação dirigida dos commits seguintes), squash, tag `missao-4-pr9`, `missao-4` = `main` + merge.
+3. **PR10, item de copy (Fase 5):** unificar os 67 textos "Falha ao…" de `frontend/src` no formato
+   "Não foi possível <verbo> <objeto>." (`GLOSSARIO.md`/`MARCA.md`) e criar um teste de copy que falha se
+   "Falha ao" aparecer em `frontend/src`.
+4. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica + galeria.
+5. Fase 5 item 7: clone limpo seguindo o README até `e2e/fumaca_demo.py` passar. Fase 5 item 1: QA My App
+   (run-all), ou o motivo registrado de não ter sido possível.
+6. Fase 6: cenas novas do `/palco`, vídeo (uma vez) + asset da Release `next-2026-demo`, README/DEMO/BANCA,
+   portão final, PR10, tags `missao-4-pr10` e `final-next-2026`, fumaça a partir da `main`.
 
 ## Rollback
 
