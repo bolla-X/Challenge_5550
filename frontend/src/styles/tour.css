@@ -1,0 +1,74 @@
+/* Tour guiado (components/tour.tsx). Só tokens de tokens.css. */
+
+/* A camada inteira bloqueia o clique no resto da tela: durante o tour, só o cartão responde. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 110; /* acima de diálogo (100) e da paleta de comandos (61) */
+}
+
+/* O anel ilumina o alvo; a sombra enorme escurece o resto (mesma cor do fundo de diálogo). */
+.tour-anel {
+  position: fixed;
+  border-radius: var(--r-control);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 100vmax var(--scrim);
+  pointer-events: none;
+  transition: top var(--d-panel) var(--ease-out), left var(--d-panel) var(--ease-out),
+    width var(--d-panel) var(--ease-out), height var(--d-panel) var(--ease-out);
+}
+
+.tour-cartao {
+  position: fixed;
+  display: grid;
+  gap: var(--s2);
+  width: min(320px, calc(100vw - var(--s5)));
+  padding: var(--s4);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  animation: tour-entra var(--d-state) var(--ease-out);
+  transition: top var(--d-panel) var(--ease-out), left var(--d-panel) var(--ease-out);
+}
+
+.tour-topo { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); }
+.tour-passo {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-lh);
+  letter-spacing: var(--t-caption-tr);
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.tour-esc { font-size: var(--t-caption); line-height: var(--t-caption-lh); color: var(--text-3); }
+
+.tour-cartao h2 {
+  font-size: var(--t-title-3);
+  line-height: var(--t-title-3-lh);
+  letter-spacing: var(--t-title-3-tr);
+  font-weight: 600;
+  color: var(--text);
+}
+.tour-cartao p:not(.tour-passo):not(.tour-esc) {
+  font-size: var(--t-callout);
+  line-height: var(--t-callout-lh);
+  color: var(--text-2);
+}
+
+.tour-acoes { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-top: var(--s2); }
+
+@keyframes tour-entra {
+  from { opacity: 0; transform: translateY(var(--s2)); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Sem deslocamento nem escala: só uma troca de opacidade curta. */
+@media (prefers-reduced-motion: reduce) {
+  .tour-anel,
+  .tour-cartao { transition: none; }
+  .tour-cartao { animation: tour-entra-suave var(--d-state) linear; }
+  @keyframes tour-entra-suave {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

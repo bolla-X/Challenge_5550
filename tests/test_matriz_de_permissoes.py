@@ -407,8 +407,9 @@ LINHAS: list[Linha] = [
         L("GET", regra, PUBLICA, publica_por=SHELL_DO_SPA)
         for regra in (
             "/", "/dashboard", "/dashboard/", "/portal", "/tv", "/rotular", "/desafio", "/gemeo", "/simulador",
-            "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga", "/evacuacao", "/torre", "/regras",
-            "/permissoes", "/primeiro-acesso",
+            "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga", "/evacuacao", "/torre", "/regras", "/produto",
+            "/caixa-de-entrada", "/ajuda",
+            "/permissoes", "/primeiro-acesso", "/novidades", "/configuracoes",
         )
     ],
     L("GET", "/sw.js", PUBLICA, publica_por=PWA),
@@ -491,6 +492,7 @@ LINHAS: list[Linha] = [
     # ---------------------------------------------------------- diagnóstico --
     L("GET", "/model", LEGADA),
     L("GET", "/api/diagnostics/pipeline", QUALQUER_LOGADO),
+    L("GET", "/api/status", TEC_OU_MAIS),
     L("GET", "/settings", LEGADA),
     L("PATCH", "/settings", TEC_OU_MAIS, corpo={"target_fps": 10}),
     L("GET", "/overlay", LEGADA),
@@ -531,6 +533,14 @@ LINHAS: list[Linha] = [
     L("PATCH", "/features", TEC_OU_MAIS, corpo={"features": {"helmet": True}}),
     # ---------------------------------------------------------------- gêmeo --
     L("GET", "/api/gemeo", PARQUE),
+    # feedback e contatos (MISSÃO 4, Fase 3 itens 10 e 11)
+    L("POST", "/api/feedback", QUALQUER_LOGADO, corpo={"texto": "teste"}, ok=(201,)),
+    L("GET", "/api/feedback", SO_SUPERVISOR),
+    L("POST", "/api/feedback/<int:feedback_id>/lido", SO_SUPERVISOR, "/api/feedback/9999/lido", ok=(404,)),
+    L("POST", "/api/contatos", PUBLICA, corpo={}, ok=(400,),
+      publica_por="formulário público de /produto: só grava, valida, exige consentimento e tem limite por IP"),
+    L("GET", "/api/contatos", SO_SUPERVISOR),
+    L("POST", "/api/contatos/<int:contato_id>/lido", SO_SUPERVISOR, "/api/contatos/9999/lido", ok=(404,)),
     # primeiro acesso do supervisor (MISSÃO 4, Fase 3 item 2)
     L("GET", "/api/onboarding", SO_SUPERVISOR),
     L("PUT", "/api/onboarding/<passo>", SO_SUPERVISOR, "/api/onboarding/camera", corpo={"estado": "pendente"}),

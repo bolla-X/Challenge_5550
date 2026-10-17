@@ -82,6 +82,11 @@ def nao_encontrado(erro: NotFound):
 @status_bp.get("/regras")
 @status_bp.get("/permissoes")
 @status_bp.get("/primeiro-acesso")
+@status_bp.get("/produto")
+@status_bp.get("/ajuda")
+@status_bp.get("/caixa-de-entrada")
+@status_bp.get("/novidades")
+@status_bp.get("/configuracoes")
 def index():
     # Serve o shell do build React (frontend/vite.config.ts emite aqui).
     # O caminho Jinja antigo (app/templates/ + app/static/app.js|styles.css)
@@ -104,9 +109,30 @@ def manifesto():
     return send_from_directory(dist_dir, "manifest.webmanifest", mimetype="application/manifest+json", max_age=0)
 
 
+def _pede_a_pagina() -> bool:
+    """O pedido é de uma pessoa abrindo `/status` no navegador (e não de um `fetch` de JSON)?
+
+    `GET /status` é, desde antes da página, a rota JSON do monitor. A mesma URL agora
+    também é a página de saúde do sistema (SPA). O desempate é o `Accept`: navegação
+    declara `text/html` com prioridade sobre `*/*`; `fetch` sem cabeçalho (`*/*`),
+    `curl` e os testes, não. Quem pede `application/json` explicitamente recebe JSON.
+    """
+    if request.headers.get("X-Requested-With"):
+        return False
+    return request.accept_mimetypes.best_match(["application/json", "text/html"], default="application/json") == "text/html"
+
+
 @status_bp.get("/status")
-@login_required
 def status():
+    # A página não carrega dado nenhum (o dado vem de /api/status, que exige sessão),
+    # então o shell sai sem login, como o de toda outra rota de tela.
+    if _pede_a_pagina():
+        return _servir_shell()
+    return _status_do_monitor()
+
+
+@login_required
+def _status_do_monitor():
     camera_id, erro = escopo_ou_erro()
     if erro:
         return erro

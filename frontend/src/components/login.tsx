@@ -91,6 +91,9 @@ export function LoginScreen() {
         </button>
 
         <p className="login-help">Sem acesso? Peça ao responsável pela segurança do trabalho. Não há cadastro público.</p>
+        <a className="login-produto" href="/produto">
+          Conheça o VisionEPI
+        </a>
       </form>
     </div>
   );

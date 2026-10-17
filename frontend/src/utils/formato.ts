@@ -17,3 +17,15 @@ export function inteiro(valor: number): string {
 export function pluralizar(n: number, singular: string, plural = `${singular}s`): string {
   return `${inteiro(n)} ${n === 1 ? singular : plural}`;
 }
+
+/** Tamanho em bytes (base 1024) com vírgula decimal e unidade separada: 1536 → "1,5 KB", 5 GiB → "5,0 GB". */
+export function bytesLegiveis(bytes: number): string {
+  const unidades = ["B", "KB", "MB", "GB", "TB"];
+  let valor = Math.max(0, bytes);
+  let i = 0;
+  while (valor >= 1024 && i < unidades.length - 1) {
+    valor /= 1024;
+    i += 1;
+  }
+  return `${i === 0 ? inteiro(valor) : decimal(valor, valor >= 100 ? 0 : 1)} ${unidades[i]}`;
+}

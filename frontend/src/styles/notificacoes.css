@@ -1,0 +1,69 @@
+/* Central de notificações (MISSÃO 4, Fase 3 item 5). Só tokens de tokens.css; cor só para estado. */
+
+.so-leitor {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+.notif { position: relative; display: inline-flex; }
+.notif-sino { position: relative; }
+
+/* Contador: neutro (texto invertido); vira cor de perigo quando há crítico ou alto não lido. */
+.notif-contador {
+  position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-chip); background: var(--text); color: var(--surface);
+  font-size: var(--t-caption); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.notif-contador[data-grave="1"] { background: var(--danger); color: var(--on-accent); }
+
+.notif-painel {
+  position: absolute; right: 0; top: calc(100% + var(--s2)); z-index: 40;
+  width: min(420px, calc(100vw - 2 * var(--s4)));
+  max-height: min(70vh, 600px);
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: var(--shadow-2);
+  animation: notif-entra var(--d-state) var(--ease-out);
+}
+.notif-painel:focus-visible { outline-offset: -2px; }
+@keyframes notif-entra { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
+
+.notif-cabeca {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3);
+  padding: var(--s4) var(--s4) var(--s2);
+}
+.notif-cabeca h2 { font-size: var(--t-title-3); line-height: var(--t-title-3-lh); letter-spacing: var(--t-title-3-tr); font-weight: 600; }
+.notif-resumo { font-size: var(--t-footnote); color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.notif-filtros { display: flex; gap: var(--s3); padding: 0 var(--s4) var(--s3); border-bottom: 1px solid var(--hairline); }
+.notif-filtro { flex: 1; min-width: 0; display: grid; gap: var(--s1); font-size: var(--t-footnote); color: var(--text-2); }
+.notif-filtro select { height: 36px; }
+
+.notif-lista-area { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+.notif-estado { padding: var(--s4); display: grid; gap: var(--s3); justify-items: start; color: var(--text-2); }
+.notif-lista-area .empty-state.rico { padding: var(--s5) var(--s4); }
+.notif-lista-area .empty-state.rico .ilustracao { width: 120px; height: auto; }
+
+.notif-lista { list-style: none; margin: 0; padding: 0; }
+.notif-item { display: grid; gap: var(--s1); padding: var(--s3) var(--s4); border-top: 1px solid var(--hairline); }
+.notif-item:first-child { border-top: 0; }
+/* Não lida: fundo afundado e título em peso maior. Texto "Não lida" existe para leitor de tela. */
+.notif-item.nao-lida { background: var(--sunken); }
+.notif-item.nao-lida .notif-item-titulo { font-weight: 600; }
+.notif-item.nao-lida .chip:not(.miss) { background: var(--surface); }
+.notif-item-topo { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.notif-item-quando { font-size: var(--t-caption); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.notif-item-titulo { font-size: var(--t-callout); line-height: var(--t-callout-lh); color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
+.notif-item-meta { font-size: var(--t-footnote); color: var(--text-2); }
+.notif-item-acoes { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2); margin-top: var(--s1); }
+.notif-alternar { margin-left: auto; }
+
+/* Celular: o painel ocupa a largura da tela, ancorado na barra (a barra é o bloco de referência). */
+@media (max-width: 760px) {
+  .notif { position: static; }
+  .notif-painel { left: var(--s4); right: var(--s4); width: auto; max-height: min(75vh, 560px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notif-painel { animation: none; }
+}

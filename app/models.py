@@ -398,6 +398,71 @@ class EstadoDoOnboarding(db.Model):
     atualizado_por = db.Column(db.String(180), nullable=True)
 
 
+TAMANHO_MAXIMO_FEEDBACK = 2000
+
+
+class Feedback(db.Model):
+    """"Enviar feedback" de dentro do app (MISSÃO 4, Fase 3 item 11). Fica só neste banco.
+
+    `tipo_de_conta` vem da SESSÃO, nunca do corpo da requisição. `user_id` sem
+    ForeignKey, como `Alert.camera_id`: apagar a conta não apaga o que ela escreveu.
+    `tela` é só o caminho (sem query e sem fragmento), para não gravar token de URL.
+    """
+
+    __tablename__ = "feedback"
+
+    id = db.Column(db.Integer, primary_key=True)
+    texto = db.Column(db.String(TAMANHO_MAXIMO_FEEDBACK), nullable=False)
+    tela = db.Column(db.String(200), nullable=True)
+    tipo_de_conta = db.Column(db.String(20), nullable=False)
+    user_id = db.Column(db.Integer, nullable=True, index=True)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    lido = db.Column(db.Boolean, nullable=False, default=False, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "texto": self.texto,
+            "tela": self.tela,
+            "tipo_de_conta": self.tipo_de_conta,
+            "user_id": self.user_id,
+            "criado_em": self.criado_em.isoformat() if self.criado_em else None,
+            "lido": bool(self.lido),
+        }
+
+
+class Contato(db.Model):
+    """Mensagem do formulário da página pública `/produto` (MISSÃO 4, Fase 3 item 10).
+
+    Gravada localmente, sem envio a terceiros. `consentimento` só existe como `True`
+    (o formulário recusa sem ele); a coluna registra o aceite junto com `criado_em`.
+    O endereço de IP NÃO é gravado: o limite por IP vive só em memória.
+    """
+
+    __tablename__ = "contatos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(120), nullable=False)
+    empresa = db.Column(db.String(160), nullable=True)
+    email = db.Column(db.String(254), nullable=False)
+    mensagem = db.Column(db.String(TAMANHO_MAXIMO_FEEDBACK), nullable=False)
+    consentimento = db.Column(db.Boolean, nullable=False, default=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    lido = db.Column(db.Boolean, nullable=False, default=False, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "empresa": self.empresa,
+            "email": self.email,
+            "mensagem": self.mensagem,
+            "consentimento": bool(self.consentimento),
+            "criado_em": self.criado_em.isoformat() if self.criado_em else None,
+            "lido": bool(self.lido),
+        }
+
+
 class Camera(db.Model):
     __tablename__ = "cameras"
 

@@ -220,6 +220,10 @@ PUBLICAS = {
     # sem dado nenhum; o navegador os pede antes de qualquer login.
     "status.service_worker",
     "status.manifesto",
+    # Formulário de contato da página pública /produto (MISSÃO 4, Fase 3): o visitante não
+    # tem conta. Só grava (nunca lê), valida tudo, exige consentimento e tem limite por IP.
+    # Coberto por tests/test_feedback_contatos.py.
+    "feedback.criar_contato",
 }
 
 

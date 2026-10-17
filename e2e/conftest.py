@@ -190,6 +190,24 @@ def playwright_sessao():
         yield pw
 
 
+TOUR_JA_VISTO = ("try{['operator','technical','supervisor'].forEach(p=>localStorage.setItem('visionepi-tour-visto-'+p,'1'))}"
+                 "catch(e){}")
+
+
+def _tour_ja_visto(nav) -> None:
+    """Todo contexto da suíte nasce com o tour guiado já visto: a camada do tour bloquearia os cliques.
+    Quem testa o tour (`test_tour_guiado_*`) cria o contexto com `nav.new_context_com_tour`."""
+    original = nav.new_context
+
+    def novo_contexto(*args, **kwargs):
+        contexto = original(*args, **kwargs)
+        contexto.add_init_script(TOUR_JA_VISTO)
+        return contexto
+
+    nav.new_context_com_tour = original
+    nav.new_context = novo_contexto
+
+
 @pytest.fixture(scope="session")
 def navegador(playwright_sessao):
     # Câmera falsa do Chromium para o F6 (celular como câmera): o
@@ -198,6 +216,7 @@ def navegador(playwright_sessao):
     nav = playwright_sessao.chromium.launch(
         headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
     )
+    _tour_ja_visto(nav)
     yield nav
     nav.close()
 
@@ -210,6 +229,7 @@ def navegador_gpu(playwright_sessao):
     provar que funciona, não para medir tempo de quadro. Ver CHANGELOG (X1).
     """
     nav = playwright_sessao.chromium.launch(headless=True, args=["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"])
+    _tour_ja_visto(nav)
     yield nav
     nav.close()
 

@@ -7,6 +7,7 @@ from flask import Blueprint, current_app, jsonify, request, send_from_directory
 from app.config import BASE_DIR
 from app.models import ROLE_TECHNICAL, Alert
 from app.repositories.event_repository import EventRepository
+from app.services.status_do_sistema import ServicoDeStatus
 from app.utils.auth import (
     _operador_sem_setor,
     camera_permitida,
@@ -51,6 +52,23 @@ def pipeline_diagnostics():
     if not hasattr(monitor, "diagnostico_do_pipeline"):
         return jsonify({"cameras": {}, "modelos": {}})
     return jsonify(monitor.diagnostico_do_pipeline([escopo] if escopo is not None else None, janela_s=janela, quadro=quadro))
+
+
+@runtime_bp.get("/api/status")
+@require_role(ROLE_TECHNICAL)
+def system_status():
+    """Saúde do sistema para a página `/status` (técnico ou acima; operador recebe 403).
+
+    Distinta de `GET /status`, a rota legada do monitor por câmera (app/api/status.py).
+    Cada componente é sondado com prazo curto: um que trava ou falha vira um item
+    "falha" na resposta, nunca um erro da rota. Ver app/services/status_do_sistema.py.
+    """
+    servico = current_app.extensions.get("status_do_sistema")
+    if servico is None:
+        servico = current_app.extensions.setdefault("status_do_sistema", ServicoDeStatus(current_app._get_current_object()))
+    resposta = jsonify(servico.montar())
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
 
 
 @runtime_bp.get("/settings")

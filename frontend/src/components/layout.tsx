@@ -1,5 +1,7 @@
+import { artigoDaTela, enderecoDoArtigo } from "../ajuda/artigos";
+import { reverTour } from "./tour";
 import { eFalhaDeRede } from "../utils/erros";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { effectiveTheme, ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
@@ -7,6 +9,8 @@ import { Mark, Wordmark } from "./brand";
 import { pedirPermissao, permissaoDeNotificacao } from "../pwa";
 import { IconeLua, IconeMudo, IconeSino, IconeSinoAtivo, IconeSol, IconeSom } from "./icones";
 import { exportAlertsCsv } from "./export";
+import { FeedbackDialog } from "./feedback";
+import { CentralDeNotificacoes } from "./notificacoes";
 
 // Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
 export const EASE = [0.23, 1, 0.32, 1] as const;
@@ -136,7 +140,17 @@ export function Topbar() {
   const setCommandPaletteOpen = useDashboardStore((s) => s.setCommandPaletteOpen);
   const alertHistory = useDashboardStore((s) => s.alertHistory);
   const setScreen = useDashboardStore((s) => s.setScreen);
+  const user = useDashboardStore((s) => s.user);
+  const screen = useDashboardStore((s) => s.screen);
   const access = ROLE_ACCESS[mode];
+  // "Enviar feedback": o foco volta ao botão que abriu o diálogo (há dois: barra e menu do celular).
+  const [feedbackAberto, setFeedbackAberto] = useState(false);
+  const origemDoFeedback = useRef<HTMLElement | null>(null);
+  const fecharFeedback = () => {
+    setFeedbackAberto(false);
+    const origem = origemDoFeedback.current;
+    if (origem?.isConnected) window.setTimeout(() => origem.focus(), 0);
+  };
   // Feedback de "seu clique registrou" durante a latência real do REST.
   const [pending, setPending] = useState<"start" | "stop" | null>(null);
   const runAction = (which: "start" | "stop", action: () => Promise<void>) => {
@@ -171,6 +185,26 @@ export function Topbar() {
           Sobre
         </button>
       )}
+      <a className="button ghost" href={enderecoDoArtigo(artigoDaTela(screen) ?? "limites-do-sistema")} target="_blank"
+         rel="noopener noreferrer" data-testid="ajuda-topbar" title="Ajuda sobre esta tela (abre em outra aba)">
+        Ajuda
+      </a>
+      <button type="button" className="ghost" onClick={() => reverTour()} data-testid="rever-tour">
+        Rever tour
+      </button>
+      <button
+        type="button"
+        className="ghost"
+        data-testid="enviar-feedback"
+        onClick={(e) => {
+          origemDoFeedback.current = e.currentTarget;
+          // No celular o botão mora dentro do <details> "Menu": fecha, para não ficar atrás do diálogo.
+          e.currentTarget.closest("details")?.removeAttribute("open");
+          setFeedbackAberto(true);
+        }}
+      >
+        Enviar feedback
+      </button>
     </>
   );
   return (
@@ -188,6 +222,7 @@ export function Topbar() {
           <div className="appbar-menu-painel">{secundarios}</div>
         </details>
         <ThemeToggle />
+        {user && <CentralDeNotificacoes userId={user.id} />}
         <NotificacaoToggle />
         <MuteToggle />
         <UserMenu />
@@ -211,6 +246,7 @@ export function Topbar() {
           </button>
         )}
       </div>
+      {feedbackAberto && <FeedbackDialog aoFechar={fecharFeedback} />}
     </header>
   );
 }

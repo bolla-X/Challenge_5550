@@ -86,3 +86,7 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
   border: 1px solid var(--hairline); }
 .aviso-primeiro-acesso:hover { border-color: var(--accent); }
 .aviso-primeiro-acesso span { color: var(--text-2); font-size: var(--t-callout); }
+
+/* "?" contextual flutuante nas telas de tela cheia */
+.ajuda-flutuante { position: fixed; right: var(--s4); bottom: var(--s4); z-index: 40; }
+@media print { .ajuda-flutuante { display: none; } }

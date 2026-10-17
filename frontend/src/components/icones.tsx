@@ -28,6 +28,7 @@ import {
   FlaskIcon,
   FilmStripIcon,
   PresentationChartIcon,
+  QuestionIcon,
   TelevisionSimpleIcon,
   TrophyIcon,
   UsersThreeIcon,
@@ -62,3 +63,4 @@ export const IconeFrasco = (p: IconProps) => <FlaskIcon {...BASE} {...p} />;
 export const IconeStories = (p: IconProps) => <FilmStripIcon {...BASE} {...p} />;
 export const IconeTv = (p: IconProps) => <TelevisionSimpleIcon {...BASE} {...p} />;
 export const IconeContas = (p: IconProps) => <UsersThreeIcon {...BASE} {...p} />;
+export const IconeAjuda = (p: IconProps) => <QuestionIcon {...BASE} {...p} />;

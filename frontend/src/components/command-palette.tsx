@@ -1,6 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import { ROLE_ACCESS, useDashboardStore, type ViewMode } from "../store/dashboardStore";
+import { contemTodos, termosDa } from "../utils/busca";
+import { useBuscaGlobal } from "./busca-global";
+import "../styles/busca.css";
 
 // Alvo é o id do WRAPPER da aba (gerado por Tabs em common.tsx como
 // `${idPrefix}-panel-${tabKey}`), não o id do Panel interno — o Panel só
@@ -39,7 +42,13 @@ function scrollToPanel(id: string) {
 
 /** Cmd/Ctrl+K — sempre acessível (não só modo Técnico): navegação de
  * teclado beneficia o operador tanto quanto o técnico, e o padrão
- * Linear/Raycast já é reconhecível por qualquer avaliador. */
+ * Linear/Raycast já é reconhecível por qualquer avaliador.
+ *
+ * Sem texto digitado, mostra só os comandos de sempre. Ao digitar, filtra esses
+ * comandos (sem acento, sem diferenciar maiúsculas) e acrescenta os grupos da
+ * busca global: câmeras, incidentes, IDs de rastreio, regras, permissões, telas
+ * e ajuda (ver busca-global.ts). O filtro é nosso (`shouldFilter={false}`): o do
+ * cmdk não ignora acento e reordenaria os grupos que chegam do servidor. */
 export function CommandPalette() {
   const open = useDashboardStore((s) => s.commandPaletteOpen);
   const setOpen = useDashboardStore((s) => s.setCommandPaletteOpen);
@@ -50,6 +59,13 @@ export function CommandPalette() {
   const stop = useDashboardStore((s) => s.stop);
   const muted = useDashboardStore((s) => s.muted);
   const toggleMuted = useDashboardStore((s) => s.toggleMuted);
+  const [consulta, setConsulta] = useState("");
+  const grupos = useBuscaGlobal(consulta, open);
+
+  // Fechou: a próxima abertura começa limpa.
+  useEffect(() => {
+    if (!open) setConsulta("");
+  }, [open]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -92,6 +108,13 @@ export function CommandPalette() {
     setTimeout(() => scrollToPanel(target.id), 50);
   };
 
+  const termos = termosDa(consulta);
+  const rotuloDoMonitoramento = running ? "Parar monitoramento" : "Iniciar monitoramento";
+  const rotuloDoSom = muted ? "Ativar som de alertas" : "Silenciar som de alertas";
+  const mostraMonitoramento = contemTodos(rotuloDoMonitoramento, termos);
+  const mostraSom = contemTodos(rotuloDoSom, termos);
+  const alvosFiltrados = alvosVisiveis.filter((alvo) => contemTodos(alvo.label, termos));
+
   return (
     <Command.Dialog
       open={open}
@@ -99,23 +122,43 @@ export function CommandPalette() {
       label="Paleta de comandos"
       overlayClassName="command-palette-overlay"
       contentClassName="command-palette"
+      shouldFilter={false}
     >
-      <Command.Input placeholder="Buscar uma ação…" autoFocus />
+      <Command.Input placeholder="Buscar ações, câmeras, telas, ajuda…" autoFocus value={consulta} onValueChange={setConsulta} />
       <Command.List>
         <Command.Empty>Nenhum resultado.</Command.Empty>
-        <Command.Group heading="Monitoramento">
-          <Command.Item onSelect={() => runAndClose(() => (running ? stop() : start()).catch(console.error))}>
-            {running ? "Parar monitoramento" : "Iniciar monitoramento"}
-          </Command.Item>
-          <Command.Item onSelect={() => runAndClose(toggleMuted)}>{muted ? "Ativar som de alertas" : "Silenciar som de alertas"}</Command.Item>
-        </Command.Group>
-        <Command.Group heading="Ir para">
-          {alvosVisiveis.map((target) => (
-            <Command.Item key={target.id} onSelect={() => jumpTo(target)}>
-              {target.label}
-            </Command.Item>
-          ))}
-        </Command.Group>
+        {(mostraMonitoramento || mostraSom) && (
+          <Command.Group heading="Monitoramento">
+            {mostraMonitoramento && (
+              <Command.Item onSelect={() => runAndClose(() => (running ? stop() : start()).catch(console.error))}>{rotuloDoMonitoramento}</Command.Item>
+            )}
+            {mostraSom && <Command.Item onSelect={() => runAndClose(toggleMuted)}>{rotuloDoSom}</Command.Item>}
+          </Command.Group>
+        )}
+        {alvosFiltrados.length > 0 && (
+          <Command.Group heading="Ir para">
+            {alvosFiltrados.map((target) => (
+              <Command.Item key={target.id} onSelect={() => jumpTo(target)}>
+                {target.label}
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+        {grupos.map((grupo) => (
+          <Command.Group key={grupo.chave} heading={grupo.titulo}>
+            {grupo.itens.map((item) => (
+              <Command.Item key={item.id} value={`${grupo.chave}:${item.id}`} onSelect={() => runAndClose(item.abrir)}>
+                <span className="palette-rotulo">{item.rotulo}</span>
+                {item.detalhe && <span className="palette-detalhe">{item.detalhe}</span>}
+              </Command.Item>
+            ))}
+            {grupo.nota && (
+              <Command.Item disabled value={`${grupo.chave}:nota`} className="palette-nota">
+                {grupo.nota}
+              </Command.Item>
+            )}
+          </Command.Group>
+        ))}
       </Command.List>
     </Command.Dialog>
   );

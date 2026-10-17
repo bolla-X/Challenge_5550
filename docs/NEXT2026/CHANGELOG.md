@@ -773,6 +773,26 @@ Antes de começar: `bench/results/` tinha 11 JSON e `scripts/dump_deteccoes.py`
 citados no BENCHMARKS/CHANGELOG mas nunca versionados — entraram num commit
 próprio (`chore: versiona evidências…`).
 
+### Novidades: Funções novas e visual renovado (14/10/2026)
+
+<!-- Lido por scripts/gerar_novidades.py para a tela "Novidades" do app. Só título e frase para quem usa:
+     sem números de medição, sem nomes de arquivo, no vocabulário do GLOSSARIO.md. -->
+
+- **Gêmeo digital.** A planta em 3D com as câmeras, as áreas de risco e as pessoas na cor do estado, nunca em foto.
+- **Simulador "E se?".** Teste outra área de risco, outro tempo de confirmação ou outros EPIs sobre o que já aconteceu, antes de mudar a regra de verdade.
+- **Cadeia de custódia.** Imagem de evidência, replay e troca de privacidade ficam encadeados, e a tela de Auditoria aponta qualquer alteração.
+- **Linha causal.** O que aconteceu com cada Pessoa dentro de um incidente, passo a passo, com o replay no instante certo.
+- **Raio-X.** Aperte X para ver por que a IA decidiu: esqueleto, confiança por classe e o que foi descartado.
+- **Modo Apresentação.** Um roteiro de cenas para mostrar o sistema, controlado pelo celular por QR code.
+- **Retrospectiva.** Cartões do turno e da semana com dados reais, prontos para salvar como imagem.
+- **Liga de Setores.** Pontos só positivos por setor, missões por turno e o nível da planta.
+- **Tente enganar a IA.** No Portal de Entrada, quem visita tenta driblar a detecção e vê o que o modelo enxergou.
+- **Replay e mapa de calor.** Os quadros de antes e depois de cada alerta e onde a planta concentra as violações.
+- **Celular como câmera.** Pareie um celular por QR code e use-o como câmera.
+- **Aplicativo instalável.** O painel funciona como aplicativo e avisa o alerta crítico com o app aberto.
+- **Incidentes mais claros.** Alertas da mesma regra e da mesma zona agora formam um incidente só.
+- **Visual novo.** Tema claro e escuro, fontes e ícones próprios e transições suaves entre as telas.
+
 ## PR5 — consertos que afetam a demo (Fase A)
 
 ### P0.1 Rodízio ponderado (câmera em foco ≥ 50 %)
@@ -1347,6 +1367,20 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
 ---
 
 # MISSÃO 4 — VisionEPI pronto de empresa
+
+### Novidades: Pronto para a operação da empresa (17/10/2026)
+
+- **Páginas de aviso.** Página não encontrada, erro de tela, sem conexão, sessão expirada com retorno ao ponto onde você estava e acesso negado explicado.
+- **Primeiro acesso.** O Supervisor é guiado da primeira câmera até o "pronto para operar", com a senha temporária exibida uma só vez.
+- **Permissões por tipo de conta.** Cada tela e cada ação respeitam o tipo de conta, e o Operador vê só a câmera do próprio setor.
+- **Saúde da câmera.** O sistema avisa quando uma câmera é tampada, movida, fica escura, ofuscada ou desfocada.
+- **Integração com a fábrica.** OPC UA, MQTT e webhook levam o estado da planta e cada alerta novo a outros sistemas, e a torre de luz virtual mostra o mesmo estado.
+- **Modo Evacuação.** Contagem de pessoas por zona e por câmera, com cronômetro e relatório guardado na cadeia de custódia.
+- **Editor de regras.** Monte regras com blocos, teste no histórico antes de ativar e mantenha as regras atuais como ponto de partida.
+- **Permissão de trabalho.** Zona, janela de horário, responsável, EPIs exigidos e vigia, com o que o modelo não vê marcado como verificação manual.
+- **Textos revisados.** Um termo para cada conceito em todas as telas, com números e horas no padrão brasileiro.
+- **Status do sistema.** Uma página com a saúde dos modelos, das câmeras, do banco, das integrações, da segunda opinião e do espaço em disco.
+- **Configurações em um lugar.** Conta, planta, câmeras, regras, integrações, privacidade e usuários em seções, com o que o seu tipo de conta não pode usar explicado.
 
 ## Fontes verificadas (agente fontes, acesso em 17/10/2026)
 

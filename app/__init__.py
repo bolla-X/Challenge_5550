@@ -17,6 +17,7 @@ from app.api.diagnostics import runtime_bp
 from app.api.escala import escala_bp
 from app.api.evacuacao import evacuacao_bp
 from app.api.features import features_bp
+from app.api.feedback import feedback_bp
 from app.api.gemeo import gemeo_bp
 from app.api.incidentes import incidentes_bp
 from app.api.integracao import integracao_bp
@@ -135,6 +136,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(regras_bp)
     app.register_blueprint(permissoes_bp)
     app.register_blueprint(onboarding_bp)
+    app.register_blueprint(feedback_bp)
     app.register_blueprint(liga_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)

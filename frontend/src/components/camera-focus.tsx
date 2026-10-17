@@ -546,6 +546,14 @@ function SectorItem({ camera, current, onSelect }: { camera: CameraRecord; curre
  * Foco individual de uma câmera, Técnico/Supervisor. Sidebar com os setores
  * e os recursos; à direita, o vídeo e as abas. Operador nunca chega aqui.
  */
+/** Aba com que a câmera abre: `?aba=planta` (atalho de Configurações) se ela existir para o tipo de conta; senão a padrão. */
+function abaInicial(mode: ViewMode): string {
+  const padrao = mode === "supervisor" ? "trend" : "alerts";
+  const pedida = new URLSearchParams(window.location.search).get("aba");
+  const abas = mode === "operator" ? [] : TABS_BY_MODE[mode];
+  return pedida && abas.some((t) => t.key === pedida) ? pedida : padrao;
+}
+
 export function CameraFocus() {
   const camId = useDashboardStore((s) => s.camId);
   const cameras = useDashboardStore((s) => s.cameras);
@@ -553,7 +561,12 @@ export function CameraFocus() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const mode = useDashboardStore((s) => s.mode);
   const camera = cameras.find((c) => c.id === camId);
-  const [activeTab, setActiveTab] = useState<string>(mode === "supervisor" ? "trend" : "alerts");
+  const [activeTab, setActiveTab] = useState<string>(() => abaInicial(mode));
+
+  // `?aba=` só vale para a abertura (os atalhos de Configurações): limpa o endereço depois de lido.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("aba")) window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   if (!camera || mode === "operator") return null;
 
