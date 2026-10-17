@@ -188,6 +188,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         Validado contra o mesmo escopo do REST: operador só foca a câmera do
         próprio setor. Sai de qualquer foco anterior (uma câmera por aba).
         """
+        if payload is not None and not isinstance(payload, dict):
+            return {"ok": False}
         try:
             camera_id = int((payload or {}).get("camera_id"))
         except (TypeError, ValueError):

@@ -60,7 +60,6 @@ from app.models import (
     ROLE_OPERATOR,
     ROLE_SUPERVISOR,
     ROLE_TECHNICAL,
-    Alert,
     Camera,
     Incidente,
     Missao,
@@ -390,6 +389,7 @@ PUBLICA = "ok ok ok ok ok ok"  # sem sessão passa (exceção documentada em `pu
 QUALQUER_LOGADO = "401 ok ok ok ok ok"  # autenticado; sem recurso por câmera (o escopo está no CONTEÚDO)
 DA_CAMERA = "401 ok 404 403 ok ok"  # recurso de uma câmera: fora do setor 404, sem setor 403
 LEGADA = "401 ok ok 403 ok ok"  # rota legada "da câmera padrão": o operador cai no setor dele
+PARQUE = "401 ok ok 403 ok ok"  # listagem do parque (exige_setor): operador vê o setor dele; sem setor, 403
 TEC_OU_MAIS = "401 403 403 403 ok ok"
 SO_SUPERVISOR = "401 403 403 403 403 ok"
 
@@ -458,7 +458,7 @@ LINHAS: list[Linha] = [
     L("GET", "/api/cameras/<int:camera_id>/mapa-de-calor", DA_CAMERA, "/api/cameras/{cam}/mapa-de-calor"),
     L("GET", "/api/cameras/<int:camera_id>/saude-visual", DA_CAMERA, "/api/cameras/{cam}/saude-visual"),
     L("POST", "/api/cameras/<int:camera_id>/saude-visual/referencia", TEC_OU_MAIS,
-      "/api/cameras/{cam}/saude-visual/referencia", ok=(200, 409)),
+      "/api/cameras/{cam}/saude-visual/referencia", ok=(409,)),  # 409: câmera sem quadro para virar referência
     L("PATCH", "/api/cameras/<int:camera_id>/privacidade", SO_SUPERVISOR, "/api/cameras/{cam}/privacidade",
       corpo={"ativa": True, "motivo": "teste"}),
     L("GET", "/api/cameras/<int:camera_id>/frame.jpg", DA_CAMERA, "/api/cameras/{cam}/frame.jpg"),
@@ -530,7 +530,7 @@ LINHAS: list[Linha] = [
     L("PUT", "/features", TEC_OU_MAIS, corpo={"features": {"helmet": True}}),
     L("PATCH", "/features", TEC_OU_MAIS, corpo={"features": {"helmet": True}}),
     # ---------------------------------------------------------------- gêmeo --
-    L("GET", "/api/gemeo", QUALQUER_LOGADO),
+    L("GET", "/api/gemeo", PARQUE),
     # ------------------------------------------------------- integração (torre) --
     L("GET", "/api/integracao/estado", LEGADA),
     # ------------------------------------------------- permissão de trabalho --
@@ -580,13 +580,13 @@ LINHAS: list[Linha] = [
       corpo={"acao": "inexistente"}, publica_por=TOKEN_ERRADO, variante=" (token errado)"),
     L("GET", "/api/palco/controle", TEC_OU_MAIS),
     # ------------------------------------------------------------ relatório --
-    L("GET", "/api/relatorio/turno", QUALQUER_LOGADO),
-    L("GET", "/relatorio/turno", QUALQUER_LOGADO),
-    L("POST", "/api/relatorio/turno/resumo", QUALQUER_LOGADO),
-    L("GET", "/api/relatorio/turno/resumo", QUALQUER_LOGADO),
+    L("GET", "/api/relatorio/turno", PARQUE),
+    L("GET", "/relatorio/turno", PARQUE),
+    L("POST", "/api/relatorio/turno/resumo", PARQUE),
+    L("GET", "/api/relatorio/turno/resumo", PARQUE),
     # ----------------------------------------------------------- risk score --
-    L("GET", "/risk-score", QUALQUER_LOGADO),
-    L("GET", "/risk-score/trend", QUALQUER_LOGADO),
+    L("GET", "/risk-score", PARQUE),
+    L("GET", "/risk-score/trend", PARQUE),
     # --------------------------------------------------------------- rótulos --
     L("GET", "/api/rotulos/proximo", TEC_OU_MAIS),
     L("GET", "/api/rotulos/<ident>.jpg", TEC_OU_MAIS, "/api/rotulos/inexistente.jpg", ok=(404,)),
@@ -602,7 +602,7 @@ LINHAS: list[Linha] = [
     L("GET", "/video_feed", LEGADA, stream=True),
     L("GET", "/analysis/latest", LEGADA),
     # -------------------------------------------------------------------- tv --
-    L("GET", "/api/tv", QUALQUER_LOGADO),
+    L("GET", "/api/tv", PARQUE),
     L("GET", "/api/tv/metas", QUALQUER_LOGADO),
     L("PUT", "/api/tv/metas/<path:setor>", SO_SUPERVISOR, "/api/tv/metas/{setor}", corpo={"minutos_conformes": 30}),
 ]
@@ -619,8 +619,7 @@ _BUG_SNAPSHOT = (
     "entregue a quem souber o nome do arquivo. /alerts/<id>/evidence, que serve o mesmo arquivo, respeita o escopo."
 )
 DIVERGENCIAS: dict[tuple[str, str], str] = {
-    ("GET /snapshots/{snap}", OP_FORA): _BUG_SNAPSHOT + " Esperado 404 (fora do setor), obtido 200.",
-    ("GET /snapshots/{snap}", OP_SEM_SETOR): _BUG_SNAPSHOT + " Esperado 403 (sem setor), obtido 200.",
+    # D1/D2 (snapshot sem escopo) corrigidas na MISSÃO 4: app/api/diagnostics.py::get_snapshot.
 }
 
 
@@ -875,12 +874,7 @@ _BUG_SEM_SETOR = (
     "não vê nada'."
 )
 DIVERGENCIAS_DE_CONTEUDO: dict[tuple[str, str], str] = {
-    ("/api/gemeo", OP_SEM_SETOR): _BUG_SEM_SETOR.format("planta, pés projetados e incidentes de todas as câmeras: app/api/gemeo.py"),
-    ("/api/tv", OP_SEM_SETOR): _BUG_SEM_SETOR.format("setores, conformidade e alertas críticos de todos: app/api/tv.py"),
-    ("/risk-score", OP_SEM_SETOR): _BUG_SEM_SETOR.format("score de risco agregado de todas as câmeras: app/api/risk.py"),
-    ("/risk-score/trend", OP_SEM_SETOR): _BUG_SEM_SETOR.format("tendência de risco de todas as câmeras: app/api/risk.py"),
-    ("/api/relatorio/turno", OP_SEM_SETOR): _BUG_SEM_SETOR.format("relatório de turno de todas as câmeras: app/api/relatorio.py::_parametros"),
-    ("/relatorio/turno (HTML)", OP_SEM_SETOR): _BUG_SEM_SETOR.format("relatório de turno imprimível de todas as câmeras: app/api/relatorio.py::_parametros"),
+    # D3-D8 (operador sem setor via o parque) corrigidas na MISSÃO 4: decorator `exige_setor`.
 }
 
 
@@ -909,7 +903,8 @@ def test_o_conteudo_respeita_o_escopo_de_camera(mundo, listagem, papel):
         return
     assert resposta.status_code == 200, f"{listagem.nome} como {papel}: {resposta.status_code}"
     visto = listagem.extrai(resposta.get_json() if listagem.json else resposta.get_data(as_text=True), mundo)
-    _MEDIDOS.append({"conteudo": listagem.nome, "papel": papel, "obtido": repr(visto), "diverge": (listagem.nome, papel) in DIVERGENCIAS_DE_CONTEUDO})
+    _MEDIDOS.append({"conteudo": listagem.nome, "papel": papel, "obtido": repr(visto),
+                     "diverge": (listagem.nome, papel) in DIVERGENCIAS_DE_CONTEUDO})
     if isinstance(esperado, set) and not listagem.presenca:
         assert visto <= esperado, f"{listagem.nome} como {papel}: viu {sorted(visto)}, só podia ver {sorted(esperado)}"
         return
@@ -1100,12 +1095,8 @@ def test_socket_focar(mundo, papel, camera):
     "carga",
     [
         None, {}, {"camera_id": None}, {"camera_id": "abc"}, {"camera_id": [1]},
-        # `_focar` faz `(payload or {}).get(...)`: payload que não é objeto estoura
-        # AttributeError dentro do handler em vez de responder {"ok": False}.
-        pytest.param("texto", marks=pytest.mark.xfail(
-            strict=True, raises=AttributeError,
-            reason="BUG-ROBUSTEZ: focar com payload que não é objeto levanta AttributeError (app/__init__.py::_focar)",
-        )),
+        # Payload que não é objeto estourava AttributeError em `_focar` (corrigido na MISSÃO 4).
+        "texto",
     ],
     ids=["none", "vazio", "camera_nula", "camera_texto", "camera_lista", "payload_texto"],
 )

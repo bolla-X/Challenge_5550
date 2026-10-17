@@ -5,9 +5,17 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from app.config import BASE_DIR
-from app.models import ROLE_TECHNICAL
+from app.models import ROLE_TECHNICAL, Alert
 from app.repositories.event_repository import EventRepository
-from app.utils.auth import _operador_sem_setor, camera_scope, escopo_ou_erro, login_required, require_role
+from app.utils.auth import (
+    _operador_sem_setor,
+    camera_permitida,
+    camera_scope,
+    erro_fora_do_escopo,
+    escopo_ou_erro,
+    login_required,
+    require_role,
+)
 
 runtime_bp = Blueprint("runtime", __name__)
 
@@ -142,6 +150,14 @@ def list_events():
 @runtime_bp.get("/snapshots/<path:filename>")
 @login_required
 def get_snapshot(filename: str):
+    # Mesmo escopo de `/alerts/<id>/evidence`, que serve o mesmo arquivo: a
+    # imagem pertence a um alerta, e o alerta a uma câmera. Arquivo sem alerta
+    # não é servido (matriz de permissões, MISSÃO 4).
+    alerta = Alert.query.filter(Alert.frame_ref == f"/snapshots/{filename}").first()
+    if alerta is None:
+        return jsonify({"error": "imagem não encontrada"}), 404
+    if not camera_permitida(alerta.camera_id):
+        return erro_fora_do_escopo()
     monitor = current_app.extensions.get("monitor_service")
     snapshot_dir = "runtime/snapshots"
     if monitor is not None and hasattr(monitor, "snapshot_service"):

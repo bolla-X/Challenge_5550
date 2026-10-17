@@ -30,6 +30,16 @@ const TorreScreen = lazy(() => import("./components/torre"));
 const RegrasScreen = lazy(() => import("./components/regras"));
 const PermissoesScreen = lazy(() => import("./components/permissoes"));
 
+// Marcado no `pagehide`/`beforeunload`: a partir daí, fetch abortado é esperado.
+let saindoDaPagina = false;
+if (typeof window !== "undefined") {
+  const marcar = () => {
+    saindoDaPagina = true;
+  };
+  window.addEventListener("beforeunload", marcar);
+  window.addEventListener("pagehide", marcar);
+}
+
 function CarregandoTela() {
   return (
     <div className="screen" aria-busy="true">
@@ -165,6 +175,9 @@ export default function App() {
     // falhas continuam como erro no console.
     const carregar = (nome: string, fn: () => Promise<unknown>, tentativa = 0): void => {
       fn().catch((err) => {
+        // Saindo da página (link, recarga): o navegador aborta o fetch em voo.
+        // Não é falha do app nem da rede — nada a registrar (visto no crawler).
+        if (saindoDaPagina) return;
         const rede = err instanceof TypeError && /fetch/i.test(err.message);
         if (rede && ativo && tentativa < 5) {
           console.warn(`[${nome}] rede indisponível, tentando de novo`, err);

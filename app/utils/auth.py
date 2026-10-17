@@ -159,6 +159,24 @@ def _operador_sem_setor() -> bool:
     return usuario is not None and usuario.role == ROLE_OPERATOR and usuario.camera_id is None
 
 
+def exige_setor(view: Callable[..., Any]) -> Callable[..., Any]:
+    """Listagens do PARQUE (gêmeo, TV, risco, relatório): operador sem setor não vê nada.
+
+    `camera_scope()` devolve None tanto para quem vê tudo (Técnico/Supervisor)
+    quanto para o Operador ainda sem câmera — e seis rotas tomavam esse None por
+    "parque inteiro" (matriz de permissões, MISSÃO 4). Use depois de
+    `login_required`; o filtro do Operador COM setor segue no corpo da rota.
+    """
+
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if _operador_sem_setor():
+            return erro_fora_do_escopo()
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
 def escopo_ou_erro():
     """Para as rotas LEGADAS, que operam sobre "a câmera padrão".
 

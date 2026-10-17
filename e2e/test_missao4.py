@@ -128,6 +128,7 @@ def test_m2_alerta_chega_no_opcua_no_mqtt_e_na_torre(pagina, servidor):
 
         # A torre na tela reflete o mesmo estado.
         entrar(pagina, servidor, "supervisor")
+        pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
         pagina.goto(servidor.base + "/torre")
         torre = pagina.locator("[data-testid=torre]")
         torre.wait_for(timeout=60_000)

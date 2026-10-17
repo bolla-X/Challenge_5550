@@ -23,7 +23,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 
 from app.models import Alert, Camera, EventLog, utc_now
 from app.services.nr6 import FONTE_NR6, mapear
-from app.utils.auth import camera_scope, login_required
+from app.utils.auth import camera_scope, exige_setor, login_required
 from app.vision.person_compliance_matcher import PPE_LABELS
 
 relatorio_bp = Blueprint("relatorio", __name__)
@@ -105,6 +105,7 @@ def _parametros():
 
 @relatorio_bp.get("/api/relatorio/turno")
 @login_required
+@exige_setor
 def relatorio_json():
     horas, camera_id = _parametros()
     return jsonify(montar_relatorio(horas, camera_id))
@@ -129,6 +130,7 @@ def _secao_nr6(nr6: dict[str, Any]) -> str:
 
 @relatorio_bp.get("/relatorio/turno")
 @login_required
+@exige_setor
 def relatorio_html():
     horas, camera_id = _parametros()
     r = montar_relatorio(horas, camera_id)
@@ -183,6 +185,7 @@ def relatorio_html():
 
 @relatorio_bp.post("/api/relatorio/turno/resumo")
 @login_required
+@exige_setor
 def pedir_resumo():
     """Resumo opcional por LLM — assíncrono; GET na mesma rota busca o resultado."""
     horas, camera_id = _parametros()
@@ -218,6 +221,7 @@ def pedir_resumo():
 
 @relatorio_bp.get("/api/relatorio/turno/resumo")
 @login_required
+@exige_setor
 def ver_resumo():
     horas, camera_id = _parametros()
     with _resumos_lock:

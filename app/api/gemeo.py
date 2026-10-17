@@ -17,7 +17,7 @@ import time
 from flask import Blueprint, current_app, jsonify
 
 from app.models import Camera
-from app.utils.auth import camera_scope, login_required
+from app.utils.auth import camera_scope, exige_setor, login_required
 from app.vision.planta import poligono_na_planta
 
 gemeo_bp = Blueprint("gemeo", __name__)
@@ -39,6 +39,7 @@ def _alertas_por_pessoa(worker) -> dict[str, int]:
 
 @gemeo_bp.get("/api/gemeo")
 @login_required
+@exige_setor
 def estado_do_gemeo():
     monitor = current_app.extensions["monitor_service"]
     escopo = camera_scope()
