@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { PPE_LABELS } from "../api/ppe";
+import { rotuloDaClasse } from "../api/ppe";
+import { pluralizar } from "../utils/formato";
 
 /**
  * Aprendizado ativo (G9), em `/rotular`: um recorte por vez, com a classe que
@@ -13,7 +14,7 @@ type Resposta = { habilitado: boolean; item: Item | null; contagem: Contagem | n
 
 async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...init });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao consultar os rótulos.");
   return r.json() as Promise<T>;
 }
 
@@ -63,7 +64,7 @@ export function RotularScreen() {
   }, [decidir]);
 
   const item = estado?.item;
-  const nome = item ? PPE_LABELS[item.classe as keyof typeof PPE_LABELS] ?? item.classe : "";
+  const nome = item ? rotuloDaClasse(item.classe) : "";
   const c = estado?.contagem;
 
   return (
@@ -71,7 +72,7 @@ export function RotularScreen() {
       <header className="rotular-cabeca">
         <h1>Rotular recortes</h1>
         <span className="muted t-data" data-testid="rotular-contagem">
-          {c ? `${c.fila} na fila · ${c.confirmados} confirmados · ${c.rejeitados} rejeitados` : ""}
+          {c ? `${c.fila} na fila · ${pluralizar(c.confirmados, "confirmado")} · ${pluralizar(c.rejeitados, "rejeitado")}` : ""}
         </span>
       </header>
       {erro && <p className="status-text error">{erro}</p>}
@@ -100,7 +101,7 @@ export function RotularScreen() {
       )}
       <footer className="rotular-rodape">
         <a className="button ghost" href="/api/rotulos/dataset.zip" data-testid="rotular-exportar">
-          Exportar dataset YOLO (.zip)
+          Exportar conjunto de dados YOLO (.zip)
         </a>
         <span className="muted">Os recortes vêm do vídeo com rosto desfocado. Só os confirmados entram no zip.</span>
       </footer>

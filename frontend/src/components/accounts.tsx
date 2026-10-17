@@ -13,11 +13,10 @@ import {
   IconeTrofeu,
   IconeTv,
 } from "./icones";
-import { ScreenHead } from "./layout";
+import { ROTULO_DO_PAPEL as PAPEL, ScreenHead } from "./layout";
 import { apiFetch } from "../api/client";
 import type { AuthUser, UserRole } from "../api/types";
-
-const PAPEL: Record<string, string> = { operator: "Operador", technical: "Técnico", supervisor: "Supervisor" };
+import { pluralizar } from "../utils/formato";
 
 const listUsers = () => apiFetch<{ items: AuthUser[] }>("/api/users");
 const createUser = (body: { email: string; name: string; password: string; role: string; camera_id: number | null }) =>
@@ -112,7 +111,7 @@ export function SupervisorHome() {
           <span className="home-tile-texto">
             <strong>Câmeras</strong>
             <span>
-              {cameras.length === 1 ? "1 câmera" : `${cameras.length} câmeras`}: monitoramento, incidentes, zonas e portaria.
+              {pluralizar(cameras.length, "câmera")}: monitoramento, incidentes, zonas e portaria.
             </span>
           </span>
         </button>
@@ -200,7 +199,7 @@ export function AccountsScreen() {
     <div className="screen">
       <ScreenHead
         title="Contas"
-        sub={aba === "nova" ? "Nova conta" : usuarios.length === 1 ? "1 conta" : `${usuarios.length} contas`}
+        sub={aba === "nova" ? "Nova conta" : pluralizar(usuarios.length, "conta")}
         actions={
           aba === "nova" ? (
             <button type="button" className="ghost" onClick={() => setAba("gerenciar")}>
@@ -278,7 +277,7 @@ export function AccountsScreen() {
       )}
 
       {aba === "gerenciar" && (
-      <Panel id="panel-accounts" title="Contas existentes" description={`${usuarios.length === 1 ? "1 conta" : `${usuarios.length} contas`}`}>
+      <Panel id="panel-accounts" title="Contas existentes" description={pluralizar(usuarios.length, "conta")}>
         <div className="account-list">
           {usuarios.map((u) => (
             <div key={u.id} className={`account-row${u.active ? "" : " inactive"}`}>

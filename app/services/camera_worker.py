@@ -594,22 +594,22 @@ class CameraWorker:
 
         checks.append({
             "key": "backend",
-            "label": "Backend",
+            "label": "Servidor",
             "status": "ok",
-            "message": "API Flask respondendo",
+            "message": "Servidor respondendo",
         })
         checks.append({
             "key": "websocket",
-            "label": "WebSocket",
+            "label": "Tempo real",
             "status": "ok",
-            "message": "SocketIO inicializado",
+            "message": "Conexão em tempo real pronta",
         })
 
         try:
             db.session.execute(sql_text("SELECT 1"))
-            checks.append({"key": "database", "label": "Banco", "status": "ok", "message": "Conexão validada"})
+            checks.append({"key": "database", "label": "Banco de dados", "status": "ok", "message": "Conexão validada"})
         except Exception as exc:  # noqa: BLE001
-            checks.append({"key": "database", "label": "Banco", "status": "error", "message": str(exc)})
+            checks.append({"key": "database", "label": "Banco de dados", "status": "error", "message": str(exc)})
 
         source = self.video_stream.source
         video_message = f"Fonte configurada: {redigir_segredos(str(source))}"
@@ -651,7 +651,7 @@ class CameraWorker:
             "key": "snapshots",
             "label": "Evidências",
             "status": "ok" if self.snapshot_service.enabled else "warning",
-            "message": f"Snapshots em {self.snapshot_service.snapshot_dir}",
+            "message": f"Imagens de evidência em {self.snapshot_service.snapshot_dir}",
         })
 
         summary = {
@@ -807,7 +807,7 @@ class CameraWorker:
             tipo = "pessoa" if e_pessoa else ("queda" if det.label == "fall_detected" else "epi")
             caixas.append({
                 "l": det.label,
-                "n": FrameAnnotator._display_label(det.label) if not e_pessoa else None,
+                "n": FrameAnnotator.rotulo_pt(det.label) if not e_pessoa else None,
                 "c": round(float(det.confidence), 2),
                 "b": [int(v) for v in box],
                 "t": det.track_id,
@@ -1062,7 +1062,7 @@ class CameraWorker:
                 continue
             piso = floors.get(det.label)
             if piso is not None and det.confidence < piso:
-                descartadas.append(self._descarte(det, f"abaixo do piso {piso:.2f}"))
+                descartadas.append(self._descarte(det, f"abaixo do piso {piso:.2f}".replace(".", ",")))
                 continue
             if exigir_overlap and not any(
                 det.box.containment_in(pbox) >= overlap_min for pbox in person_boxes
@@ -1347,7 +1347,7 @@ class CameraWorker:
                 self._emit_timeline_event(
                     "approach_risk_area",
                     f"Aproximação da área de risco · Pessoa {aviso['track_id']} "
-                    f"(projeção cinemática: ~{aviso['segundos_ate_entrar']:.1f} s)",
+                    f"(projeção cinemática: ~{aviso['segundos_ate_entrar']:.1f} s)".replace(".", ","),
                     "warning",
                     subject=f"Pessoa {aviso['track_id']}",
                     metadata=aviso,
@@ -1926,7 +1926,7 @@ class CameraWorker:
         )
         self._emit_timeline_event(
             "camera_modo_fixture",
-            f"Modo fixture: fonte de demonstração após {self.tentativas_antes_da_reserva} tentativas",
+            f"Fonte de demonstração assumida após {self.tentativas_antes_da_reserva} tentativas",
             "warning",
             metadata=self.video_state(),
         )
@@ -1936,7 +1936,7 @@ class CameraWorker:
         """Frame nao veio. Anota o estado, avisa a UI quando ele MUDA e dorme
         o tempo certo — nem loop apertado, nem parado alem do backoff."""
         estado = self.video_stream.status()
-        self._last_error = estado.last_error or "Frame indisponível"
+        self._last_error = estado.last_error or "Quadro indisponível"
 
         # Teto de tentativas na fonte configurada: assume a fixture e segue.
         # Uma vez em modo fixture nao volta sozinho — voltar exigiria sondar a
@@ -2158,7 +2158,7 @@ class CameraWorker:
                 "ppe_ready": False,
                 "supported_ppe": {"helmet": False, "vest": False, "gloves": False},
                 "person_supported": False,
-                "warning": "YOLO desativado pelas features atuais",
+                "warning": "YOLO desativado pelos recursos atuais",
                 "error": None,
             }
         diagnostics = dict(self.detector.diagnostics())
@@ -2171,7 +2171,7 @@ class CameraWorker:
             diagnostics["person_model_path"] = self.person_detector.model_path
             if not person_supported:
                 warning_parts.append(
-                    f"Modelo de pessoa ({self.person_detector.model_path}) não possui classe 'person'."
+                    f"Modelo de pessoa ({self.person_detector.model_path}) não detecta pessoas."
                     if not person_diagnostics.get("error")
                     else f"Modelo de pessoa indisponível: {person_diagnostics.get('error')}"
                 )
@@ -2249,7 +2249,7 @@ class CameraWorker:
             self.risk_area_name = str(updates["risk_area_name"]).strip()[:80]
         self._emit_timeline_event(
             "settings_updated",
-            "Configurações runtime atualizadas",
+            "Configurações atualizadas",
             "info",
             metadata={"updates": list(updates.keys())},
         )

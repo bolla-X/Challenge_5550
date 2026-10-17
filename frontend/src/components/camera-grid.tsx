@@ -5,6 +5,7 @@ import { ROLE_ACCESS, useDashboardStore } from "../store/dashboardStore";
 import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints";
 import { IconeAvancar, IconeMais } from "./icones";
 import { estadoDoFeed } from "./feed-status";
+import { pluralizar } from "../utils/formato";
 import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Incidente, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
@@ -190,7 +191,7 @@ function CameraCard({
         </span>
         {incidentes > 0 && (
           <span className="cam-incidentes" data-testid="cam-incidentes">
-            {incidentes === 1 ? "1 incidente" : `${incidentes} incidentes`}
+            {pluralizar(incidentes, "incidente")}
           </span>
         )}
         <ChevronIcon />

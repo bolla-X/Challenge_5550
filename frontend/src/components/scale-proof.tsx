@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { decimal } from "../utils/formato";
 
 /**
  * Prova de escala (F10): N câmeras virtuais lendo uma fixture, workers de
@@ -15,7 +16,7 @@ async function chamar(metodo: string, corpo?: unknown): Promise<Estado | null> {
     headers: corpo ? { "Content-Type": "application/json" } : undefined,
     body: corpo ? JSON.stringify(corpo) : undefined,
   });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Falha na prova de escala.");
   return metodo === "GET" ? ((await r.json()) as Estado) : null;
 }
 
@@ -60,7 +61,7 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
         <header className="replay-cab">
           <div>
             <h2 id="escala-titulo">Prova de escala</h2>
-            <p className="t-secondary">Câmeras virtuais com workers reais lendo a mesma gravação. Os números são desta máquina, agora.</p>
+            <p className="t-secondary">Câmeras virtuais com processamento real lendo a mesma gravação. Os números são desta máquina, agora.</p>
           </div>
           <button type="button" className="ghost small" onClick={onClose}>
             Fechar
@@ -98,15 +99,15 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
               {linhas.map((l) => (
                 <tr key={l.camera_id}>
                   <td>#{l.camera_id}</td>
-                  <td className="t-data">{l.fps_publicado.toFixed(1)}</td>
-                  <td className="t-data">{l.fps_analisado.toFixed(2)}</td>
+                  <td className="t-data">{decimal(l.fps_publicado)}</td>
+                  <td className="t-data">{decimal(l.fps_analisado, 2)}</td>
                   <td className="t-data">{l.idade_analise_p95_ms == null ? "sem dado" : `${Math.round(l.idade_analise_p95_ms)} ms`}</td>
                 </tr>
               ))}
               <tr className="escala-media">
                 <td>Média ({linhas.length})</td>
-                <td className="t-data">{media("fps_publicado").toFixed(1)}</td>
-                <td className="t-data">{media("fps_analisado").toFixed(2)}</td>
+                <td className="t-data">{decimal(media("fps_publicado"))}</td>
+                <td className="t-data">{decimal(media("fps_analisado"), 2)}</td>
                 <td className="t-data">{Math.round(media("idade_analise_p95_ms"))} ms</td>
               </tr>
             </tbody>

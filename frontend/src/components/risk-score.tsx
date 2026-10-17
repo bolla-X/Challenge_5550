@@ -2,17 +2,9 @@ import NumberFlow from "@number-flow/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
 import type { RiskTrendBucket } from "../api/types";
-import { paraDate } from "../utils/datas";
-
-// Mesmos rótulos usados em feature_manager.py / compliance.tsx.
-const FEATURE_LABELS: Record<string, string> = {
-  helmet: "Capacete",
-  vest: "Colete",
-  gloves: "Luvas",
-  falls: "Quedas",
-  posture: "Postura",
-  risk_area: "Área de risco",
-};
+import { horaCurta, paraDate } from "../utils/datas";
+import { pluralizar } from "../utils/formato";
+import { rotuloDoRecurso } from "../api/ppe";
 
 // Cor é rara por design: baixo/moderado ficam neutros, só alto/crítico
 // ganham o tingimento de perigo.
@@ -31,7 +23,7 @@ const LEVEL_LABEL: Record<string, string> = {
 };
 
 function formatBucketHour(iso: string): string {
-  return paraDate(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return horaCurta(paraDate(iso));
 }
 
 /** Sparkline SVG puro, só a linha, em currentColor: o container decide a cor
@@ -117,7 +109,7 @@ export function RiskScoreCard() {
         </div>
         {overall.driving_feature && (
           <p className="risk-driver">
-            Categoria mais frequente: <strong>{FEATURE_LABELS[overall.driving_feature] ?? overall.driving_feature}</strong>
+            Categoria mais frequente: <strong>{rotuloDoRecurso(overall.driving_feature)}</strong>
           </p>
         )}
         {riskTrend && riskTrend.buckets.length >= 2 && (
@@ -125,7 +117,7 @@ export function RiskScoreCard() {
             <Sparkline buckets={riskTrend.buckets} values={riskTrend.buckets.map((b) => b.overall.score)} />
             <div className="risk-trend-axis">
               <span>{formatBucketHour(riskTrend.buckets[0].bucket_start)}</span>
-              <span>últimas {riskTrend.hours}h</span>
+              <span>últimas {riskTrend.hours} h</span>
               <span>{formatBucketHour(riskTrend.buckets[riskTrend.buckets.length - 1].bucket_end)}</span>
             </div>
           </div>
@@ -134,7 +126,7 @@ export function RiskScoreCard() {
           {activeFeatures.length ? (
             activeFeatures.map(([key, item]) => (
               <span className="chip" key={key}>
-                {FEATURE_LABELS[key] ?? key} · {item.alert_count} alerta{item.alert_count === 1 ? "" : "s"}
+                {rotuloDoRecurso(key)} · {pluralizar(item.alert_count, "alerta")}
                 {riskTrend && <MiniSparkline values={riskTrend.buckets.map((b) => b.features[key]?.score ?? 0)} />}
               </span>
             ))

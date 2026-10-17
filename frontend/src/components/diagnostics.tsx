@@ -4,6 +4,8 @@ import { Badge, Panel, EmptyState } from "./common";
 import { useCameraEstado } from "./camera-grid";
 import { getPreflight } from "../api/endpoints";
 import type { PreflightCheck, RuntimeSettings } from "../api/types";
+import { rotuloDaClasse } from "../api/ppe";
+import { decimal, pluralizar } from "../utils/formato";
 
 const STATUS_LABEL: Record<string, string> = { ok: "OK", warning: "Aviso", error: "Erro" };
 const STATUS_TONE: Record<string, "ok" | "neutral" | "error"> = { ok: "ok", warning: "neutral", error: "error" };
@@ -16,7 +18,7 @@ export function ChecklistPanel() {
       const res = await getPreflight();
       setChecks(res.checks);
     } catch {
-      setChecks([{ key: "preflight", label: "Checklist", status: "error", message: "Falha ao executar checklist" }]);
+      setChecks([{ key: "preflight", label: "Checklist", status: "error", message: "Falha ao executar o checklist" }]);
     }
   };
 
@@ -28,7 +30,7 @@ export function ChecklistPanel() {
   return (
     <Panel
       id="panel-checklist"
-      title="Checklist pré-start"
+      title="Checklist técnico"
       description="Validação rápida antes de iniciar um ciclo de teste."
       action={
         <button className="ghost small" type="button" onClick={() => refresh()}>
@@ -60,12 +62,12 @@ const SETTINGS_FIELDS: [keyof RuntimeSettings, string, "number" | "checkbox", st
   ["jpeg_quality", "Qualidade JPEG", "number"],
   ["yolo_confidence", "Confiança YOLO", "number", "0.05"],
   ["yolo_max_detections", "Máx. detecções YOLO", "number"],
-  ["alert_create_after_frames", "Frames para criar alerta", "number"],
-  ["alert_resolve_after_frames", "Frames para resolver alerta", "number"],
-  ["snapshot_jpeg_quality", "Qualidade do snapshot", "number"],
-  ["multi_person_detection", "Multi-pessoa via YOLO", "checkbox"],
+  ["alert_create_after_frames", "Quadros para criar alerta", "number"],
+  ["alert_resolve_after_frames", "Quadros para resolver alerta", "number"],
+  ["snapshot_jpeg_quality", "Qualidade da imagem de evidência", "number"],
+  ["multi_person_detection", "Várias pessoas via YOLO", "checkbox"],
   ["cleanup_on_monitor_start", "Limpar arquivos ao iniciar", "checkbox"],
-  ["snapshot_enabled", "Salvar snapshot de alerta", "checkbox"],
+  ["snapshot_enabled", "Salvar imagem de evidência do alerta", "checkbox"],
 ];
 
 export function SettingsPanel() {
@@ -84,8 +86,8 @@ export function SettingsPanel() {
   return (
     <Panel
       id="panel-settings"
-      title="Configurações rápidas"
-      description="Aplicadas em runtime quando possível. Persistência definitiva continua no .env."
+      title="Parâmetros"
+      description="Aplicados na hora, sem reiniciar, quando possível. O valor definitivo continua no arquivo .env."
       action={
         <button className="small" type="button" onClick={save}>
           Salvar
@@ -138,16 +140,16 @@ function DeteccoesRecentes({ camId }: { camId: number }) {
   return (
     <div className="status-list">
       <div className="status-row">
-        <span className="status-row-label">Detecções ({janela}s)</span>
+        <span className="status-row-label">Detecções ({janela} s)</span>
         <span className="status-row-value">
-          {!estado.running ? "câmera parada" : classes.length ? `${total} em ${classes.length} classe(s)` : "nenhuma"}
+          {!estado.running ? "câmera parada" : classes.length ? `${pluralizar(total, "detecção", "detecções")} em ${pluralizar(classes.length, "classe")}` : "nenhuma"}
         </span>
       </div>
       {classes.length ? (
         <div className="class-list">
           {classes.map(([nome, quantas]) => (
             <span className="chip data" key={nome}>
-              {nome} · {quantas}
+              {rotuloDaClasse(nome)} · {quantas}
             </span>
           ))}
         </div>
@@ -155,7 +157,7 @@ function DeteccoesRecentes({ camId }: { camId: number }) {
       <div className="status-row">
         <span className="status-row-label">Fonte agora</span>
         <span className="status-row-value">
-          {diagnostico.resolucao || "sem frame"} · {diagnostico.fps.toFixed(1)} fps
+          {diagnostico.resolucao || "sem quadro"} · {decimal(diagnostico.fps)} fps
           {typeof diagnostico.brilho === "number" ? `, brilho ${diagnostico.brilho}` : ""}
         </span>
       </div>
@@ -184,7 +186,7 @@ export function ModelStatusPanel() {
     );
   }
   const statusTone = model.error ? "error" : model.ppe_ready ? "ok" : "neutral";
-  const statusText = model.ppe_ready ? "Modelo PPE completo" : model.error ? "Modelo indisponível" : "Modelo PPE incompleto";
+  const statusText = model.ppe_ready ? "Modelo de EPI completo" : model.error ? "Modelo indisponível" : "Modelo de EPI incompleto";
   const supported = model.supported_ppe;
   const classes = model.classes || [];
   const yesNo = (v: boolean | undefined) => (v ? "suportado" : "não suportado");
@@ -195,7 +197,7 @@ export function ModelStatusPanel() {
       <div className="status-list">
         <div className="status-row"><span className="status-row-label">Arquivo</span><span className="status-row-value">{model.model_path || "indefinido"}</span></div>
         <div className="status-row"><span className="status-row-label">Pessoa</span><span className="status-row-value">{yesNo(model.person_supported)}</span></div>
-        <div className="status-row"><span className="status-row-label">Multi-pessoa</span><span className="status-row-value">{model.multi_person_detection ? "ativo" : "inativo"}</span></div>
+        <div className="status-row"><span className="status-row-label">Várias pessoas</span><span className="status-row-value">{model.multi_person_detection ? "ativo" : "inativo"}</span></div>
         <div className="status-row"><span className="status-row-label">Máx. detecções</span><span className="status-row-value">{model.max_detections ?? "-"}</span></div>
         <div className="status-row"><span className="status-row-label">Capacete</span><span className="status-row-value">{yesNo(supported?.helmet)}</span></div>
         <div className="status-row"><span className="status-row-label">Colete</span><span className="status-row-value">{yesNo(supported?.vest)}</span></div>
@@ -207,7 +209,7 @@ export function ModelStatusPanel() {
           {classes.length ? (
             classes.slice(0, 140).map((item) => (
               <span className="chip data" key={`${item.id}`}>
-                {item.id} · {item.normalized || item.name}
+                {item.id} · {rotuloDaClasse(item.normalized || item.name)}
               </span>
             ))
           ) : (

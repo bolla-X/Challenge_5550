@@ -18,6 +18,7 @@ from app.utils.auth import (
     require_role,
 )
 from app.utils.salas import emitir_para_camera
+from app.utils.texto import pluralizar
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,7 @@ def acknowledge_all_alerts():
     note = str(payload.get("note", "")).strip()[:200] or None
     camera_id = _camera_filtrada()
     total = AlertRepository().acknowledge_all_active(camera_id=camera_id, note=note)
-    _registrar_evento_em_lote("alerts_acknowledged_all", f"{total} alerta(s) marcados como tratados", camera_id, total)
+    _registrar_evento_em_lote("alerts_acknowledged_all", f"Colaborador avisado em {pluralizar(total, 'alerta')}", camera_id, total)
     return jsonify({"acknowledged": total})
 
 
@@ -250,7 +251,7 @@ def delete_resolved_alerts():
     removidos = _remover_evidencias(arquivos)
     _registrar_evento_em_lote(
         "alerts_deleted",
-        f"{apagados} alerta(s) resolvidos apagados",
+        f"Alertas resolvidos apagados: {apagados}",
         camera_id,
         apagados,
         extra={"older_than_days": older, "evidencias_removidas": removidos},

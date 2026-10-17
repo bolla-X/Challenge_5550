@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
 import { Panel, Badge, EmptyState, PanelSkeleton } from "./common";
+import { horaCompleta } from "../utils/datas";
+import { decimal, pluralizar } from "../utils/formato";
 
 /** Chip de EPI: pílula com ponto e rótulo. Conforme em --ok, ausente com o
  * tingimento de perigo, não avaliado neutro. "Não verificado" (política
@@ -47,7 +49,7 @@ export function ComplianceCard() {
       id="panel-compliance"
       title="Conformidade"
       description="Estado atual por item, fora do vídeo."
-      action={<Badge>{`${personCount} pessoa${personCount === 1 ? "" : "s"}`}</Badge>}
+      action={<Badge>{pluralizar(personCount, "pessoa")}</Badge>}
     >
       <div className="row-list">
         {rows.length ? (
@@ -97,7 +99,7 @@ function LinhaDoTempo({ cameraId, pessoaId }: { cameraId: number; pessoaId: stri
         <ol>
           {[...eventos].reverse().map((e) => (
             <li key={e.ts}>
-              <time>{new Date(e.ts * 1000).toLocaleTimeString("pt-BR")}</time>
+              <time>{horaCompleta(new Date(e.ts * 1000))}</time>
               <span className="chip-row">
                 {e.queda && (
                   <span className="chip miss">
@@ -146,7 +148,7 @@ export function PersonCard() {
       id="panel-people"
       title="Pessoas e detecções"
       description="Uma ficha por pessoa rastreada. O número é do rastreio, não uma identidade."
-      action={<Badge>{`${detectionCount} ${detectionCount === 1 ? "detecção" : "detecções"}`}</Badge>}
+      action={<Badge>{pluralizar(detectionCount, "detecção", "detecções")}</Badge>}
     >
       <div className="row-list">
         {people.length > 0 ? (
@@ -158,7 +160,7 @@ export function PersonCard() {
                 <div className="row-detail">
                   <strong>{person.label || person.id}</strong>
                   <span>
-                    Confiança {(person.confidence * 100).toFixed(1)}%, caixa {person.box.x1},{person.box.y1} a {person.box.x2},{person.box.y2}
+                    Confiança {decimal(person.confidence * 100)}%, caixa {person.box.x1},{person.box.y1} a {person.box.x2},{person.box.y2}
                   </span>
                   {camId != null && (
                     <button
@@ -211,7 +213,7 @@ function FallbackPersonRows({
   const posePerson = Boolean(pose?.found) && rawPeople.length === 0;
 
   if (!rawPeople.length && !posePerson) {
-    return <EmptyState>{hasCompliance ? "Nenhuma pessoa detectada pelo YOLO no frame atual." : "Nenhuma detecção recebida no frame atual."}</EmptyState>;
+    return <EmptyState>{hasCompliance ? "Nenhuma pessoa detectada pelo YOLO no quadro atual." : "Nenhuma detecção recebida no quadro atual."}</EmptyState>;
   }
 
   return (
@@ -221,7 +223,7 @@ function FallbackPersonRows({
           <span className="dot ok" />
           <div className="row-detail">
             <strong>Pessoa 1</strong>
-            <span>Inferida por pose MediaPipe. Para múltiplas pessoas, use YOLO com a classe person ativa.</span>
+            <span>Estimada pela pose (MediaPipe). Para várias pessoas, ative a detecção de pessoas do YOLO.</span>
             <div className="chip-row">
               <span className="chip">Pose detectada</span>
             </div>
@@ -234,10 +236,10 @@ function FallbackPersonRows({
           <div className="row-detail">
             <strong>Pessoa {index + 1}</strong>
             <span>
-              Confiança {(person.confidence * 100).toFixed(1)}%, caixa {person.box.x1},{person.box.y1} a {person.box.x2},{person.box.y2}
+              Confiança {decimal(person.confidence * 100)}%, caixa {person.box.x1},{person.box.y1} a {person.box.x2},{person.box.y2}
             </span>
             <div className="chip-row">
-              <span className="chip">Multi-pessoa via YOLO</span>
+              <span className="chip">Várias pessoas via YOLO</span>
             </div>
           </div>
         </div>

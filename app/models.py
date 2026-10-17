@@ -206,6 +206,87 @@ def _aware(valor: datetime) -> datetime:
     return valor if valor.tzinfo is not None else valor.replace(tzinfo=timezone.utc)
 
 
+# Permissão de Trabalho digital (MISSÃO 4, M5). Regras e citação da norma em
+# app/services/permissoes.py.
+PERMISSAO_TIPOS = ("espaco_confinado", "altura", "geral")
+PERMISSAO_ATIVA = "ativa"
+PERMISSAO_ENCERRADA = "encerrada"
+PERMISSAO_CANCELADA = "cancelada"
+PERMISSAO_STATUS = (PERMISSAO_ATIVA, PERMISSAO_ENCERRADA, PERMISSAO_CANCELADA)
+
+
+class PermissaoDeTrabalho(db.Model):
+    """Permissão de Trabalho (PT) emitida para uma câmera, com janela de validade.
+
+    Sem ForeignKey em `camera_id`, como Alert: o registro da PT é auditoria e
+    não some porque a câmera foi descadastrada. `responsavel` é texto livre —
+    não há vínculo com ID de rastreio nem com usuário (ID de rastreio não é
+    identidade). A PT NUNCA "expira" por mudança de status: `status` só muda
+    por encerrar/cancelar; "vigente" é derivado de `inicio <= agora < fim`.
+    """
+
+    __tablename__ = "permissoes_trabalho"
+
+    id = db.Column(db.Integer, primary_key=True)
+    numero = db.Column(db.String(24), nullable=False, unique=True, index=True)  # "PT-2026-0007"
+    camera_id = db.Column(db.Integer, nullable=False, index=True)
+    tipo = db.Column(db.String(30), nullable=False, index=True)
+    descricao = db.Column(db.String(500), nullable=False)
+    responsavel = db.Column(db.String(120), nullable=False)
+    inicio = db.Column(db.DateTime(timezone=True), nullable=False)
+    fim = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+    epis_exigidos = db.Column(db.JSON, nullable=False, default=list)  # chaves de EPI (PPE_KEYS)
+    exige_vigia = db.Column(db.Boolean, nullable=False, default=False)
+    area_vigia = db.Column(db.JSON, nullable=True)  # polígono [[x, y], ...] normalizado 0–1 na imagem da câmera
+    status = db.Column(db.String(20), nullable=False, default=PERMISSAO_ATIVA, index=True)
+    criada_por = db.Column(db.String(180), nullable=False)
+    criada_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    encerrada_em = db.Column(db.DateTime(timezone=True), nullable=True)
+    encerrada_por = db.Column(db.String(180), nullable=True)
+
+    def vigente(self, agora: datetime) -> bool:
+        """Pode ser USADA agora: ativa e dentro da janela. Ler ≠ usar (ver `permissoes.py`)."""
+        return self.status == PERMISSAO_ATIVA and _aware(self.inicio) <= agora < _aware(self.fim)
+
+    def to_dict(self, agora: datetime | None = None) -> dict:
+        return {
+            "id": self.id,
+            "numero": self.numero,
+            "camera_id": self.camera_id,
+            "tipo": self.tipo,
+            "descricao": self.descricao,
+            "responsavel": self.responsavel,
+            "inicio": _aware(self.inicio).isoformat() if self.inicio else None,
+            "fim": _aware(self.fim).isoformat() if self.fim else None,
+            "epis_exigidos": list(self.epis_exigidos or []),
+            "exige_vigia": bool(self.exige_vigia),
+            "area_vigia": self.area_vigia,
+            "status": self.status,
+            "vigente": self.vigente(agora) if agora is not None else None,
+            "criada_por": self.criada_por,
+            "criada_em": _aware(self.criada_em).isoformat() if self.criada_em else None,
+            "encerrada_em": _aware(self.encerrada_em).isoformat() if self.encerrada_em else None,
+            "encerrada_por": self.encerrada_por,
+        }
+
+
+class ZonaControlada(db.Model):
+    """Marca a área de risco da câmera como "zona que exige permissão"."""
+
+    __tablename__ = "zonas_controladas"
+
+    camera_id = db.Column(db.Integer, primary_key=True, autoincrement=False)  # sem FK, como Alert
+    exige_permissao = db.Column(db.Boolean, nullable=False, default=False)
+    atualizada_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    def to_dict(self) -> dict:
+        return {
+            "camera_id": self.camera_id,
+            "exige_permissao": bool(self.exige_permissao),
+            "atualizada_em": _aware(self.atualizada_em).isoformat() if self.atualizada_em else None,
+        }
+
+
 class EventLog(db.Model):
     __tablename__ = "event_logs"
 
@@ -278,6 +359,25 @@ class MetaDoSetor(db.Model):
 
     def to_dict(self) -> dict:
         return {"setor": self.setor, "minutos_conformes": self.minutos_conformes, "checkins_portal": self.checkins_portal}
+
+
+class RegraEditor(db.Model):
+    """Regra do editor sem código (MISSÃO 4, M4).
+
+    `definicao` é o JSON validado por `app.services.regras_editor.validar`
+    (a coluna `ativa` é a fonte da verdade do liga/desliga; o `ativa` dentro da
+    definição é só o valor de quando foi salva). As regras pré-carregadas vivem
+    no código: só ganham linha aqui quando alguém as ativa.
+    """
+
+    __tablename__ = "regras_editor"
+
+    id = db.Column(db.String(64), primary_key=True)
+    definicao = db.Column(db.JSON, nullable=False, default=dict)
+    ativa = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    criada_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    atualizada_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    criada_por = db.Column(db.String(160), nullable=True)
 
 
 class Camera(db.Model):

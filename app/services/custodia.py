@@ -217,6 +217,13 @@ def registrar_clipe(alert_id: int, camera_id: int | None, pastas: Path | list[Pa
 
 
 @_seguro
+def registrar_evacuacao(caminho: Path) -> ElodeCustodia:
+    """Relatório de evacuação (M3): o conteúdo é o sha256 do ARQUIVO JSON, byte a byte."""
+    return _anexar(tipo="evacuacao", ref=caminho.name, conteudo_sha256=sha256_bytes(caminho.read_bytes()),
+                   descricao=f"Relatório de evacuação {caminho.name}", detalhe={"caminho": str(caminho)})
+
+
+@_seguro
 def registrar_evento(evento: EventLog) -> ElodeCustodia:
     return _anexar(tipo="privacidade" if evento.event_type == "privacy_toggled" else "evento", ref=f"evento:{evento.id}",
                    conteudo_sha256=sha256_bytes(conteudo_do_evento(evento)), descricao=evento.message,
@@ -233,7 +240,7 @@ def _recalcular(elo: ElodeCustodia, alertas: dict[int, Alert], eventos: dict[int
         evento = eventos.get(int(elo.ref.split(":", 1)[1]))
         return (sha256_bytes(conteudo_do_evento(evento)) if evento else None), None
     caminho = Path(str((elo.detalhe or {}).get("caminho") or ""))
-    if elo.tipo == "snapshot":
+    if elo.tipo in ("snapshot", "evacuacao"):
         return (sha256_bytes(caminho.read_bytes()) if caminho.is_file() else None), None
     if elo.tipo == "clipe":
         pastas = [Path(x) for x in ((elo.detalhe or {}).get("pastas") or [str(caminho)])]
@@ -269,7 +276,7 @@ def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
     # Arquivos em paralelo: no Windows cada abertura custa ~1 ms (antivírus), e
     # a cadeia de um E2E de 20 min tinha 31 mil quadros de replay → 92 s em
     # série. Só leitura de disco nas threads; os elos já estão carregados.
-    de_arquivo = [e for e in conferir if e.tipo in ("snapshot", "clipe")]
+    de_arquivo = [e for e in conferir if e.tipo in ("snapshot", "clipe", "evacuacao")]
     with ThreadPoolExecutor(max_workers=VERIFICACAO_THREADS) as pool:
         recalculados = dict(zip((e.id for e in de_arquivo), pool.map(lambda e: _recalcular(e, alertas, eventos), de_arquivo),
                                 strict=True))

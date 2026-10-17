@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel } from "./common";
+import { pluralizar } from "../utils/formato";
 
 /**
  * Mapa de calor de risco (F7): onde, na imagem desta câmera, aconteceram
@@ -62,7 +63,7 @@ export function HeatmapPanel({ cameraId }: { cameraId: number }) {
       title="Mapa de calor de risco"
       description={
         mapa
-          ? `${mapa.eventos} registro(s) de violação ou entrada na zona; o peso cai à metade a cada ${Math.round(mapa.meia_vida_s / 60)} min.`
+          ? `${pluralizar(mapa.eventos, "registro")} de violação ou entrada na zona; o peso cai à metade a cada ${Math.round(mapa.meia_vida_s / 60)} min.`
           : ""
       }
     >

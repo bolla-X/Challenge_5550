@@ -15,6 +15,7 @@ import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
 import { PanelSkeleton } from "./components/common";
+import { pluralizar } from "./utils/formato";
 
 // Telas pesadas (three.js) só carregam quando abertas.
 const GemeoScreen = lazy(() => import("./components/gemeo/gemeo-screen"));
@@ -84,7 +85,7 @@ function GridScreen() {
   const noAr = cameras.filter((c) => estados[c.id]?.running).length;
   const incidentes = cameras.reduce((n, c) => n + totalDeIncidentes(estados[c.id]), 0);
   const sub = cameras.length
-    ? `${noAr} de ${cameras.length} no ar, ${incidentes} incidente${incidentes === 1 ? "" : "s"} ativo${incidentes === 1 ? "" : "s"}`
+    ? `${noAr} de ${cameras.length} no ar, ${pluralizar(incidentes, "incidente")} ${incidentes === 1 ? "ativo" : "ativos"}`
     : null;
 
   return (

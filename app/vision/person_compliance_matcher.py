@@ -142,10 +142,10 @@ class PersonComplianceMatcher:
                 evidence = self._evidence(key, itens_ok, negated[key], positive_conf, negative_conf)
                 if not enabled_ppe.get(key, False):
                     status = "disabled"
-                    message = "Feature desativada"
+                    message = "Recurso desativado"
                 elif not supported_ppe.get(key, False):
                     status = "unsupported"
-                    message = "Classe não suportada pelo modelo atual"
+                    message = "O modelo atual não detecta este item"
                 elif evidence == "detectado":
                     status = STATUS_OK
                     message = "Detectado"

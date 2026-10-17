@@ -1,6 +1,8 @@
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, EmptyState } from "./common";
 import { paraDate } from "../utils/datas";
+import { pluralizar } from "../utils/formato";
+import { ROTULOS_DE_SEVERIDADE, ROTULOS_DE_SITUACAO, rotuloDoRecurso } from "../api/ppe";
 import type { Alert, TimelineEvent } from "../api/types";
 
 // CSV puro, sem lib: poucas colunas, escapar vírgula/aspas/quebra de linha
@@ -38,13 +40,13 @@ function downloadCsv(filename: string, csv: string) {
 /** Exportação client-side pura: serializa o que já está carregado no store.
  * Exportadas também pro botão "Exportar" da barra do aplicativo. */
 export function exportAlertsCsv(alertHistory: Alert[]) {
-  const header = ["id", "severidade", "feature", "mensagem", "status", "falso_positivo", "criado_em", "resolvido_em"];
+  const header = ["id", "severidade", "recurso", "mensagem", "situacao", "falso_positivo", "criado_em", "resolvido_em"];
   const rows = alertHistory.map((a) => [
     a.id,
-    a.severity,
-    a.feature ?? "",
+    ROTULOS_DE_SEVERIDADE[a.severity] ?? a.severity,
+    a.feature ? rotuloDoRecurso(a.feature) : "",
     a.message,
-    a.status,
+    ROTULOS_DE_SITUACAO[a.status] ?? a.status,
     a.false_positive ? "sim" : "não",
     formatDateTimeLocal(a.created_at),
     formatDateTimeLocal(a.resolved_at),
@@ -54,8 +56,8 @@ export function exportAlertsCsv(alertHistory: Alert[]) {
 
 export function exportTimelineCsv(timeline: TimelineEvent[]) {
   const header = ["horario", "severidade", "mensagem", "detalhe"];
-  const rows = timeline.map((e) => [formatDateTimeLocal(e.created_at), e.severity ?? "", e.message, e.subject ?? e.event_type]);
-  downloadCsv(`visionepi-timeline-${Date.now()}.csv`, toCsv(header, rows));
+  const rows = timeline.map((e) => [formatDateTimeLocal(e.created_at), ROTULOS_DE_SEVERIDADE[e.severity ?? ""] ?? e.severity ?? "", e.message, e.subject ?? ""]);
+  downloadCsv(`visionepi-linha-do-tempo-${Date.now()}.csv`, toCsv(header, rows));
 }
 
 export function ExportPanel() {
@@ -69,7 +71,7 @@ export function ExportPanel() {
           <div className="row-detail">
             <strong>Histórico de alertas</strong>
             <span>
-              {alertHistory.length} registro{alertHistory.length === 1 ? "" : "s"} carregado{alertHistory.length === 1 ? "" : "s"}
+              {pluralizar(alertHistory.length, "registro")} {alertHistory.length === 1 ? "carregado" : "carregados"}
             </span>
           </div>
         </div>
@@ -77,7 +79,7 @@ export function ExportPanel() {
           <div className="row-detail">
             <strong>Linha do tempo</strong>
             <span>
-              {timeline.length} registro{timeline.length === 1 ? "" : "s"} carregado{timeline.length === 1 ? "" : "s"}
+              {pluralizar(timeline.length, "registro")} {timeline.length === 1 ? "carregado" : "carregados"}
             </span>
           </div>
         </div>

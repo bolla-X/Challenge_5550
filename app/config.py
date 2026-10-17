@@ -441,6 +441,9 @@ class Config:
     LIGA_ATIVA = env_bool("LIGA_ATIVA", True)
     TURNOS = os.getenv("TURNOS", "06:00-14:00,14:00-22:00,22:00-06:00")
     TRILHAS_DIR = os.getenv("TRILHAS_DIR", "")
+    # Modo Evacuação (M3): relatórios JSON (entram na cadeia de custódia). Vazio = instance/evacuacoes.
+    EVACUACAO_DIR = os.getenv("EVACUACAO_DIR", "")
+    EVACUACAO_AMOSTRA_S = env_float("EVACUACAO_AMOSTRA_S", 1.0)
     TRILHAS_MB_POR_ARQUIVO = env_float("TRILHAS_MB_POR_ARQUIVO", 16.0)
     TRILHAS_ARQUIVOS = env_int("TRILHAS_ARQUIVOS", 4)
     REASSOCIAR_DISTANCIA_LARGURAS = env_float("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)
@@ -553,6 +556,7 @@ class TestConfig(Config):
     # Trilhas do simulador (X2) numa pasta temporária por processo: a suíte
     # não escreve no instance/ de quem roda nem herda trilha de outra rodada.
     TRILHAS_DIR = tempfile.mkdtemp(prefix="visionepi-trilhas-")
+    EVACUACAO_DIR = tempfile.mkdtemp(prefix="visionepi-evacuacao-")
     # Mesmo motivo: um .env com PPE_MISSING_POLICY=evidencia mudaria quais
     # alertas nascem e quebraria testes que nada tem a ver com politica. Quem
     # testa a outra politica pede explicitamente (test_matcher_evidencia.py).

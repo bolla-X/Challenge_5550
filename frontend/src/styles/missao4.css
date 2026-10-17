@@ -1,0 +1,71 @@
+/* MISSÃO 4 — telas novas (Evacuação, Torre de luz, saúde visual, regras, permissões).
+   Só tokens de tokens.css; cor só para estado. */
+
+button.danger { background: var(--danger); color: var(--on-accent); border-color: transparent; }
+button.danger:hover { background: color-mix(in srgb, var(--danger) 88%, var(--text)); }
+button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: var(--t-body); font-weight: 600; }
+.modal-acoes { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s4); flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------- evacuação */
+.evac { display: grid; gap: var(--s4); }
+.evac-topo { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; }
+.evac-sobretitulo { margin: 0; color: var(--text-2); font-size: var(--t-callout); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.evac-ativa .evac-sobretitulo { color: var(--danger); }
+.evac-titulo { margin: var(--s1) 0 0; font-size: var(--t-display); line-height: var(--t-display-lh); letter-spacing: var(--t-display-tr); }
+.evac-cronometro { font-variant-numeric: tabular-nums; font-size: var(--t-hero); line-height: var(--t-hero-lh); letter-spacing: var(--t-hero-tr); }
+.evac-acoes { display: flex; align-items: flex-end; gap: var(--s3); flex-wrap: wrap; }
+.evac-ponto { display: grid; gap: var(--s1); font-size: var(--t-footnote); color: var(--text-2); }
+.evac-aviso {
+  margin: 0; padding: var(--s3) var(--s4); border-radius: var(--r-control); background: var(--sunken);
+  color: var(--text); font-size: var(--t-callout); font-weight: 500;
+}
+.evac-ativa .evac-aviso { background: var(--tint-danger); }
+.evac-falha { margin: 0; color: var(--danger); font-weight: 600; }
+.evac-nota { margin: 0; color: var(--text-2); font-size: var(--t-footnote); }
+.evac-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s4); }
+.evac-numero { display: grid; gap: var(--s1); padding: var(--s4) var(--s5); background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-1); }
+.evac-numero-valor { font-size: var(--t-hero); line-height: 1; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: var(--t-hero-tr); }
+.evac-numero-rotulo { color: var(--text-2); font-size: var(--t-callout); }
+.evac-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s3); }
+.evac-camera { display: grid; gap: var(--s1); padding: var(--s4); }
+.evac-camera header { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); }
+.evac-camera h2 { margin: 0; font-size: var(--t-title-3); }
+.evac-camera[data-online="0"] .evac-camera-valor { color: var(--text-3); }
+.evac-camera-valor { margin: 0; font-size: var(--t-display); font-weight: 650; font-variant-numeric: tabular-nums; }
+.evac-camera-rotulo, .evac-zona { margin: 0; color: var(--text-2); font-size: var(--t-footnote); }
+.evac-planta { display: grid; gap: var(--s3); padding: var(--s4); }
+.evac-planta h2, .evac-ultima h2 { margin: 0; font-size: var(--t-title-3); }
+.evac-mapa { width: 100%; max-width: 520px; aspect-ratio: 1; }
+.evac-mapa-fundo { fill: var(--sunken); stroke: var(--hairline); stroke-width: .4; }
+.evac-ponto.agora { fill: var(--danger); }
+.evac-ponto.antes { fill: none; stroke: var(--text-2); stroke-width: .5; }
+.evac-ultima { display: grid; gap: var(--s2); padding: var(--s5); justify-items: start; }
+.evac-ultima p { margin: 0; color: var(--text-2); }
+
+/* ---------------------------------------------------------- torre de luz */
+.torre-tela { min-height: 100dvh; display: grid; place-items: center; gap: var(--s5); padding: var(--s5); background: var(--canvas); }
+.torre { display: grid; gap: var(--s3); justify-items: center; }
+.torre-corpo {
+  display: grid; gap: var(--s3); padding: var(--s4); border-radius: calc(var(--r-card) * 1.5);
+  background: var(--surface); box-shadow: var(--shadow-2); width: min(220px, 40vw);
+}
+.torre-lampada { aspect-ratio: 1; border-radius: 50%; background: var(--sunken); border: 1px solid var(--hairline); transition: background var(--d-state) var(--ease-out); }
+.torre-lampada.vermelho.acesa { background: var(--stop); box-shadow: 0 0 48px color-mix(in srgb, var(--stop) 60%, transparent); }
+.torre-lampada.amarelo.acesa { background: var(--sinal-amarelo); box-shadow: 0 0 48px color-mix(in srgb, var(--sinal-amarelo) 55%, transparent); }
+.torre-lampada.verde.acesa { background: var(--ok); box-shadow: 0 0 48px color-mix(in srgb, var(--ok) 55%, transparent); }
+.torre-base { width: 40%; height: 24px; border-radius: 0 0 var(--r-control) var(--r-control); background: var(--sunken); }
+.torre.sirene .torre-lampada.vermelho.acesa { animation: torre-pisca 0.9s steps(2, jump-none) infinite; }
+@keyframes torre-pisca { 0% { opacity: 1; } 100% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .torre.sirene .torre-lampada.vermelho.acesa { animation: none; outline: 4px solid var(--stop); outline-offset: 6px; } }
+.torre-estado { margin: 0; font-size: var(--t-title-1); font-weight: 650; letter-spacing: var(--t-title-1-tr); text-align: center; }
+.torre-detalhe { margin: 0; color: var(--text-2); text-align: center; max-width: 60ch; }
+.torre-integracoes { display: flex; gap: var(--s2); flex-wrap: wrap; justify-content: center; }
+.torre-mini { display: inline-flex; align-items: center; gap: var(--s2); }
+.torre-mini .torre-lampada { width: 14px; }
+
+/* ------------------------------------------------------ saúde visual */
+.saude-badge {
+  display: inline-flex; align-items: center; gap: var(--s1); padding: 2px var(--s2); border-radius: var(--r-chip);
+  background: var(--stop); color: var(--on-accent); font-size: var(--t-caption); font-weight: 700; letter-spacing: .04em;
+}
+.saude-badge.medio { background: var(--danger); }

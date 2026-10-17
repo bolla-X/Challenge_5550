@@ -157,7 +157,7 @@ export function GateConfigPanel({ camera }: { camera: CameraRecord }) {
             </span>
             <span>
               <strong>{PPE_LABELS[chave]}</strong>
-              <small>{camera.features[chave] ? "Obrigatório para entrar" : "Feature desligada nesta câmera: sempre negaria"}</small>
+              <small>{camera.features[chave] ? "Obrigatório para entrar" : "Recurso desligado nesta câmera: sempre negaria"}</small>
             </span>
           </label>
         ))}

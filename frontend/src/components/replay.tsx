@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { desenharOverlay, type Overlay } from "./live-video";
+import { rotuloDaClasse, rotuloDoRecurso } from "../api/ppe";
+import { horaCompleta } from "../utils/datas";
+import { decimal, pluralizar } from "../utils/formato";
 
 /**
  * Replay do incidente (F1): os quadros que o servidor GRAVOU de 5 s antes a
@@ -29,9 +32,24 @@ const ROTULOS_DE_EVIDENCIA: Record<string, string> = {
   method: "Método",
 };
 
-function formatarEvidencia(valor: unknown): string {
+// Como o servidor chegou à conclusão (metadata.method da regra), em português.
+const ROTULOS_DE_METODO: Record<string, string> = {
+  torso_orientation: "orientação do tronco",
+  shoulder_hip_alignment: "alinhamento entre ombros e quadril",
+  modelo_epi_fall_detected: "classe de queda do modelo de EPI",
+};
+
+/** Cada valor sai em português: classes e EPIs pelos mapas de rótulos, a caixa como "x1,y1 a x2,y2". */
+function formatarEvidencia(chave: string, valor: unknown): string {
+  if (valor == null) return "sem dado";
+  if (chave === "present_labels" && Array.isArray(valor)) return valor.length ? valor.map((v) => rotuloDaClasse(String(v))).join(", ") : "nada";
+  if (chave === "supported_ppe" && Array.isArray(valor)) return valor.length ? valor.map((v) => rotuloDoRecurso(String(v))).join(", ") : "nenhum";
+  if (chave === "method") return ROTULOS_DE_METODO[String(valor)] ?? String(valor);
+  if (chave === "person_box" && typeof valor === "object") {
+    const b = valor as Record<string, number>;
+    return `${b.x1},${b.y1} a ${b.x2},${b.y2}`;
+  }
   if (Array.isArray(valor)) return valor.length ? valor.join(", ") : "nada";
-  if (valor && typeof valor === "object") return Object.entries(valor).map(([k, v]) => `${k}=${v}`).join(" ");
   return String(valor);
 }
 
@@ -58,7 +76,7 @@ export function IncidentReplay({
     let vivo = true;
     fetch(`/api/alerts/${alertId}/clip`, { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 404 ? "O replay é gravado 3 s depois do alerta. Tente de novo em instantes." : `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(r.status === 404 ? "O replay é gravado 3 s depois do alerta. Tente de novo em instantes." : "Falha ao carregar o replay.");
         return (await r.json()) as Clipe;
       })
       .then((dados) => {
@@ -128,7 +146,7 @@ export function IncidentReplay({
           <div>
             <h2 id="replay-titulo">{clipe?.mensagem ?? "Replay do incidente"}</h2>
             <p className="t-secondary">
-              {[cameraName, clipe?.pessoa, quadro ? new Date(quadro.ts_ms).toLocaleTimeString("pt-BR") : null].filter(Boolean).join(" · ")}
+              {[cameraName, clipe?.pessoa, quadro ? horaCompleta(new Date(quadro.ts_ms)) : null].filter(Boolean).join(" · ")}
             </p>
           </div>
           <button type="button" className="ghost small" onClick={onClose}>
@@ -150,7 +168,7 @@ export function IncidentReplay({
             <div className="replay-video">
               <canvas ref={canvasRef} aria-label="Replay do incidente" data-quadro={indice} data-total={clipe.total} />
               <span className={`replay-tempo ${Math.abs(quadro?.rel_ms ?? 1e9) < 150 ? "agora" : ""}`.trim()}>
-                {quadro ? `${quadro.rel_ms >= 0 ? "+" : ""}${(quadro.rel_ms / 1000).toFixed(1)} s` : ""}
+                {quadro ? `${quadro.rel_ms >= 0 ? "+" : ""}${decimal(quadro.rel_ms / 1000)} s` : ""}
                 {indice === momento ? " · momento do alerta" : ""}
               </span>
             </div>
@@ -179,13 +197,13 @@ export function IncidentReplay({
                 {Object.entries(clipe.evidencias).map(([chave, valor]) => (
                   <div key={chave}>
                     <dt>{ROTULOS_DE_EVIDENCIA[chave] ?? chave}</dt>
-                    <dd>{formatarEvidencia(valor)}</dd>
+                    <dd>{formatarEvidencia(chave, valor)}</dd>
                   </div>
                 ))}
                 <div>
                   <dt>Janela gravada</dt>
                   <dd>
-                    {(clipe.janela_ms[0] / 1000).toFixed(0)} s a +{(clipe.janela_ms[1] / 1000).toFixed(0)} s do alerta, {clipe.total} quadros reais
+                    {(clipe.janela_ms[0] / 1000).toFixed(0)} s a +{(clipe.janela_ms[1] / 1000).toFixed(0)} s do alerta, {pluralizar(clipe.total, "quadro real", "quadros reais")}
                   </dd>
                 </div>
               </dl>

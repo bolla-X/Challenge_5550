@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import unicodedata
 from typing import Any, Callable
 
 import cv2
 import numpy as np
 
 from app.vision.schemas import Detection, PoseResult
+
+
+def _sem_acento(texto: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
+
 
 # Cores em BGR (OpenCV), nao RGB. Tres matizes codificando CONFORMIDADE, ja
 # que a classe esta escrita no rotulo: branco para pessoa, verde para EPI
@@ -236,21 +242,36 @@ class FrameAnnotator:
         if options.get("labels", True):
             self._draw_labels(frame, [("area de risco", int(points[0][0]), int(points[0][1]), False)])
 
-    # Sem acento de proposito: cv2.putText usa fonte Hershey, que nao tem
-    # glifo pra acentuacao; sairia caixinha desenhada no frame.
-    _LABELS = {
+    # Rotulo pt-BR de cada classe do modelo, com acento: e o que o canvas do
+    # navegador escreve (camera_worker._produzir_overlay). Inclui as classes
+    # NEGATIVAS ("no_helmet"...) para a tela nunca mostrar a chave crua.
+    _ROTULOS_PT = {
         "helmet": "capacete",
         "vest": "colete",
         "gloves": "luvas",
-        "glasses": "oculos",
-        "mask": "mascara",
-        "safety_shoe": "calcado",
+        "glasses": "óculos",
+        "mask": "máscara",
+        "safety_shoe": "calçado",
         "ear_protection": "protetor auricular",
         "safety_cone": "cone",
         "fall_detected": "queda",
         "person": "pessoa",
+        "no_helmet": "sem capacete",
+        "no_vest": "sem colete",
+        "no_gloves": "sem luvas",
+        "no_glasses": "sem óculos",
+        "no_mask": "sem máscara",
+        "no_safety_shoe": "sem calçado",
     }
+    # Sem acento de proposito no desenho do servidor: cv2.putText usa fonte
+    # Hershey, que nao tem glifo pra acentuacao; sairia caixinha no frame.
+    _LABELS = {chave: _sem_acento(texto) for chave, texto in _ROTULOS_PT.items()}
 
     @classmethod
     def _display_label(cls, label: str) -> str:
         return cls._LABELS.get(label, label)
+
+    @classmethod
+    def rotulo_pt(cls, label: str) -> str:
+        """Rotulo pt-BR com acento (para o navegador); a chave crua so se a classe for desconhecida."""
+        return cls._ROTULOS_PT.get(label, label)

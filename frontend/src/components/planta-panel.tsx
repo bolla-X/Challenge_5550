@@ -97,7 +97,7 @@ export function PlantaPanel({ cameraId, podeEditar }: { cameraId: number; podeEd
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(corpo),
     }).then(async (r) => {
-      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`);
+      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao salvar a calibração.");
       setEditando(false);
       setNoVideo([]);
       setNaPlanta([]);

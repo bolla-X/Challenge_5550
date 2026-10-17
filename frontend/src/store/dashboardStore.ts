@@ -666,12 +666,12 @@ export const useDashboardStore = create<DashboardState>()(
       },
       updateSettings: async (updates) => {
         const res = await apiPatchSettings(updates);
-        set({ settings: res.settings, message: { text: "Configurações runtime salvas.", tone: "ok" } }, false, "updateSettings");
+        set({ settings: res.settings, message: { text: "Configurações salvas.", tone: "ok" } }, false, "updateSettings");
       },
       updateRiskArea: async (payload) => {
         try {
           const res = await apiPatchRiskArea(payload, useDashboardStore.getState().camId);
-          set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada no backend.", tone: "ok" } }, false, "updateRiskArea");
+          set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada.", tone: "ok" } }, false, "updateRiskArea");
         } catch (error) {
           set({ message: { text: error instanceof Error ? error.message : "Falha ao salvar área de risco.", tone: "error" } }, false, "updateRiskArea:error");
           throw error;

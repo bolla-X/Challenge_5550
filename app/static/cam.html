@@ -84,7 +84,7 @@
         });
         if (r.ok) {
           enviados += 1;
-          mostrar("enviando", `Enviando · ${enviados} quadros`);
+          mostrar("enviando", `Enviando · ${enviados} ${enviados === 1 ? "quadro" : "quadros"}`);
         } else if (r.status === 404) {
           mostrar("erro", "A câmera está parada no painel. Inicie o monitoramento.");
         }

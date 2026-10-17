@@ -10,7 +10,7 @@ import { exportAlertsCsv } from "./export";
 // Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
 export const EASE = [0.23, 1, 0.32, 1] as const;
 
-const ROTULO_DO_PAPEL: Record<string, string> = {
+export const ROTULO_DO_PAPEL: Record<string, string> = {
   operator: "Operador",
   technical: "Técnico",
   supervisor: "Supervisor",
@@ -270,7 +270,7 @@ export function useVideoStatus() {
     // Modo fixture vem ANTES dos estados de falha: é fallback deliberado,
     // não degradação. Fica em `warn`, chama atenção sem alarmar.
     if (video.modo === "fixture") {
-      return { status: "warn" as const, label: "modo fixture, fonte de demonstração" };
+      return { status: "warn" as const, label: "fonte de demonstração" };
     }
     if (video.state === "unavailable") {
       return { status: "error" as const, label: `sem sinal, nova tentativa em ${Math.ceil(video.seconds_until_retry)}s` };

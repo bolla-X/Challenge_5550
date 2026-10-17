@@ -32,6 +32,7 @@ import {
 import type { CameraRecord, MonitorStatus } from "../api/types";
 import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
 import { paraDate } from "../utils/datas";
+import { decimal } from "../utils/formato";
 
 /** Tempo decorrido desde o início do alerta, em "m:ss" ou "h:mm:ss". */
 function decorrido(desde: string | null, agora: number): string {
@@ -94,7 +95,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 {textoDeEstado(estado)}
                 {estado.diagnostico && (
                   <span className="t-data">
-                    {estado.diagnostico.fps.toFixed(1)} fps
+                    {decimal(estado.diagnostico.fps)} fps
                     {estado.diagnostico.resolucao ? ` · ${estado.diagnostico.resolucao}` : ""}
                   </span>
                 )}
@@ -122,7 +123,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
               {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
                 <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
                   <span className="dot" />
-                  Aproximação · Pessoa {preAlertas[0].track_id} · ~{preAlertas[0].segundos_ate_entrar.toFixed(1)} s
+                  Aproximação · Pessoa {preAlertas[0].track_id} · ~{decimal(preAlertas[0].segundos_ate_entrar)} s
                   <span className="t-data">projeção cinemática</span>
                 </span>
               )}
@@ -154,7 +155,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
         ) : (
           <div className="video-empty">
             <h3>Aguardando conexão de vídeo</h3>
-            <p>Inicie o monitoramento de {camera.name} para começar a receber o feed.</p>
+            <p>Inicie o monitoramento de {camera.name} para começar a receber a imagem.</p>
             <button type="button" className="primary" disabled={starting} onClick={handleStart}>
               {starting ? "Iniciando…" : "Iniciar"}
             </button>
@@ -267,7 +268,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
           <Miniatura cameraId={camera.id} />
         ) : (
           <div className="video-empty">
-            <p>Câmera parada. Clique em Iniciar para ver o feed.</p>
+            <p>Câmera parada. Clique em Iniciar para ver a imagem.</p>
           </div>
         )}
       </div>
@@ -427,9 +428,9 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
 
 function LogsPanel() {
   return (
-    <Panel title="Log de erros" description="Exceções e eventos técnicos desta câmera.">
+    <Panel title="Registro de erros" description="Falhas e eventos técnicos desta câmera.">
       <EmptyState>
-        Ainda não existe um log persistente por câmera no backend. O erro mais recente aparece no Checklist (linha "Vídeo") e na linha de estado do cartão, na grade.
+        Esta câmera ainda não guarda um histórico de erros. O erro mais recente aparece no checklist técnico (linha "Vídeo") e na linha de estado do cartão, na grade.
       </EmptyState>
     </Panel>
   );
@@ -452,7 +453,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "planta", label: "Planta", content: <></> },
     { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
-    { key: "logs", label: "Logs", content: <></> },
+    { key: "logs", label: "Registros", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
     { key: "checklist", label: "Checklist técnico", content: <ChecklistPanel /> },
   ],
@@ -473,7 +474,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "planta", label: "Planta", content: <></> },
     { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
-    { key: "logs", label: "Logs", content: <></> },
+    { key: "logs", label: "Registros", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
     { key: "checklist", label: "Checklist técnico", content: <ChecklistPanel /> },
     { key: "export", label: "Exportação", content: <ExportPanel /> },
@@ -545,9 +546,9 @@ export function CameraFocus() {
 
   return (
     <div className="screen with-sidebar">
-      <nav className="sidebar" aria-label="Setores e recursos">
+      <nav className="sidebar" aria-label="Câmeras e recursos">
         <div className="sidebar-group">
-          <h2>Setores</h2>
+          <h2>Câmeras</h2>
           {cameras.map((c) => (
             <SectorItem key={c.id} camera={c} current={c.id === camId} onSelect={setCamId} />
           ))}

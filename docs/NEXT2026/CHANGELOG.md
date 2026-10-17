@@ -1343,3 +1343,30 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
   preso com a máquina saturada); `preparar.py` aprovou o OpenVINO dinâmico na
   iGPU para o EPI (concordância 1,0 e 0,99); o restante seguia rodando no
   encerramento desta sessão.
+
+---
+
+# MISSÃO 4 — VisionEPI pronto de empresa
+
+## Fontes verificadas (agente fontes, acesso em 17/10/2026)
+
+- **NR-33** (texto vigente, Portaria 1.690/2022, em vigor desde 03/10/2022):
+  https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/arquivos/normas-regulamentadoras/nr-33-atualizada-2022-_retificada.pdf
+  - Glossário: vigia é o "trabalhador designado para permanecer fora do espaço confinado e que é responsável pelo acompanhamento, comunicação e ordem de abandono para os trabalhadores".
+  - 33.7.1 c): proibida a entrada com "ausência de vigia durante a entrada, permanência e saída".
+  - 33.3.4 c) e g): o vigia permanece fora, junto à entrada, e não realiza outras tarefas.
+  - 33.3.4.1 a)/b): o vigia pode ser "assistido por sistema de vigilância e comunicação eletrônicas", mas o campo visual sem equipamento eletrônico continua exigido — **a câmera auxilia, não substitui o vigia** (é o que a UI diz).
+  - 33.5.5/33.5.6: toda entrada precedida de PET; campos mínimos (espaço, objetivo, perigos e medidas, atmosfera, supervisores/vigias/autorizados, data e horário de emissão e encerramento, assinaturas). **EPI não é campo mínimo**: aparece só no Anexo II (modelo informativo). 33.5.12: validade limitada a uma jornada; 33.5.12.1.1: até 24 h com prorrogações.
+  - A PET digital do VisionEPI (M5) NÃO é a PET da norma: é um apoio de fiscalização; a UI e os docs dizem isso.
+- **NR-35** (Portaria MTP 4.218/2022, última alteração Portaria MTE 1.259/2026):
+  https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/nr-35-atualizada-2025-1.pdf
+  — 35.5.5: todo trabalho em altura precedido de Análise de Risco; 35.5.7: atividades não rotineiras autorizadas por PT; 35.5.8.2: validade restrita ao turno/jornada. (A página do gov.br diz "15 de junho de 2026" e o PDF "15 de julho de 2026" para a Portaria 1.259 — divergência da fonte; citamos o PDF.)
+- **NR-6**: URL que o projeto já cita em `app/services/nr6.py` confirmada como vigente.
+- **Licenças** das dependências novas (M2):
+  - asyncua 2.1.0 — LGPL-3.0-or-later (https://github.com/FreeOpcUa/opcua-asyncio/blob/master/COPYING). Usada como pacote importado, sem modificação; ao distribuir o produto, acompanhar aviso e cópia da LGPL/GPL (LGPLv3 §4). Registrado em `ATRIBUICOES.md`.
+  - paho-mqtt 2.1.0 — EPL-2.0 OR BSD-3-Clause (EDL 1.0) (https://github.com/eclipse-paho/paho.mqtt.python/blob/master/LICENSE.txt).
+  - amqtt 0.12.1 — MIT (https://github.com/Yakifo/amqtt/blob/main/LICENSE.md).
+- **OPC UA**: exemplo oficial de servidor do asyncua (https://github.com/FreeOpcUa/opcua-asyncio/blob/master/examples/server-minimal.py); NodeId e namespace (OPC UA Part 6 §5.1.12, https://reference.opcfoundation.org/Core/Part6/v105/docs/5.1.12; Part 3 §8.2).
+- **MQTT 3.1.1** (OASIS, https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html): '/' separa níveis (§4.7.1.1); RETAIN guarda a última mensagem do tópico (§3.3.1.3).
+- **OpenAPI 3.1.2**: https://spec.openapis.org/oas/v3.1.2.html.
+- **COCO**: "cell phone" está entre as 80 categorias do release 2014 (https://arxiv.org/pdf/1405.0312, Tabela 2); anotações CC BY 4.0, imagens sob os termos do Flickr (https://cocodataset.org/dataset/termsofuse.htm).
