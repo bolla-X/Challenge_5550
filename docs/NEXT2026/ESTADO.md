@@ -30,19 +30,23 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
 3 (tour), 4 (ajuda), 5 (sino), 6 (busca global), 7 (/status, novidades), 8 (configurações), 9 (exceções, E2E),
 10 (/produto), 11 (feedback). Segurança extra: logout desfeito por requisição em voo (corrigido).
 
-## Em andamento
+## PR8 mergeado
 
-- **Portão do PR8** sobre o commit `ad13411`: ruff ✓; pytest completo 2771 passed + os 4 que falharam corrigidos e
-  reexecutados isolados ✓ (guardas de segredo em teste novo, exceção pública `/api/contatos`, regressão do C3 no
-  `_loop_assincrono`); build ✓; E2E completo (`pytest e2e`: 4 câmeras + crawler + axe) rodando.
-- Agentes da Fase 4 (sem servidor): M6+M11, M7+M8, M10+M9. Identidade visual (3.1) finalizando.
+- PR8 https://github.com/bolla-X/Challenge_5550/pull/19 → squash `44dafdc` na `main`; tag `missao-4-pr8`.
+- Portão: ruff ✓; build/typecheck ✓; pytest 3095 passed ✓; E2E completo 56/60 na rodada única + 4 corrigidas e
+  reexecutadas ✓; crawler 78 rotas×papéis com 0 botão morto ✓ (`QA.md`); axe ✓. A rodada completa de E2E foi antes
+  da Fase 4 entrar (ressalva no PR).
+- `missao-4` = `main` + merge (sem force push; equivale a recriar a branch).
 
-## Próximo passo exato
+## Próximo passo exato (PR9 → depois PR10)
 
-1. Ler o resultado do E2E do portão (`scratchpad/portao_e2e.log`); corrigir o que falhar e reexecutar só o que falhou.
-2. Branch `pr8` no commit verificado → PR8 "QA de base + Fábrica conectada" → squash → tag `missao-4-pr8` →
-   recriar `missao-4` a partir da `main` e trazer o que veio depois (merge da antiga `missao-4`).
-3. Integrar M6–M11 (registrar blueprints, matriz, rotas), Fase 3 item 12 (revisão visual), PR9.
+1. E2E das features da Fase 4 (busca nas trilhas, escalonamento, intervenções, relatório mensal, /api/docs).
+2. Fase 5: jornadas em arquivos próprios `e2e/test_jornada_NN_*.py` (as que faltam: 2 turno do operador,
+   3 incidente completo, 4 investigação, 9 gamificação, 10 palco; 1, 5, 6, 7, 8 já existem em `test_missao4.py`),
+   injeção de falhas (item 4), revisão de segurança (item 5).
+3. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica + galeria.
+4. Fase 6: cenas novas do `/palco`, vídeo, README/DEMO/BANCA, clone limpo, portão final, tags `missao-4-pr10` e
+   `final-next-2026`.
 
 ## Rollback
 
