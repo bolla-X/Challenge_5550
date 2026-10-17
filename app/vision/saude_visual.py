@@ -104,7 +104,7 @@ RAZAO_LOWE = 0.75
 MIN_CORRESPONDENCIAS = 12  # ORB só "tem com o que trabalhar" com pelo menos isto nos DOIS quadros
 MIN_INLIERS = 8
 LIMIAR_RANSAC_PX = 3.0
-DESLOCAMENTO_MAXIMO = 0.06  # fração do lado maior da miniatura
+DESLOCAMENTO_MAXIMO = 0.08  # fração do lado maior da miniatura
 ROTACAO_MAXIMA_GRAUS = 4.0
 ESCALA_MAXIMA = 0.12  # |log(escala)|, ~ ±10 %
 ESCALA_PLAUSIVEL = 0.35  # fora disso a pose é degenerada, não uma câmera movida
@@ -112,7 +112,7 @@ BLOCO = 16  # lado do bloco da checagem de alinhamento, em px da miniatura
 DESVIO_MINIMO_DO_BLOCO = 6.0
 NCC_DO_BLOCO = 0.6
 MIN_BLOCOS = 4  # blocos texturizados (e visíveis após o alinhamento) para a checagem valer
-ALINHAMENTO_MINIMO = 0.85
+ALINHAMENTO_MINIMO = 0.88
 CORRELACAO_MINIMA = 0.30  # só no fallback, quando ORB não tem pontos
 CORRELACAO_SEM_DUVIDA = 0.90  # miniaturas quase idênticas: a câmera não se mexeu, nem se gasta ORB
 

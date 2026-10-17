@@ -407,7 +407,8 @@ LINHAS: list[Linha] = [
         L("GET", regra, PUBLICA, publica_por=SHELL_DO_SPA)
         for regra in (
             "/", "/dashboard", "/dashboard/", "/portal", "/tv", "/rotular", "/desafio", "/gemeo", "/simulador",
-            "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga",
+            "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga", "/evacuacao", "/torre", "/regras",
+            "/permissoes",
         )
     ],
     L("GET", "/sw.js", PUBLICA, publica_por=PWA),

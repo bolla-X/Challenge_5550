@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 
 /**
@@ -37,7 +38,7 @@ export function useEstadoDaIntegracao(intervaloMs = 2000) {
     const tick = () =>
       fetch("/api/integracao/estado", { credentials: "same-origin" })
         .then(async (r) => {
-          if (!r.ok) throw new Error(r.status === 401 ? "Sessão encerrada. Entre de novo." : `Falha ao ler o estado (HTTP ${r.status}).`);
+          if (!r.ok) throw new Error(r.status === 401 ? "Sessão encerrada. Entre de novo." : `Falha ao ler o estado da planta (código ${r.status}).`);
           return (await r.json()) as EstadoDaIntegracao;
         })
         .then((d) => {
@@ -45,7 +46,7 @@ export function useEstadoDaIntegracao(intervaloMs = 2000) {
           setEstado(d);
           setErro(null);
         })
-        .catch((e) => vivo && setErro(e instanceof Error ? e.message : "Falha ao ler o estado."));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao ler o estado da planta.")));
     tick();
     const id = window.setInterval(tick, intervaloMs);
     return () => {

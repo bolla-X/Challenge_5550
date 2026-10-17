@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useCallback, useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Badge, EmptyState, Numero, PanelSkeleton } from "./common";
@@ -61,7 +62,7 @@ async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...init });
   const corpo = await r.json().catch(() => null);
   if (!r.ok) {
-    const msg = corpo && typeof corpo === "object" && "error" in corpo ? String((corpo as { error: unknown }).error) : `HTTP ${r.status}`;
+    const msg = corpo && typeof corpo === "object" && "error" in corpo ? String((corpo as { error: unknown }).error) : `Falha na comunicação com o servidor (código ${r.status}).`;
     throw Object.assign(new Error(msg), { status: r.status });
   }
   return corpo as T;
@@ -81,7 +82,7 @@ function useEvacuacao() {
           setEstado(d);
           setErro(null);
         })
-        .catch((e: Error & { status?: number }) => vivo && setErro({ msg: e.message, status: e.status }));
+        .catch((e: Error & { status?: number }) => vivo && setErro({ msg: mensagemDeErro(e, "Falha ao ler a evacuação."), status: e.status }));
     tick();
     const id = window.setInterval(tick, ativa ? 1000 : 5000);
     return () => {
@@ -160,7 +161,7 @@ export function EvacuacaoScreen() {
       setConfirmando(null);
       recarregar();
     } catch (e) {
-      setFalha(e instanceof Error ? e.message : "Não foi possível concluir.");
+      setFalha(mensagemDeErro(e, "Não foi possível concluir."));
     } finally {
       setOcupado(false);
     }
