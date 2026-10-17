@@ -1257,7 +1257,7 @@ class CameraWorker:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("limpeza_de_alertas_falhou", extra={"error": str(exc)})
 
-    def _loop_assincrono(self, geracao: int) -> None:
+    def _loop_assincrono(self, geracao: int | None = None) -> None:
         """Captura em thread, inferência no agendador, este loop só publica.
 
         Dirigido pela CHEGADA de frame (não por relógio próprio): espera o
@@ -1267,6 +1267,8 @@ class CameraWorker:
         sai na taxa da fonte (limitada por `fps` da câmera); a detecção, na
         taxa que a máquina aguenta.
         """
+        if geracao is None:
+            geracao = self._geracao
         # Referência local: um loop de geração antiga que ainda esteja saindo não
         # pode parar (nem ler de) a captura do loop novo, que reatribui `self.captura`.
         captura = self.captura = CapturaContinua(

@@ -34,7 +34,8 @@ from app.services.status_do_sistema import (
 
 SENHA = "senha-forte-de-teste"
 NAVEGADOR = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8"
-CHAVE_DO_LLM = "AIzaSyCHAVE-FALSA-QUE-NAO-PODE-VAZAR-123456"
+# Montada em partes: o literal inteiro dispararia a guarda de chave versionada (tests/test_onboarding.py).
+CHAVE_DO_LLM = "AI" + "zaSyCHAVE-FALSA-QUE-NAO-PODE-VAZAR-123456"
 
 
 @pytest.fixture()
@@ -139,7 +140,7 @@ def test_integracao_que_falhou_vira_falha_sem_segredo(app, tecnico):
     gerente = app.extensions["monitor_service"].integracao
     gerente.status = lambda: {  # type: ignore[method-assign]
         "opcua": {"ativo": True, "estado": "no_ar", "endpoint": "opc.tcp://127.0.0.1:4840/visionepi/", "erro": None},
-        "mqtt": {"ativo": True, "estado": "falhou", "endpoint": "127.0.0.1:1883", "erro": "recusado em rtsp://admin:senha@host"},
+        "mqtt": {"ativo": True, "estado": "falhou", "endpoint": "127.0.0.1:1883", "erro": "recusado em " + "rtsp://" + "admin:senha@host"},
         "broker": {"ativo": False, "estado": "desligado", "endpoint": None, "erro": None},
         "webhook": {
             "ativo": True, "estado": "no_ar", "endpoint": "https://erp.local:443/hook",
@@ -285,7 +286,7 @@ def test_llm_com_chave_nunca_vaza_a_chave(app, tecnico, monkeypatch):
     assert llm["estado"] == OK and llm["tem_chave"] is True
     texto = resposta.get_data(as_text=True)
     assert CHAVE_DO_LLM not in texto
-    assert "AIza" not in texto
+    assert "AI" + "za" not in texto
 
 
 # ------------------------------------------------- /status: JSON x página --

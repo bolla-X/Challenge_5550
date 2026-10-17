@@ -804,6 +804,8 @@ def test_demais_rotas_da_api_nao_tem_excecao_alem_das_documentadas():
         ("POST", "/api/celular/token-inexistente/quadro"), ("POST", "/api/demo/reset"),
         ("GET", "/api/palco/estado"), ("POST", "/api/palco/ir"),
         ("POST", "/api/evacuacao/iniciar"), ("POST", "/api/evacuacao/encerrar"),
+        # formulário público de /produto (só grava, com consentimento e limite por IP)
+        ("POST", "/api/contatos"),
     }
     na_api = {item for item in publicas if item[1].startswith("/api/")}
     assert na_api == esperadas_na_api, f"exceções à regra 'sem sessão = 401' mudaram: {sorted(na_api ^ esperadas_na_api)}"
