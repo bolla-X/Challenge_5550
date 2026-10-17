@@ -27,6 +27,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -212,14 +213,61 @@ class ServidorE2E:
         self.fonte_rede.parar()
 
 
+AMOSTRAS_DE_INFERENCIA = RAIZ / "bench" / "runtime" / "e2e-inferencia.jsonl"
+JANELAS_DOS_TESTES = RAIZ / "bench" / "runtime" / "e2e-testes.jsonl"
+
+
+class AmostradorDeInferencia(threading.Thread):
+    """Grava, a cada 2 s, as inferências/s de cada câmera (janela de 2 s).
+
+    É a evidência para chamar uma falha de "sensível à carga": junto com
+    `e2e-testes.jsonl` (início e fim de cada teste), `scripts/e2e_carga.py`
+    diz quantas inferências/s a câmera do teste recebeu enquanto ele esperava.
+    """
+
+    def __init__(self, srv: ServidorE2E) -> None:
+        super().__init__(daemon=True, name="amostrador-de-inferencia")
+        self.srv = srv
+        self.parar = threading.Event()
+
+    def run(self) -> None:
+        sessao = None
+        with AMOSTRAS_DE_INFERENCIA.open("w", encoding="utf-8") as saida:
+            while not self.parar.wait(2.0):
+                try:
+                    sessao = sessao or self.srv.sessao("technical")
+                    r = sessao.get(self.srv.base + "/api/diagnostics/pipeline", params={"janela_s": 2}, timeout=5)
+                    if r.status_code == 401:
+                        sessao = None
+                        continue
+                    cameras = r.json().get("cameras", {})
+                except (requests.RequestException, ValueError):
+                    continue
+                taxas = {cid: c.get("stats", {}).get("taxas_por_s", {}) for cid, c in cameras.items()}
+                saida.write(json.dumps({"ts": time.time(), "cameras": {
+                    cid: {"inferencias": t.get("inferencias", 0.0), "analises": t.get("analises_publicadas", 0.0),
+                          "running": cameras[cid].get("running")} for cid, t in taxas.items()}}) + "\n")
+                saida.flush()
+
+
 @pytest.fixture(scope="session")
 def servidor():
     srv = ServidorE2E()
+    amostrador = None
     try:
         srv.subir()
+        amostrador = AmostradorDeInferencia(srv)
+        amostrador.start()
         yield srv
     finally:
+        if amostrador is not None:
+            amostrador.parar.set()
         srv.parar()
+
+
+def pytest_sessionstart(session):
+    JANELAS_DOS_TESTES.parent.mkdir(parents=True, exist_ok=True)
+    JANELAS_DOS_TESTES.write_text("", encoding="utf-8")
 
 
 @pytest.fixture(scope="session")
@@ -306,6 +354,10 @@ def pytest_runtest_makereport(item, call):
     """
     resultado = yield
     relatorio = resultado.get_result()
+    if relatorio.when == "call":
+        with JANELAS_DOS_TESTES.open("a", encoding="utf-8") as saida:
+            saida.write(json.dumps({"teste": item.nodeid, "inicio": call.start, "fim": call.stop,
+                                    "resultado": relatorio.outcome}) + "\n")
     pagina = item.funcargs.get("pagina") if hasattr(item, "funcargs") else None
     if relatorio.when != "call" or not relatorio.failed or pagina is None:
         return
