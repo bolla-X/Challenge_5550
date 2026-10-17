@@ -148,3 +148,9 @@ button.regras-switch[aria-checked="true"] .regras-switch-pino { transform: trans
   background: var(--surface); border-top: 1px solid var(--hairline); border-radius: 0 0 var(--r-card) var(--r-card);
 }
 .regras-confirma p { margin-top: var(--s2); }
+
+/* ------------------------------------------------ regra em modo leitura (palco) --- */
+.regras-leitura { display: grid; gap: var(--s3); }
+.regras-leitura .regras-frase-caixa { margin-bottom: 0; }
+.regras-op-leitura { margin: 0 0 var(--s3); font-size: var(--t-footnote); font-weight: 500; color: var(--text-2); }
+.regras-bloco-leitura { margin: 0; font-size: var(--t-body); color: var(--text); }

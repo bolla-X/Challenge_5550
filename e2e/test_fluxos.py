@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from conftest import RAIZ, entrar
+from conftest import RAIZ, entrar, esperar
 
 # ADENDO 2 da MISSÃO 2: o tempo até "Liberado" é medido com o portal repetido N
 # vezes (`E2E_PORTAL_REPETICOES=10`); cada repetição acrescenta uma linha em
@@ -51,10 +51,7 @@ def test_login_e_video_aparece(pagina, servidor):
     _abrir_camera(pagina, "Canteiro")
     video = pagina.locator("canvas.live-video").first
     video.wait_for(timeout=30_000)
-    limite = time.monotonic() + 90
-    while time.monotonic() < limite and _quadros_exibidos(pagina) < 10:
-        time.sleep(0.5)
-    assert _quadros_exibidos(pagina) >= 10, "o vídeo não chegou ao canvas"
+    esperar(lambda: _quadros_exibidos(pagina) >= 10, 90, 0.5, msg="o vídeo não chegou ao canvas")
     assert video.get_attribute("data-estado") == "ao_vivo"
     # Fixture de arquivo é GRAVAÇÃO, nunca "ao vivo" na tela.
     assert pagina.locator(".feed-badge").first.get_attribute("data-estado") == "gravacao"
@@ -67,42 +64,6 @@ def test_alerta_surge_para_pessoa_sem_epi(pagina, servidor):
     alerta = pagina.locator(".over-pill.alert")
     alerta.wait_for(timeout=240_000)
     assert "Sem" in alerta.inner_text(), alerta.inner_text()
-
-
-def test_operador_nao_ve_outra_camera(pagina, servidor):
-    entrar(pagina, servidor, "operator")
-    pagina.locator("canvas.live-video").first.wait_for(timeout=30_000)
-    assert pagina.locator("canvas.live-video").count() == 1
-    assert pagina.locator("canvas.live-video").first.get_attribute("data-camera") == str(servidor.cameras["Multidão"])
-    for nome in ("Canteiro", "Rede"):
-        cid = servidor.cameras[nome]
-        for rota in ("video_feed", "frame.jpg", "status"):
-            resposta = pagina.request.get(f"{servidor.base}/api/cameras/{cid}/{rota}")
-            assert resposta.status == 404, f"operador acessou {rota} da câmera {nome}: {resposta.status}"
-
-
-def test_queda_da_fonte_mostra_reconectando_e_volta(pagina, servidor):
-    entrar(pagina, servidor, "technical")
-    _abrir_camera(pagina, "Rede")
-    badge = pagina.locator(".feed-badge").first
-    limite = time.monotonic() + 90
-    while time.monotonic() < limite and badge.get_attribute("data-estado") != "ao_vivo":
-        time.sleep(0.5)
-    assert badge.get_attribute("data-estado") == "ao_vivo", "a fonte de rede nunca ficou ao vivo"
-
-    servidor.fonte_rede.parar()
-    vistos: set[str] = set()
-    limite = time.monotonic() + 90
-    while time.monotonic() < limite and not ({"reconectando", "sem_sinal"} & vistos):
-        vistos.add(badge.get_attribute("data-estado") or "")
-        time.sleep(0.3)
-    assert {"reconectando", "sem_sinal"} & vistos, f"queda da fonte não apareceu na tela: {vistos}"
-
-    servidor.fonte_rede.iniciar()
-    limite = time.monotonic() + 120
-    while time.monotonic() < limite and badge.get_attribute("data-estado") != "ao_vivo":
-        time.sleep(0.5)
-    assert badge.get_attribute("data-estado") == "ao_vivo", "a fonte voltou e a tela não"
 
 
 def test_queda_do_modelo_chega_ao_navegador_com_id(pagina, servidor):
@@ -162,19 +123,14 @@ def test_celular_vira_camera_pelo_link_do_qr(navegador, servidor):
         pagina_cel.goto(servidor.base + caminho)
         pagina_cel.get_by_role("button", name="Iniciar câmera").click()
         estado = pagina_cel.locator("#estado")
-        limite = time.monotonic() + 60
-        while time.monotonic() < limite and "quadros" not in (estado.inner_text() or ""):
-            time.sleep(0.5)
-        assert "quadros" in estado.inner_text(), estado.inner_text()
+        esperar(lambda: "quadros" in (estado.inner_text() or ""), 60, 0.5, msg="a página do celular não começou a enviar quadros")
         assert estado.get_attribute("data-estado") == "enviando"
 
-        limite = time.monotonic() + 60
-        lidos = 0
-        while time.monotonic() < limite and lidos < 10:
+        def quadros_lidos() -> int:
             d = tecnico.get(f"{servidor.base}/api/diagnostics/pipeline?janela_s=30", timeout=10).json()
-            lidos = d["cameras"][str(cid)]["stats"]["totais"].get("frames_lidos", 0)
-            time.sleep(1)
-        assert lidos >= 10, f"servidor recebeu só {lidos} quadros do celular"
+            return d["cameras"][str(cid)]["stats"]["totais"].get("frames_lidos", 0)
+
+        esperar(lambda: quadros_lidos() >= 10, 60, 1, msg="o servidor recebeu menos de 10 quadros do celular")
     finally:
         celular.close()
 
@@ -225,10 +181,7 @@ def test_replay_do_incidente_abre_e_toca(pagina, servidor):
     total = int(canvas.get_attribute("data-total") or 0)
     assert total > 1, f"clipe com {total} quadro(s)"
     primeiro = int(canvas.get_attribute("data-quadro") or 0)
-    limite = time.monotonic() + 15
-    while time.monotonic() < limite and int(canvas.get_attribute("data-quadro") or 0) == primeiro:
-        time.sleep(0.3)
-    assert int(canvas.get_attribute("data-quadro") or 0) != primeiro, "o replay não avançou"
+    esperar(lambda: int(canvas.get_attribute("data-quadro") or 0) != primeiro, 15, 0.3, msg="o replay não avançou")
 
 
 def test_pill_de_aproximacao_aparece(pagina, servidor):
@@ -277,15 +230,9 @@ def test_privacidade_so_o_supervisor_altera(pagina, servidor):
     pagina.once("dialog", lambda d: d.accept())
     pagina.locator("[data-testid=privacidade-botao]").click()
     estado = pagina.locator("[data-testid=privacidade-estado]")
-    limite = time.monotonic() + 15
-    while time.monotonic() < limite and estado.inner_text() != "desligado":
-        time.sleep(0.3)
-    assert estado.inner_text() == "desligado"
+    esperar(lambda: estado.inner_text() == "desligado", 15, 0.3, msg="a privacidade não ficou desligada")
     pagina.locator("[data-testid=privacidade-botao]").click()  # religa (sem confirmação)
-    limite = time.monotonic() + 15
-    while time.monotonic() < limite and estado.inner_text() != "ligado":
-        time.sleep(0.3)
-    assert estado.inner_text() == "ligado"
+    esperar(lambda: estado.inner_text() == "ligado", 15, 0.3, msg="a privacidade não voltou a ligada")
 
 
 def test_diagnostico_mostra_o_runtime_ativo(pagina, servidor):

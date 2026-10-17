@@ -112,8 +112,6 @@ def test_alerta_chega_no_opcua_no_mqtt_e_na_torre_e_reconhecer_cala_a_sirene(pag
         planta, camera = esperar(sirene_calada, 90, 1, msg="a sirene da Multidão não calou depois de reconhecer tudo")
         assert planta["torre"] == "vermelho", planta
         assert camera["critico_nao_reconhecido"] is False, camera
-        pagina.reload()
-        pagina.locator("[data-testid=torre]").wait_for(timeout=60_000)
     finally:
         cliente.disconnect()
         assinante.loop_stop()

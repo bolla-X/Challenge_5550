@@ -113,3 +113,7 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 /* torre: cabe inteira na tela, com o texto abaixo, de 768 px de altura para cima */
 .torre-corpo { width: min(200px, 40vw, 22dvh); }
 .torre-tela { align-content: center; }
+.appbar-secundarios { display: inline-flex; align-items: center; gap: var(--s1); }
+.appbar-mais { vertical-align: middle; }
+.appbar-mais > summary { display: inline-flex; align-items: center; height: var(--h-control); padding: 0 var(--s3); border-radius: var(--r-control); }
+.appbar-mais > summary:hover { background: var(--sunken); color: var(--text); }

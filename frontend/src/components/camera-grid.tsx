@@ -48,7 +48,7 @@ const PARADA: EstadoDaCamera = { running: false, tentativas: 0, alertas: [] };
 
 /** Exportado para o painel de diagnóstico e a tela de foco reaproveitarem o
  *  MESMO polling de 3 s, em vez de abrir um segundo contra a mesma rota. */
-export function useCameraEstado(cameraId: number): EstadoDaCamera {
+export function useCameraEstado(cameraId: number, intervaloMs = 3000): EstadoDaCamera {
   const [estado, setEstado] = useState<EstadoDaCamera>(PARADA);
   useEffect(() => {
     let cancelled = false;
@@ -74,12 +74,12 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
         });
     };
     refresh();
-    const interval = setInterval(refresh, 3000);
+    const interval = setInterval(refresh, intervaloMs);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [cameraId]);
+  }, [cameraId, intervaloMs]);
   return estado;
 }
 

@@ -9,7 +9,6 @@ técnico para cima.
 
 from __future__ import annotations
 
-import hmac
 import logging
 import threading
 import time
@@ -35,6 +34,7 @@ from app.services.evacuacao import (
     resumo_do_relatorio,
     ultimo_resumo,
 )
+from app.services.palco import token_confere, token_do_pedido
 from app.utils.auth import current_user, require_role
 from app.utils.salas import SALA_PARQUE
 
@@ -64,10 +64,12 @@ def _supervisor_ou_token(view):
 
     @wraps(view)
     def wrapper(*args, **kwargs):
-        token = request.args.get("t") or (request.get_json(silent=True) or {}).get("t") or ""
-        if not token:
+        token = token_do_pedido(request)
+        # O token do palco (QR projetado no telão) só aciona evacuação na DEMO: na operação real,
+        # quem fotografasse o QR poderia disparar ou encerrar uma evacuação (auditoria da MISSÃO 4).
+        if not token or not current_app.config.get("DEMO_MODE"):
             return exigir_supervisor(*args, **kwargs)
-        if not hmac.compare_digest(str(token), _palco().token):
+        if not token_confere(token, _palco().token):
             return jsonify({"error": "token inválido"}), 403
         g.evacuacao_por_token = True
         return view(*args, **kwargs)

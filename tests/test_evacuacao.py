@@ -486,6 +486,7 @@ def test_ponto_de_encontro_invalido_e_recusado(app_auth, cameras_falsas):
 
 
 def test_token_do_palco_inicia_e_encerra_sem_sessao(app_auth, cameras_falsas):
+    app_auth.config["DEMO_MODE"] = True  # o token do palco só aciona evacuação na demo
     celular = app_auth.test_client()
     assert celular.post("/api/evacuacao/iniciar", json={"t": "errado"}).status_code == 403
     assert celular.post("/api/evacuacao/iniciar?t=errado").status_code == 403
@@ -496,3 +497,23 @@ def test_token_do_palco_inicia_e_encerra_sem_sessao(app_auth, cameras_falsas):
     assert celular.get(f"/api/evacuacao?t={token}").status_code == 401
     fim = celular.post(f"/api/evacuacao/encerrar?t={token}")
     assert fim.status_code == 200 and fim.get_json()["relatorio"]["encerrada_por"] == "palco (token)"
+
+
+def test_token_do_palco_fora_da_demo_nao_aciona_evacuacao(app_auth, cameras_falsas):
+    """Auditoria da MISSÃO 4: fora da demo, quem fotografasse o QR do telão não pode disparar evacuação."""
+    from app.services.palco import Palco
+
+    app_auth.config["DEMO_MODE"] = False
+    token = app_auth.extensions.setdefault("palco", Palco()).token
+    celular = app_auth.test_client()
+    assert celular.post("/api/evacuacao/iniciar", json={"t": token}).status_code == 401
+    assert celular.post(f"/api/evacuacao/encerrar?t={token}").status_code == 401
+
+
+def test_token_com_caracter_estranho_ou_corpo_lista_nao_da_500(app_auth, cameras_falsas):
+    app_auth.config["DEMO_MODE"] = True
+    cliente = app_auth.test_client()
+    assert cliente.post("/api/evacuacao/iniciar?t=%C3%A9").status_code == 403
+    assert cliente.post("/api/evacuacao/iniciar", json=[1]).status_code == 401
+    assert cliente.get("/api/palco/estado?t=%C3%A9").status_code == 403
+    assert cliente.post("/api/palco/ir", json=[1]).status_code in (401, 403)

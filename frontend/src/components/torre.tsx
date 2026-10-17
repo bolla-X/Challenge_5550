@@ -106,10 +106,10 @@ export function motivoDaTorre(estado: EstadoDaIntegracao["planta"]): string {
     .join(" · ");
 }
 
-/** O que a torre diz em palavras: "Tudo em ordem", "Alarme — alerta crítico sem reconhecimento"... */
+/** O que a torre diz em palavras: "Tudo em ordem", "Alarme: alerta crítico sem reconhecimento"... */
 export function textoDaTorre(planta: EstadoDaIntegracao["planta"]): string {
   const escalonado = plantaEscalonada(planta);
-  return `${TEXTO[planta.torre]}${planta.sirene ? " — alerta crítico sem reconhecimento" : ""}${escalonado ? " há muito tempo: supervisão avisada" : ""}`;
+  return `${TEXTO[planta.torre]}${planta.sirene ? ": alerta crítico sem reconhecimento" : ""}${escalonado ? " há muito tempo: supervisão avisada" : ""}`;
 }
 
 /** Uma pílula por integração (OPC UA, MQTT, broker, webhook), com o estado que o servidor informa. */

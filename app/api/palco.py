@@ -12,7 +12,6 @@ legenda de contingência (`fallback` em `/api/palco/estado`); o palco segue.
 
 from __future__ import annotations
 
-import hmac
 import logging
 import threading
 import time
@@ -21,7 +20,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from app.models import ROLE_TECHNICAL, Camera
 from app.services import palco_preparos
-from app.services.palco import ROTEIRO, Palco, camera_da_cena, cameras_pausadas
+from app.services.palco import ROTEIRO, Palco, camera_da_cena, cameras_pausadas, token_confere, token_do_pedido
 from app.utils.auth import current_user, login_required, require_role
 
 logger = logging.getLogger(__name__)
@@ -43,9 +42,9 @@ def _palco() -> Palco:
 
 def _negado():
     """None = pode; senão a resposta de erro (401 sem sessão nem token, 403 token/papel errado)."""
-    token = request.args.get("t") or (request.get_json(silent=True) or {}).get("t") or ""
+    token = token_do_pedido(request)
     if token:
-        return None if hmac.compare_digest(str(token), _palco().token) else (jsonify({"error": "token inválido"}), 403)
+        return None if token_confere(token, _palco().token) else (jsonify({"error": "token inválido"}), 403)
     if not current_app.config.get("AUTH_REQUIRED", True):
         return None
     usuario = current_user()

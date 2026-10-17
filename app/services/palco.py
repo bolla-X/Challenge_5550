@@ -182,3 +182,17 @@ def cameras_pausadas(
     if alvo is None:
         return set()  # sem a câmera da cena, pausar as outras só apagaria a planta
     return {cid for cid in cameras_por_nome.values() if cid != alvo}
+
+
+def token_do_pedido(request) -> str:
+    """Token do controle (`?t=` ou corpo `{"t": ...}`), sem estourar com corpo que não é objeto."""
+    corpo = request.get_json(silent=True)
+    bruto = request.args.get("t") or (corpo.get("t") if isinstance(corpo, dict) else "") or ""
+    return bruto if isinstance(bruto, str) else ""
+
+
+def token_confere(recebido: str, esperado: str) -> bool:
+    """Comparação em tempo constante; bytes para aceitar qualquer caractere sem `TypeError` (era 500)."""
+    import hmac
+
+    return hmac.compare_digest(recebido.encode("utf-8"), esperado.encode("utf-8"))

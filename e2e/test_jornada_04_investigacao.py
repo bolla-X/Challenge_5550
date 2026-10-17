@@ -26,8 +26,8 @@ def test_investigacao_busca_nas_trilhas_e_simulador_com_regra_editada(navegador,
     esperar(lambda: tecnico.get(f"{servidor.base}/api/busca/trilhas", params={"camera_id": multidao, "epi_ausente": "helmet"},
                                 timeout=60).json().get("total", 0) >= 1, 240, 3,
             msg="a trilha da Multidão não tem ninguém sem capacete")
-    esperar(lambda: tecnico.get(f"{servidor.base}/api/simulador/contexto", params={"camera_id": multidao},
-                                timeout=30).json()["trilha"]["registros"] > 0, 240, 3, msg="o simulador não tem trilha gravada da Multidão")
+    esperar(lambda: (tecnico.get(f"{servidor.base}/api/simulador/contexto", params={"camera_id": multidao}, timeout=30)
+                     .json().get("trilha") or {}).get("registros", 0) > 0, 240, 3, msg="o simulador não tem trilha gravada da Multidão")
     reais_antes = tecnico.get(f"{servidor.base}/alerts", params={"camera_id": multidao, "limit": 500}, timeout=20).json()["count"]
 
     contexto = navegador.new_context(viewport={"width": 1366, "height": 768})

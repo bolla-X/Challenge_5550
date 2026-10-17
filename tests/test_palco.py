@@ -486,6 +486,7 @@ def evacuacao_falsa(app_auth, monkeypatch):
     from app.api import evacuacao as api_evacuacao
     from app.api import palco as api_palco
 
+    app_auth.config["DEMO_MODE"] = True  # o token do palco só aciona evacuação na demo
     app_auth.extensions["monitor_service"].socketio = _Socket()
     cameras = [{"id": 1, "nome": "Portaria", "pessoas": 3, "zonas": {}, "pes_na_planta": [], "ts_ultima_analise": None,
                 "online": True}]

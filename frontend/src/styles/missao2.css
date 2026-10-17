@@ -226,6 +226,59 @@ input[type="range"] { height: 28px; padding: 0; background: transparent; border:
 .palco-queda-replay .incidente-inline { max-width: none; }
 .palco-vazio { font-size: 20px; color: var(--text-2); text-align: center; padding: var(--s7); }
 .palco-cartao { max-width: 900px; margin: 0 auto; }
+/* Contingência: o preparo da cena falhou e a legenda diz o que NÃO está acontecendo. */
+.palco-contingencia { flex-basis: 100%; color: var(--danger); font-size: 16px; font-weight: 500; }
+
+/* ---------- Cenas da MISSÃO 4 (tape a câmera, permissão, fábrica, evacuação, regra, primeiro acesso) ---------- */
+.palco-tape { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr); gap: var(--s5); height: 100%; min-height: 0; }
+.palco-tape-video { position: relative; min-height: 0; }
+.palco-tape-badge { position: absolute; top: var(--s4); left: var(--s4); z-index: 3; }
+.palco-tape-badge .saude-badge, .palco-tape-badge .chip { font-size: 18px; padding: 6px 14px; }
+.palco-tape-painel { display: flex; flex-direction: column; gap: var(--s4); align-self: start; }
+.palco-tape-instrucao { margin: 0; font-size: 32px; line-height: 1.15; font-weight: 650; letter-spacing: -.025em; }
+.palco-tape-calmo { margin: 0; font-size: 18px; color: var(--text-2); }
+.palco-alerta { display: grid; gap: 4px; padding: var(--s4); border-radius: var(--r-card); background: var(--tint-danger); border: 1px solid var(--danger); }
+.palco-alerta strong { font-size: 28px; line-height: 1.1; color: var(--danger); }
+.palco-alerta span { font-size: 18px; color: var(--text-2); }
+.palco-aviso { margin: 0; padding: var(--s3) var(--s4); border-radius: var(--r-control); background: var(--sunken); color: var(--text-2); font-size: 16px; }
+.palco-aviso-norma { font-size: 20px; font-weight: 600; color: var(--text); }
+.palco-pt { margin: 0; display: grid; gap: var(--s2); }
+.palco-pt > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: var(--s3); }
+.palco-pt dt { color: var(--text-3); font-size: 14px; }
+.palco-pt dd { margin: 0; font-size: 16px; }
+
+.palco-fabrica { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-content: center; gap: var(--s7); min-height: 60vh; }
+.palco-fabrica .torre-corpo { width: min(280px, 24vw); }
+.palco-fabrica-texto { display: grid; gap: var(--s3); justify-items: start; }
+.palco-fabrica-texto .torre-estado { font-size: var(--t-display); text-align: left; }
+.palco-fabrica-texto .torre-detalhe { text-align: left; font-size: 20px; }
+.palco-fabrica-texto .torre-integracoes { justify-content: flex-start; font-size: 18px; }
+.palco-clp { margin: var(--s3) 0 0; font-size: 22px; color: var(--text-2); }
+.palco-clp code { font-family: var(--font-mono); font-size: .9em; padding: 2px 8px; border-radius: var(--r-chip); background: var(--sunken); color: var(--text); }
+.palco-clp strong { color: var(--text); }
+
+.palco-evac { display: grid; gap: var(--s4); padding-bottom: var(--s5); }
+.palco-evac-acoes { display: grid; gap: var(--s2); justify-items: end; max-width: 360px; text-align: right; }
+.palco-evac-botao { min-height: 72px; padding: 0 var(--s7); font-size: 24px; }
+.palco-evac .evac-cronometro, .palco-evac .evac-titulo { margin: var(--s1) 0 0; display: block; }
+
+.palco-regra { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s5); align-items: start; padding-bottom: var(--s5); }
+.palco-regra .card { padding: var(--s5); display: grid; gap: var(--s3); }
+.palco-regra h2 { margin: 0; font-size: 22px; letter-spacing: -.015em; }
+
+.palco-primeiro { max-width: 900px; margin: 0 auto; display: grid; gap: var(--s4); padding-bottom: var(--s5); }
+.palco-primeiro-frase { margin: 0; font-size: 22px; color: var(--text-2); }
+.palco-passos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.palco-passo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--s4); padding: var(--s3) var(--s4); background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-1); }
+.palco-passo-numero { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--sunken); font-weight: 600; }
+.palco-passo-texto { display: grid; gap: 2px; }
+.palco-passo-texto strong { font-size: 20px; }
+.palco-passo-texto span { color: var(--text-2); font-size: 15px; }
+.palco-passo-texto small { color: var(--text-3); font-size: 14px; }
+.palco-passo-texto small.ok { color: var(--ok); }
+@media (max-width: 900px) {
+  .palco-tape, .palco-regra, .palco-fabrica { grid-template-columns: minmax(0, 1fr); }
+}
 .palco-qr { position: fixed; right: var(--s5); bottom: 96px; width: 132px; display: grid; gap: 4px; justify-items: center; font-size: 12px; color: var(--text-2); background: var(--surface); padding: var(--s3); border-radius: var(--r-control); box-shadow: var(--shadow-2); }
 .palco-qr svg { width: 108px; height: 108px; }
 /* Abaixo de 1600 px o QR (fixo no canto) cobria o fim da coluna do Portal na
