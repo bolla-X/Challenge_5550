@@ -1,87 +1,32 @@
-# ESTADO — MISSÃO 2 (encerrada)
+# ESTADO — MISSÃO 4 (em andamento)
 
-**A branch da apresentação é a `main`.** Ela recebeu, pelo PR7, o VisionEPI do
-NEXT 2026 (`feat/completo-com-rebrand`, PRs #10–#15) integrado com a Sprint 4
-de IA que só existia na `main`. Retomar lendo este arquivo e `MISSAO-2.md`
-(ADENDOS 2 e 3 no fim); o detalhe de tudo está em `CHANGELOG.md`.
+Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGELOG.md`.
 
-## Antes da apresentação (na máquina dela)
+## Onde estamos
 
-```bash
-python scripts/preparar.py
-```
+- Branch de trabalho: `missao-4` (criada da `main` em `75d0de6`).
+- Passo 0 concluído (17/10):
+  - PR #18 mergeado na `main` por squash (`75d0de6`);
+  - PR #9 (`rebrand/calma`) fechado com o comentário pedido;
+  - tag `pre-missao-4` = `75d0de6` (push feito);
+  - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-e, na véspera e na manhã, `python scripts/preparar.py --so-cache`. Depois
-`python run.py --demo` e o roteiro de `DEMO.md`. Plano B: o vídeo da Release
-https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo (baixar antes).
+## Próximo passo exato
+
+Fase 1 (PR8 parte 1): matriz de permissões, bug hunt, revisão de copy e crawler
+`e2e/test_todos_os_botoes.py`; em paralelo, módulos M1–M3 sem servidor.
 
 ## Rollback
 
-- `main-pre-release` = HEAD da `main` antes do release (`6c3ed61`).
-- `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
-- Ou `git revert` do squash do PR7.
-
-## Verificação final (15/10, a partir da `main` @ `d76941b`)
-
-Tudo **sob carga**: CPU de terceiros em 30 s antes de começar, média 27 %
-(pico 85 %; Edge/WebView2, WhatsApp, WSL, Docker Desktop), acima do teto de
-15 %; no fim, 97 % (WSL, Edge, `fe-diaria`). Nenhum processo de terceiros foi
-encerrado. Evidência em `bench/runtime/verificacao-final/` (fora do git).
-
-- **E2E completo, rodada única, 4 câmeras** (Multidão, Canteiro, Rede, Queda):
-  **36/36 em 10 min 9 s**. A pílula de aproximação passou de primeira; o plano
-  de 5 rodadas isoladas não foi necessário e nenhuma correção entrou.
-- **Clone limpo da `main`** (`../ch5550-clone-4`, clonado do GitHub), README à
-  risca: `pip install` de primeira (9 min; `torch` 2.13.0, `onnx` 1.22.0,
-  `onnxscript` 0.7.1, `onnxruntime` 1.29.0); `preparar.py` exit 0 (22 min)
-  aprovou, para EPI, pessoa e esqueleto, OpenVINO dinâmico na iGPU e **ONNX
-  dinâmico (concordância 1,0 nos três)**. O traceback `No Adapter To Version
-  $17 for Resize` no meio do export é aviso do exportador do `torch`: o export
-  segue e termina em "export success".
-- `e2e/fumaca_demo.py` contra o clone: **6/6 com OpenVINO** (padrão, demo no ar
-  em 62 s) e **6/6 com ONNX** (`RUNTIME_ORDEM=onnx,pytorch`, 46 s; o log do
-  servidor carregou os três `.onnx` e não caiu para o PyTorch). É o caminho
-  ONNX que o clone 3 não tinha confirmado.
-- PRs abertos: só o #9 (`rebrand/calma`). O conteúdo já está na `main` (os 11
-  commits são ancestrais de `feat/completo-com-rebrand`, que entrou pelo PR7),
-  mas o autor é a conta `lukiin-z`, não a `lucas-baraldi` que rodou a
-  verificação: **não foi fechado**; fechar fica com o dono.
-
-## Números que valem (14/10, máquina i7-1355U com iGPU Intel)
-
-- Portal até "Liberado" com `portal.mp4` e 4 câmeras (10×): **no palco p50 3,5 s
-  / p95 5,9 s**; fora do palco p50 13,4 s / p95 24,2 s.
-- Subida até a 1ª análise: a frio mediana 67,8 s; com cache aquecido 53,2 s.
-- Queda ao vivo no palco (0,25×, outras câmeras pausadas): 19–22 s desde
-  entrar na cena (E2E isolado 2/2).
-
-## Decisões em vigor
-
-- Peso de EPI padrão: **Vyra** (`models/vyra_ppe.pt`, OpenVINO na iGPU). O peso
-  da Sprint 4 (`models/visionepi_cppe_n416.pt`) é opção documentada no README.
-- `PPE_MISSING_POLICY=ausencia` (padrão; = comportamento medido).
-- Palco: Portal, "Tente enganar a IA" e Queda pausam as outras câmeras.
-- Portal: 3 análises seguidas com tudo confirmado; EPI faltando zera.
-- Foco fora do palco: ≥ 50 % das vagas do agendador.
-
-## Ameaças conhecidas
-
-1. **CPU da máquina tomada por outros programas.** Com 80–100 % de CPU de
-   terceiros, a câmera em foco chegou a 3 inferências em 73 s e o pré-alerta de
-   aproximação não saiu (E2E). Na apresentação: fechar tudo que não for a demo
-   (Docker, Salesforce CLI, Teams, navegadores extras).
-2. Portal fora do palco é lento (p95 24 s): o peso vê o capacete em ~64 % dos
-   quadros; mostrar o Portal pelo palco.
-3. Subida leva ~1 min mesmo com cache: subir a demo antes e deixar no ar.
+- `pre-missao-4` = HEAD da `main` antes da missão. Ou `git revert` do squash de cada PR.
 
 ## Ações negadas pela permissão (não contornadas)
 
-- 14/10: lançar o portão com `nohup bash -c ... &` foi negado; o portão seguiu
-  pelo modo em segundo plano da ferramenta.
+- (nenhuma até agora)
 
-## Worktrees e pastas de apoio (fora do repositório)
+## Herdado da MISSÃO 2 (continua valendo)
 
-- `../ch5550-release-ensaio`: worktree do `release-main` (integração).
-- `../ch5550-clone-1`, `-2`, `-3`, `-4`: testes de clone limpo (README à risca;
-  o `-4` é a `main` final, 15/10).
-- `../ch5550-antes`: medições "antes" da missão.
+- Antes da apresentação: `python scripts/preparar.py` (véspera e manhã: `--so-cache`),
+  depois `python run.py --demo` e o roteiro de `DEMO.md`. Plano B: vídeo da Release
+  https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo.
+- Ameaça nº 1: CPU tomada por outros programas (Docker, Salesforce CLI, Teams).
