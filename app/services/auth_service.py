@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -125,6 +126,11 @@ class AuthService:
         logger.info("login_success", extra={"email": user.email, "role": user.role})
 
     # ------------------------------------------------------------ cadastro --
+    @staticmethod
+    def gerar_senha_temporaria() -> str:
+        """Senha forte (16 caracteres, 96 bits) para entregar UMA vez a quem recebe a conta."""
+        return secrets.token_urlsafe(12)
+
     def create_user(
         self,
         *,

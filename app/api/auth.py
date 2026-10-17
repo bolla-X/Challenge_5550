@@ -95,11 +95,18 @@ def create_user():
         return jsonify({"error": "Operador precisa de uma câmera do setor."}), 400
     if camera_id is not None and db.session.get(Camera, camera_id) is None:
         return jsonify({"error": "Câmera não cadastrada no sistema."}), 400
+    # Senha temporária: o servidor gera e devolve UMA vez, nesta resposta. Só o
+    # hash é gravado (como sempre) e nada disto vai para log. Não há
+    # "trocar no primeiro login" porque o modelo ainda não tem esse marcador.
+    temporaria = payload.get("senha_temporaria") is True
+    if temporaria and payload.get("password"):
+        return jsonify({"error": "Informe a senha ou peça uma senha temporária, não as duas."}), 400
+    senha = AuthService.gerar_senha_temporaria() if temporaria else str(payload.get("password", ""))
     try:
         usuario = AuthService().create_user(
             email=str(payload.get("email", "")),
             name=str(payload.get("name", "")),
-            password=str(payload.get("password", "")),
+            password=senha,
             role=str(payload.get("role", "")),
             camera_id=payload.get("camera_id"),
         )
@@ -107,7 +114,12 @@ def create_user():
         return jsonify({"error": str(exc)}), 400
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify({"user": usuario.to_dict()}), 201
+    corpo = {"user": usuario.to_dict()}
+    resposta = jsonify(corpo | {"senha_temporaria": senha} if temporaria else corpo)
+    if temporaria:
+        resposta.headers["Cache-Control"] = "no-store"
+    resposta.status_code = 201
+    return resposta
 
 
 @auth_bp.patch("/api/users/<int:user_id>")

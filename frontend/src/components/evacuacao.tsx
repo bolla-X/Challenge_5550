@@ -1,3 +1,4 @@
+import { avisarSeSessaoExpirou } from "../api/client";
 import { mensagemDeErro } from "../utils/erros";
 import { useCallback, useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
@@ -60,6 +61,7 @@ export function cronometro(segundos: number): string {
 
 async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...init });
+  avisarSeSessaoExpirou(url, r.status);
   const corpo = await r.json().catch(() => null);
   if (!r.ok) {
     const msg = corpo && typeof corpo === "object" && "error" in corpo ? String((corpo as { error: unknown }).error) : `Falha na comunicação com o servidor (código ${r.status}).`;

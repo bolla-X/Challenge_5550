@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { ErroDoServidor, SemConexao } from "./components/excecoes";
 import { applyTheme, readStoredTheme } from "./store/dashboardStore";
 import { registrarServiceWorker } from "./pwa";
 import "./styles/tokens.css";
@@ -16,6 +17,9 @@ registrarServiceWorker();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <ErroDoServidor>
+      <SemConexao />
+      <App />
+    </ErroDoServidor>
   </React.StrictMode>,
 );

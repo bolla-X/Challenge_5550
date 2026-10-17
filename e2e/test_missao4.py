@@ -294,3 +294,49 @@ def test_rotas_novas_abrem_sem_erro_de_console(pagina, servidor, rota):
     pagina.wait_for_timeout(4000)
     assert pagina.locator("main#conteudo").inner_text().strip(), f"{rota} abriu vazia"
     assert not [e for e in pagina.erros_console if "favicon" not in e], pagina.erros_console
+
+
+# ------------------------------------------------- Fase 3 item 9: exceções
+def test_404_desenhada(pagina, servidor):
+    resposta = pagina.goto(servidor.base + "/nao-existe-mesmo")
+    assert resposta.status == 404
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
+    pagina.goto(servidor.base + "/nao-existe-mesmo")
+    pagina.get_by_role("heading", name="Esta página não existe").wait_for(timeout=30_000)
+    assert "/nao-existe-mesmo" in pagina.locator("main#conteudo").inner_text()
+    import requests
+
+    api = requests.get(servidor.base + "/api/nao-existe", timeout=10)
+    assert api.status_code == 404 and api.headers["Content-Type"].startswith("application/json")
+
+
+def test_sessao_expirada_volta_para_onde_estava(pagina, servidor):
+    """A sessão morre por fora (cookie apagado); a tela de evacuação consulta a API a cada 5 s, recebe 401,
+    o login aparece com o aviso e, depois de entrar, a pessoa volta para a mesma tela."""
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
+    pagina.goto(servidor.base + "/evacuacao")
+    pagina.locator("[data-testid=evacuacao]").wait_for(timeout=60_000)
+    pagina.context.clear_cookies()
+    pagina.locator("[data-testid=sessao-expirada]").wait_for(timeout=30_000)
+    pagina.get_by_label("E-mail").fill(servidor.emails["technical"])
+    pagina.get_by_label("Senha").fill(servidor.senhas["technical"])
+    pagina.get_by_role("button", name="Entrar").click()
+    pagina.wait_for_url("**/evacuacao", timeout=60_000)
+    pagina.locator("[data-testid=evacuacao]").wait_for(timeout=60_000)
+
+
+def test_sem_conexao_aparece_e_some(navegador, servidor):
+    contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, "technical")
+        pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
+        faixa = pagina.locator("[data-testid=sem-conexao]")
+        contexto.set_offline(True)
+        _esperar(lambda: "conex" in faixa.inner_text().lower(), 15, 0.5, msg="faixa de sem conexão não apareceu")
+        contexto.set_offline(False)
+        _esperar(lambda: not faixa.inner_text().strip(), 60, 1, msg="faixa de sem conexão não sumiu")
+    finally:
+        contexto.close()

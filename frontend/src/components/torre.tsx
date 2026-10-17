@@ -1,3 +1,4 @@
+import { avisarSeSessaoExpirou } from "../api/client";
 import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 
@@ -38,6 +39,7 @@ export function useEstadoDaIntegracao(intervaloMs = 2000) {
     const tick = () =>
       fetch("/api/integracao/estado", { credentials: "same-origin" })
         .then(async (r) => {
+          avisarSeSessaoExpirou("/api/integracao/estado", r.status);
           if (!r.ok) throw new Error(r.status === 401 ? "Sessão encerrada. Entre de novo." : `Falha ao ler o estado da planta (código ${r.status}).`);
           return (await r.json()) as EstadoDaIntegracao;
         })

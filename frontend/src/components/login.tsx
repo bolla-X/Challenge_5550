@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Mark } from "./brand";
 import { IconeCubo, IconeEscudo, IconeOk } from "./icones";
+import { SessaoExpirada } from "./excecoes";
 
 /**
  * Tela de entrada. Só aparece quando `GET /api/auth/me` responde `user: null`.
@@ -13,6 +14,7 @@ import { IconeCubo, IconeEscudo, IconeOk } from "./icones";
  */
 export function LoginScreen() {
   const login = useDashboardStore((s) => s.login);
+  const sessaoExpirada = useDashboardStore((s) => s.sessaoExpirada);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -50,6 +52,8 @@ export function LoginScreen() {
         <Mark size={32} />
         <h1>VisionEPI</h1>
         <p className="login-sub">Monitoramento de segurança industrial</p>
+
+        {sessaoExpirada && <SessaoExpirada />}
 
         <label>
           E-mail

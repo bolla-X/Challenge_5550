@@ -380,6 +380,24 @@ class RegraEditor(db.Model):
     criada_por = db.Column(db.String(160), nullable=True)
 
 
+class EstadoDoOnboarding(db.Model):
+    """Primeiro acesso do supervisor (MISSÃO 4, Fase 3): linha ÚNICA, `id = 1`.
+
+    `passos` guarda só o que a pessoa MARCOU ({passo: "pendente"|"feito"|"pulado"});
+    o que o sistema detecta sozinho (há câmera? há planta calibrada?) é calculado a
+    cada leitura por `app.services.onboarding` e nunca é gravado aqui, para não
+    envelhecer. A ordem e os nomes dos passos vivem no serviço, não nesta tabela.
+    """
+
+    __tablename__ = "onboarding"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=False, default=1)
+    passos = db.Column(db.JSON, nullable=False, default=dict)
+    concluido_em = db.Column(db.DateTime(timezone=True), nullable=True)
+    atualizado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    atualizado_por = db.Column(db.String(180), nullable=True)
+
+
 class Camera(db.Model):
     __tablename__ = "cameras"
 

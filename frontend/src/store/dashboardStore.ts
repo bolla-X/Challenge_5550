@@ -7,6 +7,7 @@ import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
 import { calarFala, falarAlerta } from "../audio/fala";
 import { avisarAlertaCritico } from "../pwa";
+import { consumirRetorno, EVENTO_SESSAO_EXPIRADA, guardarRetorno, rotaAtual } from "../utils/sessao";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
@@ -79,6 +80,8 @@ interface DashboardState {
   // `mode` deixa de ser um seletor na topbar: é o PAPEL da pessoa logada.
   user: AuthUser | null;
   authChecked: boolean;
+  /** true depois que uma chamada devolveu 401 com a pessoa logada; a tela de login avisa. */
+  sessaoExpirada: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
@@ -356,9 +359,13 @@ export const useDashboardStore = create<DashboardState>()(
     (set) => ({
       user: null,
       authChecked: false,
+      sessaoExpirada: false,
       login: async (email, password) => {
         const res = await apiLogin(email, password);
         aplicarSessao(res.user);
+        // Sessão que expirou: volta para o endereço em que a pessoa estava.
+        const retorno = consumirRetorno();
+        if (retorno && retorno !== rotaAtual()) window.location.assign(retorno);
       },
       logout: async () => {
         try {
@@ -741,6 +748,23 @@ function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean
 }
 
 /**
+ * Sessão expirada (`api/client.ts` avisa quando uma chamada autenticada devolve
+ * 401). Só vale com alguém logado: guarda o endereço para voltar depois do
+ * login, derruba o socket e zera o estado de conta como o logout faz (no mesmo
+ * terminal, a próxima pessoa não vê o que era da anterior). Várias chamadas em
+ * voo podem devolver 401 juntas: a segunda já encontra `user` nulo e sai.
+ */
+function aoExpirarASessao() {
+  if (!useDashboardStore.getState().user) return;
+  guardarRetorno();
+  socket.disconnect();
+  useDashboardStore.setState({ ...ESTADO_LIMPO, user: null, authChecked: true, sessaoExpirada: true }, false, "sessao:expirada");
+}
+if (typeof window !== "undefined") {
+  window.addEventListener(EVENTO_SESSAO_EXPIRADA, aoExpirarASessao);
+}
+
+/**
  * Aplica a sessão recém-obtida ao estado.
  *
  * O papel define o modo — quem entra como operador cai no kiosk. E a câmera do
@@ -748,7 +772,7 @@ function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean
  * o antigo seletor "simular setor" da topbar.
  */
 function aplicarSessao(user: AuthUser) {
-  useDashboardStore.setState({ user, authChecked: true }, false, "sessao:aplicar");
+  useDashboardStore.setState({ user, authChecked: true, sessaoExpirada: false }, false, "sessao:aplicar");
   useDashboardStore.getState().setMode(user.role);
   if (user.camera_id != null) {
     useDashboardStore.getState().setOperatorCam(user.camera_id);

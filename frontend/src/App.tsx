@@ -15,6 +15,7 @@ import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
 import { PanelSkeleton } from "./components/common";
+import { PaginaNaoEncontrada } from "./components/excecoes";
 import { pluralizar } from "./utils/formato";
 
 // Telas pesadas (three.js) só carregam quando abertas.
@@ -39,6 +40,11 @@ if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", marcar);
   window.addEventListener("pagehide", marcar);
 }
+
+const PREFIXOS_CONHECIDOS = [
+  "/palco", "/desafio", "/rotular", "/gemeo", "/liga", "/retrospectiva", "/auditoria", "/simulador", "/evacuacao",
+  "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso",
+];
 
 function CarregandoTela() {
   return (
@@ -214,6 +220,19 @@ export default function App() {
     return (
       <main id="conteudo">
         <LoginScreen />
+      </main>
+    );
+  }
+
+  // Endereço que nenhuma tela trata: página 404 desenhada (o servidor já
+  // responde 404 com o shell; ver app/api/status.py).
+  const caminho = window.location.pathname;
+  const conhecida =
+    caminho === "/" || PREFIXOS_CONHECIDOS.some((x) => caminho === x || caminho.startsWith(`${x}/`));
+  if (!conhecida) {
+    return (
+      <main id="conteudo">
+        <PaginaNaoEncontrada endereco={caminho} />
       </main>
     );
   }

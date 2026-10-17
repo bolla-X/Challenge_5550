@@ -1,3 +1,4 @@
+import { avisarSeSessaoExpirou } from "../api/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as TeclaReact, ReactNode } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
@@ -103,6 +104,7 @@ const MSG_403 = "O editor de regras é para Técnico e Supervisor.";
 // ------------------------------------------------------------------- rede ---
 async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...init });
+  avisarSeSessaoExpirou(url, r.status);
   const corpo = await r.json().catch(() => null);
   if (!r.ok) {
     const obj = corpo && typeof corpo === "object" ? (corpo as { error?: unknown; code?: unknown }) : {};
