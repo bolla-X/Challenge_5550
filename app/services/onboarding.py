@@ -23,6 +23,7 @@ from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
+from app.config import Config
 from app.extensions import db
 from app.models import Camera, EstadoDoOnboarding, User, utc_now
 from app.utils.texto import pluralizar
@@ -56,14 +57,11 @@ class Deteccao:
 
 
 # ------------------------------------------------------------------ detecção --
-def caminho_da_referencia(config: Mapping[str, Any], instance_path: str, camera_id: int) -> Path:
-    """Onde a saúde visual guarda a imagem de referência da câmera.
+def caminho_da_referencia(config: Mapping[str, Any], instance_path: str, camera_id: int, fonte: Any) -> Path:
+    """Onde a saúde visual guarda a referência da câmera (mesma função que o `CameraWorker` usa)."""
+    from app.vision.saude_visual import caminho_da_referencia as _caminho
 
-    Mesma regra de `CameraWorker._caminho_da_referencia` (o teste
-    `test_caminho_da_referencia_e_o_do_worker` trava os dois juntos).
-    """
-    pasta = Path(config.get("SAUDE_VISUAL_DIR") or Path(instance_path) / "referencias")
-    return pasta / f"camera_{camera_id}.png"
+    return _caminho(config.get("SAUDE_VISUAL_DIR"), instance_path, camera_id, fonte)
 
 
 def _planta_calibrada(planta: Any) -> bool:
@@ -108,7 +106,8 @@ def detectar(*, config: Mapping[str, Any], instance_path: str) -> dict[str, Dete
     cameras = Camera.query.order_by(Camera.id.asc()).all()
     n = len(cameras)
 
-    com_referencia = [c for c in cameras if caminho_da_referencia(config, instance_path, c.id).is_file()]
+    com_referencia = [c for c in cameras
+                      if caminho_da_referencia(config, instance_path, c.id, Config.parse_video_source(c.source)).is_file()]
     com_planta = [c for c in cameras if _planta_calibrada(c.planta)]
     padrao = _poligono_padrao(config)
     com_zona = [c for c in cameras if _zona_propria(c, padrao)]

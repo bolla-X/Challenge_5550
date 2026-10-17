@@ -79,7 +79,7 @@ def preparar_ambiente() -> None:
                 arquivo.unlink()
         except PermissionError:
             raise SystemExit("[demo] o banco da demo está em uso: já há uma demo rodando? Feche-a e tente de novo.") from None
-    for sub in ("clips", "snapshots", "rotulos", "trilhas"):
+    for sub in ("clips", "snapshots", "rotulos", "trilhas", "referencias"):
         shutil.rmtree(PASTA / sub, ignore_errors=True)
     os.environ.update({
         "VISIONEPI_DOTENV": "0",
@@ -97,6 +97,7 @@ def preparar_ambiente() -> None:
         "CLEANUP_ON_MONITOR_START": "false",
         "ROTULOS_DIR": str(PASTA / "rotulos"),
         "TRILHAS_DIR": str(PASTA / "trilhas"),
+        "SAUDE_VISUAL_DIR": str(PASTA / "referencias"),
         "RTSP_FIXTURE_FALLBACK": "",
         # M2: a demo mostra a integração industrial offline (OPC UA + broker MQTT embutido).
         "OPCUA_ATIVO": os.environ.get("OPCUA_ATIVO", "true"),

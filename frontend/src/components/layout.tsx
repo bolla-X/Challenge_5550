@@ -159,11 +159,22 @@ export function Topbar() {
       .catch((err) => !eFalhaDeRede(err) && console.error(err))
       .finally(() => setPending(null));
   };
-  const secundarios = (
+  // Barra enxuta: o que se usa a toda hora fica à vista; o resto mora em "Mais"
+  // (revisão visual da MISSÃO 4 — a barra tinha sete botões de texto).
+  const principais = (
     <>
       <button type="button" className="ghost" onClick={() => setCommandPaletteOpen(true)}>
         Buscar <kbd>Ctrl K</kbd>
       </button>
+      {access.canConfigure && (
+        <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
+          Relatório do turno
+        </a>
+      )}
+    </>
+  );
+  const extras = (
+    <>
       {access.hasOverview && (
         <button
           type="button"
@@ -174,11 +185,6 @@ export function Topbar() {
         >
           Exportar
         </button>
-      )}
-      {access.canConfigure && (
-        <a className="button ghost" href="/relatorio/turno" target="_blank" rel="noopener noreferrer">
-          Relatório do turno
-        </a>
       )}
       {access.canConfigure && (
         <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
@@ -215,11 +221,28 @@ export function Topbar() {
       </span>
       <div className="appbar-actions">
         {mode === "operator" && <OperadorSemSetor />}
-        <span className="appbar-secundarios">{secundarios}</span>
+        <span className="appbar-secundarios">
+          {principais}
+          <details
+            className="appbar-mais"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest(".appbar-menu-painel")) e.currentTarget.removeAttribute("open");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") e.currentTarget.removeAttribute("open");
+            }}
+          >
+            <summary className="button ghost" data-testid="menu-mais">Mais</summary>
+            <div className="appbar-menu-painel">{extras}</div>
+          </details>
+        </span>
         {/* Celular: os mesmos atalhos num menu, para a barra caber numa linha. */}
         <details className="appbar-menu">
           <summary className="button ghost">Menu</summary>
-          <div className="appbar-menu-painel">{secundarios}</div>
+          <div className="appbar-menu-painel">
+            {principais}
+            {extras}
+          </div>
         </details>
         <ThemeToggle />
         {user && <CentralDeNotificacoes userId={user.id} />}

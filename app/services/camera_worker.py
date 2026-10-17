@@ -49,7 +49,7 @@ from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.reassociacao import RastreadorComReassociacao, ReassociadorDeIds
-from app.vision.saude_visual import MonitorDeSaudeVisual
+from app.vision.saude_visual import MonitorDeSaudeVisual, caminho_da_referencia
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream, e_arquivo_local
@@ -1888,8 +1888,8 @@ class CameraWorker:
 
     # ------------------------------------------------- saúde visual (M1) -
     def _caminho_da_referencia(self) -> Path:
-        pasta = Path(self.app.config.get("SAUDE_VISUAL_DIR") or Path(self.app.instance_path) / "referencias")
-        return pasta / f"camera_{self.camera_id}.png"
+        return caminho_da_referencia(self.app.config.get("SAUDE_VISUAL_DIR"), self.app.instance_path, self.camera_id,
+                                     self.fonte_configurada)
 
     def _carregar_referencia_visual(self) -> None:
         if self.saude_visual is None or self.camera_id is None:

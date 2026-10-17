@@ -4,18 +4,23 @@
 
 O servidor sobe como em produção (`run.py`), com banco isolado em
 `bench/runtime/e2e.db`, sem ler o `.env` de quem roda (VISIONEPI_DOTENV=0),
-e três câmeras:
+e quatro câmeras:
 
 1. "Multidão" — fixture com várias pessoas sem EPI (gera alerta);
 2. "Canteiro" — `portal.mp4`: um trabalhador de capacete e colete, de perto
    (é a câmera de todos os testes do portal; ADENDO 3 da MISSÃO 2);
-3. "Rede" — fonte MJPEG por HTTP (`e2e/fonte_mjpeg.py`) que o teste derruba.
+3. "Rede" — fonte MJPEG por HTTP (`e2e/fonte_mjpeg.py`) que o teste derruba;
+4. "Queda" — fixture com a queda da classe `fall_detected` do modelo.
+
+Os prazos de escalonamento (M7) são curtos aqui (20 s e 40 s) para o E2E da
+Fase 4 não esperar os 60 s e 180 s de produção.
 
 Senhas são geradas a cada execução e nunca impressas.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import shutil
@@ -41,6 +46,38 @@ def _porta_livre() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def esperar(condicao, limite_s: float, passo_s: float = 1.0, msg: str = ""):
+    """Repete `condicao()` até devolver algo verdadeiro (e o devolve) ou estourar `limite_s`.
+
+    Substitui `time.sleep` fixo: o teste anda assim que a condição vale. Estourar o tempo
+    é falha do teste, com a mensagem e o último valor visto (não "não apareceu" sem pista).
+    """
+    fim = time.monotonic() + limite_s
+    ultimo = None
+    while time.monotonic() < fim:
+        ultimo = condicao()
+        if ultimo:
+            return ultimo
+        time.sleep(passo_s)
+    raise AssertionError(f"tempo esgotado ({limite_s:g} s): {msg} — último valor: {ultimo!r}")
+
+
+def alertas_ativos(sessao, servidor, camera: str) -> list[dict]:
+    """Alertas ativos da câmera pelo estado dela (a mesma fonte da pílula sobre o vídeo)."""
+    cid = servidor.cameras[camera]
+    return sessao.get(f"{servidor.base}/api/cameras/{cid}/status", timeout=20).json().get("active_alerts") or []
+
+
+TEMPOS = RAIZ / "bench" / "runtime" / "missao4-tempos.jsonl"
+
+
+def registrar_tempo(medida: str, segundos: float, **extra) -> None:
+    """Acrescenta uma medida de tempo (uma linha JSON) em bench/runtime/missao4-tempos.jsonl."""
+    TEMPOS.parent.mkdir(parents=True, exist_ok=True)
+    with TEMPOS.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"medida": medida, "segundos": round(segundos, 1), "ts": time.time(), **extra}) + "\n")
 
 
 def encerrar_arvore(proc: subprocess.Popen | None, espera_s: float = 10.0) -> None:
@@ -116,6 +153,9 @@ class ServidorE2E:
             "MQTT_PORTA": str(self.porta_mqtt),
             "SAUDE_VISUAL_DIR": "bench/runtime/e2e-referencias",
             "EVACUACAO_DIR": "bench/runtime/e2e-evacuacoes",
+            # Escalonamento (M7) com prazos curtos: o E2E espera um crítico sem reconhecimento subir de nível.
+            "ESCALONAR_SUPERVISOR_S": "20",
+            "ESCALONAR_TV_S": "40",
         }
         self.log = runtime / "e2e.log"
         self.proc: subprocess.Popen | None = None

@@ -54,10 +54,12 @@ Decisões que não são óbvias:
 
 from __future__ import annotations
 
+import hashlib
 import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -536,3 +538,16 @@ def _mensagem(estado: str, segundos: int) -> str:
         DESFOCADA: "Câmera desfocada — perda de nitidez",
     }[estado]
     return f"{texto} há {segundos} s"
+
+
+def caminho_da_referencia(pasta_configurada: str | None, instance_path: str, camera_id: int, fonte: object) -> Path:
+    """Arquivo da referência de UMA câmera com UMA fonte (fonte única da regra: worker e primeiro acesso).
+
+    Só o id não basta: o banco da demo e o do E2E são recriados a cada subida e os
+    ids recomeçam em 1; a "câmera 2" de agora herdava a referência da "câmera 2"
+    de outra rodada, com outra fonte, e acusava DESFOCADA/MOVIDA sem nada ter
+    acontecido (visto nas capturas da MISSÃO 4).
+    """
+    pasta = Path(pasta_configurada or Path(instance_path) / "referencias")
+    marca = hashlib.sha1(str(fonte).encode("utf-8")).hexdigest()[:10]
+    return pasta / f"camera_{camera_id}_{marca}.png"

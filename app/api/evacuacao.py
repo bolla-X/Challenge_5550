@@ -42,6 +42,10 @@ logger = logging.getLogger(__name__)
 
 evacuacao_bp = Blueprint("evacuacao", __name__)
 
+# Quem consta no relatório quando o comando veio do palco (cena "Evacuação").
+POR_PALCO = "palco (token)"
+POR_SAIDA_DO_PALCO = "palco (saída da cena)"
+
 
 def _agora() -> float:
     return time.time()
@@ -74,7 +78,7 @@ def _supervisor_ou_token(view):
 def _por() -> str:
     """Quem comandou: só o e-mail da conta (ou a origem, sem conta). Nunca nome nem outro dado."""
     if g.get("evacuacao_por_token"):
-        return "palco (token)"
+        return POR_PALCO
     usuario = current_user()
     return usuario.email if usuario is not None else "sem autenticação"
 
@@ -143,14 +147,16 @@ def iniciar():
     return jsonify(snapshot)
 
 
-@evacuacao_bp.post("/api/evacuacao/encerrar")
-@_supervisor_ou_token
-def encerrar():
-    evacuacao, por, agora = _evacuacao(), _por(), _agora()
+def encerrar_e_registrar(por: str) -> tuple[dict[str, Any], int]:
+    """Encerra a evacuação, grava o relatório (com elo na custódia), registra o evento e avisa o parque.
+
+    Um só caminho para a rota e para a saída da cena do palco. Devolve (corpo da resposta, status HTTP).
+    """
+    evacuacao, agora = _evacuacao(), _agora()
     try:
         relatorio = evacuacao.encerrar(por, agora, _cameras_info())
     except EvacuacaoInativa as exc:
-        return jsonify({"error": str(exc), "code": "evacuacao_inativa"}), 409
+        return {"error": str(exc), "code": "evacuacao_inativa"}, 409
     try:
         caminho, custodia_registrada = arquivar_relatorio(
             relatorio, pasta_dos_relatorios(current_app), custodia_ativa=bool(current_app.config.get("CUSTODIA_ATIVA", True))
@@ -159,15 +165,35 @@ def encerrar():
         # A evacuação já fechou em memória: o relatório vai na resposta para não se perder.
         logger.error("evacuacao_relatorio_nao_gravado", extra={"error": str(exc)})
         _emitir({"ativa": False})
-        return jsonify({"error": "evacuação encerrada, mas o relatório não pôde ser gravado em disco", "ativa": False,
-                        "relatorio": relatorio}), 500
+        return {"error": "evacuação encerrada, mas o relatório não pôde ser gravado em disco", "ativa": False,
+                "relatorio": relatorio}, 500
     numero = numero_do_arquivo(caminho)
     completo = relatorio | {"numero": numero}
     _registrar_evento("evacuacao_encerrada", f"Evacuação encerrada por {por} ({relatorio['duracao_s']:.0f} s)", "info", por,
                       {"numero": numero, "sha256": relatorio["sha256"], "arquivo": caminho.name,
                        "chegadas_ponto_de_encontro": relatorio["chegadas_ponto_de_encontro"]})
     _emitir({"ativa": False, "relatorio": resumo_do_relatorio(completo)})
-    return jsonify({"ativa": False, "relatorio": completo, "arquivo": caminho.name, "custodia_registrada": custodia_registrada})
+    return {"ativa": False, "relatorio": completo, "arquivo": caminho.name, "custodia_registrada": custodia_registrada}, 200
+
+
+@evacuacao_bp.post("/api/evacuacao/encerrar")
+@_supervisor_ou_token
+def encerrar():
+    corpo, status = encerrar_e_registrar(_por())
+    return jsonify(corpo), status
+
+
+def encerrar_a_do_palco() -> bool:
+    """Saída da cena "Evacuação": encerra e registra SÓ a evacuação que o próprio palco acionou.
+
+    Uma evacuação acionada por outro caminho (a tela /evacuacao, outro supervisor)
+    segue de pé: navegar na apresentação nunca pode fechar uma ocorrência real.
+    """
+    evacuacao = _evacuacao()
+    if evacuacao.iniciada_por != POR_PALCO:
+        return False
+    _corpo, status = encerrar_e_registrar(POR_SAIDA_DO_PALCO)
+    return status in (200, 500)  # 500: encerrou em memória, só o disco falhou (já registrado no log)
 
 
 @evacuacao_bp.get("/api/evacuacao")

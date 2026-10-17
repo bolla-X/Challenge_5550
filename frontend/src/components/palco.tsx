@@ -6,19 +6,24 @@ import { useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import type { Incidente } from "../api/types";
 import { listarIncidentes } from "../api/endpoints";
-import { incidenteCritico, useCameraEstado } from "./camera-grid";
-import type { EstadoDaCamera } from "./camera-grid";
-import { formatarVelocidade } from "./feed-status";
-import { rotuloDoIncidente } from "../utils/incidentes";
-import { LiveVideo } from "./live-video";
+import { useCameraEstado } from "./camera-grid";
 import { PortalScreen } from "./portal";
 import { IncidenteDetalhe, VerificarIntegridade } from "./incidente-detalhe";
 import { LigaResumo } from "./liga";
 import { RetrospectivaStories } from "./retrospectiva";
 import { QrSvg } from "./celular-qr";
+import { QuadroDaCena, VideoDaCena } from "./palco-video";
+import type { RegraDeExemplo } from "./palco-cenas";
 
 const GemeoScreen = lazy(() => import("./gemeo/gemeo-screen"));
 const SimuladorScreen = lazy(() => import("./simulador"));
+// Cenas da MISSÃO 4 (saúde da câmera, evacuação, regras, permissão, torre, primeiro acesso): um pedaço só, carregado quando a primeira aparece.
+const CenaTapeACamera = lazy(() => import("./palco-cenas").then((m) => ({ default: m.CenaTapeACamera })));
+const CenaFabricaConectada = lazy(() => import("./palco-cenas").then((m) => ({ default: m.CenaFabricaConectada })));
+const CenaEvacuacao = lazy(() => import("./palco-cenas").then((m) => ({ default: m.CenaEvacuacao })));
+const CenaRegraSemCodigo = lazy(() => import("./palco-cenas").then((m) => ({ default: m.CenaRegraSemCodigo })));
+const CenaPermissaoComVigia = lazy(() => import("./palco-cenas").then((m) => ({ default: m.CenaPermissaoComVigia })));
+const CenaPrimeiroAcesso = lazy(() => import("./palco-cenas").then((m) => ({ default: m.CenaPrimeiroAcesso })));
 
 /**
  * Modo Apresentação — palco (X6, `/palco`). As cenas seguem o DEMO.md; cada
@@ -27,10 +32,20 @@ const SimuladorScreen = lazy(() => import("./simulador"));
  * teclado continua mandando.
  */
 
-type Cena = { chave: string; titulo: string; legenda: string; camera_id: number | null; raiox?: boolean };
+type Cena = {
+  chave: string;
+  titulo: string;
+  legenda: string;
+  camera_id: number | null;
+  raiox?: boolean;
+  /** Cena que precisa de câmera de verdade (`ao_vivo`); `false` aqui = a câmera achada toca uma gravação. */
+  camera_ao_vivo?: boolean;
+  /** Só na cena "Regra sem código": a regra de exemplo, no formato do editor. */
+  regra?: RegraDeExemplo;
+};
 type Estado = { cena: number; total: number; seq: number; chave: string; titulo: string; legenda: string; proxima: string | null };
-/** O polling da tela também traz as câmeras que a cena pausou (`ativas: "cena"`). */
-type EstadoDaTela = Estado & { pausadas?: string[] };
+/** O polling da tela também traz as câmeras que a cena pausou (`ativas: "cena"`) e, se o preparo da cena falhou, a legenda de contingência. */
+type EstadoDaTela = Estado & { pausadas?: string[]; fallback?: string | null };
 
 async function ir(acao: "proxima" | "anterior" | "ir", indice?: number, token?: string): Promise<Estado> {
   const r = await fetch("/api/palco/ir", {
@@ -49,33 +64,6 @@ function maisNovo(atual: Estado | null, d: Estado): Estado {
   if (!atual) return d;
   if (d.seq < atual.seq) return atual;
   return atual.seq === d.seq && atual.cena === d.cena ? atual : d;
-}
-
-function VideoDaCena({ cameraId }: { cameraId: number }) {
-  return <QuadroDaCena cameraId={cameraId} estado={useCameraEstado(cameraId)} />;
-}
-
-/** Vídeo da cena com a pílula do incidente e, em câmera lenta, a velocidade
- * que o SERVIDOR informa (`video.velocidade`) — nunca a que a cena pediu. */
-function QuadroDaCena({ cameraId, estado }: { cameraId: number; estado: EstadoDaCamera }) {
-  const inc = incidenteCritico(estado);
-  const lenta = estado.velocidade !== undefined && estado.velocidade < 1;
-  return (
-    <div className="palco-video" data-testid="palco-video">
-      <LiveVideo cameraId={cameraId} label="Vídeo da cena" />
-      {lenta && (
-        <span className="over-pill palco-velocidade" data-testid="palco-velocidade">
-          {`GRAVAÇÃO · ${formatarVelocidade(estado.velocidade as number)}`}
-        </span>
-      )}
-      {inc && (
-        <span className="over-pill alert palco-pilula" role="status" data-testid="pilula-incidente">
-          <span className="dot" />
-          {rotuloDoIncidente(inc)}
-        </span>
-      )}
-    </div>
-  );
 }
 
 function NumerosDoSistema() {
@@ -188,6 +176,42 @@ function ConteudoDaCena({ cena }: { cena: Cena }) {
       return cena.camera_id != null ? <CenaDaQueda cameraId={cena.camera_id} /> : <IncidenteDaCena cameraId={null} regra="fall_detected" />;
     case "raiox":
       return cena.camera_id != null ? <VideoDaCena cameraId={cena.camera_id} /> : <p className="palco-vazio">Câmera da cena não cadastrada.</p>;
+    case "tape_camera":
+      return (
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
+          <CenaTapeACamera cameraId={cena.camera_id} aoVivo={cena.camera_ao_vivo === true} />
+        </Suspense>
+      );
+    case "fabrica":
+      return (
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
+          <CenaFabricaConectada />
+        </Suspense>
+      );
+    case "evacuacao":
+      return (
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
+          <CenaEvacuacao />
+        </Suspense>
+      );
+    case "regra":
+      return (
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
+          <CenaRegraSemCodigo regra={cena.regra ?? null} cameraId={cena.camera_id} />
+        </Suspense>
+      );
+    case "permissao":
+      return (
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
+          <CenaPermissaoComVigia cameraId={cena.camera_id} />
+        </Suspense>
+      );
+    case "primeiro_acesso":
+      return (
+        <Suspense fallback={<PanelSkeleton lines={4} />}>
+          <CenaPrimeiroAcesso />
+        </Suspense>
+      );
     case "gemeo":
       return (
         <Suspense fallback={<PanelSkeleton lines={4} />}>
@@ -249,6 +273,8 @@ export function PalcoScreen() {
   // Fora do `estado`: `maisNovo` ignora respostas da mesma cena, e a lista
   // de pausadas tem de acompanhar o servidor a cada consulta.
   const [pausadas, setPausadas] = useState<string[]>([]);
+  // Idem: a contingência chega depois da troca de cena (o preparo roda em thread) e some sozinha ao sair dela.
+  const [contingencia, setContingencia] = useState<string | null>(null);
   const reduzir = useReducedMotion();
   const local = useRef<number | null>(null);
 
@@ -275,6 +301,7 @@ export function PalcoScreen() {
             local.current = null;
             setEstado((atual) => maisNovo(atual, d));
             setPausadas(d.pausadas ?? []);
+            setContingencia(d.fallback ?? null);
           }
         })
         .catch(() => undefined);
@@ -360,6 +387,11 @@ export function PalcoScreen() {
       <footer className="palco-legenda" aria-live="polite">
         <strong data-testid="palco-titulo">{cena.titulo}</strong>
         <span>{cena.legenda}</span>
+        {contingencia && (
+          <small className="palco-contingencia" data-testid="palco-contingencia" role="status">
+            {contingencia}
+          </small>
+        )}
         {pausadas.length > 0 && (
           <small className="palco-pausadas" data-testid="palco-pausadas">
             {pausadas.length === 1 ? `${pausadas[0]}: pausada` : `${pausadas.join(", ")}: pausadas`} pela apresentação
