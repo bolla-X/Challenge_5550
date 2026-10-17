@@ -81,6 +81,7 @@ def nao_encontrado(erro: NotFound):
 @status_bp.get("/torre")
 @status_bp.get("/regras")
 @status_bp.get("/permissoes")
+@status_bp.get("/primeiro-acesso")
 def index():
     # Serve o shell do build React (frontend/vite.config.ts emite aqui).
     # O caminho Jinja antigo (app/templates/ + app/static/app.js|styles.css)

@@ -80,3 +80,9 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 .saude-pill { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2); max-width: 520px; }
 .saude-pill button.ghost { color: var(--on-overlay); }
 .saude-pill button.ghost:hover { background: color-mix(in srgb, var(--on-overlay) 12%, transparent); color: var(--on-overlay); }
+
+/* aviso de primeiro acesso no Início do supervisor */
+.aviso-primeiro-acesso { display: grid; gap: var(--s1); padding: var(--s4) var(--s5); text-decoration: none; color: var(--text);
+  border: 1px solid var(--hairline); }
+.aviso-primeiro-acesso:hover { border-color: var(--accent); }
+.aviso-primeiro-acesso span { color: var(--text-2); font-size: var(--t-callout); }

@@ -30,6 +30,7 @@ const EvacuacaoScreen = lazy(() => import("./components/evacuacao"));
 const TorreScreen = lazy(() => import("./components/torre"));
 const RegrasScreen = lazy(() => import("./components/regras"));
 const PermissoesScreen = lazy(() => import("./components/permissoes"));
+const OnboardingScreen = lazy(() => import("./components/onboarding"));
 
 // Marcado no `pagehide`/`beforeunload`: a partir daí, fetch abortado é esperado.
 let saindoDaPagina = false;
@@ -63,6 +64,7 @@ function SupervisorOverview({ onBack }: { onBack: () => void }) {
     ["/evacuacao", "Evacuação"],
     ["/regras", "Editor de regras"],
     ["/permissoes", "Permissões de trabalho"],
+    ["/primeiro-acesso", "Primeiro acesso"],
     ["/gemeo", "Gêmeo digital"],
     ["/liga", "Liga de Setores"],
     ["/palco", "Apresentação"],
@@ -314,6 +316,15 @@ export default function App() {
       <main id="conteudo">
         <Suspense fallback={<CarregandoTela />}>
           <EvacuacaoScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/primeiro-acesso")) {
+    return (
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <OnboardingScreen />
         </Suspense>
       </main>
     );

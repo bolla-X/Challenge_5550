@@ -1,3 +1,4 @@
+import { useOnboarding } from "./onboarding";
 import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
@@ -71,6 +72,21 @@ const ATALHOS: { href: string; titulo: string; texto: string; Icone: (p: { size?
 ];
 
 /** Início do supervisor: a planta agora, as câmeras ao vivo e as portas de entrada. */
+/** Enquanto o primeiro acesso não foi concluído, o Início lembra (e leva ao assistente). */
+function AvisoDePrimeiroAcesso() {
+  const { dados } = useOnboarding();
+  if (!dados || dados.concluido) return null;
+  return (
+    <a className="card aviso-primeiro-acesso" href="/primeiro-acesso" data-testid="aviso-primeiro-acesso">
+      <strong>Configure a planta em poucos passos</strong>
+      <span>
+        {dados.checklist.pendentes} {dados.checklist.pendentes === 1 ? "item pendente" : "itens pendentes"} para ficar pronto para operar.
+        Continuar o primeiro acesso →
+      </span>
+    </a>
+  );
+}
+
 export function SupervisorHome() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const cameras = useDashboardStore((s) => s.cameras);
@@ -81,6 +97,7 @@ export function SupervisorHome() {
   return (
     <div className="screen home">
       <ScreenHead title={`${saudacao()}${primeiroNome ? `, ${primeiroNome}` : ""}`} sub="A planta agora, nesta máquina." />
+      <AvisoDePrimeiroAcesso />
       <dl className="home-agora" aria-label="Agora na planta">
         <div>
           <dt>câmeras no ar</dt>

@@ -408,7 +408,7 @@ LINHAS: list[Linha] = [
         for regra in (
             "/", "/dashboard", "/dashboard/", "/portal", "/tv", "/rotular", "/desafio", "/gemeo", "/simulador",
             "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga", "/evacuacao", "/torre", "/regras",
-            "/permissoes",
+            "/permissoes", "/primeiro-acesso",
         )
     ],
     L("GET", "/sw.js", PUBLICA, publica_por=PWA),
@@ -531,6 +531,11 @@ LINHAS: list[Linha] = [
     L("PATCH", "/features", TEC_OU_MAIS, corpo={"features": {"helmet": True}}),
     # ---------------------------------------------------------------- gêmeo --
     L("GET", "/api/gemeo", PARQUE),
+    # primeiro acesso do supervisor (MISSÃO 4, Fase 3 item 2)
+    L("GET", "/api/onboarding", SO_SUPERVISOR),
+    L("PUT", "/api/onboarding/<passo>", SO_SUPERVISOR, "/api/onboarding/camera", corpo={"estado": "pendente"}),
+    L("POST", "/api/onboarding/refazer", SO_SUPERVISOR),
+    L("POST", "/api/onboarding/concluir", SO_SUPERVISOR),
     # ------------------------------------------------------- integração (torre) --
     L("GET", "/api/integracao/estado", LEGADA),
     # ------------------------------------------------- permissão de trabalho --

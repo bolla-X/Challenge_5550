@@ -23,6 +23,7 @@ from app.api.integracao import integracao_bp
 from app.api.lab import lab_bp
 from app.api.liga import liga_bp
 from app.api.monitor import monitor_bp
+from app.api.onboarding import onboarding_bp
 from app.api.palco import palco_bp
 from app.api.permissoes import permissoes_bp
 from app.api.regras import regras_bp
@@ -133,6 +134,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(integracao_bp)
     app.register_blueprint(regras_bp)
     app.register_blueprint(permissoes_bp)
+    app.register_blueprint(onboarding_bp)
     app.register_blueprint(liga_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
