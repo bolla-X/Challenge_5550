@@ -108,7 +108,7 @@ atual ou a reescrita recomendada; "não assim" é o que evitar.
 | estado vazio, incidentes | "Nenhum incidente ativo" (`alerts.tsx`) | "Nada por aqui :)" |
 | estado vazio, câmeras | "Nenhuma câmera USB respondendo agora. Conecte uma e clique em \"Testar de novo\"." (`camera-grid.tsx`) | "Erro: dispositivo não encontrado." |
 | erro com ação | "Não foi possível redefinir a referência." + "Tentar de novo" (`camera-focus.tsx`, `auditoria.tsx`) | "Ocorreu um erro inesperado." |
-| erro de câmera | "Não foi possível iniciar a câmera." (reescrita recomendada) | "Falha ao iniciar câmera" (`camera-focus.tsx`, frase sem artigo e sem ponto) |
+| erro de câmera | "Não foi possível iniciar a câmera." (`camera-focus.tsx`, aplicado no commit 521bafe) | frase sem artigo e sem ponto, no estilo "Falha ao iniciar câmera" (texto antigo) |
 | permissão | "A auditoria é para o técnico ou o supervisor." (`auditoria.tsx`) | "403 Forbidden" |
 | confirmação | "Colaborador avisado em 3 alertas." (`alerts.tsx`) | "Operação realizada com sucesso!" |
 | promessa do produto | "Roda inteiro nesta máquina, sem internet." (`login.tsx`) | "Segurança 100% garantida com IA de ponta." |
