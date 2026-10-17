@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.vision.person_compliance_matcher import PPE_LABELS
+
 ESTADOS_VERIFICAVEIS = {"ok", "missing", "incorrect"}
 
 
@@ -115,8 +117,7 @@ class ContadorDeMinutos:
 # Conquistas do setor: só condições positivas, com um mínimo de minutos
 # observados para não "ganhar" com um minuto de câmera ligada.
 MINUTOS_MINIMOS_PARA_CONQUISTA = 10
-NOMES_EPI = {"helmet": "capacete", "vest": "colete", "gloves": "luvas", "glasses": "óculos", "mask": "máscara",
-             "safety_shoe": "calçado", "ear_protection": "protetor auricular"}
+NOMES_EPI = {chave: rotulo.lower() for chave, rotulo in PPE_LABELS.items()}
 
 
 def conquistas(setor: dict[str, Any], metas: dict[str, Any]) -> list[dict[str, str]]:
@@ -131,7 +132,7 @@ def conquistas(setor: dict[str, Any], metas: dict[str, Any]) -> list[dict[str, s
     if meta_checkins and setor["checkins_portal"] >= meta_checkins:
         saida.append({"id": "meta_checkins", "texto": f"Meta de {meta_checkins} check-ins no portal atingida"})
     if setor.get("alertas_reconhecidos", 0) > 0 and setor.get("alertas_reconhecidos") == setor.get("alertas_criticos", 0):
-        saida.append({"id": "todos_reconhecidos", "texto": "Todos os alertas críticos foram reconhecidos"})
+        saida.append({"id": "todos_reconhecidos", "texto": "Todos os alertas críticos tiveram o colaborador avisado"})
     return saida
 
 

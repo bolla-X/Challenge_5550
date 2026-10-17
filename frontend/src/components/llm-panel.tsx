@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Panel } from "./common";
 import { getCameraStatus } from "../api/endpoints";
 import { PPE_LABELS } from "../api/ppe";
+import { pluralizar } from "../utils/formato";
 
 interface AnaliseLlm {
   nivel_risco: "baixo" | "medio" | "alto" | "critico";
@@ -66,11 +67,15 @@ export function LlmPanel({ camId }: { camId: number }) {
           <div className="actions">
             <span className="chip ok">
               <span className="dot" />
-              Ligada · prompt {llm.versao_prompt}
+              Ligada · instruções {llm.versao_prompt}
             </span>
-            <span className="chip">{llm.aceitos ?? 0} análise(s)</span>
+            <span className="chip">{pluralizar(llm.aceitos ?? 0, "análise")}</span>
             {(llm.em_voo?.length ?? 0) > 0 && <span className="chip">analisando…</span>}
-            {(llm.invalidos ?? 0) > 0 && <span className="chip miss">{llm.invalidos} resposta(s) inválida(s) descartada(s)</span>}
+            {(llm.invalidos ?? 0) > 0 && (
+              <span className="chip miss">
+                {pluralizar(llm.invalidos ?? 0, "resposta inválida", "respostas inválidas")} {llm.invalidos === 1 ? "descartada" : "descartadas"}
+              </span>
+            )}
           </div>
           {ultima ? (
             <div className="alert-list">

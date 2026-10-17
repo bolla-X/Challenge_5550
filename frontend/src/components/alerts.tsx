@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useMemo, useState } from "react";
 import { IlustracaoEscudo, IlustracaoGrafico } from "./ilustracoes";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -14,28 +15,27 @@ import {
 } from "../api/endpoints";
 import { pessoasDoIncidente, zonaDoIncidente } from "../utils/incidentes";
 import { IncidenteDetalhe } from "./incidente-detalhe";
-import { PPE_KEYS, PPE_LABELS } from "../api/ppe";
-import { paraDate } from "../utils/datas";
+import { PPE_KEYS, ROTULOS_DE_SEVERIDADE, rotuloDoRecurso } from "../api/ppe";
+import { dataHoraCurta, horaCurta, paraDate } from "../utils/datas";
+import { pluralizar } from "../utils/formato";
 import { IncidentReplay } from "./replay";
 
 const NIVEL: Record<string, number> = { operator: 1, technical: 2, supervisor: 3 };
-const TIPOS_DE_ALERTA: { value: string; label: string }[] = [
-  ...PPE_KEYS.map((key) => ({ value: key, label: PPE_LABELS[key] })),
-  { value: "falls", label: "Quedas" },
-  { value: "posture", label: "Postura" },
-  { value: "risk_area", label: "Área de risco" },
-];
+const TIPOS_DE_ALERTA: { value: string; label: string }[] = [...PPE_KEYS, "falls", "posture", "risk_area"].map((value) => ({
+  value,
+  label: rotuloDoRecurso(value),
+}));
 
 // Mesma curva de tokens.css (--ease-out). Motion precisa do bezier numérico.
 const EASE = [0.23, 1, 0.32, 1] as const;
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
 function formatTime(value: string | null): string {
-  return paraDate(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return horaCurta(paraDate(value));
 }
 
 function formatDateTime(value: string | null): string {
-  return paraDate(value).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return dataHoraCurta(paraDate(value));
 }
 
 /** Linha de alerta: ponto, título, contexto e horário à direita. Crítico e
@@ -131,7 +131,7 @@ function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null
           "ok",
         ),
       )
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao reconhecer.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao reconhecer o incidente."), "error"))
       .finally(() => setOcupado(false));
   };
   const zona = zonaDoIncidente(inc);
@@ -183,8 +183,8 @@ export function AlertPanel() {
   const reconhecerTodos = () => {
     setOcupado(true);
     acknowledgeAllAlerts(camId)
-      .then((r) => showMessage(r.acknowledged ? `${alertas(r.acknowledged)} marcado${r.acknowledged === 1 ? "" : "s"} como tratado${r.acknowledged === 1 ? "" : "s"}.` : "Nenhum alerta pendente de aviso.", "ok"))
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao reconhecer alertas.", "error"))
+      .then((r) => showMessage(r.acknowledged ? `Colaborador avisado em ${pluralizar(r.acknowledged, "alerta")}.` : "Nenhum alerta pendente de aviso.", "ok"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao registrar o aviso dos alertas."), "error"))
       .finally(() => setOcupado(false));
   };
 
@@ -200,12 +200,12 @@ export function AlertPanel() {
       .then((r) =>
         showMessage(
           r.silencio_s > 0
-            ? `${alertas(r.active_before)} encerrado${r.active_before === 1 ? "" : "s"}. Não volta${r.active_before === 1 ? "" : "m"} por ${Math.round(r.silencio_s)} s enquanto a violação continuar.`
-            : `${alertas(r.active_before)} ativo${r.active_before === 1 ? "" : "s"} encerrado${r.active_before === 1 ? "" : "s"}.`,
+            ? `${pluralizar(r.active_before, "alerta")} ${r.active_before === 1 ? "resolvido" : "resolvidos"}. Não ${r.active_before === 1 ? "volta" : "voltam"} por ${Math.round(r.silencio_s)} s enquanto a violação continuar.`
+            : `${pluralizar(r.active_before, "alerta")} ${r.active_before === 1 ? "resolvido" : "resolvidos"}.`,
           "ok",
         ),
       )
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao resolver alertas.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao resolver alertas."), "error"))
       .finally(() => setOcupado(false));
   };
 
@@ -259,7 +259,7 @@ export function AlertPanel() {
 
   if (bootstrapping) {
     return (
-      <Panel id="panel-alerts" title="Alertas ativos" description="Somem automaticamente quando a condição normal é confirmada.">
+      <Panel id="panel-alerts" title="Incidentes ativos" description="Alertas agrupados por regra e zona. Somem quando a condição normal é confirmada.">
         <PanelSkeleton lines={2} />
       </Panel>
     );
@@ -424,10 +424,10 @@ export function AlertHistoryPanel() {
     setApagando(true);
     deleteResolvedAlerts({ cameraId: cameraFilter ? Number(cameraFilter) : null, olderThanDays: antigos ? Number(antigos) : undefined })
       .then((r) => {
-        showMessage(`${alertas(r.deleted)} resolvido${r.deleted === 1 ? "" : "s"} apagado${r.deleted === 1 ? "" : "s"}.`, "ok");
+        showMessage(`${pluralizar(r.deleted, "alerta")} ${r.deleted === 1 ? "resolvido apagado" : "resolvidos apagados"}.`, "ok");
         return carregar();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao apagar alertas.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao apagar alertas."), "error"))
       .finally(() => setApagando(false));
   };
 
@@ -457,11 +457,11 @@ export function AlertHistoryPanel() {
         </select>
         <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} aria-label="Severidade">
           <option value="">Todas severidades</option>
-          <option value="critical">Crítico</option>
-          <option value="high">Alto</option>
-          <option value="medium">Médio</option>
-          <option value="low">Baixo</option>
-          <option value="info">Info</option>
+          {Object.entries(ROTULOS_DE_SEVERIDADE).map(([valor, rotulo]) => (
+            <option key={valor} value={valor}>
+              {rotulo}
+            </option>
+          ))}
         </select>
       </div>
       {nivel >= 3 && (
@@ -508,8 +508,4 @@ export function AlertHistoryPanel() {
       </div>
     </Panel>
   );
-}
-
-function alertas(n: number): string {
-  return n === 1 ? "1 alerta" : `${n} alertas`;
 }

@@ -490,7 +490,7 @@ class VideoStream:
         self._rebobinando = False
 
         self._consecutive_failures += 1
-        self._last_error = "Frame indisponível"
+        self._last_error = "Quadro indisponível"
         if self._consecutive_failures < self.failures_before_reconnect:
             return
         # Passou do limite: a fonte pode estar "aberta" e morta ao mesmo tempo

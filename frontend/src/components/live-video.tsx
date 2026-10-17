@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LeitorMultipart } from "../socket/multipart";
 import { useDashboardStore } from "../store/dashboardStore";
 import { desenharRaioX, HistoricoDePes, type RaioX } from "./raiox";
+import { decimal } from "../utils/formato";
 
 /**
  * Player de vídeo ao vivo em <canvas>, com o overlay desenhado NO NAVEGADOR.
@@ -144,8 +145,8 @@ export function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: 
     }
     if (mostrarRotulos) {
       let texto = pessoa ? (cx.t != null ? `Pessoa ${cx.t}` : "Pessoa") : cx.n || cx.l;
-      if (mostrarConf) texto += ` ${cx.c.toFixed(2)}`;
-      if (aproximando) texto += ` · entra na zona em ~${(cx.a as number).toFixed(1)} s`;
+      if (mostrarConf) texto += ` ${decimal(cx.c, 2)}`;
+      if (aproximando) texto += ` · entra na zona em ~${decimal(cx.a as number)} s`;
       const largura = ctx.measureText(texto).width + 12;
       const altura = fonte + 8;
       const lx = Math.max(dx, Math.min(px(x1), dx + ov.w * escala - largura));

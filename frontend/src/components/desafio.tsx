@@ -1,5 +1,7 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { PanelSkeleton } from "./common";
+import { decimal, pluralizar } from "../utils/formato";
 
 /**
  * “Você vs. a IA” (G2), em `/desafio`. Cada rodada toca ~1,6 s de vídeo
@@ -51,9 +53,9 @@ export function DesafioScreen() {
 
   useEffect(() => {
     fetch("/api/desafio/rodadas", { credentials: "same-origin" })
-      .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error((await r.json().catch(() => ({})))?.error ?? `HTTP ${r.status}`))))
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao carregar o desafio."))))
       .then((d: { rodadas: Rodada[] }) => setRodadas(d.rodadas))
-      .catch((e: Error) => setErro(e.message));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
   }, []);
 
   const rodada = rodadas[indice];
@@ -99,7 +101,7 @@ export function DesafioScreen() {
           /* janela privada: o placar fica só na memória */
         }
       })
-      .catch((e: Error) => setErro(e.message));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
   };
 
   // Relógio da fase de clique.
@@ -150,13 +152,13 @@ export function DesafioScreen() {
       <header className="desafio-cabeca">
         <h1>Você vs. a IA</h1>
         <span className="t-data" data-testid="desafio-placar">
-          {apelido || "Você"} {placar.humano} × {placar.ia} IA · {placar.rodadas === 1 ? "1 rodada" : `${placar.rodadas} rodadas`}
+          {apelido || "Você"} {placar.humano} × {placar.ia} IA · {pluralizar(placar.rodadas, "rodada")}
         </span>
       </header>
       {fase === "inicio" ? (
         <section className="desafio-inicio card">
           <p>
-            {rodadas.length} rodadas. Cada uma mostra um trecho curto e congela: clique nas pessoas com infração em até {TEMPO_S} s.
+            {pluralizar(rodadas.length, "rodada")}. Cada uma mostra um trecho curto e congela: clique nas pessoas com infração em até {TEMPO_S} s.
             Depois você vê o gabarito e a resposta da IA, com a mesma regra para os dois.
           </p>
           <label>
@@ -213,7 +215,7 @@ export function DesafioScreen() {
           </svg>
           {fase === "clicar" && (
             <button type="button" className="primary" onClick={() => responder(cliques)} data-testid="desafio-responder">
-              Responder ({cliques.length} clique{cliques.length === 1 ? "" : "s"})
+              Responder ({pluralizar(cliques.length, "clique")})
             </button>
           )}
           {fase === "resultado" && resultado && (
@@ -237,7 +239,7 @@ export function DesafioScreen() {
                       </td>
                       <td className="t-data">{resultado[quem].erros}</td>
                       <td className="t-data">{resultado[quem].perdidos}</td>
-                      <td className="t-data">{resultado[quem].tempo_ms == null ? "sem dado" : `${(resultado[quem].tempo_ms! / 1000).toFixed(1)} s`}</td>
+                      <td className="t-data">{resultado[quem].tempo_ms == null ? "sem dado" : `${decimal(resultado[quem].tempo_ms! / 1000)} s`}</td>
                     </tr>
                   ))}
                 </tbody>

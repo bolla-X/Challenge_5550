@@ -117,7 +117,7 @@ class FonteMorta:
             consecutive_failures=self.leituras,
             reconnect_attempts=self._tentativas,
             total_reconnects=0,
-            last_error="Frame indisponível",
+            last_error="Quadro indisponível",
             seconds_until_retry=0.0,
         )
 
@@ -246,7 +246,7 @@ def test_fonte_morta_nao_publica_frame_e_o_loop_sobrevive(worker):
 def test_fonte_morta_registra_o_erro_no_status(worker):
     rodar_loop(worker, 3)
 
-    assert worker.status()["last_error"] == "Frame indisponível"
+    assert worker.status()["last_error"] == "Quadro indisponível"
 
 
 # --------------------------------- 2. backoff e teto: JÁ EXISTEM hoje ------

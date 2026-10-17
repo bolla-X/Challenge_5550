@@ -130,6 +130,7 @@ Achados das capturas `r1` e `r2` (rubrica em `galeria/index.md`) que viraram reg
   feito para projetor, não transborda e não mostra o QR (no celular, o celular já é o controle).
 - **Texto visível nunca mostra código interno** (`missing_vest`, `rule`): o contexto de um alerta é a
   câmera; plural de verdade, nunca "alerta(s)"; decimal com vírgula; data curta `14/10 08:17:30`.
+  Um termo por conceito (incidente, alerta, reconhecer, setor, câmera…): ver `GLOSSARIO.md`.
 - **Número grande é sans com algarismos tabulares**, também no Modo TV ("12 min" numa linha só, a
   unidade menor ao lado).
 - **Skeleton tem o formato do conteúdo final** (Liga: placar à esquerda, nível e missões à direita).

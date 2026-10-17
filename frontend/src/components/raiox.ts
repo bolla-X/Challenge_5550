@@ -8,6 +8,9 @@
  * lado da confiança bruta, nunca misturada com ela.
  */
 
+import { ROTULOS_DE_CLASSE } from "../api/ppe";
+import { decimal } from "../utils/formato";
+
 /** Quantas pessoas ganham o painel "modelo x decisão" por quadro. */
 const PAINEIS_MAX = 3;
 
@@ -25,10 +28,8 @@ type CaixaPessoa = { t: number | null; b: [number, number, number, number]; k: s
 const OSSOS: [number, number][] = [
   [1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12],
 ];
-const NOME_CURTO: Record<string, string> = {
-  helmet: "Capacete", vest: "Colete", gloves: "Luvas", glasses: "Óculos", mask: "Máscara",
-  safety_shoe: "Calçado", ear_protection: "Protetor", hardhat: "Capacete", safety_vest: "Colete", goggles: "Óculos",
-};
+// Rótulo curto (cabe no painel do vídeo): o mesmo mapa das demais telas, só com o protetor abreviado.
+const NOME_CURTO: Record<string, string> = { ...ROTULOS_DE_CLASSE, ear_protection: "Protetor" };
 const BRANCO = "rgba(245,245,247,0.95)";
 const FANTASMA = "rgba(245,245,247,";
 const OK = "rgb(72,209,138)";
@@ -129,7 +130,7 @@ export function desenharRaioX(
     ctx.lineWidth = 1.5;
     ctx.strokeRect(px(x1), py(y1), (x2 - x1) * escala, (y2 - y1) * escala);
     ctx.setLineDash([]);
-    const texto = `${rotuloCurto(d.l)} ${d.c.toFixed(2)} · descartado: ${d.m}`;
+    const texto = `${rotuloCurto(d.l)} ${decimal(d.c, 2)} · descartado: ${d.m}`;
     const lw = ctx.measureText(texto).width + 10;
     ctx.fillStyle = FUNDO;
     ctx.fillRect(px(x1), py(y2) + 2, lw, fonte + 6);

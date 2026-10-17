@@ -1,3 +1,5 @@
+import { useOnboarding } from "./onboarding";
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Numero, Panel } from "./common";
@@ -13,11 +15,10 @@ import {
   IconeTrofeu,
   IconeTv,
 } from "./icones";
-import { ScreenHead } from "./layout";
+import { ROTULO_DO_PAPEL as PAPEL, ScreenHead } from "./layout";
 import { apiFetch } from "../api/client";
 import type { AuthUser, UserRole } from "../api/types";
-
-const PAPEL: Record<string, string> = { operator: "Operador", technical: "Técnico", supervisor: "Supervisor" };
+import { pluralizar } from "../utils/formato";
 
 const listUsers = () => apiFetch<{ items: AuthUser[] }>("/api/users");
 const createUser = (body: { email: string; name: string; password: string; role: string; camera_id: number | null }) =>
@@ -66,11 +67,26 @@ const ATALHOS: { href: string; titulo: string; texto: string; Icone: (p: { size?
   { href: "/liga", titulo: "Liga de Setores", texto: "Pontos da equipe e missões do turno.", Icone: IconeTrofeu },
   { href: "/auditoria", titulo: "Cadeia de custódia", texto: "Verificar a integridade das evidências.", Icone: IconeEscudo },
   { href: "/simulador", titulo: "Simulador", texto: "Testar uma regra nas últimas horas.", Icone: IconeFrasco },
-  { href: "/retrospectiva", titulo: "Retrospectiva", texto: "O turno em stories, com dados reais.", Icone: IconeStories },
+  { href: "/retrospectiva", titulo: "Retrospectiva", texto: "O turno em cartões, com dados reais.", Icone: IconeStories },
   { href: "/tv", titulo: "Modo TV", texto: "Setores e metas para a parede.", Icone: IconeTv },
 ];
 
 /** Início do supervisor: a planta agora, as câmeras ao vivo e as portas de entrada. */
+/** Enquanto o primeiro acesso não foi concluído, o Início lembra (e leva ao assistente). */
+function AvisoDePrimeiroAcesso() {
+  const { dados } = useOnboarding();
+  if (!dados || dados.concluido) return null;
+  return (
+    <a className="card aviso-primeiro-acesso" href="/primeiro-acesso" data-testid="aviso-primeiro-acesso">
+      <strong>Configure a planta em poucos passos</strong>
+      <span>
+        {dados.checklist.pendentes} {dados.checklist.pendentes === 1 ? "item pendente" : "itens pendentes"} para ficar pronto para operar.
+        Continuar o primeiro acesso →
+      </span>
+    </a>
+  );
+}
+
 export function SupervisorHome() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const cameras = useDashboardStore((s) => s.cameras);
@@ -81,6 +97,7 @@ export function SupervisorHome() {
   return (
     <div className="screen home">
       <ScreenHead title={`${saudacao()}${primeiroNome ? `, ${primeiroNome}` : ""}`} sub="A planta agora, nesta máquina." />
+      <AvisoDePrimeiroAcesso />
       <dl className="home-agora" aria-label="Agora na planta">
         <div>
           <dt>câmeras no ar</dt>
@@ -112,7 +129,7 @@ export function SupervisorHome() {
           <span className="home-tile-texto">
             <strong>Câmeras</strong>
             <span>
-              {cameras.length === 1 ? "1 câmera" : `${cameras.length} câmeras`}: monitoramento, incidentes, zonas e portaria.
+              {pluralizar(cameras.length, "câmera")}: monitoramento, incidentes, zonas e portaria.
             </span>
           </span>
         </button>
@@ -153,7 +170,7 @@ export function AccountsScreen() {
   const carregar = () =>
     listUsers()
       .then((r) => setUsuarios(r.items))
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao listar contas.", "error"));
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao listar contas."), "error"));
 
   useEffect(() => {
     carregar();
@@ -179,7 +196,7 @@ export function AccountsScreen() {
         setCameraId("");
         return carregar();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao criar a conta.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao criar a conta."), "error"))
       .finally(() => setSalvando(false));
   };
 
@@ -189,7 +206,7 @@ export function AccountsScreen() {
         showMessage(ok, "ok");
         return carregar();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha na operação.", "error"));
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha na operação."), "error"));
 
   const trocarSenha = (u: AuthUser) => {
     const nova = window.prompt(`Nova senha para ${u.email}:`);
@@ -200,7 +217,7 @@ export function AccountsScreen() {
     <div className="screen">
       <ScreenHead
         title="Contas"
-        sub={aba === "nova" ? "Nova conta" : usuarios.length === 1 ? "1 conta" : `${usuarios.length} contas`}
+        sub={aba === "nova" ? "Nova conta" : pluralizar(usuarios.length, "conta")}
         actions={
           aba === "nova" ? (
             <button type="button" className="ghost" onClick={() => setAba("gerenciar")}>
@@ -278,7 +295,7 @@ export function AccountsScreen() {
       )}
 
       {aba === "gerenciar" && (
-      <Panel id="panel-accounts" title="Contas existentes" description={`${usuarios.length === 1 ? "1 conta" : `${usuarios.length} contas`}`}>
+      <Panel id="panel-accounts" title="Contas existentes" description={pluralizar(usuarios.length, "conta")}>
         <div className="account-list">
           {usuarios.map((u) => (
             <div key={u.id} className={`account-row${u.active ? "" : " inactive"}`}>

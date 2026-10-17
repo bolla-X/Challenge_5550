@@ -142,6 +142,13 @@ class Config:
     # cookie Secure nao viaja em http://localhost e quebraria o dev.
     SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", False)
     PERMANENT_SESSION_LIFETIME = timedelta(hours=env_int("SESSION_HOURS", 12))
+    # O cookie só é (re)gravado quando a sessão MUDA (login/logout). Com a
+    # renovação a cada resposta (padrão do Flask), uma requisição que já estava
+    # em voo quando a pessoa clicou "Sair" respondia depois do logout com o
+    # cookie antigo e desfazia o logout (crawler da MISSÃO 4; teste em
+    # tests/test_auth.py). Efeito colateral aceito: a sessão vale SESSION_HOURS
+    # a partir do login (um turno), não do último clique.
+    SESSION_REFRESH_EACH_REQUEST = False
 
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = env_int("PORT", 5000)
@@ -382,10 +389,39 @@ class Config:
     ROTULOS_INTERVALO_S = env_float("ROTULOS_INTERVALO_S", 5.0)
     # Laboratório "Pergunte à planta": desligado por padrão; exige também LLM ligado e chave.
     LAB_PERGUNTE_ATIVO = env_bool("LAB_PERGUNTE_ATIVO", False)
+    # Laboratório "celular em área de risco" (M9): desligado por padrão, regra em
+    # app/services/lab_celular.py. Ligar exige também abrir o filtro de classes do
+    # detector de pessoa para [0, 67]; evidência em docs/NEXT2026/CHANGELOG.md.
+    LAB_CELULAR_ATIVO = env_bool("LAB_CELULAR_ATIVO", False)
+    LAB_CELULAR_CONF_MIN = env_float("LAB_CELULAR_CONF_MIN", 0.5)
     # Pasta da fila de recortes (G9); vazio = instance/rotulos.
     ROTULOS_DIR = os.getenv("ROTULOS_DIR", "")
     # Modo demonstração (`python run.py --demo`): tema claro e /api/demo/reset.
     DEMO_MODE = env_bool("DEMO_MODE", False)
+    # Integração industrial (M2, app/services/integracao/): tudo desligado por
+    # padrão; o modo demo liga OPC UA e MQTT com broker embutido, só em 127.0.0.1.
+    # OPC UA sem segurança (NoSecurity) e broker anônimo: para rede de chão de
+    # fábrica isolada — ver docs/NEXT2026/INTEGRACAO.md.
+    OPCUA_ATIVO = env_bool("OPCUA_ATIVO", False)
+    OPCUA_HOST = os.getenv("OPCUA_HOST", "127.0.0.1")
+    OPCUA_PORTA = env_int("OPCUA_PORTA", 4840)
+    MQTT_ATIVO = env_bool("MQTT_ATIVO", False)
+    MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
+    MQTT_PORTA = env_int("MQTT_PORTA", 1883)
+    MQTT_BROKER_EMBUTIDO = env_bool("MQTT_BROKER_EMBUTIDO", False)
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+    WEBHOOK_PERMITIR_REDE_LOCAL = env_bool("WEBHOOK_PERMITIR_REDE_LOCAL", False)
+    # Saúde visual da câmera (M1, app/vision/saude_visual.py) e onde guardar a
+    # referência de cada câmera (vazio = instance/referencias).
+    SAUDE_VISUAL_ATIVA = env_bool("SAUDE_VISUAL_ATIVA", True)
+    SAUDE_VISUAL_DIR = os.getenv("SAUDE_VISUAL_DIR", "")
+    # Tique do estado da planta (torre de luz, OPC UA, MQTT). 0 = desligado.
+    ESTADO_DA_PLANTA_S = env_float("ESTADO_DA_PLANTA_S", 1.0)
+    # Escalonamento de alerta crítico sem reconhecimento (M7, app/services/escalonamento.py):
+    # segundos até avisar o supervisor e até a torre/TV piscarem. A regra do
+    # editor pode trazer prazos próprios; estes são o padrão.
+    ESCALONAR_SUPERVISOR_S = env_float("ESCALONAR_SUPERVISOR_S", 60.0)
+    ESCALONAR_TV_S = env_float("ESCALONAR_TV_S", 180.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)
@@ -441,6 +477,9 @@ class Config:
     LIGA_ATIVA = env_bool("LIGA_ATIVA", True)
     TURNOS = os.getenv("TURNOS", "06:00-14:00,14:00-22:00,22:00-06:00")
     TRILHAS_DIR = os.getenv("TRILHAS_DIR", "")
+    # Modo Evacuação (M3): relatórios JSON (entram na cadeia de custódia). Vazio = instance/evacuacoes.
+    EVACUACAO_DIR = os.getenv("EVACUACAO_DIR", "")
+    EVACUACAO_AMOSTRA_S = env_float("EVACUACAO_AMOSTRA_S", 1.0)
     TRILHAS_MB_POR_ARQUIVO = env_float("TRILHAS_MB_POR_ARQUIVO", 16.0)
     TRILHAS_ARQUIVOS = env_int("TRILHAS_ARQUIVOS", 4)
     REASSOCIAR_DISTANCIA_LARGURAS = env_float("REASSOCIAR_DISTANCIA_LARGURAS", 1.5)
@@ -553,6 +592,7 @@ class TestConfig(Config):
     # Trilhas do simulador (X2) numa pasta temporária por processo: a suíte
     # não escreve no instance/ de quem roda nem herda trilha de outra rodada.
     TRILHAS_DIR = tempfile.mkdtemp(prefix="visionepi-trilhas-")
+    EVACUACAO_DIR = tempfile.mkdtemp(prefix="visionepi-evacuacao-")
     # Mesmo motivo: um .env com PPE_MISSING_POLICY=evidencia mudaria quais
     # alertas nascem e quebraria testes que nada tem a ver com politica. Quem
     # testa a outra politica pede explicitamente (test_matcher_evidencia.py).

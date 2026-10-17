@@ -773,6 +773,26 @@ Antes de começar: `bench/results/` tinha 11 JSON e `scripts/dump_deteccoes.py`
 citados no BENCHMARKS/CHANGELOG mas nunca versionados — entraram num commit
 próprio (`chore: versiona evidências…`).
 
+### Novidades: Funções novas e visual renovado (14/10/2026)
+
+<!-- Lido por scripts/gerar_novidades.py para a tela "Novidades" do app. Só título e frase para quem usa:
+     sem números de medição, sem nomes de arquivo, no vocabulário do GLOSSARIO.md. -->
+
+- **Gêmeo digital.** A planta em 3D com as câmeras, as áreas de risco e as pessoas na cor do estado, nunca em foto.
+- **Simulador "E se?".** Teste outra área de risco, outro tempo de confirmação ou outros EPIs sobre o que já aconteceu, antes de mudar a regra de verdade.
+- **Cadeia de custódia.** Imagem de evidência, replay e troca de privacidade ficam encadeados, e a tela de Auditoria aponta qualquer alteração.
+- **Linha causal.** O que aconteceu com cada Pessoa dentro de um incidente, passo a passo, com o replay no instante certo.
+- **Raio-X.** Aperte X para ver por que a IA decidiu: esqueleto, confiança por classe e o que foi descartado.
+- **Modo Apresentação.** Um roteiro de cenas para mostrar o sistema, controlado pelo celular por QR code.
+- **Retrospectiva.** Cartões do turno e da semana com dados reais, prontos para salvar como imagem.
+- **Liga de Setores.** Pontos só positivos por setor, missões por turno e o nível da planta.
+- **Tente enganar a IA.** No Portal de Entrada, quem visita tenta driblar a detecção e vê o que o modelo enxergou.
+- **Replay e mapa de calor.** Os quadros de antes e depois de cada alerta e onde a planta concentra as violações.
+- **Celular como câmera.** Pareie um celular por QR code e use-o como câmera.
+- **Aplicativo instalável.** O painel funciona como aplicativo e avisa o alerta crítico com o app aberto.
+- **Incidentes mais claros.** Alertas da mesma regra e da mesma zona agora formam um incidente só.
+- **Visual novo.** Tema claro e escuro, fontes e ícones próprios e transições suaves entre as telas.
+
 ## PR5 — consertos que afetam a demo (Fase A)
 
 ### P0.1 Rodízio ponderado (câmera em foco ≥ 50 %)
@@ -1343,3 +1363,169 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
   preso com a máquina saturada); `preparar.py` aprovou o OpenVINO dinâmico na
   iGPU para o EPI (concordância 1,0 e 0,99); o restante seguia rodando no
   encerramento desta sessão.
+
+---
+
+# MISSÃO 4 — VisionEPI pronto de empresa
+
+### Novidades: Pronto para a operação da empresa (17/10/2026)
+
+- **Páginas de aviso.** Página não encontrada, erro de tela, sem conexão, sessão expirada com retorno ao ponto onde você estava e acesso negado explicado.
+- **Primeiro acesso.** O Supervisor é guiado da primeira câmera até o "pronto para operar", com a senha temporária exibida uma só vez.
+- **Permissões por tipo de conta.** Cada tela e cada ação respeitam o tipo de conta, e o Operador vê só a câmera do próprio setor.
+- **Saúde da câmera.** O sistema avisa quando uma câmera é tampada, movida, fica escura, ofuscada ou desfocada.
+- **Integração com a fábrica.** OPC UA, MQTT e webhook levam o estado da planta e cada alerta novo a outros sistemas, e a torre de luz virtual mostra o mesmo estado.
+- **Modo Evacuação.** Contagem de pessoas por zona e por câmera, com cronômetro e relatório guardado na cadeia de custódia.
+- **Editor de regras.** Monte regras com blocos, teste no histórico antes de ativar e mantenha as regras atuais como ponto de partida.
+- **Permissão de trabalho.** Zona, janela de horário, responsável, EPIs exigidos e vigia, com o que o modelo não vê marcado como verificação manual.
+- **Textos revisados.** Um termo para cada conceito em todas as telas, com números e horas no padrão brasileiro.
+- **Status do sistema.** Uma página com a saúde dos modelos, das câmeras, do banco, das integrações, da segunda opinião e do espaço em disco.
+- **Configurações em um lugar.** Conta, planta, câmeras, regras, integrações, privacidade e usuários em seções, com o que o seu tipo de conta não pode usar explicado.
+
+## Fontes verificadas (agente fontes, acesso em 17/10/2026)
+
+- **NR-33** (texto vigente, Portaria 1.690/2022, em vigor desde 03/10/2022):
+  https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/arquivos/normas-regulamentadoras/nr-33-atualizada-2022-_retificada.pdf
+  - Glossário: vigia é o "trabalhador designado para permanecer fora do espaço confinado e que é responsável pelo acompanhamento, comunicação e ordem de abandono para os trabalhadores".
+  - 33.7.1 c): proibida a entrada com "ausência de vigia durante a entrada, permanência e saída".
+  - 33.3.4 c) e g): o vigia permanece fora, junto à entrada, e não realiza outras tarefas.
+  - 33.3.4.1 a)/b): o vigia pode ser "assistido por sistema de vigilância e comunicação eletrônicas", mas o campo visual sem equipamento eletrônico continua exigido — **a câmera auxilia, não substitui o vigia** (é o que a UI diz).
+  - 33.5.5/33.5.6: toda entrada precedida de PET; campos mínimos (espaço, objetivo, perigos e medidas, atmosfera, supervisores/vigias/autorizados, data e horário de emissão e encerramento, assinaturas). **EPI não é campo mínimo**: aparece só no Anexo II (modelo informativo). 33.5.12: validade limitada a uma jornada; 33.5.12.1.1: até 24 h com prorrogações.
+  - A PET digital do VisionEPI (M5) NÃO é a PET da norma: é um apoio de fiscalização; a UI e os docs dizem isso.
+- **NR-35** (Portaria MTP 4.218/2022, última alteração Portaria MTE 1.259/2026):
+  https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/nr-35-atualizada-2025-1.pdf
+  — 35.5.5: todo trabalho em altura precedido de Análise de Risco; 35.5.7: atividades não rotineiras autorizadas por PT; 35.5.8.2: validade restrita ao turno/jornada. (A página do gov.br diz "15 de junho de 2026" e o PDF "15 de julho de 2026" para a Portaria 1.259 — divergência da fonte; citamos o PDF.)
+- **NR-6**: URL que o projeto já cita em `app/services/nr6.py` confirmada como vigente.
+- **Licenças** das dependências novas (M2):
+  - asyncua 2.1.0 — LGPL-3.0-or-later (https://github.com/FreeOpcUa/opcua-asyncio/blob/master/COPYING). Usada como pacote importado, sem modificação; ao distribuir o produto, acompanhar aviso e cópia da LGPL/GPL (LGPLv3 §4). Registrado em `ATRIBUICOES.md`.
+  - paho-mqtt 2.1.0 — EPL-2.0 OR BSD-3-Clause (EDL 1.0) (https://github.com/eclipse-paho/paho.mqtt.python/blob/master/LICENSE.txt).
+  - amqtt 0.12.1 — MIT (https://github.com/Yakifo/amqtt/blob/main/LICENSE.md).
+- **OPC UA**: exemplo oficial de servidor do asyncua (https://github.com/FreeOpcUa/opcua-asyncio/blob/master/examples/server-minimal.py); NodeId e namespace (OPC UA Part 6 §5.1.12, https://reference.opcfoundation.org/Core/Part6/v105/docs/5.1.12; Part 3 §8.2).
+- **MQTT 3.1.1** (OASIS, https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html): '/' separa níveis (§4.7.1.1); RETAIN guarda a última mensagem do tópico (§3.3.1.3).
+- **OpenAPI 3.1.2**: https://spec.openapis.org/oas/v3.1.2.html.
+- **COCO**: "cell phone" está entre as 80 categorias do release 2014 (https://arxiv.org/pdf/1405.0312, Tabela 2); anotações CC BY 4.0, imagens sob os termos do Flickr (https://cocodataset.org/dataset/termsofuse.htm).
+
+## Fase 1 — correções de UI achadas pelo crawler (MISSÃO 4)
+
+- **Vibração sem gesto do usuário.** O crawler registrou no console "Blocked call to navigator.vibrate because user
+  hasn't tapped on the frame or any embedded frame yet" (https://www.chromestatus.com/feature/5644273861001216). A doc
+  da MDN de `Navigator.vibrate()` (https://developer.mozilla.org/en-US/docs/Web/API/Navigator/vibrate) registra que o
+  método exige ativação do usuário; e `navigator.userActivation.hasBeenActive`
+  (https://developer.mozilla.org/en-US/docs/Web/API/UserActivation/hasBeenActive) diz se a página já recebeu um gesto.
+  `pwa.ts` e o controle do palco só vibram depois de um gesto; a notificação local segue igual.
+- **Modais sem Esc.** "Prova de escala", "Adicionar câmera" e o replay não fechavam com Esc (o clique do crawler no
+  item seguinte batia no fundo do modal). Hook único `useFecharComEsc` (`frontend/src/utils/teclado.ts`) e
+  `aria-modal="true"` nos diálogos.
+- **Perfis de recursos.** Os botões Básico/EPI/Risco/Completo não mostravam qual perfil estava aplicado e, quando já
+  estava, o clique não fazia nada. Agora `aria-pressed`, e o perfil em vigor fica desabilitado com explicação.
+- **Crawler (segunda rodada).** Telas de Técnico/Supervisor abertas por operador mostram "acesso negado"
+  explicado em vez de chamar a API (`PAPEL_MINIMO` em `App.tsx`); o controle do palco sem o token do QR orienta a
+  abrir pelo QR; "Entrar" desabilitado explica o motivo; `loadCameras` deixa a falha de rede subir para o retry do
+  App (antes o store engolia e logava erro a cada navegação); `apiFetch` trata corpo 2xx interrompido como falha de
+  rede; `getMe` com prazo de 20 s (servidor travado não deixa mais a tela em branco). Os "botões sem nome" que o
+  crawler acusou no foco eram dele: linhas com `content-visibility` têm `innerText` vazio; agora lê `textContent`.
+- **`.gitattributes`.** `app/static/dist/** text eol=lf` convertia o `palco.gif` do build (6.383.668 bytes no blob
+  contra 6.383.807 no disco). GIF, WebP, ICO e vídeo passaram a `binary`; blob conferido com o mesmo tamanho.
+
+## Fase 1 — matriz de permissões e bug hunt (MISSÃO 4)
+
+- **Matriz** (`tests/test_matriz_de_permissoes.py`, 1403 casos, ~8 min): todo endpoint × método × (sem sessão,
+  operador, operador fora do setor, operador sem setor, técnico, supervisor) e os 3 eventos de socket. Teste-guarda
+  falha para rota ou evento sem classificação. 8 divergências de segurança achadas e corrigidas (D1–D8, ver
+  `PERMISSOES.md`): `/snapshots/<arquivo>` sem escopo de câmera e seis listagens do parque entregues ao operador sem
+  setor — decorator único `exige_setor`.
+- **Bug hunt** (somente leitura) nos módulos centrais: 7 bugs confirmados com reprodução, todos corrigidos com teste
+  de regressão (`tests/test_regressao_bug_hunt.py`, `tests/test_regressao_c1_poligono.py`): ponto-em-polígono em
+  aresta inclinada (alerta falso de área de risco), commit falho envenenando o estado de alertas, dois loops de
+  captura após stop+start, falso positivo apagado pelo `touch`, incidente que não fechava, adulteração escondida na
+  verificação por incidente (hash do elo formato 2) e 500 no simulador.
+- **Copy**: revisão pt-BR de todas as telas, `GLOSSARIO.md`, plurais, decimal com vírgula, hora pt-BR.
+
+## Fase 2 — Fábrica conectada (MISSÃO 4)
+
+- **M1 saúde visual** (`app/vision/saude_visual.py`, 83 testes com quadros derivados das fixtures): obstrução,
+  escura, ofuscada, desfocada e câmera movida (ORB + RANSAC; pose por similaridade nos inliers, que errou menos que a
+  homografia livre em 160 px). Histerese de 3 s para confirmar e liberar. Zero falso positivo de "movida" em 6.804
+  observações densas das fixtures; recall de movida em cena renovada é baixo (fica "inconclusivo", nunca alarme falso)
+  — documentado. E2E com a fonte MJPEG tampada no meio do teste: **3,8 s até OBSTRUÍDA e 9,9 s até o alerta**
+  (`bench/runtime/missao4-tempos.jsonl`), e volta a OK ao destampar. Referência persistida por câmera; "Redefinir
+  referência" só técnico+.
+- **M2 integração**: servidor OPC UA (asyncua), publicador MQTT (paho) com broker embutido (amqtt) e webhook com
+  proteção SSRF; tudo desligado por padrão, ligado no modo demo. Estado da planta a cada 1 s
+  (`app/services/integracao/planta_viva.py`), torre de luz em `/torre` e no Modo TV. Porta ocupada vira "falhou" no
+  status, nunca derruba o app. Teste de integração e E2E com clientes OPC UA e MQTT reais. O OPC UA levou ~5 s para
+  subir nesta máquina e passou de 10 s com a CPU tomada por agentes: prazo de subida 45 s, em thread própria.
+  Semântica da torre: reconhecer cala a sirene; a torre só volta a verde quando a violação acaba (na Multidão, cada
+  pessoa nova sem capacete abre outro alerta crítico — o E2E verifica que os reconhecidos deixam de contar).
+- **M3 evacuação**: contagem por câmera e zona com o aviso de dupla contagem sempre visível, última posição na
+  planta, pico no ponto de encontro, cronômetro; relatório na cadeia de custódia (elo `evacuacao`). E2E pela tela.
+- **M4 editor de regras**: blocos E/OU compilados para o MESMO `RuleEngine` (sem segundo caminho), equivalência
+  provada com as 17 regras nativas, "testar no histórico" sobre as trilhas do X2 (postura e aproximação declaradas
+  não simuláveis, nunca fingidas). E2E: regra testada no histórico e disparando ao vivo.
+- **M5 permissão de trabalho**: zona controlada, janela, responsável em texto livre, EPIs com verificação automática
+  x manual, vigia (NR-33 citada do gov.br: a câmera auxilia o vigia, não o substitui). E2E: sem vigia → crítico; com
+  vigia na área → some.
+- **Logout desfeito por requisição em voo (segurança).** O crawler achou o "Sair" que não deslogava: o Flask
+  regravava o cookie de sessão em TODA resposta (`SESSION_REFRESH_EACH_REQUEST`, padrão); uma requisição enviada antes
+  do clique em "Sair" e respondida depois devolvia o cookie antigo e a pessoa continuava logada. Reproduzido em
+  `tests/test_auth.py::test_requisicao_em_voo_nao_desfaz_o_logout` (falhava com o Set-Cookie da sessão), corrigido
+  com `SESSION_REFRESH_EACH_REQUEST = False` (doc: https://flask.palletsprojects.com/en/stable/config/#SESSION_REFRESH_EACH_REQUEST).
+  Efeito: a sessão vale `SESSION_HOURS` (12 h, um turno) a partir do login, não do último clique — documentado.
+
+## M9 — laboratório: celular em área de risco (MISSÃO 4)
+
+Resultado: **ficou LABORATÓRIO, desligado por padrão** (`LAB_CELULAR_ATIVO=false`). Não há evidência medida de que o
+detector enxerga celular nas imagens que o projeto tem, e "em uso" é mais do que o modelo sabe dizer.
+
+**Fatos verificados no repositório e na máquina (17/10/2026)**
+
+- O detector de pessoa é o YOLOv8n do COCO (`PERSON_MODEL_PATH = models/yolov8n.pt`). Carregando o peso: 80 classes,
+  `names[0] = person`, `names[67] = cell phone`. Fonte da classe: COCO, Tabela 2 (https://arxiv.org/pdf/1405.0312).
+- O celular é descartado **na inferência**, não depois: `MonitorService.person_detector` roda com `classes=[0]`
+  (`app/services/monitor_service.py`, linha 157). Para a regra ver o celular, o filtro precisa virar `[0, 67]`.
+- Fixtures de licença livre checadas (as derivadas em `tests/fixtures/`, geradas por `scripts/fetch_fixtures.py`;
+  licenças em `docs/NEXT2026/ATRIBUICOES.md`): `bench.mp4` (CC BY-SA 4.0), `next_multidao.mp4` (CC0),
+  `next_queda.mp4` (domínio público), `portal.mp4` (CC BY-SA 4.0) e as cenas `segura`, `risco`, `ambigua`
+  (CC BY 2.0 e domínio público). Nada foi baixado da internet para isto.
+- Medição: yolov8n sem filtro de classe, confiança mínima 0,05, 1 quadro a cada 5 nos vídeos (42 + 75 + 100 + 100
+  quadros) e as 3 imagens inteiras. **Nenhum quadro com celular a 0,25 ou mais; o maior sinal foi 0,141, em 1 quadro
+  da `multidao`** (abaixo de qualquer limiar plausível). `bench`, `queda`, `portal` e as 3 cenas: 0,000. Ou seja: as
+  fixtures não têm celular visível para o detector (não revi os quadros a olho; a medição é do detector).
+  Como isso mede ausência e não acerto, **não dá para afirmar recall nem falso positivo** do celular.
+
+**O que foi entregue (inerte quando desligado)**
+
+- `app/services/lab_celular.py`: função pura `avaliar_celular(deteccoes, *, ativo, limiar, poligono, forma_do_quadro)`
+  → lista de `RuleAlert` (`celular_em_area`, severidade `medium`, mensagem "Celular em uso na área de risco · Pessoa N",
+  recurso `celular`). Com `ativo=False` devolve `[]` sem olhar as detecções. Conta quando o centro do celular
+  (`cell phone` com confiança ≥ limiar) está na área de risco **e** dentro da caixa de uma pessoa (a de menor caixa);
+  celular sem pessoa por perto não alerta. Um alerta por pessoa, com a maior confiança.
+- `Config.LAB_CELULAR_ATIVO` (padrão `false`) e `Config.LAB_CELULAR_CONF_MIN` (padrão 0,5).
+- `tests/test_lab_celular.py`: detecções sintéticas (desligado, limiar, fora da área, sem pessoa, pessoas aninhadas).
+
+**Limites que valem mesmo ligado**: "em uso" é presença do celular junto de uma pessoa na área; o sistema não sabe se
+ela olha a tela ou fala. Celular na mão, de longe, em câmera de baixa resolução, é objeto pequeno: hipótese a medir.
+Custo de inferência de abrir a classe 67: **hipótese**, não medido.
+
+**Como validar na máquina da apresentação** (antes de ligar na demo)
+
+1. `LAB_CELULAR_ATIVO=true` no `.env`; o integrador abre `classes=[0, 67]` no `person_detector` só nesse caso e chama
+   `avaliar_celular` com as detecções do quadro, o polígono da câmera e `frame.shape`.
+2. Câmera da demo, área de risco desenhada. Gravar 20 passagens com o celular na mão dentro da área e 20 sem (mão
+   vazia, caneta, controle remoto, garrafa). Contar quadros com alerta em cada grupo.
+3. Critério sugerido para ligar: pelo menos 16 das 20 passagens com celular alertam e 0 das 20 sem celular alertam;
+   ajustar `LAB_CELULAR_CONF_MIN` e repetir. Medir o tempo por análise antes e depois (`scripts/` de bench do projeto).
+4. Se não passar, deixa desligado e a demo segue sem a regra: nada mais depende dela.
+
+## M10 — relatório mensal para a CIPA (MISSÃO 4)
+
+`GET /relatorio/mensal?mes=AAAA-MM` (página A4 imprimível, sem dependência externa) e `GET /api/relatorio/mensal`
+(JSON). Mesmo perfil do relatório de turno: sessão obrigatória, Operador só do setor dele (sem setor, 403).
+Só totais, medianas e nomes de câmera/zona/regra; nenhum rótulo de rastreio, nome ou e-mail. Evacuações e cadeia de
+custódia são da planta inteira e não aparecem para o Operador. Código em `app/services/relatorio_mensal.py`.
+
+- **Limite honesto**: o total de minutos com gente não é gravado por mês (só os minutos conformes, como pontos da
+  Liga). O relatório mostra os conformes do mês e, só no mês corrente, o contador do servidor desde que subiu; não
+  inventa percentual de conformidade mensal. Para tê-lo, o fechamento de minuto no `camera_worker` teria de gravar
+  também os minutos com gente.
+- Mês inválido: 400 `mes_invalido`. Sem `mes`, vale o mês corrente (hora local do servidor).

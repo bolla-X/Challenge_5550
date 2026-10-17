@@ -36,7 +36,7 @@ def test_narrativa_do_exemplo_da_missao():
     assert textos == [
         "aproximou-se da Zona A (projeção ~4 s)",
         "entrou na Zona A sem capacete",
-        "alerta reconhecido em 6 s",
+        "incidente reconhecido em 6 s",
         "permaneceu 38 s",
         "postura de risco",
     ]

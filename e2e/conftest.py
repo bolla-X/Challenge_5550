@@ -77,10 +77,14 @@ class ServidorE2E:
         # Replay e trilhas próprios e zerados: os ids de alerta recomeçam com o
         # banco, e uma pasta alert_1 de outra rodada (ou da demo) quebraria a
         # cadeia de custódia (X3) sem ninguém ter adulterado nada.
-        for pasta in ("e2e-clips", "e2e-trilhas"):
+        for pasta in ("e2e-clips", "e2e-trilhas", "e2e-referencias", "e2e-evacuacoes"):
             shutil.rmtree(runtime / pasta, ignore_errors=True)
         self.fixtures = {n: fetch_fixtures.caminho_da_fixture(n) for n in ("bench", "multidao", "queda", "portal")}
         self.fonte_rede = FonteMJPEG(self.fixtures["bench"], _porta_livre())
+        # Integração industrial (M2) ligada no E2E, em portas livres: as jornadas
+        # leem os nós OPC UA e os tópicos MQTT com clientes reais.
+        self.porta_opcua = _porta_livre()
+        self.porta_mqtt = _porta_livre()
         self.senhas = {papel: secrets.token_urlsafe(16) for papel in ("supervisor", "technical", "operator")}
         self.emails = {papel: f"{papel}@e2e.local" for papel in self.senhas}
         self.env = os.environ.copy() | {
@@ -105,6 +109,13 @@ class ServidorE2E:
             # Sem limpeza a cada câmera ligada: apagaria evidência da cadeia de custódia (X3).
             "CLEANUP_ON_MONITOR_START": "false",
             "PYTHONUNBUFFERED": "1",
+            "OPCUA_ATIVO": "true",
+            "OPCUA_PORTA": str(self.porta_opcua),
+            "MQTT_ATIVO": "true",
+            "MQTT_BROKER_EMBUTIDO": "true",
+            "MQTT_PORTA": str(self.porta_mqtt),
+            "SAUDE_VISUAL_DIR": "bench/runtime/e2e-referencias",
+            "EVACUACAO_DIR": "bench/runtime/e2e-evacuacoes",
         }
         self.log = runtime / "e2e.log"
         self.proc: subprocess.Popen | None = None
@@ -179,6 +190,24 @@ def playwright_sessao():
         yield pw
 
 
+TOUR_JA_VISTO = ("try{['operator','technical','supervisor'].forEach(p=>localStorage.setItem('visionepi-tour-visto-'+p,'1'))}"
+                 "catch(e){}")
+
+
+def _tour_ja_visto(nav) -> None:
+    """Todo contexto da suíte nasce com o tour guiado já visto: a camada do tour bloquearia os cliques.
+    Quem testa o tour (`test_tour_guiado_*`) cria o contexto com `nav.new_context_com_tour`."""
+    original = nav.new_context
+
+    def novo_contexto(*args, **kwargs):
+        contexto = original(*args, **kwargs)
+        contexto.add_init_script(TOUR_JA_VISTO)
+        return contexto
+
+    nav.new_context_com_tour = original
+    nav.new_context = novo_contexto
+
+
 @pytest.fixture(scope="session")
 def navegador(playwright_sessao):
     # Câmera falsa do Chromium para o F6 (celular como câmera): o
@@ -187,6 +216,7 @@ def navegador(playwright_sessao):
     nav = playwright_sessao.chromium.launch(
         headless=True, args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
     )
+    _tour_ja_visto(nav)
     yield nav
     nav.close()
 
@@ -199,6 +229,7 @@ def navegador_gpu(playwright_sessao):
     provar que funciona, não para medir tempo de quadro. Ver CHANGELOG (X1).
     """
     nav = playwright_sessao.chromium.launch(headless=True, args=["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"])
+    _tour_ja_visto(nav)
     yield nav
     nav.close()
 
@@ -208,7 +239,10 @@ def pagina(navegador, servidor):
     contexto = navegador.new_context(viewport={"width": 1366, "height": 768})
     pagina = contexto.new_page()
     pagina.erros_console = []
+    pagina.falhas_de_rede = []
     pagina.on("console", lambda m: pagina.erros_console.append(m.text) if m.type == "error" else None)
+    # Diagnóstico: QUAL requisição falhou e por quê (net::ERR_*), para não adivinhar.
+    pagina.on("requestfailed", lambda r: pagina.falhas_de_rede.append(f"{r.method} {r.url} — {r.failure}"))
     yield pagina
     contexto.close()
 
@@ -240,7 +274,8 @@ def pytest_runtest_makereport(item, call):
     try:
         pagina.screenshot(path=str(pasta / f"{item.name}.png"))
         (pasta / f"{item.name}.txt").write_text(
-            f"url: {pagina.url}\nerros de console: {getattr(pagina, 'erros_console', [])}\n\n" + pagina.inner_text("body")[:5000],
+            f"url: {pagina.url}\nerros de console: {getattr(pagina, 'erros_console', [])}\n"
+            f"falhas de rede: {getattr(pagina, 'falhas_de_rede', [])}\n\n" +pagina.inner_text("body")[:5000],
             encoding="utf-8",
         )
     except Exception:  # noqa: BLE001  (diagnóstico nunca derruba o relatório)

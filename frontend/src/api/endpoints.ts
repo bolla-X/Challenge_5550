@@ -29,10 +29,19 @@ import type {
 // One function per Flask route, named after the route. See app/api/*.py.
 
 // ---- autenticação (sessão em cookie HttpOnly; não há token no JS) -------
-export const getMe = () => apiFetch<{ user: AuthUser | null }>("/api/auth/me");
+// Com prazo: servidor travado não pode deixar a tela em branco para sempre —
+// estourado o prazo, o app mostra o login (checkSession trata o erro).
+export const getMe = () =>
+  apiFetch<{ user: AuthUser | null }>("/api/auth/me", typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(20_000) } : undefined);
 export const login = (email: string, password: string) =>
   apiFetch<{ user: AuthUser }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
 export const logout = () => apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
+// Troca a PRÓPRIA senha (exige a atual). O servidor encerra todas as sessões da conta, inclusive esta.
+export const changeOwnPassword = (currentPassword: string, newPassword: string) =>
+  apiFetch<{ ok: boolean }>("/api/auth/password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
 
 export const getStatus = () => apiFetch<StatusResponse>("/status");
 export const getPreflight = () => apiFetch<PreflightResponse>("/preflight");

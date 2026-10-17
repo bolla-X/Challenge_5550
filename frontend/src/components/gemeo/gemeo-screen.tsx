@@ -1,9 +1,11 @@
+import { mensagemDeErro } from "../../utils/erros";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { listarIncidentes } from "../../api/endpoints";
 import type { Incidente } from "../../api/types";
 import { PPE_LABELS } from "../../api/ppe";
-import { paraDate } from "../../utils/datas";
+import { horaCompleta, horaCurta, paraDate } from "../../utils/datas";
+import { pluralizar } from "../../utils/formato";
 import { EmptyState, PanelSkeleton } from "../common";
 import { IlustracaoPlanta } from "../ilustracoes";
 import { IncidentReplay } from "../replay";
@@ -48,7 +50,7 @@ function useEstadoDoGemeo(intervaloMs = 500): { estado: EstadoDoGemeo | null; er
       }
       fetch("/api/gemeo", { credentials: "same-origin" })
         .then(async (r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          if (!r.ok) throw new Error("O servidor não respondeu.");
           return (await r.json()) as EstadoDoGemeo;
         })
         .then((d) => {
@@ -56,7 +58,7 @@ function useEstadoDoGemeo(intervaloMs = 500): { estado: EstadoDoGemeo | null; er
           setEstado(d);
           setErro(null);
         })
-        .catch((e) => vivo && setErro(e instanceof Error ? e.message : "falha"))
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "falha")))
         .finally(() => {
           if (vivo) timer = window.setTimeout(tick, intervaloMs);
         });
@@ -118,7 +120,7 @@ function DetalhePessoa({ sel, onReplay }: { sel: Extract<Selecao, { tipo: "pesso
         <ol className="gemeo-linha" data-testid="gemeo-linha">
           {[...eventos].reverse().slice(0, 8).map((e) => (
             <li key={e.ts}>
-              <time>{new Date(e.ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
+              <time>{horaCompleta(new Date(e.ts * 1000))}</time>
               <span>{resumoDoEvento(e)}</span>
             </li>
           ))}
@@ -166,9 +168,9 @@ function DetalheZona({ sel }: { sel: Extract<Selecao, { tipo: "zona" }> }) {
             <ol className="gemeo-linha">
               {itens.slice(0, 8).map((i) => (
                 <li key={i.id}>
-                  <time>{paraDate(i.aberto_em).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+                  <time>{horaCurta(paraDate(i.aberto_em))}</time>
                   <span>
-                    {i.pessoas.length} pessoa{i.pessoas.length === 1 ? "" : "s"}
+                    {pluralizar(i.pessoas.length, "pessoa")}
                     {i.status === "active" ? " · agora" : ""}
                   </span>
                 </li>
@@ -259,7 +261,7 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
             <h1>Gêmeo digital</h1>
             <p className="screen-sub">
               {estado
-                ? `${pessoas.length} pessoa${pessoas.length === 1 ? "" : "s"} em ${calibradas.length} câmera${calibradas.length === 1 ? "" : "s"} calibrada${calibradas.length === 1 ? "" : "s"}${foraDoPadrao ? ` · ${foraDoPadrao} fora do padrão` : ""}`
+                ? `${pluralizar(pessoas.length, "pessoa")} em ${pluralizar(calibradas.length, "câmera calibrada", "câmeras calibradas")}${foraDoPadrao ? ` · ${foraDoPadrao} fora do padrão` : ""}`
                 : ""}
             </p>
           </div>
@@ -310,7 +312,7 @@ export function GemeoScreen({ embutido = false }: { embutido?: boolean }) {
           {erro && !estado && (
             <div className="gemeo-vazio" role="alert">
               <h2>Não foi possível ler a planta</h2>
-              <p>O servidor não respondeu ({erro}). A tela tenta de novo sozinha a cada meio segundo.</p>
+              <p>O servidor não respondeu. A tela tenta de novo sozinha a cada meio segundo.</p>
             </div>
           )}
           {modo === "2d" && <span className="gemeo-selo">Planta 2D (sem WebGL)</span>}

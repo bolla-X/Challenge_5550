@@ -1,7 +1,9 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { EmptyState, PanelSkeleton } from "./common";
 import { IlustracaoCadeia } from "./ilustracoes";
 import { VerificarIntegridade } from "./incidente-detalhe";
+import { pluralizar } from "../utils/formato";
 
 /**
  * Auditoria (X3, `/auditoria`): a cadeia de custódia inteira e a verificação
@@ -22,14 +24,14 @@ export function AuditoriaScreen() {
     setErro(null);
     fetch("/api/custodia?limit=100", { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 403 ? "A auditoria é para o técnico ou o supervisor." : `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(r.status === 403 ? "A auditoria é para o técnico ou o supervisor." : "Falha ao carregar a auditoria.");
         return r.json();
       })
       .then((d) => {
         setElos(d.items);
         setTotal(d.total);
       })
-      .catch((e) => setErro(e instanceof Error ? e.message : "falha"));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a auditoria.")));
   };
   useEffect(carregar, []);
 
@@ -37,7 +39,7 @@ export function AuditoriaScreen() {
     <div className="screen auditoria" data-testid="auditoria">
       <div className="screen-head">
         <h1>Auditoria das evidências</h1>
-        <span className="screen-sub">{elos ? `${total} elo${total === 1 ? "" : "s"} na cadeia de custódia` : <span className="skeleton-block skeleton-inline" />}</span>
+        <span className="screen-sub">{elos ? `${pluralizar(total, "elo")} na cadeia de custódia` : <span className="skeleton-block skeleton-inline" />}</span>
         <div className="screen-actions">
           <a className="button ghost" href="/">
             Painel

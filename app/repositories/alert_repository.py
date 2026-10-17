@@ -14,6 +14,16 @@ def utc_now() -> datetime:
 
 # Marcas gravadas por acao humana, que a renovacao automatica nao pode apagar.
 CHAVES_DE_RECONHECIMENTO = ("acknowledged", "acknowledged_at", "acknowledged_note")
+# Idem para o que as rotas e o gravador de snapshot escrevem de OUTRA thread:
+# falso positivo (marca, motivo, quando), motivo da resolução e `snapshot_available`.
+CHAVES_GRAVADAS_POR_FORA = (
+    *CHAVES_DE_RECONHECIMENTO,
+    "false_positive",
+    "false_positive_reason",
+    "false_positive_at",
+    "resolution_reason",
+    "snapshot_available",
+)
 
 
 class AlertRepository:
@@ -69,7 +79,7 @@ class AlertRepository:
             # a contagem de ocorrencias ainda nao gravada.
             db.session.refresh(alert, attribute_names=["metadata_json"])
             atual = alert.metadata_json or {}
-            preservadas = {k: atual[k] for k in CHAVES_DE_RECONHECIMENTO if k in atual}
+            preservadas = {k: atual[k] for k in CHAVES_GRAVADAS_POR_FORA if k in atual}
         alert.last_seen_at = utc_now()
         alert.occurrences = int(alert.occurrences or 0) + max(1, int(incremento))
         if metadata is not None:
@@ -102,6 +112,10 @@ class AlertRepository:
     def salvar(self) -> None:
         """Fecha a transação aberta por chamadas com `commit=False`."""
         db.session.commit()
+
+    def desfazer(self) -> None:
+        """Descarta a transação aberta (o `salvar` falhou): os alertas só `flush`ados somem do banco."""
+        db.session.rollback()
 
     def update_frame_ref(self, alert: Alert, frame_ref: str) -> Alert:
         alert.frame_ref = frame_ref

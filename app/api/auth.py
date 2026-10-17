@@ -95,11 +95,18 @@ def create_user():
         return jsonify({"error": "Operador precisa de uma câmera do setor."}), 400
     if camera_id is not None and db.session.get(Camera, camera_id) is None:
         return jsonify({"error": "Câmera não cadastrada no sistema."}), 400
+    # Senha temporária: o servidor gera e devolve UMA vez, nesta resposta. Só o
+    # hash é gravado (como sempre) e nada disto vai para log. Não há
+    # "trocar no primeiro login" porque o modelo ainda não tem esse marcador.
+    temporaria = payload.get("senha_temporaria") is True
+    if temporaria and payload.get("password"):
+        return jsonify({"error": "Informe a senha ou peça uma senha temporária, não as duas."}), 400
+    senha = AuthService.gerar_senha_temporaria() if temporaria else str(payload.get("password", ""))
     try:
         usuario = AuthService().create_user(
             email=str(payload.get("email", "")),
             name=str(payload.get("name", "")),
-            password=str(payload.get("password", "")),
+            password=senha,
             role=str(payload.get("role", "")),
             camera_id=payload.get("camera_id"),
         )
@@ -107,7 +114,12 @@ def create_user():
         return jsonify({"error": str(exc)}), 400
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify({"user": usuario.to_dict()}), 201
+    corpo = {"user": usuario.to_dict()}
+    resposta = jsonify(corpo | {"senha_temporaria": senha} if temporaria else corpo)
+    if temporaria:
+        resposta.headers["Cache-Control"] = "no-store"
+    resposta.status_code = 201
+    return resposta
 
 
 @auth_bp.patch("/api/users/<int:user_id>")
@@ -123,11 +135,11 @@ def update_user(user_id: int):
     if "role" in payload:
         papel = str(payload["role"])
         if papel not in VALID_ROLES:
-            return jsonify({"error": f"Papel deve ser um de {sorted(VALID_ROLES)}."}), 400
+            return jsonify({"error": "Tipo de conta inválido."}), 400
         # Um supervisor nao pode se rebaixar: se for o ultimo, o sistema fica
         # sem ninguem capaz de gerir usuarios.
         if atual is not None and usuario.id == atual.id and papel != ROLE_SUPERVISOR:
-            return jsonify({"error": "Você não pode alterar o próprio papel."}), 400
+            return jsonify({"error": "Você não pode alterar o próprio tipo de conta."}), 400
         usuario.role = papel
 
     if "name" in payload and str(payload["name"]).strip():
@@ -154,7 +166,7 @@ def update_user(user_id: int):
         # furava, por esta rota, a trava que /api/auth/password impoe.
         if atual is not None and usuario.id == atual.id:
             return jsonify(
-                {"error": "Para trocar a própria senha use POST /api/auth/password (exige a senha atual)."}
+                {"error": "Para trocar a própria senha, use a opção de trocar senha (exige a senha atual)."}
             ), 400
         try:
             AuthService().set_password(usuario, str(payload["password"]))

@@ -7,6 +7,9 @@ import { GateKiosk } from "./components/gate";
 import { AccountsScreen, SupervisorHome } from "./components/accounts";
 import { CameraFocus } from "./components/camera-focus";
 import { CommandPalette } from "./components/command-palette";
+import { TourGuiado } from "./components/tour";
+import { BotaoDeAjuda } from "./components/ajuda";
+import { artigoDaTela } from "./ajuda/artigos";
 import { LoginScreen } from "./components/login";
 import { ScaleProof } from "./components/scale-proof";
 import { AboutScreen } from "./components/about";
@@ -15,6 +18,8 @@ import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
 import { PanelSkeleton } from "./components/common";
+import { AcessoNegado, PaginaNaoEncontrada } from "./components/excecoes";
+import { pluralizar } from "./utils/formato";
 
 // Telas pesadas (three.js) só carregam quando abertas.
 const GemeoScreen = lazy(() => import("./components/gemeo/gemeo-screen"));
@@ -24,6 +29,52 @@ const LigaScreen = lazy(() => import("./components/liga"));
 const PalcoScreen = lazy(() => import("./components/palco"));
 const PalcoControle = lazy(() => import("./components/palco").then((m) => ({ default: m.PalcoControle })));
 const RetrospectivaScreen = lazy(() => import("./components/retrospectiva"));
+const EvacuacaoScreen = lazy(() => import("./components/evacuacao"));
+const TorreScreen = lazy(() => import("./components/torre"));
+const RegrasScreen = lazy(() => import("./components/regras"));
+const PermissoesScreen = lazy(() => import("./components/permissoes"));
+const OnboardingScreen = lazy(() => import("./components/onboarding"));
+const ProdutoScreen = lazy(() => import("./components/produto"));
+const CaixaDeEntradaScreen = lazy(() => import("./components/caixa-de-entrada"));
+const AjudaScreen = lazy(() => import("./components/ajuda"));
+const PaginaStatus = lazy(() => import("./components/pagina-status"));
+const NovidadesScreen = lazy(() => import("./components/novidades"));
+const ConfiguracoesScreen = lazy(() => import("./components/configuracoes"));
+const IntervencoesScreen = lazy(() => import("./components/intervencoes"));
+const BuscaTrilhasScreen = lazy(() => import("./components/busca-trilhas"));
+
+// Marcado no `pagehide`/`beforeunload`: a partir daí, fetch abortado é esperado.
+let saindoDaPagina = false;
+if (typeof window !== "undefined") {
+  const marcar = () => {
+    saindoDaPagina = true;
+  };
+  window.addEventListener("beforeunload", marcar);
+  window.addEventListener("pagehide", marcar);
+}
+
+const PREFIXOS_CONHECIDOS = [
+  "/palco", "/desafio", "/rotular", "/gemeo", "/liga", "/retrospectiva", "/auditoria", "/simulador", "/evacuacao",
+  "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso", "/produto", "/caixa-de-entrada", "/ajuda", "/status", "/novidades", "/configuracoes", "/intervencoes", "/busca",
+];
+
+// Telas de tela cheia que exigem um tipo de conta mínimo (o mesmo que a API
+// exige). Quem não tem o tipo vê "acesso negado" explicado, sem a tela chamar
+// a API e colecionar 403 (crawler da MISSÃO 4).
+const PAPEL_MINIMO: [string, "technical" | "supervisor", string][] = [
+  ["/auditoria", "technical", "a auditoria da cadeia de custódia"],
+  ["/simulador", "technical", "o simulador de regras"],
+  ["/regras", "technical", "o editor de regras"],
+  ["/evacuacao", "technical", "o Modo Evacuação"],
+  ["/rotular", "technical", "a fila de rótulos"],
+  ["/palco", "technical", "o Modo Apresentação"],
+  ["/primeiro-acesso", "supervisor", "o primeiro acesso"],
+  ["/caixa-de-entrada", "supervisor", "a caixa de entrada"],
+  ["/status", "technical", "a página de status"],
+  ["/intervencoes", "technical", "o antes e depois das intervenções"],
+  ["/busca", "technical", "a busca nas trilhas"],
+];
+const NIVEL: Record<string, number> = { operator: 1, technical: 2, supervisor: 3 };
 
 function CarregandoTela() {
   return (
@@ -38,6 +89,18 @@ function CarregandoTela() {
 function SupervisorOverview({ onBack }: { onBack: () => void }) {
   const atalhos: [string, string][] = [
     ["/tv", "Modo TV"],
+    ["/torre", "Torre de luz"],
+    ["/evacuacao", "Evacuação"],
+    ["/regras", "Editor de regras"],
+    ["/permissoes", "Permissões de trabalho"],
+    ["/primeiro-acesso", "Primeiro acesso"],
+    ["/caixa-de-entrada", "Caixa de entrada"],
+    ["/status", "Status do sistema"],
+    ["/configuracoes", "Configurações"],
+    ["/novidades", "Novidades"],
+    ["/intervencoes", "Antes e depois"],
+    ["/busca", "Busca nas trilhas"],
+    ["/relatorio/mensal", "Relatório mensal (CIPA)"],
     ["/gemeo", "Gêmeo digital"],
     ["/liga", "Liga de Setores"],
     ["/palco", "Apresentação"],
@@ -84,7 +147,7 @@ function GridScreen() {
   const noAr = cameras.filter((c) => estados[c.id]?.running).length;
   const incidentes = cameras.reduce((n, c) => n + totalDeIncidentes(estados[c.id]), 0);
   const sub = cameras.length
-    ? `${noAr} de ${cameras.length} no ar, ${incidentes} incidente${incidentes === 1 ? "" : "s"} ativo${incidentes === 1 ? "" : "s"}`
+    ? `${noAr} de ${cameras.length} no ar, ${pluralizar(incidentes, "incidente")} ${incidentes === 1 ? "ativo" : "ativos"}`
     : null;
 
   return (
@@ -156,6 +219,9 @@ export default function App() {
     // falhas continuam como erro no console.
     const carregar = (nome: string, fn: () => Promise<unknown>, tentativa = 0): void => {
       fn().catch((err) => {
+        // Saindo da página (link, recarga): o navegador aborta o fetch em voo.
+        // Não é falha do app nem da rede — nada a registrar (visto no crawler).
+        if (saindoDaPagina) return;
         const rede = err instanceof TypeError && /fetch/i.test(err.message);
         if (rede && ativo && tentativa < 5) {
           console.warn(`[${nome}] rede indisponível, tentando de novo`, err);
@@ -185,6 +251,17 @@ export default function App() {
     );
   }
 
+  // Página pública do produto: sem login, como o controle do palco.
+  if (window.location.pathname.startsWith("/produto")) {
+    return (
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <ProdutoScreen />
+        </Suspense>
+      </main>
+    );
+  }
+
   if (!authChecked) {
     return <div className="login-shell" aria-busy="true" />;
   }
@@ -196,6 +273,36 @@ export default function App() {
     );
   }
 
+  // Endereço que nenhuma tela trata: página 404 desenhada (o servidor já
+  // responde 404 com o shell; ver app/api/status.py).
+  const caminho = window.location.pathname;
+  const conhecida =
+    caminho === "/" || PREFIXOS_CONHECIDOS.some((x) => caminho === x || caminho.startsWith(`${x}/`));
+  if (!conhecida) {
+    return (
+      <main id="conteudo">
+        <PaginaNaoEncontrada endereco={caminho} />
+      </main>
+    );
+  }
+  // "?" contextual nas telas de tela cheia (as do painel têm "Ajuda" na barra superior).
+  // Telas de exibição (palco, TV, torre, portal, retrospectiva) ficam limpas: nada sobre a imagem.
+  const exibicao = ["/palco", "/tv", "/torre", "/portal", "/retrospectiva", "/desafio"].some((x) => caminho.startsWith(x));
+  const artigoDaRota = caminho !== "/" && !exibicao ? artigoDaTela(`/${caminho.split("/")[1]}`) : undefined;
+  const ajudaFlutuante = artigoDaRota ? (
+    <div className="ajuda-flutuante">
+      <BotaoDeAjuda artigo={artigoDaRota} />
+    </div>
+  ) : null;
+  const exigencia = PAPEL_MINIMO.find(([prefixo]) => caminho === prefixo || caminho.startsWith(`${prefixo}/`));
+  if (exigencia && (NIVEL[user.role] ?? 0) < NIVEL[exigencia[1]]) {
+    return (
+      <main id="conteudo">
+        <AcessoNegado papelExigido={exigencia[1]} recurso={exigencia[2]} />
+      </main>
+    );
+  }
+
   // Roteamento por papel: Operador sempre kiosk (trava aplicada em setMode
   // no store, screen já chega como "kiosk"); Técnico/Supervisor navegam
   // entre grid/foco/overview livremente dentro do próprio `screen`.
@@ -203,6 +310,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/desafio")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <DesafioScreen />
       </main>
     );
@@ -210,6 +318,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/rotular")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <RotularScreen />
       </main>
     );
@@ -217,6 +326,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/gemeo")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <GemeoScreen />
         </Suspense>
@@ -226,6 +336,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/palco")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <PalcoScreen />
         </Suspense>
@@ -235,6 +346,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/liga")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <LigaScreen />
         </Suspense>
@@ -244,6 +356,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/retrospectiva")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <RetrospectivaScreen />
         </Suspense>
@@ -253,6 +366,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/auditoria")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <AuditoriaScreen />
         </Suspense>
@@ -262,8 +376,129 @@ export default function App() {
   if (window.location.pathname.startsWith("/simulador")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <SimuladorScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/evacuacao")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <EvacuacaoScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/status")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <PaginaStatus />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/novidades")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <NovidadesScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/configuracoes")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <ConfiguracoesScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/busca")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <BuscaTrilhasScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/intervencoes")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <IntervencoesScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/ajuda")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <AjudaScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/caixa-de-entrada")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <CaixaDeEntradaScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/primeiro-acesso")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <OnboardingScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/permissoes")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <PermissoesScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/regras")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <RegrasScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/torre")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <TorreScreen />
         </Suspense>
       </main>
     );
@@ -271,6 +506,7 @@ export default function App() {
   if (window.location.pathname.startsWith("/tv")) {
     return (
       <main id="conteudo">
+        {ajudaFlutuante}
         <TvScreen />
       </main>
     );
@@ -319,6 +555,7 @@ export default function App() {
   return (
     <div className="shell">
       <CommandPalette />
+      <TourGuiado />
       <Topbar />
       <MessageBar />
       <main id="conteudo">{content}</main>

@@ -54,3 +54,13 @@ O pacote `ultralytics` é **AGPL-3.0** (https://github.com/ultralytics/ultralyti
 |---|---|---|
 | `app/vision/bytetrack/` | `supervision` 0.30.9 (`supervision/tracker/byte_tracker/`), Roboflow | **MIT** — `app/vision/bytetrack/LICENSE.md` |
 | `frontend/src/vendor/qrcodegen.ts` | [QR Code generator library (TypeScript)](https://github.com/nayuki/QR-Code-generator), Project Nayuki — `typescript-javascript/qrcodegen.ts` do branch `master` (baixado em 13/10/2026) | **MIT** — aviso de copyright e licença no cabeçalho do próprio arquivo; única alteração: `export default qrcodegen;` no fim |
+
+## Bibliotecas da integração industrial (MISSÃO 4, M2)
+
+Dependências Python instaladas pelo `requirements.txt`, usadas como pacotes importados, **sem modificação**:
+
+| Pacote | Versão | Licença | Uso |
+|---|---|---|---|
+| [asyncua](https://github.com/FreeOpcUa/opcua-asyncio) | 2.1.0 | **LGPL-3.0-or-later** — [COPYING](https://github.com/FreeOpcUa/opcua-asyncio/blob/master/COPYING). Ao distribuir o produto: aviso de uso da biblioteca e cópia da LGPL/GPL (LGPLv3 §4) | servidor OPC UA |
+| [paho-mqtt](https://github.com/eclipse-paho/paho.mqtt.python) | 2.1.0 | EPL-2.0 **ou** BSD-3-Clause (EDL 1.0) — [LICENSE.txt](https://github.com/eclipse-paho/paho.mqtt.python/blob/master/LICENSE.txt) | publicador MQTT |
+| [amqtt](https://github.com/Yakifo/amqtt) | 0.12.1 | **MIT** — [LICENSE.md](https://github.com/Yakifo/amqtt/blob/main/LICENSE.md) | broker MQTT embutido da demo |

@@ -65,6 +65,7 @@ def semear(app) -> dict[str, Any]:
     from app.extensions import db
     from app.models import Camera, MetaDoSetor, Missao
     from app.services.auth_service import AuthService
+    from app.services.onboarding import marcar_tudo_concluido
 
     with app.app_context():
         cameras: dict[str, Camera] = {}
@@ -106,6 +107,9 @@ def semear(app) -> dict[str, Any]:
         alvo = cameras.get("Portal") or cameras["Canteiro"]
         servico.create_user(email="operador@demo.local", name="Operador da demo", password=senhas["operator"],
                             role="operator", camera_id=alvo.id)
+        # A demo abre direto no Início: o primeiro acesso já vem concluído (o
+        # supervisor ainda pode refazê-lo em /primeiro-acesso).
+        marcar_tudo_concluido(por="demo")
         return {"senhas": senhas, "ao_vivo": ao_vivo, "portal": "webcam" if ao_vivo else ("gravacao" if cam else "canteiro"),
                 "cameras": {n: c.id for n, c in cameras.items()}}
 

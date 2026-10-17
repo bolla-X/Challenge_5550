@@ -4,6 +4,9 @@
 `GET /relatorio/turno?horas=8` — a mesma coisa como página A4 para imprimir/PDF
 (o navegador faz o PDF: Ctrl+P → Salvar como PDF; sem dependência nova).
 
+`GET /api/relatorio/mensal?mes=AAAA-MM` e `GET /relatorio/mensal`: o relatório mensal da CIPA (M10), mesmas
+regras de acesso; os números e a página vêm de `app/services/relatorio_mensal.py`.
+
 Resumo em texto por LLM: OPCIONAL, assíncrono e rotulado. Só existe se a camada
 LLM do projeto estiver ligada e com chave (no backend; nunca no navegador). O
 texto vai marcado como "interpretação gerada" e o relatório não depende dele —
@@ -22,8 +25,11 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from app.models import Alert, Camera, EventLog, utc_now
+from app.services.evacuacao import pasta_dos_relatorios
 from app.services.nr6 import FONTE_NR6, mapear
-from app.utils.auth import camera_scope, login_required
+from app.services.relatorio_mensal import MesInvalido, interpretar_mes, montar_relatorio_mensal, renderizar_html
+from app.utils.auth import camera_scope, exige_setor, login_required
+from app.vision.person_compliance_matcher import PPE_LABELS
 
 relatorio_bp = Blueprint("relatorio", __name__)
 
@@ -104,13 +110,52 @@ def _parametros():
 
 @relatorio_bp.get("/api/relatorio/turno")
 @login_required
+@exige_setor
 def relatorio_json():
     horas, camera_id = _parametros()
     return jsonify(montar_relatorio(horas, camera_id))
 
 
-_NOMES_EPI = {"helmet": "Capacete", "vest": "Colete", "gloves": "Luvas", "glasses": "Óculos", "mask": "Máscara",
-              "safety_shoe": "Calçado", "ear_protection": "Protetor auricular"}
+def _parametros_mensais():
+    """(ano, mes), camera_id e se vê a planta inteira. `MesInvalido` vira 400 na rota."""
+    ano, mes = interpretar_mes(request.args.get("mes"), utc_now())
+    escopo = camera_scope()
+    camera_id = escopo if escopo is not None else request.args.get("camera_id", type=int)
+    return ano, mes, camera_id, escopo is None
+
+
+def _relatorio_mensal() -> dict[str, Any]:
+    ano, mes, camera_id, visao_da_planta = _parametros_mensais()
+    return montar_relatorio_mensal(
+        ano, mes, camera_id=camera_id, visao_da_planta=visao_da_planta, agora=utc_now(),
+        pasta_evacuacoes=pasta_dos_relatorios(current_app),
+        andon=getattr(current_app.extensions.get("monitor_service"), "andon", None))
+
+
+def _mes_invalido():
+    return jsonify({"error": "Informe o mês no formato AAAA-MM (por exemplo, 2026-10).", "code": "mes_invalido"}), 400
+
+
+@relatorio_bp.get("/api/relatorio/mensal")
+@login_required
+@exige_setor
+def relatorio_mensal_json():
+    """Relatório mensal para a CIPA (M10): JSON. Operador só vê o setor dele (mesmo escopo do turno)."""
+    try:
+        return jsonify(_relatorio_mensal())
+    except MesInvalido:
+        return _mes_invalido()
+
+
+@relatorio_bp.get("/relatorio/mensal")
+@login_required
+@exige_setor
+def relatorio_mensal_html():
+    """A mesma coisa como página A4 para imprimir/salvar em PDF."""
+    try:
+        return Response(renderizar_html(_relatorio_mensal()), mimetype="text/html")
+    except MesInvalido:
+        return _mes_invalido()
 
 
 def _secao_nr6(nr6: dict[str, Any]) -> str:
@@ -118,7 +163,7 @@ def _secao_nr6(nr6: dict[str, Any]) -> str:
         return ""
     linhas = []
     for linha in nr6["linhas"]:
-        nome = html.escape(_NOMES_EPI.get(linha["epi"], linha["epi"]))
+        nome = html.escape(PPE_LABELS.get(linha["epi"], linha["epi"]))
         if linha["itens"]:
             itens = "<br>".join(f"<b>{html.escape(i['item'])}</b>: “{html.escape(i['texto'])}”" for i in linha["itens"])
         else:
@@ -132,6 +177,7 @@ def _secao_nr6(nr6: dict[str, Any]) -> str:
 
 @relatorio_bp.get("/relatorio/turno")
 @login_required
+@exige_setor
 def relatorio_html():
     horas, camera_id = _parametros()
     r = montar_relatorio(horas, camera_id)
@@ -186,6 +232,7 @@ def relatorio_html():
 
 @relatorio_bp.post("/api/relatorio/turno/resumo")
 @login_required
+@exige_setor
 def pedir_resumo():
     """Resumo opcional por LLM — assíncrono; GET na mesma rota busca o resultado."""
     horas, camera_id = _parametros()
@@ -221,6 +268,7 @@ def pedir_resumo():
 
 @relatorio_bp.get("/api/relatorio/turno/resumo")
 @login_required
+@exige_setor
 def ver_resumo():
     horas, camera_id = _parametros()
     with _resumos_lock:

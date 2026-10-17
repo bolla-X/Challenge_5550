@@ -164,7 +164,7 @@ export function EnganarIA({ portal }: { portal: PortalState | null }) {
           <dd className="t-data"><Numero valor={placar.enganaram} /></dd>
         </div>
         <div>
-          <dt>Pegas</dt>
+          <dt>IA pegou</dt>
           <dd className="t-data"><Numero valor={placar.pegas} /></dd>
         </div>
         <div>

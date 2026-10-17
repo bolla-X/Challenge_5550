@@ -57,7 +57,7 @@ ROTEIRO: list[dict[str, Any]] = [
      "legenda": "Mudar a regra e ver, antes de aplicar, quantos alertas teriam disparado."},
     {"chave": "liga", "titulo": "Liga de Setores", "ativas": "todas",
      "legenda": "Gamificação só com indicadores positivos. Nunca premia “zero alertas”."},
-    {"chave": "retrospectiva", "titulo": "Retrospectiva", "ativas": "todas", "legenda": "O turno em stories, com dados reais da equipe."},
+    {"chave": "retrospectiva", "titulo": "Retrospectiva", "ativas": "todas", "legenda": "O turno em cartões, com dados reais da equipe."},
     {"chave": "encerramento", "titulo": "Obrigado", "ativas": "todas", "legenda": "Tudo o que você viu roda offline nesta máquina."},
 ]
 

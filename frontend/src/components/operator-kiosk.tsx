@@ -1,3 +1,4 @@
+import { eFalhaDeRede } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { MuteToggle } from "./layout";
@@ -65,7 +66,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
 
   const bannerTitle = !running ? "Monitoramento parado" : primaryAlert ? primaryAlert.message : "Tudo conforme";
   const bannerSub = !running
-    ? "Inicie o monitoramento para começar a receber o feed em tempo real."
+    ? "Inicie o monitoramento para começar a receber a imagem em tempo real."
     : primaryAlert
       ? activeAlerts.length === 1
         ? "Avise o colaborador e registre abaixo."
@@ -76,7 +77,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
     setStarting(true);
     startCamera(camId)
       .then(setStatus)
-      .catch((err) => console.error(err))
+      .catch((err) => !eFalhaDeRede(err) && console.error(err))
       .finally(() => setStarting(false));
   };
 
@@ -157,7 +158,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
             disabled={actionPending !== null}
             onClick={() => {
               setActionPending("fp");
-              markFalsePositive(primaryAlert.id, "Reportado pelo Operador no kiosk").finally(() => setActionPending(null));
+              markFalsePositive(primaryAlert.id, "Reportado pelo Operador no quiosque").finally(() => setActionPending(null));
             }}
           >
             {actionPending === "fp" ? "Enviando…" : "Marcar falso positivo"}

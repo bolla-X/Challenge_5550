@@ -1,7 +1,9 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Mark } from "./brand";
 import { IconeCubo, IconeEscudo, IconeOk } from "./icones";
+import { SessaoExpirada } from "./excecoes";
 
 /**
  * Tela de entrada. Só aparece quando `GET /api/auth/me` responde `user: null`.
@@ -12,6 +14,7 @@ import { IconeCubo, IconeEscudo, IconeOk } from "./icones";
  */
 export function LoginScreen() {
   const login = useDashboardStore((s) => s.login);
+  const sessaoExpirada = useDashboardStore((s) => s.sessaoExpirada);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export function LoginScreen() {
     setErro(null);
     setEnviando(true);
     login(email, senha)
-      .catch((err) => setErro(err instanceof Error ? err.message : "Não foi possível entrar."))
+      .catch((err) => setErro(mensagemDeErro(err, "Não foi possível entrar.")))
       .finally(() => setEnviando(false));
   };
 
@@ -49,6 +52,8 @@ export function LoginScreen() {
         <Mark size={32} />
         <h1>VisionEPI</h1>
         <p className="login-sub">Monitoramento de segurança industrial</p>
+
+        {sessaoExpirada && <SessaoExpirada />}
 
         <label>
           E-mail
@@ -81,11 +86,14 @@ export function LoginScreen() {
           </p>
         )}
 
-        <button type="submit" className="primary block" disabled={enviando || !email || !senha}>
+        <button type="submit" className="primary block" disabled={enviando || !email || !senha} title={!email || !senha ? "Preencha o e-mail e a senha para entrar" : undefined}>
           {enviando ? "Entrando…" : "Entrar"}
         </button>
 
         <p className="login-help">Sem acesso? Peça ao responsável pela segurança do trabalho. Não há cadastro público.</p>
+        <a className="login-produto" href="/produto">
+          Conheça o VisionEPI
+        </a>
       </form>
     </div>
   );

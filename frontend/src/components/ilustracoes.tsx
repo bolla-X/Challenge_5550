@@ -72,6 +72,68 @@ export function IlustracaoGrafico({ className }: Props) {
   );
 }
 
+/** Página que não existe: a planta com um caminho tracejado que termina em lugar nenhum. */
+export function IlustracaoCaminhoPerdido({ className }: Props) {
+  return (
+    <svg {...COMUM} className={`ilustracao ${className ?? ""}`}>
+      <rect x="18" y="18" width="124" height="76" rx="8" className="tr fino" />
+      <path d="M36 74c14 0 18-22 32-22s14 14 28 14" className="tr tracejado" />
+      <circle cx="36" cy="74" r="3.5" className="tr" />
+      <circle cx="112" cy="62" r="11" className="tr tracejado" />
+      <circle cx="112" cy="62" r="3" className="destaque" />
+    </svg>
+  );
+}
+
+/** Tela que falhou ao desenhar: o painel rachado por um traço de interrupção. */
+export function IlustracaoTelaComFalha({ className }: Props) {
+  return (
+    <svg {...COMUM} className={`ilustracao ${className ?? ""}`}>
+      <rect x="30" y="20" width="100" height="64" rx="10" className="tr" />
+      <path d="M62 94h36M80 84v10" className="tr fino" />
+      <path d="M86 20l-10 18 14 8-10 22" className="destaque-traco" />
+    </svg>
+  );
+}
+
+/** Sem rede: três arcos de sinal e o corte na diagonal. */
+export function IlustracaoSemSinal({ className }: Props) {
+  return (
+    <svg {...COMUM} className={`ilustracao ${className ?? ""}`}>
+      <path d="M40 54a56 56 0 0 1 80 0" className="tr fino" />
+      <path d="M54 68a36 36 0 0 1 52 0" className="tr" />
+      <path d="M68 82a16 16 0 0 1 24 0" className="tr" />
+      <circle cx="80" cy="94" r="3" className="destaque" />
+      <path d="M46 24l68 76" className="destaque-traco" />
+    </svg>
+  );
+}
+
+/** Sessão que acabou: relógio com o ponteiro parado perto do fim. */
+export function IlustracaoSessao({ className }: Props) {
+  return (
+    <svg {...COMUM} className={`ilustracao ${className ?? ""}`}>
+      <circle cx="80" cy="56" r="34" className="tr" />
+      <path d="M80 30v4M80 78v4M54 56h4M102 56h4" className="tr fino" />
+      <path d="M80 56V38" className="tr" />
+      <path d="M80 56l14 8" className="destaque-traco" />
+      <circle cx="80" cy="56" r="3" className="destaque" />
+    </svg>
+  );
+}
+
+/** Acesso negado: cadeado fechado, com a chave de outro tipo de conta. */
+export function IlustracaoCadeado({ className }: Props) {
+  return (
+    <svg {...COMUM} className={`ilustracao ${className ?? ""}`}>
+      <rect x="52" y="48" width="56" height="42" rx="9" className="tr" />
+      <path d="M64 48V38a16 16 0 0 1 32 0v10" className="tr" />
+      <circle cx="80" cy="66" r="4" className="destaque" />
+      <path d="M80 70v8" className="destaque-traco" />
+    </svg>
+  );
+}
+
 /** Fila de recortes vazia: cartões empilhados. */
 export function IlustracaoFila({ className }: Props) {
   return (

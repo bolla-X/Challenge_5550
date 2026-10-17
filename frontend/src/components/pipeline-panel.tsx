@@ -1,6 +1,8 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { Panel, PanelSkeleton } from "./common";
 import { estatisticasDoVideo } from "./live-video";
+import { decimal, pluralizar } from "../utils/formato";
 
 /**
  * Painel de diagnóstico de engenharia (F5): de onde vem cada milissegundo.
@@ -37,8 +39,8 @@ const GRUPOS: { titulo: string; etapas: [string, string][] }[] = [
     etapas: [
       ["inferencia_epi", "Modelo de EPI"],
       ["inferencia_pessoa", "Modelo de pessoa"],
-      ["inferencia_pose", "Pose (multi-pessoa)"],
-      ["tracking", "Tracking"],
+      ["inferencia_pose", "Pose (várias pessoas)"],
+      ["tracking", "Rastreamento"],
       ["filtro_epi", "EPI ↔ pessoa"],
       ["pose", "Esqueleto por pessoa"],
     ],
@@ -49,8 +51,8 @@ const GRUPOS: { titulo: string; etapas: [string, string][] }[] = [
       ["regras", "Regras"],
       ["alertas", "Histerese / alertas"],
       ["conformidade", "Conformidade"],
-      ["replay", "Buffer de replay"],
-      ["emissao", "Socket"],
+      ["replay", "Memória do replay"],
+      ["emissao", "Envio em tempo real"],
     ],
   },
   {
@@ -65,7 +67,7 @@ const GRUPOS: { titulo: string; etapas: [string, string][] }[] = [
 
 function ms(v: number | null | undefined): string {
   if (v == null) return "sem dado";
-  return v >= 100 ? `${Math.round(v)} ms` : `${v.toFixed(1)} ms`;
+  return v >= 100 ? `${Math.round(v)} ms` : `${decimal(v)} ms`;
 }
 
 export function PipelinePanel({ cameraId }: { cameraId: number }) {
@@ -77,9 +79,9 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
     let vivo = true;
     const atualizar = () => {
       fetch("/api/diagnostics/pipeline?janela_s=10", { credentials: "same-origin" })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Falha ao carregar o diagnóstico."))))
         .then((d: Diag) => vivo && (setDiag(d), setErro(null)))
-        .catch((e: Error) => vivo && setErro(e.message));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
       setVideo(estatisticasDoVideo(cameraId));
     };
     atualizar();
@@ -96,7 +98,7 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
   const maior = Math.max(1, ...Object.values(etapas).map((e) => e.p95 ?? 0).filter((v) => v < 60_000));
 
   return (
-    <Panel id="panel-pipeline" title="Diagnóstico do pipeline" description="Medido no próprio loop, janela de 10 s. p50 na barra cheia, p95 no traço.">
+    <Panel id="panel-pipeline" title="Diagnóstico do processamento" description="Medido no próprio loop, janela de 10 s. p50 na barra cheia, p95 no traço.">
       {erro && <p className="status-text error">{erro}</p>}
       {!cam ? (
         diag ? <p className="status-text">Câmera parada ou sem dados ainda.</p> : <PanelSkeleton lines={3} />
@@ -143,7 +145,7 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
                 <span className="pipe-rotulo">{nome === "epi" ? "EPI" : nome === "pessoa" ? "Pessoa" : "Pose"}</span>
                 <span className="pipe-num t-data">
                   {(m.runtime ?? "?").toUpperCase()}
-                  {m.dispositivo ? ` em ${m.dispositivo}` : ""} · imgsz {m.imgsz ?? "?"} · {m.caminho?.split(/[\\/]/).pop()}
+                  {m.dispositivo ? ` em ${m.dispositivo}` : ""} · imagem {m.imgsz ?? "?"} px ·{m.caminho?.split(/[\\/]/).pop()}
                 </span>
               </div>
             ))}
@@ -158,8 +160,8 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
             <div className="pipe-linha">
               <span className="pipe-rotulo">Câmera</span>
               <span className="pipe-num t-data">
-                fonte {cam.fonte_fps ? `${cam.fonte_fps.toFixed(1)} fps` : "?"} · alvo {cam.alvo_fps} fps · detectar a cada {cam.detectar_a_cada_n} ·{" "}
-                {cam.espectadores} espectador(es) · agendador {diag?.agendador?.modo ?? "síncrono"}
+                fonte {cam.fonte_fps ? `${decimal(cam.fonte_fps)} fps` : "?"} · alvo {cam.alvo_fps} fps · detectar a cada {cam.detectar_a_cada_n} ·{" "}
+                {pluralizar(cam.espectadores, "espectador", "espectadores")} · agendador {diag?.agendador?.modo ?? "síncrono"}
               </span>
             </div>
           </section>
@@ -172,7 +174,7 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
 function Kpi({ rotulo, valor, texto }: { rotulo: string; valor?: number | null; texto?: string }) {
   return (
     <div className="pipe-kpi">
-      <span className="pipe-kpi-valor t-data">{texto ?? (valor == null ? "sem dado" : valor.toFixed(1))}</span>
+      <span className="pipe-kpi-valor t-data">{texto ?? (valor == null ? "sem dado" : decimal(valor))}</span>
       <span className="pipe-kpi-rotulo">{rotulo}</span>
     </div>
   );

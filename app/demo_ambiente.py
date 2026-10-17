@@ -98,6 +98,10 @@ def preparar_ambiente() -> None:
         "ROTULOS_DIR": str(PASTA / "rotulos"),
         "TRILHAS_DIR": str(PASTA / "trilhas"),
         "RTSP_FIXTURE_FALLBACK": "",
+        # M2: a demo mostra a integração industrial offline (OPC UA + broker MQTT embutido).
+        "OPCUA_ATIVO": os.environ.get("OPCUA_ATIVO", "true"),
+        "MQTT_ATIVO": os.environ.get("MQTT_ATIVO", "true"),
+        "MQTT_BROKER_EMBUTIDO": os.environ.get("MQTT_BROKER_EMBUTIDO", "true"),
         "DEFAULT_FEATURES": "ppe,helmet,vest,gloves,glasses,mask,safety_shoe,ear_protection,"
                             "pose,falls,posture,risk_area,sos,ergonomia,imobilidade",
     })

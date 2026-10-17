@@ -1,0 +1,104 @@
+/* PRIMEIRO ACESSO (MISSÃO 4, Fase 3). Só tokens de tokens.css; cor só para estado:
+   --ok no que o sistema encontrou, --danger no erro e no aviso da senha, --accent
+   no que é interação (botão primário, passo atual, barra de progresso). */
+
+.onb { display: grid; gap: var(--s5); max-width: 1040px; }
+.onb .card + .card { margin-top: 0; }
+
+/* progresso */
+.onb-progresso-bloco { display: grid; gap: var(--s2); }
+.onb-progresso { height: 8px; border-radius: var(--r-chip); background: var(--sunken); overflow: hidden; }
+.onb-progresso-preenchido {
+  height: 100%; border-radius: var(--r-chip); background: var(--accent);
+  transition: width var(--d-panel) var(--ease-out);
+}
+.onb-progresso-texto { margin: 0; font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* trilha de passos + passo atual */
+.onb-corpo { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--s5); align-items: start; }
+.onb-trilha ol { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.onb-trilha-item {
+  display: flex; align-items: center; gap: var(--s3); width: 100%; height: auto; min-height: 56px;
+  padding: var(--s3) var(--s3); text-align: left; white-space: normal; font-weight: 400;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-control);
+}
+.onb-trilha-item.atual { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.onb-trilha-numero {
+  flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-chip);
+  background: var(--sunken); color: var(--text); font-size: var(--t-footnote); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.onb-trilha-texto { display: grid; justify-items: start; gap: var(--s1); min-width: 0; }
+.onb-trilha-texto strong { font-size: var(--t-callout); font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+
+.onb-passo { display: grid; gap: var(--s4); padding: var(--s5); align-content: start; }
+.onb-sobretitulo { margin: 0; font-size: var(--t-footnote); letter-spacing: var(--t-caption-tr); color: var(--text-2); }
+.onb-passo h2, .onb-concluido h2 { margin: 0; font-size: var(--t-title-2); line-height: var(--t-title-2-lh); letter-spacing: var(--t-title-2-tr); font-weight: 600; }
+.onb-porque { margin: 0; max-width: 62ch; font-size: var(--t-body); line-height: var(--t-body-lh); color: var(--text); }
+.onb-dica { margin: 0; max-width: 62ch; font-size: var(--t-callout); line-height: var(--t-callout-lh); color: var(--text-2); }
+.onb-acao { display: grid; justify-items: start; gap: var(--s3); }
+.onb-acoes { display: flex; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--hairline); }
+.onb-acoes .primary { margin-left: auto; }
+
+/* o que o sistema encontrou */
+.onb-detectado {
+  display: flex; align-items: center; gap: var(--s2); margin: 0; padding: var(--s3) var(--s4);
+  border-radius: var(--r-control); background: var(--sunken); color: var(--text); font-size: var(--t-callout);
+}
+.onb-detectado.ok { background: var(--tint-ok); }
+.onb-marca { flex: none; display: inline-flex; }
+.onb-marca.ok, .onb-detectado.ok .onb-marca { color: var(--ok); }
+.onb-marca.pendente { color: var(--text-2); }
+
+/* checklist "pronto para operar" */
+.onb-pronto { display: grid; gap: var(--s3); }
+.onb-pronto-titulo { margin: 0; font-size: var(--t-body); font-weight: 600; color: var(--text); }
+.onb-pronto-titulo.ok { color: var(--ok); }
+.onb-itens { list-style: none; margin: 0; padding: 0; display: grid; }
+.onb-itens li { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) 0; }
+.onb-itens li + li { border-top: 1px solid var(--hairline); }
+.onb-item-texto { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.onb-item-texto strong { font-size: var(--t-callout); font-weight: 500; color: var(--text); }
+.onb-item-texto span { font-size: var(--t-footnote); color: var(--text-2); overflow-wrap: anywhere; }
+.onb-item-estado { flex: none; font-size: var(--t-footnote); font-weight: 600; color: var(--text-2); }
+.onb-itens li[data-ok="1"] .onb-item-estado { color: var(--ok); }
+
+/* criar conta com senha temporária */
+.onb-conta { display: grid; gap: var(--s4); }
+.onb-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s3); align-items: end; }
+.onb-form .onb-falha, .onb-form-acoes { grid-column: 1 / -1; }
+.onb-form small { font-size: var(--t-footnote); color: var(--text-2); }
+.onb-senha {
+  display: grid; gap: var(--s2); justify-items: start; padding: var(--s4); border-radius: var(--r-control);
+  background: var(--sunken); border: 1px solid var(--control-line);
+}
+.onb-senha-titulo { margin: 0; font-size: var(--t-callout); font-weight: 600; color: var(--text); }
+.onb-senha-ajuda { margin: 0; font-size: var(--t-footnote); color: var(--text-2); }
+.onb-senha-linha { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); }
+.onb-senha-valor {
+  padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--surface);
+  border: 1px solid var(--hairline); font-family: var(--font-mono); font-size: var(--t-body);
+  color: var(--text); letter-spacing: .02em; user-select: all; overflow-wrap: anywhere;
+}
+.onb-senha-aviso { margin: 0; font-size: var(--t-callout); line-height: var(--t-callout-lh); color: var(--danger); }
+.onb-senha-aviso strong { font-weight: 600; }
+
+/* concluído, erro, falha */
+.onb-concluido { display: grid; gap: var(--s4); padding: var(--s5); max-width: 760px; }
+.onb-concluido p { margin: 0; color: var(--text); }
+.onb-falha {
+  margin: 0; padding: var(--s3) var(--s4); border-radius: var(--r-control);
+  background: var(--tint-danger); color: var(--text); font-size: var(--t-callout); font-weight: 500;
+}
+.onb-erro { display: grid; justify-items: start; gap: var(--s3); padding: var(--s4); border-radius: var(--r-control); background: var(--tint-danger); }
+.onb-erro p { margin: 0; color: var(--text); }
+
+@media (max-width: 760px) {
+  .onb-corpo { grid-template-columns: minmax(0, 1fr); }
+  .onb-trilha ol { grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); overflow-x: auto; padding-bottom: var(--s1); }
+  .onb-passo, .onb-concluido { padding: var(--s4); }
+  .onb-acoes .primary { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onb-progresso-preenchido { transition: none; }
+}

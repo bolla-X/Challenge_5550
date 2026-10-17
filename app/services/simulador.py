@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from app.services.alert_state_service import AlertStateService
 
@@ -76,7 +76,7 @@ def dentro(ponto: tuple[float, float], poligono: tuple[tuple[float, float], ...]
     for i in range(len(poligono)):
         xi, yi = poligono[i]
         xj, yj = poligono[j]
-        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / max(yj - yi, 1e-12) + xi):
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi):
             dentro_ = not dentro_
         j = i
     return dentro_
@@ -112,6 +112,18 @@ def violacoes(registro: dict[str, Any], p: Parametros) -> dict[tuple[str, str, A
 
 
 def simular(registros: Iterable[dict[str, Any]], p: Parametros) -> Resultado:
+    return simular_com(registros, lambda registro: violacoes(registro, p), p)
+
+
+def simular_com(
+    registros: Iterable[dict[str, Any]],
+    violacoes_do_registro: Callable[[dict[str, Any]], dict[tuple[str, str, Any], bool]],
+    p: Parametros,
+) -> Resultado:
+    """Histerese do AlertStateService sobre as violações que `violacoes_do_registro`
+    extrai de cada registro. `simular` usa as de EPI/zona; o editor de regras
+    (app/services/regras_editor.py) injeta as da regra que está sendo testada —
+    a confirmação, a resolução e a contagem de incidentes são as mesmas."""
     estados: dict[tuple[str, str, Any], _Estado] = {}
     resultado = Resultado()
     pessoas: set[Any] = set()
@@ -120,7 +132,7 @@ def simular(registros: Iterable[dict[str, Any]], p: Parametros) -> Resultado:
     for registro in registros:
         resultado.registros += 1
         agora = float(registro["t"])
-        atuais = violacoes(registro, p)
+        atuais = violacoes_do_registro(registro)
         pessoas.update(pid for pid, *_ in (registro.get("p") or []))
         for chave, na_zona in atuais.items():
             e = estados.setdefault(chave, _Estado())

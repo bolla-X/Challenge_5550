@@ -40,12 +40,12 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
     — (None, 200) se tudo certo. Compartilhado entre create/update pra não
     duplicar as mesmas regras em dois lugares e um dia divergir."""
     if not isinstance(payload, dict):
-        return "Payload inválido: esperado um objeto JSON.", 400
+        return "Dados inválidos.", 400
 
     if is_create or "name" in payload:
         name = str(payload.get("name", "")).strip()
         if not name:
-            return "'name' é obrigatório.", 400
+            return "Informe o nome da câmera.", 400
         camera.name = name[:120]
 
     if "location" in payload:
@@ -55,7 +55,7 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
     if is_create or "source_type" in payload:
         source_type = str(payload.get("source_type", camera.source_type or "USB")).strip()
         if source_type not in VALID_SOURCE_TYPES:
-            return f"'source_type' deve ser um de {sorted(VALID_SOURCE_TYPES)}.", 400
+            return "Tipo de fonte inválido.", 400
         camera.source_type = source_type
 
     if camera.source_type == "Celular":
@@ -66,7 +66,7 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
     elif is_create or "source" in payload:
         source = str(payload.get("source", "")).strip()
         if not source:
-            return "'source' é obrigatório (índice USB, URL RTSP ou caminho de arquivo).", 400
+            return "Informe a fonte: índice USB, URL RTSP ou caminho do arquivo.", 400
         # A API DEVOLVE a URL com a credencial redigida (Camera.to_dict), e o
         # formulario do frontend e preenchido com esse valor. Salvar sem editar
         # mandaria `rtsp://***@host` de volta; sobrescrever a credencial real
@@ -74,7 +74,7 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
         # redigido chegando num UPDATE significa "nao mexi na fonte".
         if MARCA_DE_REDACAO in source:
             if is_create:
-                return "'source' contém a marca de redação (***). Informe a URL real.", 400
+                return "A fonte contém a marca de redação (***). Informe a URL real.", 400
         else:
             camera.source = source[:255]
 
@@ -82,28 +82,28 @@ def _validate_and_apply(camera: Camera, payload: dict, *, is_create: bool) -> tu
         try:
             fps = int(payload["fps"])
         except (TypeError, ValueError):
-            return "'fps' deve ser um número inteiro.", 400
+            return "O FPS deve ser um número inteiro.", 400
         camera.fps = max(1, min(60, fps))
 
     if "width" in payload:
         try:
             camera.width = max(160, min(3840, int(payload["width"])))
         except (TypeError, ValueError):
-            return "'width' deve ser um número inteiro.", 400
+            return "A largura deve ser um número inteiro.", 400
 
     if "height" in payload:
         try:
             camera.height = max(120, min(2160, int(payload["height"])))
         except (TypeError, ValueError):
-            return "'height' deve ser um número inteiro.", 400
+            return "A altura deve ser um número inteiro.", 400
 
     if "rotation" in payload:
         try:
             rotation = int(payload["rotation"])
         except (TypeError, ValueError):
-            return "'rotation' deve ser um número inteiro.", 400
+            return "A orientação deve ser um número inteiro.", 400
         if rotation not in (0, 90, 180, 270):
-            return "'rotation' deve ser um de [0, 90, 180, 270].", 400
+            return "A orientação deve ser 0, 90, 180 ou 270 graus.", 400
         camera.rotation = rotation
 
     if "enabled" in payload:
@@ -484,6 +484,33 @@ def camera_mapa_de_calor(camera_id: int):
         return jsonify({"error": "câmera sem worker ativo"}), 409
 
 
+@cameras_bp.get("/api/cameras/<int:camera_id>/saude-visual")
+@login_required
+def camera_saude_visual(camera_id: int):
+    """Saúde visual da câmera (M1): obstruída, movida, escura, ofuscada, desfocada ou OK."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify(monitor.worker_da_camera(camera_id).saude_visual_estado() | {"camera_id": camera_id})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.post("/api/cameras/<int:camera_id>/saude-visual/referencia")
+@require_role(ROLE_TECHNICAL)
+def camera_redefinir_referencia(camera_id: int):
+    """"Esta é a imagem certa agora": nova referência para obstrução/movimento (técnico ou acima)."""
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        estado = monitor.worker_da_camera(camera_id).redefinir_referencia_visual()
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 409
+    return jsonify(estado | {"camera_id": camera_id})
+
+
 @cameras_bp.patch("/api/cameras/<int:camera_id>/privacidade")
 @require_role(ROLE_SUPERVISOR)
 def camera_privacidade(camera_id: int):
@@ -632,7 +659,7 @@ def get_camera_risk_area(camera_id: int):
 def put_camera_risk_area(camera_id: int):
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return _validation_error("Payload inválido: esperado um objeto JSON.")
+        return _validation_error("Dados inválidos.")
     monitor = current_app.extensions["monitor_service"]
     try:
         return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})

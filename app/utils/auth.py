@@ -106,7 +106,7 @@ def require_role(minimo: str, *, sempre: bool = False) -> Callable[..., Any]:
                 return (
                     jsonify(
                         {
-                            "error": "Seu perfil não permite esta ação.",
+                            "error": "Seu tipo de conta não permite esta ação.",
                             "code": "forbidden",
                             "required_role": minimo,
                             "your_role": usuario.role,
@@ -157,6 +157,24 @@ def _operador_sem_setor() -> bool:
         return False
     usuario = current_user()
     return usuario is not None and usuario.role == ROLE_OPERATOR and usuario.camera_id is None
+
+
+def exige_setor(view: Callable[..., Any]) -> Callable[..., Any]:
+    """Listagens do PARQUE (gêmeo, TV, risco, relatório): operador sem setor não vê nada.
+
+    `camera_scope()` devolve None tanto para quem vê tudo (Técnico/Supervisor)
+    quanto para o Operador ainda sem câmera — e seis rotas tomavam esse None por
+    "parque inteiro" (matriz de permissões, MISSÃO 4). Use depois de
+    `login_required`; o filtro do Operador COM setor segue no corpo da rota.
+    """
+
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if _operador_sem_setor():
+            return erro_fora_do_escopo()
+        return view(*args, **kwargs)
+
+    return wrapper
 
 
 def escopo_ou_erro():

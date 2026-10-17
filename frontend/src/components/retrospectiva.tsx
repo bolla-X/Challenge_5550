@@ -1,6 +1,8 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { PanelSkeleton } from "./common";
+import { decimal } from "../utils/formato";
 
 /**
  * Retrospectiva da Segurança (X7), estilo "stories": um card por vez, com
@@ -10,6 +12,8 @@ import { PanelSkeleton } from "./common";
 
 export type Cartao = { chave: string; titulo: string; valor: number | string; unidade: string; detalhe: string };
 const zerado = (c: Cartao) => c.valor === 0 || c.valor === "0";
+// Número com vírgula decimal (pt-BR): "1,5 h", não "1.5 h". Texto passa como veio.
+const valorDoCartao = (c: Cartao): string => (typeof c.valor === "number" ? decimal(c.valor, Number.isInteger(c.valor) ? 0 : 1) : c.valor);
 
 type Retro = { periodo: string; titulo: string; inicio: string; fim: string; cards: Cartao[] };
 
@@ -63,7 +67,7 @@ export function exportarPng(cartao: Cartao, retro: { titulo: string }, indice: n
   ctx.fillStyle = t.texto;
   ctx.font = `600 64px ${fonte}`;
   quebrar(ctx, cartao.titulo, W - 120).forEach((l, i) => ctx.fillText(l, 60, 300 + i * 76));
-  const valor = `${cartao.valor}${cartao.unidade ? ` ${cartao.unidade}` : ""}`;
+  const valor = `${valorDoCartao(cartao)}${cartao.unidade ? ` ${cartao.unidade}` : ""}`;
   ctx.font = `700 ${String(valor).length > 8 ? 150 : 240}px ${fonte}`;
   ctx.fillStyle = t.acento;
   ctx.fillText(valor, 52, 720);
@@ -87,7 +91,7 @@ function useRetro(periodo: string) {
       })
       // Cartões com dado do período primeiro; os ainda zerados vão para o fim (continuam lá, sem esconder).
       .then((d) => setRetro({ ...d, cards: [...d.cards].sort((a, b) => Number(zerado(a)) - Number(zerado(b))) }))
-      .catch((e) => setErro(e instanceof Error ? e.message : "falha"));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a retrospectiva.")));
   }, [periodo]);
   useEffect(carregar, [carregar]);
   return { retro, erro, carregar };
@@ -167,16 +171,16 @@ export function RetrospectivaStories({ periodo = "turno", onFechar, autoplay = t
           </span>
         ))}
       </div>
-      <article key={cartao.chave} className={`retro-card ${reduzir ? "" : "entra"}`} aria-roledescription="story" aria-label={`${indice + 1} de ${total}: ${cartao.titulo}`} data-testid="retro-card" data-chave={cartao.chave}>
+      <article key={cartao.chave} className={`retro-card ${reduzir ? "" : "entra"}`} aria-roledescription="cartão" aria-label={`${indice + 1} de ${total}: ${cartao.titulo}`} data-testid="retro-card" data-chave={cartao.chave}>
         <p className="retro-kicker">{retro.titulo}</p>
         <h2>{cartao.titulo}</h2>
         <p className="retro-valor t-data">
-          {cartao.valor}
-          {cartao.unidade && <span className="retro-unidade"> {cartao.unidade}</span>}
+          {valorDoCartao(cartao)}
+          {cartao.unidade &&<span className="retro-unidade"> {cartao.unidade}</span>}
         </p>
         <p className="retro-detalhe">{cartao.detalhe}</p>
-        <button type="button" className="retro-zona anterior" aria-label="Card anterior" onClick={() => ir(-1)} />
-        <button type="button" className="retro-zona proxima" aria-label="Próximo card" onClick={() => ir(1)} />
+        <button type="button" className="retro-zona anterior" aria-label="Cartão anterior" onClick={() => ir(-1)} />
+        <button type="button" className="retro-zona proxima" aria-label="Próximo cartão" onClick={() => ir(1)} />
       </article>
       <div className="retro-acoes">
         <button type="button" className="ghost small" onClick={() => setPausado((p) => !p)}>

@@ -1,10 +1,13 @@
+import { eFalhaDeRede } from "../utils/erros";
+import { mensagemDeErro } from "../utils/erros";
 import { create } from "zustand";
 import { flushSync } from "react-dom";
 import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
 import { calarFala, falarAlerta } from "../audio/fala";
-import { avisarAlertaCritico } from "../pwa";
+import { avisarAlertaCritico, avisarEscalonamento } from "../pwa";
+import { consumirRetorno, EVENTO_SESSAO_EXPIRADA, guardarRetorno, rotaAtual } from "../utils/sessao";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
   getFeatures,
@@ -77,6 +80,8 @@ interface DashboardState {
   // `mode` deixa de ser um seletor na topbar: é o PAPEL da pessoa logada.
   user: AuthUser | null;
   authChecked: boolean;
+  /** true depois que uma chamada devolveu 401 com a pessoa logada; a tela de login avisa. */
+  sessaoExpirada: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
@@ -354,9 +359,13 @@ export const useDashboardStore = create<DashboardState>()(
     (set) => ({
       user: null,
       authChecked: false,
+      sessaoExpirada: false,
       login: async (email, password) => {
         const res = await apiLogin(email, password);
         aplicarSessao(res.user);
+        // Sessão que expirou: volta para o endereço em que a pessoa estava.
+        const retorno = consumirRetorno();
+        if (retorno && retorno !== rotaAtual()) window.location.assign(retorno);
       },
       logout: async () => {
         try {
@@ -518,8 +527,11 @@ export const useDashboardStore = create<DashboardState>()(
             "loadCameras",
           );
         } catch (error) {
-          console.error("[loadCameras] failed", error);
           set({ camerasLoading: false }, false, "loadCameras:error");
+          // Falha de rede sobe para quem chamou (App.tsx tenta de novo em 2 s);
+          // engolir aqui fazia toda navegação virar "erro" no console.
+          if (eFalhaDeRede(error)) throw error;
+          console.error("[loadCameras] failed", error);
         }
       },
       setScreen: (screen) => comTransicao(() => set({ screen }, false, "setScreen")),
@@ -666,14 +678,14 @@ export const useDashboardStore = create<DashboardState>()(
       },
       updateSettings: async (updates) => {
         const res = await apiPatchSettings(updates);
-        set({ settings: res.settings, message: { text: "Configurações runtime salvas.", tone: "ok" } }, false, "updateSettings");
+        set({ settings: res.settings, message: { text: "Configurações salvas.", tone: "ok" } }, false, "updateSettings");
       },
       updateRiskArea: async (payload) => {
         try {
           const res = await apiPatchRiskArea(payload, useDashboardStore.getState().camId);
-          set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada no backend.", tone: "ok" } }, false, "updateRiskArea");
+          set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada.", tone: "ok" } }, false, "updateRiskArea");
         } catch (error) {
-          set({ message: { text: error instanceof Error ? error.message : "Falha ao salvar área de risco.", tone: "error" } }, false, "updateRiskArea:error");
+          set({ message: { text: mensagemDeErro(error, "Falha ao salvar área de risco."), tone: "error" } }, false, "updateRiskArea:error");
           throw error;
         }
       },
@@ -683,7 +695,7 @@ export const useDashboardStore = create<DashboardState>()(
           resolveAlert(res.alert);
           set({ message: { text: "Alerta marcado como falso positivo.", tone: "ok" } }, false, "markFalsePositive");
         } catch (error) {
-          set({ message: { text: error instanceof Error ? error.message : "Falha ao marcar falso positivo.", tone: "error" } }, false, "markFalsePositive:error");
+          set({ message: { text: mensagemDeErro(error, "Falha ao marcar falso positivo."), tone: "error" } }, false, "markFalsePositive:error");
         }
       },
       acknowledgeAlert: async (alertId, note) => {
@@ -692,7 +704,7 @@ export const useDashboardStore = create<DashboardState>()(
           upsertActiveAlert(res.alert);
           set({ message: { text: "Registrado: colaborador avisado.", tone: "ok" } }, false, "acknowledgeAlert");
         } catch (error) {
-          set({ message: { text: error instanceof Error ? error.message : "Falha ao registrar o aviso.", tone: "error" } }, false, "acknowledgeAlert:error");
+          set({ message: { text: mensagemDeErro(error, "Falha ao registrar o aviso."), tone: "error" } }, false, "acknowledgeAlert:error");
         }
       },
     }),
@@ -736,6 +748,23 @@ function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean
 }
 
 /**
+ * Sessão expirada (`api/client.ts` avisa quando uma chamada autenticada devolve
+ * 401). Só vale com alguém logado: guarda o endereço para voltar depois do
+ * login, derruba o socket e zera o estado de conta como o logout faz (no mesmo
+ * terminal, a próxima pessoa não vê o que era da anterior). Várias chamadas em
+ * voo podem devolver 401 juntas: a segunda já encontra `user` nulo e sai.
+ */
+function aoExpirarASessao() {
+  if (!useDashboardStore.getState().user) return;
+  guardarRetorno();
+  socket.disconnect();
+  useDashboardStore.setState({ ...ESTADO_LIMPO, user: null, authChecked: true, sessaoExpirada: true }, false, "sessao:expirada");
+}
+if (typeof window !== "undefined") {
+  window.addEventListener(EVENTO_SESSAO_EXPIRADA, aoExpirarASessao);
+}
+
+/**
  * Aplica a sessão recém-obtida ao estado.
  *
  * O papel define o modo — quem entra como operador cai no kiosk. E a câmera do
@@ -743,7 +772,7 @@ function belongsToFocusedCamera(payload: { camera_id?: number | null }): boolean
  * o antigo seletor "simular setor" da topbar.
  */
 function aplicarSessao(user: AuthUser) {
-  useDashboardStore.setState({ user, authChecked: true }, false, "sessao:aplicar");
+  useDashboardStore.setState({ user, authChecked: true, sessaoExpirada: false }, false, "sessao:aplicar");
   useDashboardStore.getState().setMode(user.role);
   if (user.camera_id != null) {
     useDashboardStore.getState().setOperatorCam(user.camera_id);
@@ -921,6 +950,16 @@ export function subscribeToServerEvents(): () => void {
     if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
   });
   on("alert_resolved", resolveAlert);
+  // M7: crítico sem reconhecimento além do prazo. Nível 1 avisa a SUPERVISÃO (aviso local do PWA + mensagem na tela);
+  // o nível 2 só acende a torre e a TV (via /api/integracao/estado, campo `escalonado`), sem aviso aqui.
+  on("escalonamento", (evento) => {
+    const estado = useDashboardStore.getState();
+    if (evento.nivel !== 1 || (estado.user && estado.user.role !== "supervisor")) return;
+    const camera = estado.cameras.find((c) => c.id === evento.camera_id)?.name;
+    avisarEscalonamento(evento, camera);
+    const minutos = Math.max(1, Math.round(evento.segundos_sem_reconhecer / 60));
+    estado.showMessage(`Alerta crítico sem reconhecimento há ${minutos} min${camera ? ` em ${camera}` : ""}.`, "warning");
+  });
 
   if (!socket.connected) socket.connect();
 
@@ -939,7 +978,7 @@ export function subscribeToServerEvents(): () => void {
   const trendInterval = setInterval(() => {
     getRiskTrend()
       .then((riskTrend) => set({ riskTrend }, false, "trend:refresh"))
-      .catch((err) => console.error("[risk-trend] refresh failed", err));
+      .catch((err) => !eFalhaDeRede(err) && console.error("[risk-trend] refresh failed", err));
   }, 5 * 60 * 1000);
   teardown.push(() => clearInterval(trendInterval));
 

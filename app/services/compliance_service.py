@@ -4,6 +4,7 @@ from typing import Any
 
 from app.services.feature_manager import FeatureManager
 from app.services.risk_rules import RuleEngine, RuleEvaluation
+from app.utils.texto import pluralizar
 from app.vision.person_compliance_matcher import PPE_LABELS
 from app.vision.schemas import Detection, PoseResult
 
@@ -53,10 +54,10 @@ class ComplianceService:
         for key, label in PPE_LABELS.items():
             if not self.feature_manager.is_enabled("ppe") or not self.feature_manager.is_enabled(key):
                 status = "disabled"
-                message = "Feature desativada"
+                message = "Recurso desativado"
             elif not supported_ppe.get(key, False):
                 status = "unsupported"
-                message = "Classe não suportada pelo modelo YOLO atual"
+                message = "O modelo YOLO atual não detecta este item"
             elif people:
                 missing_people = [person for person in people if person["ppe"][key]["status"] == "missing"]
                 uncertain_people = [person for person in people if person["ppe"][key]["status"] == "unsupported"]
@@ -64,18 +65,18 @@ class ComplianceService:
                 ok_people = [person for person in people if person["ppe"][key]["status"] == "ok"]
                 if missing_people:
                     status = "missing"
-                    message = f"Ausente em {len(missing_people)} de {len(people)} pessoa(s)"
+                    message = f"Ausente em {len(missing_people)} de {pluralizar(len(people), 'pessoa')}"
                 elif unverified_people:
                     # Nem visto com, nem visto sem: nao e violacao confirmada,
                     # e tambem nao e "ok". Amarelo, sem alerta.
                     status = "unverified"
-                    message = f"Não verificado em {len(unverified_people)} de {len(people)} pessoa(s)"
+                    message = f"Não verificado em {len(unverified_people)} de {pluralizar(len(people), 'pessoa')}"
                 elif uncertain_people:
                     status = "unsupported"
                     message = "Modelo não suporta avaliação completa"
                 elif ok_people:
                     status = "ok"
-                    message = f"Detectado em {len(ok_people)} pessoa(s)"
+                    message = f"Detectado em {pluralizar(len(ok_people), 'pessoa')}"
                 else:
                     status = "waiting"
                     message = "Aguardando associação por pessoa"
@@ -87,7 +88,7 @@ class ComplianceService:
                 message = "Ausente"
             else:
                 status = "waiting"
-                message = "Aguardando pessoa no frame"
+                message = "Aguardando pessoa no quadro"
             ppe[key] = {
                 "key": key,
                 "label": label,
@@ -125,7 +126,7 @@ class ComplianceService:
 
     def _pose_state(self, pose: PoseResult | None, active_by_feature: dict[str, dict[str, Any]]) -> dict[str, Any]:
         if not self.feature_manager.is_enabled("pose"):
-            return {"enabled": False, "status": "disabled", "message": "Feature desativada"}
+            return {"enabled": False, "status": "disabled", "message": "Recurso desativado"}
         if not pose or not pose.found:
             return {"enabled": True, "status": "waiting", "message": "Pose não detectada"}
         if active_by_feature.get("falls"):
@@ -141,9 +142,9 @@ class ComplianceService:
         people: list[dict[str, Any]],
     ) -> dict[str, Any]:
         if not self.feature_manager.is_enabled("risk_area"):
-            return {"enabled": False, "status": "disabled", "message": "Feature desativada"}
+            return {"enabled": False, "status": "disabled", "message": "Recurso desativado"}
         risk_people = [person for person in people if person.get("risk_area", {}).get("status") == "inside"]
         if active_by_feature.get("risk_area") or any(item.feature == "risk_area" for item in rule_alerts):
-            detail = f"{len(risk_people)} pessoa(s) em área de risco" if risk_people else "Pessoa em área de risco"
+            detail = f"{pluralizar(len(risk_people), 'pessoa')} em área de risco" if risk_people else "Pessoa em área de risco"
             return {"enabled": True, "status": "warning", "message": detail, "active_alert": active_by_feature.get("risk_area")}
         return {"enabled": True, "status": "ok", "message": "Área livre"}

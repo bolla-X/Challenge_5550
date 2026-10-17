@@ -5,9 +5,18 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from app.config import BASE_DIR
-from app.models import ROLE_TECHNICAL
+from app.models import ROLE_TECHNICAL, Alert
 from app.repositories.event_repository import EventRepository
-from app.utils.auth import _operador_sem_setor, camera_scope, escopo_ou_erro, login_required, require_role
+from app.services.status_do_sistema import ServicoDeStatus
+from app.utils.auth import (
+    _operador_sem_setor,
+    camera_permitida,
+    camera_scope,
+    erro_fora_do_escopo,
+    escopo_ou_erro,
+    login_required,
+    require_role,
+)
 
 runtime_bp = Blueprint("runtime", __name__)
 
@@ -45,6 +54,23 @@ def pipeline_diagnostics():
     return jsonify(monitor.diagnostico_do_pipeline([escopo] if escopo is not None else None, janela_s=janela, quadro=quadro))
 
 
+@runtime_bp.get("/api/status")
+@require_role(ROLE_TECHNICAL)
+def system_status():
+    """Saúde do sistema para a página `/status` (técnico ou acima; operador recebe 403).
+
+    Distinta de `GET /status`, a rota legada do monitor por câmera (app/api/status.py).
+    Cada componente é sondado com prazo curto: um que trava ou falha vira um item
+    "falha" na resposta, nunca um erro da rota. Ver app/services/status_do_sistema.py.
+    """
+    servico = current_app.extensions.get("status_do_sistema")
+    if servico is None:
+        servico = current_app.extensions.setdefault("status_do_sistema", ServicoDeStatus(current_app._get_current_object()))
+    resposta = jsonify(servico.montar())
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
+
+
 @runtime_bp.get("/settings")
 @login_required
 def get_settings():
@@ -62,7 +88,7 @@ def get_settings():
 def patch_settings():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return jsonify({"error": "Payload inválido"}), 400
+        return jsonify({"error": "Dados inválidos."}), 400
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"settings": monitor.update_settings(payload)})
 
@@ -82,7 +108,7 @@ def get_overlay():
 def patch_overlay():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return jsonify({"error": "Payload inválido"}), 400
+        return jsonify({"error": "Dados inválidos."}), 400
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"overlay": monitor.update_overlay(payload)})
 
@@ -95,7 +121,7 @@ def get_risk_area():
         return erro
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "risk_area_state"):
-        return jsonify({"error": "monitor atual não suporta área de risco runtime"}), 501
+        return jsonify({"error": "Este monitor não permite editar a área de risco."}), 501
     return jsonify({"risk_area": monitor.risk_area_state(camera_id=camera_id)})
 
 
@@ -107,10 +133,10 @@ def patch_risk_area():
         return erro
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return jsonify({"error": "Payload inválido"}), 400
+        return jsonify({"error": "Dados inválidos."}), 400
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "update_risk_area"):
-        return jsonify({"error": "monitor atual não suporta área de risco runtime"}), 501
+        return jsonify({"error": "Este monitor não permite editar a área de risco."}), 501
     try:
         return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})
     except ValueError as exc:
@@ -142,6 +168,14 @@ def list_events():
 @runtime_bp.get("/snapshots/<path:filename>")
 @login_required
 def get_snapshot(filename: str):
+    # Mesmo escopo de `/alerts/<id>/evidence`, que serve o mesmo arquivo: a
+    # imagem pertence a um alerta, e o alerta a uma câmera. Arquivo sem alerta
+    # não é servido (matriz de permissões, MISSÃO 4).
+    alerta = Alert.query.filter(Alert.frame_ref == f"/snapshots/{filename}").first()
+    if alerta is None:
+        return jsonify({"error": "imagem não encontrada"}), 404
+    if not camera_permitida(alerta.camera_id):
+        return erro_fora_do_escopo()
     monitor = current_app.extensions.get("monitor_service")
     snapshot_dir = "runtime/snapshots"
     if monitor is not None and hasattr(monitor, "snapshot_service"):

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Alert, Incidente } from "../api/types";
 import { detalheDoIncidente, reconhecerIncidente } from "../api/endpoints";
-import { paraDate } from "../utils/datas";
+import { horaCompleta, paraDate } from "../utils/datas";
 import { pessoasDoIncidente, zonaDoIncidente } from "../utils/incidentes";
 import { IncidentReplay } from "./replay";
 
@@ -26,7 +26,7 @@ const SITUACAO: Record<string, string> = {
 const TIPO_ELO: Record<string, string> = { alerta: "Alerta", snapshot: "Quadro", clipe: "Replay", privacidade: "Privacidade", evento: "Evento" };
 
 function horaComSegundos(t: number) {
-  return new Date(t * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return horaCompleta(new Date(t * 1000));
 }
 
 export function VerificarIntegridade({ incidenteId }: { incidenteId?: number }) {
@@ -160,7 +160,7 @@ export function IncidenteDetalhe({
               {zona ? ` · ${zona}` : ""}
             </h2>
             <p className="t-secondary">
-              {[nomeDaCamera, pessoasDoIncidente(incidente, 8), `aberto às ${paraDate(incidente.aberto_em).toLocaleTimeString("pt-BR")}`]
+              {[nomeDaCamera, pessoasDoIncidente(incidente, 8), `aberto às ${horaCompleta(paraDate(incidente.aberto_em))}`]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -251,7 +251,7 @@ export function IncidenteDetalhe({
   return createPortal(
     <>
       <div className="modal-scrim" onClick={onClose}>
-        <div className="card modal incidente-modal" role="dialog" aria-labelledby="incidente-titulo" onClick={(e) => e.stopPropagation()} data-testid="incidente-detalhe">
+        <div className="card modal incidente-modal" role="dialog" aria-modal="true" aria-labelledby="incidente-titulo" onClick={(e) => e.stopPropagation()} data-testid="incidente-detalhe">
           {cartao}
         </div>
       </div>

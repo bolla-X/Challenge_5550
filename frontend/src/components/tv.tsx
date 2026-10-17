@@ -1,9 +1,12 @@
+import { Torre, plantaEscalonada, useEstadoDaIntegracao } from "./torre";
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { PanelSkeleton } from "./common";
 import { getTv } from "../api/endpoints";
 import type { TvSetor, TvEstado } from "../api/types";
 import { LigaResumo, useLiga } from "./liga";
 import { RetrospectivaStories } from "./retrospectiva";
+import { horaCurta } from "../utils/datas";
 
 /**
  * Modo TV / Andon (G8), em `/tv`: legível a 5 m. Um bloco por SETOR com a
@@ -71,7 +74,7 @@ function Setor({ s }: { s: TvSetor }) {
       <Progresso rotulo="Check-ins no portal" valor={s.checkins_portal} meta={s.metas.checkins_portal} />
       {s.alertas_reconhecidos > 0 && (
         <div className="tv-meta">
-          <span>Alertas críticos reconhecidos</span>
+          <span>Alertas críticos com colaborador avisado</span>
           <strong className="t-data">
             {s.alertas_reconhecidos} / {s.alertas_criticos}
           </strong>
@@ -120,6 +123,20 @@ function useRetroNoFimDoTurno(embutido: boolean): [boolean, () => void] {
   return [aberta, () => setAberta(false)];
 }
 
+/** Torre de luz no Modo TV (M2): o mesmo estado publicado no OPC UA/MQTT; pisca com crítico sem reconhecimento. */
+function TorreDaTv() {
+  const { estado } = useEstadoDaIntegracao(3000);
+  if (!estado) return null;
+  const escalonado = plantaEscalonada(estado.planta); // M7: crítico sem reconhecimento além do prazo da TV
+  return (
+    <span className={`tv-torre ${estado.planta.sirene ? "sirene" : ""} ${escalonado ? "escalonado" : ""}`.trim()}
+          data-testid="tv-torre" data-cor={estado.planta.torre} data-escalonado={escalonado ? "1" : "0"}>
+      <Torre cor={estado.planta.torre} sirene={estado.planta.sirene} escalonado={escalonado} compacta />
+      {escalonado && <span className="tv-escalonado">Sem reconhecimento: supervisão avisada</span>}
+    </span>
+  );
+}
+
 export function TvScreen({ embutido = false }: { embutido?: boolean }) {
   const [retroAberta, fecharRetro] = useRetroNoFimDoTurno(embutido);
   const [estado, setEstado] = useState<TvEstado | null>(null);
@@ -135,7 +152,7 @@ export function TvScreen({ embutido = false }: { embutido?: boolean }) {
           setEstado(e);
           setErro(null);
         })
-        .catch((e: Error) => vivo && setErro(e.message));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
     };
     tick();
     const id = window.setInterval(tick, 5000);
@@ -150,7 +167,8 @@ export function TvScreen({ embutido = false }: { embutido?: boolean }) {
       {!embutido && (
         <header className="tv-cabeca">
           <h1>Segurança do turno</h1>
-          <span className="t-data">{agora.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+          <TorreDaTv />
+          <span className="t-data">{horaCurta(agora)}</span>
         </header>
       )}
       {erro && <p className="status-text error">{erro}</p>}

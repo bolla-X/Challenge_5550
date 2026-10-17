@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from datetime import datetime, timezone
 
@@ -100,7 +101,13 @@ def rodar():
     worker = _worker(camera_id)
     if worker is None or worker.trilhas is None:
         return jsonify({"error": "câmera sem trilha gravada (ligue a câmera e espere algumas análises)"}), 409
-    horas = min(max(float(corpo.get("horas", 1)), 0.01), 72.0)
+    try:
+        horas = float(corpo.get("horas", 1))
+        if not math.isfinite(horas):
+            raise ValueError("horas não finito")
+    except (TypeError, ValueError):
+        return jsonify({"error": "horas deve ser um número finito (ex.: 1 ou 0.5)"}), 400
+    horas = min(max(horas, 0.01), 72.0)
     fim = time.time()
     inicio = fim - horas * 3600
     registros = list(worker.trilhas.ler(desde=inicio, ate=fim))

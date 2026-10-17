@@ -437,6 +437,7 @@ summary { cursor: pointer; font-weight: 500; color: var(--text); }
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-2); }
 .login-error { padding: 9px 11px; border-radius: var(--r-control); background: var(--tint-danger); color: var(--danger); font-size: 13px; letter-spacing: 0; }
 .login-help { font-size: 13px; letter-spacing: 0; color: var(--text-3); }
+.login-produto { align-self: flex-start; font-size: 14px; font-weight: 500; letter-spacing: 0; }
 
 /* ---------------- Responsivo -------------------------------------------- */
 @media (max-width: 1200px) {

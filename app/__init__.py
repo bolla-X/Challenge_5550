@@ -9,19 +9,28 @@ from flask_socketio import join_room, leave_room, rooms
 
 from app.api.alerts import alerts_bp
 from app.api.auth import auth_bp
+from app.api.busca import busca_bp
 from app.api.cameras import cameras_bp
 from app.api.celular import celular_bp
 from app.api.custodia import custodia_bp
 from app.api.desafio import desafio_bp
 from app.api.diagnostics import runtime_bp
 from app.api.escala import escala_bp
+from app.api.evacuacao import evacuacao_bp
 from app.api.features import features_bp
+from app.api.feedback import feedback_bp
 from app.api.gemeo import gemeo_bp
 from app.api.incidentes import incidentes_bp
+from app.api.integracao import integracao_bp
+from app.api.intervencoes import intervencoes_bp
 from app.api.lab import lab_bp
 from app.api.liga import liga_bp
 from app.api.monitor import monitor_bp
+from app.api.onboarding import onboarding_bp
+from app.api.openapi import openapi_bp
 from app.api.palco import palco_bp
+from app.api.permissoes import permissoes_bp
+from app.api.regras import regras_bp
 from app.api.relatorio import relatorio_bp
 from app.api.risk import risk_bp
 from app.api.rotulos import rotulos_bp
@@ -125,6 +134,15 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(custodia_bp)
     app.register_blueprint(simulador_bp)
     app.register_blueprint(palco_bp)
+    app.register_blueprint(evacuacao_bp)
+    app.register_blueprint(integracao_bp)
+    app.register_blueprint(regras_bp)
+    app.register_blueprint(permissoes_bp)
+    app.register_blueprint(onboarding_bp)
+    app.register_blueprint(feedback_bp)
+    app.register_blueprint(intervencoes_bp)
+    app.register_blueprint(busca_bp)
+    app.register_blueprint(openapi_bp)
     app.register_blueprint(liga_bp)
     app.register_blueprint(cameras_bp)
     app.register_blueprint(monitor_bp)
@@ -145,7 +163,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     # que a resposta já começou a ser enviada.)
     @app.errorhandler(CameraNotFoundError)
     def _handle_no_camera(exc: CameraNotFoundError):
-        return jsonify({"error": str(exc), "hint": "Cadastre e inicie uma câmera em /api/cameras antes de usar esta rota."}), 404
+        return jsonify({"error": str(exc), "hint": "Cadastre e inicie uma câmera antes de usar esta função."}), 404
 
     # WebSocket tambem exige sessao: sem isto, todo o feed de analise, alertas
     # e compliance vazaria pra qualquer um que abrisse um socket na porta —
@@ -180,6 +198,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
         Validado contra o mesmo escopo do REST: operador só foca a câmera do
         próprio setor. Sai de qualquer foco anterior (uma câmera por aba).
         """
+        if payload is not None and not isinstance(payload, dict):
+            return {"ok": False}
         try:
             camera_id = int((payload or {}).get("camera_id"))
         except (TypeError, ValueError):

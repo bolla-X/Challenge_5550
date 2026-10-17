@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, Numero, PanelSkeleton } from "./common";
 import { IlustracaoEscudo } from "./ilustracoes";
@@ -254,14 +255,14 @@ export function PalcoScreen() {
   useEffect(() => {
     fetch("/api/palco/roteiro", { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 401 ? "Entre como técnico ou supervisor." : `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(r.status === 401 ? "Entre como técnico ou supervisor." : "Falha ao carregar a apresentação.");
         return r.json();
       })
       .then((d) => {
         setCenas(d.cenas);
         setEstado(d.estado);
       })
-      .catch((e) => setErro(e instanceof Error ? e.message : "falha"));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a apresentação.")));
   }, []);
 
   // O celular muda a cena pelo servidor: a tela acompanha.
@@ -378,29 +379,42 @@ export function PalcoControle() {
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   useEffect(() => {
+    if (!token) return undefined;
     const tick = () =>
       fetch(`/api/palco/estado?t=${encodeURIComponent(token)}`)
         .then(async (r) => {
-          if (!r.ok) throw new Error(r.status === 403 ? "Link expirado: leia o QR da tela de novo." : `HTTP ${r.status}`);
+          if (!r.ok) throw new Error(r.status === 403 ? "Link expirado: leia o QR da tela de novo." : "O servidor não respondeu.");
           return (await r.json()) as Estado;
         })
         .then((d) => {
           setEstado(d);
           setErro(null);
         })
-        .catch((e) => setErro(e instanceof Error ? e.message : "sem conexão"));
+        .catch((e) => setErro(mensagemDeErro(e, "sem conexão")));
     tick();
     const id = window.setInterval(tick, 800);
     return () => window.clearInterval(id);
   }, [token]);
   const mover = (acao: "proxima" | "anterior") => {
     setOcupado(true);
-    if (navigator.vibrate) navigator.vibrate(15);
+    if (navigator.vibrate && (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive !== false) navigator.vibrate(15);
     ir(acao, undefined, token)
       .then(setEstado)
       .catch(() => setErro("Não chegou ao servidor. Use o teclado do notebook."))
       .finally(() => setOcupado(false));
   };
+  if (!token) {
+    return (
+      <div className="controle" data-testid="palco-controle">
+        <p className="controle-kicker">VisionEPI · controle da apresentação</p>
+        <h1>Abra pelo QR code</h1>
+        <p className="controle-proxima">
+          Este controle funciona só pelo QR code que aparece na tela do palco: ele traz a chave da apresentação.
+        </p>
+      </div>
+    );
+  }
+  const aguardando = !estado ? "Aguardando a conexão com o palco" : undefined;
   return (
     <div className="controle" data-testid="palco-controle">
       <p className="controle-kicker">VisionEPI · controle da apresentação</p>
@@ -421,10 +435,10 @@ export function PalcoControle() {
         </p>
       )}
       <div className="controle-botoes">
-        <button type="button" className="controle-anterior" disabled={ocupado || !estado || estado.cena === 0} onClick={() => mover("anterior")} data-testid="controle-anterior">
+        <button type="button" className="controle-anterior" disabled={ocupado || !estado || estado.cena === 0} title={aguardando ?? (estado?.cena === 0 ? "Esta é a primeira cena" : undefined)} onClick={() => mover("anterior")} data-testid="controle-anterior">
           Anterior
         </button>
-        <button type="button" className="primary controle-proxima-botao" disabled={ocupado || !estado || estado.proxima === null} onClick={() => mover("proxima")} data-testid="controle-proxima">
+        <button type="button" className="primary controle-proxima-botao" disabled={ocupado || !estado || estado.proxima === null} title={aguardando ?? (estado?.proxima === null ? "Esta é a última cena" : undefined)} onClick={() => mover("proxima")} data-testid="controle-proxima">
           Próxima
         </button>
       </div>

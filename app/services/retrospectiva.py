@@ -16,6 +16,7 @@ from typing import Any
 from app.extensions import db
 from app.models import Camera, Incidente, Missao, PontoDaLiga
 from app.services import liga
+from app.utils.texto import pluralizar
 
 
 def _janela(periodo: str, agora: datetime, turnos: str) -> tuple[datetime, datetime, str]:
@@ -52,7 +53,7 @@ def montar(periodo: str = "turno", agora: datetime | None = None,
     cards.append({
         "chave": "conformidade", "titulo": "Horas de conformidade da equipe",
         "valor": round(minutos / 60, 1), "unidade": "h",
-        "detalhe": f"{minutos} minutos com gente na câmera e todo mundo com os EPIs exigidos" if minutos
+        "detalhe": f"{pluralizar(minutos, 'minuto')} com gente na câmera e todo mundo com os EPIs exigidos" if minutos
         else "Ainda sem minuto conforme registrado neste período",
     })
     destaque = next((s for s in placar if s["pontos"] > 0), None)
@@ -75,13 +76,14 @@ def montar(periodo: str = "turno", agora: datetime | None = None,
     if todos:
         mais_rapido = min(tempos_por_setor.items(), key=lambda kv: median(kv[1]))
         cards.append({
-            "chave": "reconhecimento", "titulo": "Alertas reconhecidos mais rápido",
+            "chave": "reconhecimento", "titulo": "Incidentes reconhecidos mais rápido",
             "valor": round(median(mais_rapido[1])), "unidade": "s",
-            "detalhe": f"Mediana de {mais_rapido[0]} · {len(todos)} incidente(s) reconhecido(s) na planta, "
+            "detalhe": f"Mediana de {mais_rapido[0]} · "
+                       f"{pluralizar(len(todos), 'incidente reconhecido', 'incidentes reconhecidos')} na planta, "
                        f"mediana {round(median(todos))} s",
         })
     else:
-        cards.append({"chave": "reconhecimento", "titulo": "Alertas reconhecidos mais rápido", "valor": "Sem dado", "unidade": "",
+        cards.append({"chave": "reconhecimento", "titulo": "Incidentes reconhecidos mais rápido", "valor": "Sem dado", "unidade": "",
                       "detalhe": "Nenhum incidente reconhecido neste período"})
 
     cards.append({
@@ -101,13 +103,14 @@ def montar(periodo: str = "turno", agora: datetime | None = None,
         cumpridas += sum(1 for m in missoes if liga.progresso_da_missao(m, t_inicio, t_fim, no_turno)["cumprida"])
     cards.append({
         "chave": "missoes", "titulo": "Missões cumpridas", "valor": cumpridas, "unidade": "",
-        "detalhe": f"de {len(missoes)} missão(ões) ativa(s) por turno" if missoes else "Nenhuma missão configurada pelo supervisor",
+        "detalhe": f"de {pluralizar(len(missoes), 'missão ativa', 'missões ativas')} por turno" if missoes
+        else "Nenhuma missão configurada pelo supervisor",
     })
     xp = db.session.query(db.func.coalesce(db.func.sum(PontoDaLiga.pontos), 0)).scalar() or 0
     n = liga.nivel(int(xp))
     cards.append({
         "chave": "nivel", "titulo": "Nível da planta", "valor": n["nivel"], "unidade": "",
-        "detalhe": f"{n['xp']} XP acumulados · faltam {n['xp_do_proximo'] - n['xp']} para o nível {n['nivel'] + 1}",
+        "detalhe": f"{n['xp']} pontos de experiência acumulados · faltam {n['xp_do_proximo'] - n['xp']} para o nível {n['nivel'] + 1}",
     })
     return {"periodo": periodo, "titulo": titulo, "inicio": inicio.isoformat(), "fim": fim.isoformat(),
             "cards": cards, "placar": placar[:5]}

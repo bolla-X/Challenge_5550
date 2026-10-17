@@ -1,3 +1,4 @@
+import { mensagemDeErro, eFalhaDeRede } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { FeatureGroups, OverlayControls, PartToggles } from "./features";
@@ -12,7 +13,8 @@ import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
-import { cobrePreAlerta, incidenteCritico, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { BadgeDeSaude, cobrePreAlerta, incidenteCritico, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import type { SaudeVisual } from "../api/types";
 import { rotuloDoIncidente } from "../utils/incidentes";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
 import { PipelinePanel } from "./pipeline-panel";
@@ -30,8 +32,9 @@ import {
   updateCamera,
 } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
-import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
+import { ROLE_ACCESS, useDashboardStore, type ViewMode } from "../store/dashboardStore";
 import { paraDate } from "../utils/datas";
+import { decimal } from "../utils/formato";
 
 /** Tempo decorrido desde o início do alerta, em "m:ss" ou "h:mm:ss". */
 function decorrido(desde: string | null, agora: number): string {
@@ -49,6 +52,46 @@ function decorrido(desde: string | null, agora: number): string {
  * topo do vídeo em pílulas translúcidas, que é onde importam. Alerta crítico
  * ganha a própria pílula, à direita, com o tempo decorrido.
  */
+const EXPLICACAO_DA_SAUDE: Record<string, string> = {
+  obstruida: "A imagem ficou sem detalhe: algo pode estar tampando a lente.",
+  movida: "O enquadramento mudou em relação à referência: a câmera pode ter sido movida.",
+  escura: "Imagem escura demais para analisar.",
+  ofuscada: "Imagem estourada de luz: ofuscamento ou contraluz.",
+  desfocada: "Imagem sem nitidez: lente suja, embaçada ou fora de foco.",
+};
+
+/** Sabotagem/imagem ruim sobre o vídeo (M1) + "Redefinir referência" para técnico ou acima. */
+function SaudeNaTela({ cameraId, saude }: { cameraId: number; saude: SaudeVisual }) {
+  const pode = ROLE_ACCESS[useDashboardStore((s) => s.mode)].canConfigure;
+  const [ocupado, setOcupado] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const redefinir = () => {
+    setOcupado(true);
+    setMsg(null);
+    fetch(`/api/cameras/${cameraId}/saude-visual/referencia`, { method: "POST", credentials: "same-origin" })
+      .then(async (r) => {
+        const corpo = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(corpo?.error || "Não foi possível redefinir a referência.");
+        setMsg("Referência redefinida com a imagem atual.");
+      })
+      .catch((e) => setMsg(mensagemDeErro(e, "Não foi possível redefinir a referência.")))
+      .finally(() => setOcupado(false));
+  };
+  return (
+    <span className="over-pill saude-pill" data-testid="saude-pilula" title={EXPLICACAO_DA_SAUDE[saude.estado] ?? undefined}>
+      <BadgeDeSaude saude={saude} />
+      <span>{EXPLICACAO_DA_SAUDE[saude.estado] ?? "Imagem com problema."}</span>
+      {pode && (
+        <button type="button" className="ghost small" onClick={redefinir} disabled={ocupado} data-testid="saude-redefinir"
+                title="Use quando a mudança foi intencional (câmera reposicionada, iluminação nova)">
+          {ocupado ? "Redefinindo…" : "Redefinir referência"}
+        </button>
+      )}
+      {msg && <span role="status" className="t-data">{msg}</span>}
+    </span>
+  );
+}
+
 function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const estado = useCameraEstado(camera.id);
   const connected = useDashboardStore((s) => s.connected);
@@ -76,7 +119,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const handleStart = () => {
     setStarting(true);
     startCamera(camera.id)
-      .catch((err) => console.error(err))
+      .catch((err) => !eFalhaDeRede(err) && console.error(err))
       .finally(() => setStarting(false));
   };
 
@@ -94,7 +137,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                 {textoDeEstado(estado)}
                 {estado.diagnostico && (
                   <span className="t-data">
-                    {estado.diagnostico.fps.toFixed(1)} fps
+                    {decimal(estado.diagnostico.fps)} fps
                     {estado.diagnostico.resolucao ? ` · ${estado.diagnostico.resolucao}` : ""}
                   </span>
                 )}
@@ -119,10 +162,11 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
             </div>
             {/* Alertas numa segunda linha, à direita: não disputam espaço com o estado do vídeo. */}
             <div className="over-alertas">
+              {estado.saude && estado.saude.estado !== "ok" && <SaudeNaTela cameraId={camera.id} saude={estado.saude} />}
               {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
                 <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
                   <span className="dot" />
-                  Aproximação · Pessoa {preAlertas[0].track_id} · ~{preAlertas[0].segundos_ate_entrar.toFixed(1)} s
+                  Aproximação · Pessoa {preAlertas[0].track_id} · ~{decimal(preAlertas[0].segundos_ate_entrar)} s
                   <span className="t-data">projeção cinemática</span>
                 </span>
               )}
@@ -154,7 +198,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
         ) : (
           <div className="video-empty">
             <h3>Aguardando conexão de vídeo</h3>
-            <p>Inicie o monitoramento de {camera.name} para começar a receber o feed.</p>
+            <p>Inicie o monitoramento de {camera.name} para começar a receber a imagem.</p>
             <button type="button" className="primary" disabled={starting} onClick={handleStart}>
               {starting ? "Iniciando…" : "Iniciar"}
             </button>
@@ -183,7 +227,7 @@ function PrivacidadeControle({ cameraId, ativa, rodando, onMudou }: {
     setErro(null);
     definirPrivacidade(cameraId, !ativa)
       .then(onMudou)
-      .catch((e) => setErro(e instanceof Error ? e.message : "Falha ao trocar a privacidade"))
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao trocar a privacidade")))
       .finally(() => setPendente(false));
   };
   return (
@@ -214,7 +258,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
   const refresh = () => {
     getCameraStatus(camera.id)
       .then(setStatus)
-      .catch((err) => setError(err instanceof Error ? err.message : "Falha ao consultar status"));
+      .catch((err) => setError(mensagemDeErro(err, "Falha ao consultar o estado da câmera")));
   };
 
   // Consulta ao trocar de câmera e a cada 3 s enquanto essa aba estiver
@@ -235,7 +279,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
     setError(null);
     startCamera(camera.id)
       .then(setStatus)
-      .catch((err) => setError(err instanceof Error ? err.message : "Falha ao iniciar câmera"))
+      .catch((err) => setError(mensagemDeErro(err, "Falha ao iniciar câmera")))
       .finally(() => setPending(false));
   };
 
@@ -244,7 +288,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
     setError(null);
     stopCamera(camera.id)
       .then(setStatus)
-      .catch((err) => setError(err instanceof Error ? err.message : "Falha ao parar câmera"))
+      .catch((err) => setError(mensagemDeErro(err, "Falha ao parar câmera")))
       .finally(() => setPending(false));
   };
 
@@ -267,7 +311,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
           <Miniatura cameraId={camera.id} />
         ) : (
           <div className="video-empty">
-            <p>Câmera parada. Clique em Iniciar para ver o feed.</p>
+            <p>Câmera parada. Clique em Iniciar para ver a imagem.</p>
           </div>
         )}
       </div>
@@ -322,7 +366,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
         setMessage("Câmera salva. Se estava rodando, já reiniciou sozinha com a configuração nova.");
         return loadCameras();
       })
-      .catch((err) => setMessage(err instanceof Error ? err.message : "Falha ao salvar câmera"))
+      .catch((err) => setMessage(mensagemDeErro(err, "Falha ao salvar câmera")))
       .finally(() => setSaving(false));
   };
 
@@ -334,7 +378,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
         setScreen("grid");
         return loadCameras();
       })
-      .catch((err) => setMessage(err instanceof Error ? err.message : "Falha ao remover câmera"))
+      .catch((err) => setMessage(mensagemDeErro(err, "Falha ao remover câmera")))
       .finally(() => setDeleting(false));
   };
 
@@ -350,7 +394,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
         const match = res.items.find((d) => d.source === source);
         setMessage(match?.available ? `Índice ${source}: respondendo agora.` : `Índice ${source}: não respondeu ao teste.`);
       })
-      .catch((err) => setMessage(err instanceof Error ? err.message : "Falha ao testar conexão"))
+      .catch((err) => setMessage(mensagemDeErro(err, "Falha ao testar conexão")))
       .finally(() => setTesting(false));
   };
 
@@ -427,9 +471,9 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
 
 function LogsPanel() {
   return (
-    <Panel title="Log de erros" description="Exceções e eventos técnicos desta câmera.">
+    <Panel title="Registro de erros" description="Falhas e eventos técnicos desta câmera.">
       <EmptyState>
-        Ainda não existe um log persistente por câmera no backend. O erro mais recente aparece no Checklist (linha "Vídeo") e na linha de estado do cartão, na grade.
+        Esta câmera ainda não guarda um histórico de erros. O erro mais recente aparece no checklist técnico (linha "Vídeo") e na linha de estado do cartão, na grade.
       </EmptyState>
     </Panel>
   );
@@ -452,7 +496,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "planta", label: "Planta", content: <></> },
     { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
-    { key: "logs", label: "Logs", content: <></> },
+    { key: "logs", label: "Registros", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
     { key: "checklist", label: "Checklist técnico", content: <ChecklistPanel /> },
   ],
@@ -473,7 +517,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "planta", label: "Planta", content: <></> },
     { key: "pipeline", label: "Diagnóstico", content: <></> },
     { key: "model", label: "Modelo", content: <ModelStatusPanel /> },
-    { key: "logs", label: "Logs", content: <></> },
+    { key: "logs", label: "Registros", content: <></> },
     { key: "history", label: "Histórico", content: <AlertHistoryPanel /> },
     { key: "checklist", label: "Checklist técnico", content: <ChecklistPanel /> },
     { key: "export", label: "Exportação", content: <ExportPanel /> },
@@ -502,6 +546,14 @@ function SectorItem({ camera, current, onSelect }: { camera: CameraRecord; curre
  * Foco individual de uma câmera, Técnico/Supervisor. Sidebar com os setores
  * e os recursos; à direita, o vídeo e as abas. Operador nunca chega aqui.
  */
+/** Aba com que a câmera abre: `?aba=planta` (atalho de Configurações) se ela existir para o tipo de conta; senão a padrão. */
+function abaInicial(mode: ViewMode): string {
+  const padrao = mode === "supervisor" ? "trend" : "alerts";
+  const pedida = new URLSearchParams(window.location.search).get("aba");
+  const abas = mode === "operator" ? [] : TABS_BY_MODE[mode];
+  return pedida && abas.some((t) => t.key === pedida) ? pedida : padrao;
+}
+
 export function CameraFocus() {
   const camId = useDashboardStore((s) => s.camId);
   const cameras = useDashboardStore((s) => s.cameras);
@@ -509,7 +561,12 @@ export function CameraFocus() {
   const setScreen = useDashboardStore((s) => s.setScreen);
   const mode = useDashboardStore((s) => s.mode);
   const camera = cameras.find((c) => c.id === camId);
-  const [activeTab, setActiveTab] = useState<string>(mode === "supervisor" ? "trend" : "alerts");
+  const [activeTab, setActiveTab] = useState<string>(() => abaInicial(mode));
+
+  // `?aba=` só vale para a abertura (os atalhos de Configurações): limpa o endereço depois de lido.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("aba")) window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   if (!camera || mode === "operator") return null;
 
@@ -545,9 +602,9 @@ export function CameraFocus() {
 
   return (
     <div className="screen with-sidebar">
-      <nav className="sidebar" aria-label="Setores e recursos">
+      <nav className="sidebar" aria-label="Câmeras e recursos">
         <div className="sidebar-group">
-          <h2>Setores</h2>
+          <h2>Câmeras</h2>
           {cameras.map((c) => (
             <SectorItem key={c.id} camera={c} current={c.id === camId} onSelect={setCamId} />
           ))}

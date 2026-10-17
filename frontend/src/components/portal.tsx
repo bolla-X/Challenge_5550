@@ -7,6 +7,7 @@ import { getPortal, startCamera } from "../api/endpoints";
 import type { PortalItem, PortalState } from "../api/types";
 import { PPE_LABELS } from "../api/ppe";
 import { EnganarIA } from "./enganar-ia";
+import { pluralizar } from "../utils/formato";
 
 /**
  * Portal de Entrada (G1), em `/portal?camera=N`: a pessoa para diante da câmera
@@ -95,7 +96,7 @@ export function PortalScreen({ cameraId, desafioInicial }: { cameraId?: number |
       <header className="portal-cabeca">
         <span className="portal-camera">{camera.name} · Portal de Entrada</span>
         <span className="portal-contagem t-data" data-testid="portal-checkins">
-          {portal?.checkins ?? 0} check-in{portal?.checkins === 1 ? "" : "s"} neste turno
+          {pluralizar(portal?.checkins ?? 0, "check-in")} neste turno
         </span>
         <button type="button" className={`ghost small ${desafio ? "active" : ""}`} aria-pressed={desafio} onClick={() => setDesafio((d) => !d)} data-testid="portal-desafio">
           Tente enganar a IA

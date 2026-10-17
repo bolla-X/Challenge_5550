@@ -1,0 +1,118 @@
+{
+  "missoes": [
+    {
+      "missao": "Missão 4",
+      "titulo": "Pronto para a operação da empresa",
+      "data": "2026-10-17",
+      "itens": [
+        {
+          "titulo": "Páginas de aviso",
+          "texto": "Página não encontrada, erro de tela, sem conexão, sessão expirada com retorno ao ponto onde você estava e acesso negado explicado."
+        },
+        {
+          "titulo": "Primeiro acesso",
+          "texto": "O Supervisor é guiado da primeira câmera até o \"pronto para operar\", com a senha temporária exibida uma só vez."
+        },
+        {
+          "titulo": "Permissões por tipo de conta",
+          "texto": "Cada tela e cada ação respeitam o tipo de conta, e o Operador vê só a câmera do próprio setor."
+        },
+        {
+          "titulo": "Saúde da câmera",
+          "texto": "O sistema avisa quando uma câmera é tampada, movida, fica escura, ofuscada ou desfocada."
+        },
+        {
+          "titulo": "Integração com a fábrica",
+          "texto": "OPC UA, MQTT e webhook levam o estado da planta e cada alerta novo a outros sistemas, e a torre de luz virtual mostra o mesmo estado."
+        },
+        {
+          "titulo": "Modo Evacuação",
+          "texto": "Contagem de pessoas por zona e por câmera, com cronômetro e relatório guardado na cadeia de custódia."
+        },
+        {
+          "titulo": "Editor de regras",
+          "texto": "Monte regras com blocos, teste no histórico antes de ativar e mantenha as regras atuais como ponto de partida."
+        },
+        {
+          "titulo": "Permissão de trabalho",
+          "texto": "Zona, janela de horário, responsável, EPIs exigidos e vigia, com o que o modelo não vê marcado como verificação manual."
+        },
+        {
+          "titulo": "Textos revisados",
+          "texto": "Um termo para cada conceito em todas as telas, com números e horas no padrão brasileiro."
+        },
+        {
+          "titulo": "Status do sistema",
+          "texto": "Uma página com a saúde dos modelos, das câmeras, do banco, das integrações, da segunda opinião e do espaço em disco."
+        },
+        {
+          "titulo": "Configurações em um lugar",
+          "texto": "Conta, planta, câmeras, regras, integrações, privacidade e usuários em seções, com o que o seu tipo de conta não pode usar explicado."
+        }
+      ]
+    },
+    {
+      "missao": "Missão 2",
+      "titulo": "Funções novas e visual renovado",
+      "data": "2026-10-14",
+      "itens": [
+        {
+          "titulo": "Gêmeo digital",
+          "texto": "A planta em 3D com as câmeras, as áreas de risco e as pessoas na cor do estado, nunca em foto."
+        },
+        {
+          "titulo": "Simulador \"E se?\"",
+          "texto": "Teste outra área de risco, outro tempo de confirmação ou outros EPIs sobre o que já aconteceu, antes de mudar a regra de verdade."
+        },
+        {
+          "titulo": "Cadeia de custódia",
+          "texto": "Imagem de evidência, replay e troca de privacidade ficam encadeados, e a tela de Auditoria aponta qualquer alteração."
+        },
+        {
+          "titulo": "Linha causal",
+          "texto": "O que aconteceu com cada Pessoa dentro de um incidente, passo a passo, com o replay no instante certo."
+        },
+        {
+          "titulo": "Raio-X",
+          "texto": "Aperte X para ver por que a IA decidiu: esqueleto, confiança por classe e o que foi descartado."
+        },
+        {
+          "titulo": "Modo Apresentação",
+          "texto": "Um roteiro de cenas para mostrar o sistema, controlado pelo celular por QR code."
+        },
+        {
+          "titulo": "Retrospectiva",
+          "texto": "Cartões do turno e da semana com dados reais, prontos para salvar como imagem."
+        },
+        {
+          "titulo": "Liga de Setores",
+          "texto": "Pontos só positivos por setor, missões por turno e o nível da planta."
+        },
+        {
+          "titulo": "Tente enganar a IA",
+          "texto": "No Portal de Entrada, quem visita tenta driblar a detecção e vê o que o modelo enxergou."
+        },
+        {
+          "titulo": "Replay e mapa de calor",
+          "texto": "Os quadros de antes e depois de cada alerta e onde a planta concentra as violações."
+        },
+        {
+          "titulo": "Celular como câmera",
+          "texto": "Pareie um celular por QR code e use-o como câmera."
+        },
+        {
+          "titulo": "Aplicativo instalável",
+          "texto": "O painel funciona como aplicativo e avisa o alerta crítico com o app aberto."
+        },
+        {
+          "titulo": "Incidentes mais claros",
+          "texto": "Alertas da mesma regra e da mesma zona agora formam um incidente só."
+        },
+        {
+          "titulo": "Visual novo",
+          "texto": "Tema claro e escuro, fontes e ícones próprios e transições suaves entre as telas."
+        }
+      ]
+    }
+  ]
+}

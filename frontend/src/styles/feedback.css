@@ -1,0 +1,43 @@
+/* "Enviar feedback" (diálogo) e Caixa de entrada do Supervisor (MISSÃO 4, Fase 3 itens 10 e 11).
+   Só tokens de tokens.css; cor só para estado. */
+
+/* ---------------------------------------------------------------- diálogo */
+.feedback-modal { max-width: 520px; padding: var(--s5); display: grid; gap: var(--s3); }
+.feedback-modal h2 { font-size: var(--t-title-2); line-height: var(--t-title-2-lh); letter-spacing: var(--t-title-2-tr); font-weight: 600; }
+.feedback-modal form { display: grid; gap: var(--s3); }
+.feedback-ajuda { font-size: var(--t-callout); line-height: var(--t-callout-lh); color: var(--text-2); }
+.feedback-campo { display: grid; gap: var(--s1); font-size: var(--t-footnote); font-weight: 500; color: var(--text-2); }
+/* O reset global de campos fixa a altura em --h-control; o texto longo precisa crescer. */
+.feedback-texto { height: auto; min-height: 140px; padding: var(--s3); line-height: 1.5; resize: vertical; }
+.feedback-contador { font-size: var(--t-caption); color: var(--text-3); font-variant-numeric: tabular-nums; text-align: right; }
+.feedback-erro { padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--tint-danger); color: var(--danger); font-size: var(--t-footnote); }
+.feedback-status:empty { display: none; }
+.feedback-ok { padding: var(--s3) var(--s4); border-radius: var(--r-control); background: var(--tint-ok); color: var(--ok); font-size: var(--t-callout); font-weight: 500; }
+.feedback-modal .modal-acoes { margin-top: var(--s1); }
+
+/* ------------------------------------------------------ caixa de entrada */
+.caixa-filtro { display: inline-flex; align-items: center; gap: var(--s2); font-size: var(--t-footnote); color: var(--text-2); }
+.caixa-filtro select { width: auto; height: 36px; }
+.caixa-falha { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s4);
+  padding: var(--s3) var(--s4); border-radius: var(--r-control); background: var(--tint-danger); color: var(--danger); }
+.caixa-falha p { color: inherit; font-size: var(--t-callout); }
+.caixa-lista { list-style: none; margin: var(--s4) 0 0; padding: 0; display: grid; gap: var(--s3); max-width: 880px; }
+.caixa-item { display: grid; gap: var(--s2); padding: var(--s4) var(--s5); }
+.caixa-lista .caixa-item + .caixa-item { margin-top: 0; }
+.caixa-topo { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2) var(--s4); flex-wrap: wrap; }
+.caixa-quem { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
+.caixa-quem strong { font-size: var(--t-body); font-weight: 600; overflow-wrap: anywhere; }
+.caixa-empresa { font-size: var(--t-callout); color: var(--text-2); overflow-wrap: anywhere; }
+.caixa-quando { font-size: var(--t-footnote); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.caixa-contato { font-size: var(--t-callout); }
+.caixa-contato a { overflow-wrap: anywhere; }
+/* Texto escrito por outra pessoa: sempre como texto, com as quebras de linha dela. */
+.caixa-texto { color: var(--text); font-size: var(--t-body); line-height: var(--t-body-lh); white-space: pre-wrap; overflow-wrap: anywhere; }
+.caixa-acoes { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.caixa-consentimento { font-size: var(--t-caption); color: var(--text-3); }
+.caixa-acoes button { margin-left: auto; }
+
+@media (max-width: 760px) {
+  .feedback-modal { padding: var(--s4); }
+  .caixa-item { padding: var(--s4); }
+}

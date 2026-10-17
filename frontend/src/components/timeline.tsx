@@ -2,7 +2,8 @@ import { motion, useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel, EmptyState, PanelSkeleton } from "./common";
 import { listEvents } from "../api/endpoints";
-import { paraDate } from "../utils/datas";
+import { horaCurta, paraDate } from "../utils/datas";
+import { rotuloDoRecurso } from "../api/ppe";
 
 // Mesma curva de tokens.css (--ease-out).
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -10,7 +11,7 @@ const EASE = [0.23, 1, 0.32, 1] as const;
 // Aceita número porque o eixo da trilha passa instantes já calculados (ms).
 function formatTime(value: string | number | null): string {
   const date = typeof value === "number" ? new Date(value) : paraDate(value);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return horaCurta(date);
 }
 
 // Backend sempre prefixa a mensagem com "Alerta resolvido:" ou "Falso
@@ -97,7 +98,8 @@ export function TimelineCard() {
             {timeline.map((event, index) => {
               const alert = (event.metadata?.alert as Record<string, unknown>) || {};
               const feature = typeof alert.feature === "string" ? alert.feature : null;
-              const detail = [event.subject, feature && feature !== event.subject ? feature : null, alert.false_positive ? "falso positivo" : null]
+              const recurso = feature ? rotuloDoRecurso(feature) : null;
+              const detail = [event.subject, recurso && recurso !== event.subject ? recurso : null, alert.false_positive ? "falso positivo" : null]
                 .filter(Boolean)
                 .join(", ");
               return (
@@ -114,7 +116,7 @@ export function TimelineCard() {
                   <span className={`dot ${event.severity || "info"}`} />
                   <div className="timeline-row-body">
                     <strong>{stripResolvedPrefix(event.message)}</strong>
-                    <small>{detail || event.event_type || ""}</small>
+                    <small>{detail}</small>
                   </div>
                   <span className="timeline-time">{formatTime(event.created_at)}</span>
                 </motion.div>

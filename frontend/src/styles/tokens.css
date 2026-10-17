@@ -36,6 +36,7 @@
                                era #AF4A06, que dava 4,41:1 sobre a linha tingida assentada no canvas */
   --stop:#C9241B;           /* parada: só o botão Parar. 5,14:1 */
   --ok:#16794A;             /* conforme: ponto e rótulo, nunca área. 4,99:1 */
+  --sinal-amarelo:#D4A10C;  /* só a lâmpada amarela da torre de luz virtual (M2); é sinal, não texto */
   --tint-danger:rgba(175,70,6,.10);
 
   /* material sobre vídeo e fundo de diálogo: papéis novos, documentados em
@@ -122,6 +123,7 @@
     --danger:#FF8A3D;         /*  8,29:1 */
     --stop:#FF5B52;           /*  6,36:1 */
     --ok:#34C77E;             /*  8,90:1 */
+    --sinal-amarelo:#F2C230;
     --tint-danger:rgba(255,138,61,.14);
     --tint-ok:rgba(52,199,126,.14);
     --scrim:rgba(0,0,0,.60);
@@ -136,7 +138,7 @@
   --hairline:#2A2B30; --control-line:#6E6F76;
   --text:#F5F5F7; --text-2:#A1A1A8; --text-3:#8C8C95;
   --accent:#4C9DFF; --on-accent:#0C0D0F;
-  --danger:#FF8A3D; --stop:#FF5B52; --ok:#34C77E;
+  --danger:#FF8A3D; --stop:#FF5B52; --ok:#34C77E; --sinal-amarelo:#F2C230;
   --tint-danger:rgba(255,138,61,.14);
   --tint-ok:rgba(52,199,126,.14);
   --scrim:rgba(0,0,0,.60);

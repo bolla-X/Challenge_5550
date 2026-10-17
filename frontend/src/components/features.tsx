@@ -18,15 +18,15 @@ const SHORT_DESCRIPTION: Record<string, string> = {
   ...PPE_DESCRIPTIONS,
   pose: "Pontos corporais",
   falls: "Pessoa caída",
-  posture: "Postura suspeita",
+  posture: "Inclinação do corpo",
   risk_area: "Zona configurável",
 };
 
 const OVERLAY_LABELS: Record<string, string> = {
-  boxes: "Bounding boxes",
-  labels: "Labels",
+  boxes: "Caixas de detecção",
+  labels: "Rótulos",
   confidence: "Confiança",
-  pose: "Pontos de pose",
+  pose: "Pontos da pose",
   risk_area: "Zona de risco",
 };
 
@@ -97,9 +97,9 @@ function supportMessage(key: string, model: ReturnType<typeof useDashboardStore.
   if (!model) return "aguardando diagnóstico";
   const supported = model.supported_ppe || ({} as Record<string, boolean>);
   if (isPpeKey(key) && !supported[key]) return "indisponível no modelo atual";
-  if (key === "ppe" && !model.ppe_ready) return "aguardando modelo PPE completo";
+  if (key === "ppe" && !model.ppe_ready) return "aguardando modelo de EPI completo";
   if (["pose", "falls", "posture"].includes(key)) return "via MediaPipe";
-  if (key === "risk_area") return "zona + YOLO pessoa";
+  if (key === "risk_area") return "zona + detecção de pessoas";
   return "disponível";
 }
 
@@ -143,11 +143,26 @@ export function FeatureGroups() {
       <div className="sidebar-group">
         <h2>Perfis</h2>
         <div className="side-profiles">
-          {(["basic", "epi", "risk", "full"] as const).map((profile) => (
-            <button key={profile} type="button" className="small" onClick={() => updateFeatures(FEATURE_PROFILES[profile]).catch(console.error)}>
-              {PROFILE_TITLES[profile]}
-            </button>
-          ))}
+          {(["basic", "epi", "risk", "full"] as const).map((profile) => {
+            // Perfil já em vigor: o botão mostra isso (aria-pressed) em vez de
+            // aceitar um clique que não mudaria nada.
+            const ativo = Object.entries(FEATURE_PROFILES[profile]).every(
+              ([chave, valor]) => (features.find((f) => f.key === chave)?.enabled ?? false) === valor,
+            );
+            return (
+              <button
+                key={profile}
+                type="button"
+                className={`small ${ativo ? "is-active" : ""}`.trim()}
+                aria-pressed={ativo}
+                disabled={ativo}
+                title={ativo ? `O perfil ${PROFILE_TITLES[profile]} já está aplicado` : `Aplicar o perfil ${PROFILE_TITLES[profile]}`}
+                onClick={() => updateFeatures(FEATURE_PROFILES[profile]).catch(console.error)}
+              >
+                {PROFILE_TITLES[profile]}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="sidebar-group">
@@ -165,7 +180,7 @@ export function OverlayControls() {
   const updateOverlay = useDashboardStore((s) => s.updateOverlay);
   if (!overlay) return null;
   return (
-    <Panel id="panel-overlay" title="Overlay do vídeo" description="Controle o que aparece dentro do frame sem misturar dados operacionais.">
+    <Panel id="panel-overlay" title="Camadas do vídeo" description="Controle o que aparece dentro do quadro sem misturar dados operacionais.">
       <div className="features">
         {[...Object.entries(OVERLAY_LABELS), ...PARTES_DO_CORPO.map(({ key, label }) => [key, `${label} (parte do corpo)`] as [string, string])].map(([key, label]) => (
           <label className="feature-item" key={key}>

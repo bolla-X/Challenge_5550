@@ -1,87 +1,60 @@
-# ESTADO — MISSÃO 2 (encerrada)
+# ESTADO — MISSÃO 4 (em andamento)
 
-**A branch da apresentação é a `main`.** Ela recebeu, pelo PR7, o VisionEPI do
-NEXT 2026 (`feat/completo-com-rebrand`, PRs #10–#15) integrado com a Sprint 4
-de IA que só existia na `main`. Retomar lendo este arquivo e `MISSAO-2.md`
-(ADENDOS 2 e 3 no fim); o detalhe de tudo está em `CHANGELOG.md`.
+Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGELOG.md`.
 
-## Antes da apresentação (na máquina dela)
+## Onde estamos
 
-```bash
-python scripts/preparar.py
-```
+- Branch de trabalho: `missao-4` (criada da `main` em `75d0de6`).
+- Passo 0 concluído (17/10):
+  - PR #18 mergeado na `main` por squash (`75d0de6`);
+  - PR #9 (`rebrand/calma`) fechado com o comentário pedido;
+  - tag `pre-missao-4` = `75d0de6` (push feito);
+  - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-e, na véspera e na manhã, `python scripts/preparar.py --so-cache`. Depois
-`python run.py --demo` e o roteiro de `DEMO.md`. Plano B: o vídeo da Release
-https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo (baixar antes).
+## Pronto e verificado (branch `missao-4`, último commit `54f1b53`)
+
+| Item | Evidência |
+|---|---|
+| Fase 1.3 matriz de permissões | `tests/test_matriz_de_permissoes.py` 1403 passed; 8 divergências de segurança corrigidas (D1–D8) + `focar`; `docs/NEXT2026/PERMISSOES.md` |
+| Fase 1.4 bug hunt | 7 bugs confirmados (C1–C7) corrigidos com regressão: `tests/test_regressao_bug_hunt.py`, `tests/test_regressao_c1_poligono.py` |
+| Fase 1.5 copy | revisão pt-BR em todas as telas + `docs/NEXT2026/GLOSSARIO.md` |
+| M1 saúde visual | `tests/test_saude_visual.py` 83 passed; E2E `test_m1_*` (MJPEG tampada: 3,8 s até OBSTRUÍDA, 9,9 s até o alerta) |
+| M2 integração | `tests/test_integracao_industrial.py` 73 + `tests/test_estado_da_planta.py` (OPC UA/MQTT reais); E2E `test_m2_*`; `docs/NEXT2026/INTEGRACAO.md` |
+| M3 evacuação | `tests/test_evacuacao.py`; E2E `test_m3_*` (pela tela até o elo na custódia íntegra) |
+| M4 editor de regras | `tests/test_regras_editor.py` 111 (equivalência com as 17 nativas); E2E `test_m4_*` (testada no histórico e disparando ao vivo) |
+| M5 permissão de trabalho | `tests/test_permissoes.py` 52; E2E `test_m5_*` (sem vigia → crítico; com vigia → some) |
+
+Telas novas: `/torre`, `/evacuacao`, `/regras`, `/permissoes` (E2E sem erro de console).
+
+Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (primeiro acesso, E2E jornada 1),
+3 (tour), 4 (ajuda), 5 (sino), 6 (busca global), 7 (/status, novidades), 8 (configurações), 9 (exceções, E2E),
+10 (/produto), 11 (feedback). Segurança extra: logout desfeito por requisição em voo (corrigido).
+
+## Em andamento
+
+- **Portão do PR8** sobre o commit `ad13411`: ruff ✓; pytest completo 2771 passed + os 4 que falharam corrigidos e
+  reexecutados isolados ✓ (guardas de segredo em teste novo, exceção pública `/api/contatos`, regressão do C3 no
+  `_loop_assincrono`); build ✓; E2E completo (`pytest e2e`: 4 câmeras + crawler + axe) rodando.
+- Agentes da Fase 4 (sem servidor): M6+M11, M7+M8, M10+M9. Identidade visual (3.1) finalizando.
+
+## Próximo passo exato
+
+1. Ler o resultado do E2E do portão (`scratchpad/portao_e2e.log`); corrigir o que falhar e reexecutar só o que falhou.
+2. Branch `pr8` no commit verificado → PR8 "QA de base + Fábrica conectada" → squash → tag `missao-4-pr8` →
+   recriar `missao-4` a partir da `main` e trazer o que veio depois (merge da antiga `missao-4`).
+3. Integrar M6–M11 (registrar blueprints, matriz, rotas), Fase 3 item 12 (revisão visual), PR9.
 
 ## Rollback
 
-- `main-pre-release` = HEAD da `main` antes do release (`6c3ed61`).
-- `pre-missao-2` = HEAD de `feat/completo-com-rebrand` antes da missão (`906c81e`).
-- Ou `git revert` do squash do PR7.
-
-## Verificação final (15/10, a partir da `main` @ `d76941b`)
-
-Tudo **sob carga**: CPU de terceiros em 30 s antes de começar, média 27 %
-(pico 85 %; Edge/WebView2, WhatsApp, WSL, Docker Desktop), acima do teto de
-15 %; no fim, 97 % (WSL, Edge, `fe-diaria`). Nenhum processo de terceiros foi
-encerrado. Evidência em `bench/runtime/verificacao-final/` (fora do git).
-
-- **E2E completo, rodada única, 4 câmeras** (Multidão, Canteiro, Rede, Queda):
-  **36/36 em 10 min 9 s**. A pílula de aproximação passou de primeira; o plano
-  de 5 rodadas isoladas não foi necessário e nenhuma correção entrou.
-- **Clone limpo da `main`** (`../ch5550-clone-4`, clonado do GitHub), README à
-  risca: `pip install` de primeira (9 min; `torch` 2.13.0, `onnx` 1.22.0,
-  `onnxscript` 0.7.1, `onnxruntime` 1.29.0); `preparar.py` exit 0 (22 min)
-  aprovou, para EPI, pessoa e esqueleto, OpenVINO dinâmico na iGPU e **ONNX
-  dinâmico (concordância 1,0 nos três)**. O traceback `No Adapter To Version
-  $17 for Resize` no meio do export é aviso do exportador do `torch`: o export
-  segue e termina em "export success".
-- `e2e/fumaca_demo.py` contra o clone: **6/6 com OpenVINO** (padrão, demo no ar
-  em 62 s) e **6/6 com ONNX** (`RUNTIME_ORDEM=onnx,pytorch`, 46 s; o log do
-  servidor carregou os três `.onnx` e não caiu para o PyTorch). É o caminho
-  ONNX que o clone 3 não tinha confirmado.
-- PRs abertos: só o #9 (`rebrand/calma`). O conteúdo já está na `main` (os 11
-  commits são ancestrais de `feat/completo-com-rebrand`, que entrou pelo PR7),
-  mas o autor é a conta `lukiin-z`, não a `lucas-baraldi` que rodou a
-  verificação: **não foi fechado**; fechar fica com o dono.
-
-## Números que valem (14/10, máquina i7-1355U com iGPU Intel)
-
-- Portal até "Liberado" com `portal.mp4` e 4 câmeras (10×): **no palco p50 3,5 s
-  / p95 5,9 s**; fora do palco p50 13,4 s / p95 24,2 s.
-- Subida até a 1ª análise: a frio mediana 67,8 s; com cache aquecido 53,2 s.
-- Queda ao vivo no palco (0,25×, outras câmeras pausadas): 19–22 s desde
-  entrar na cena (E2E isolado 2/2).
-
-## Decisões em vigor
-
-- Peso de EPI padrão: **Vyra** (`models/vyra_ppe.pt`, OpenVINO na iGPU). O peso
-  da Sprint 4 (`models/visionepi_cppe_n416.pt`) é opção documentada no README.
-- `PPE_MISSING_POLICY=ausencia` (padrão; = comportamento medido).
-- Palco: Portal, "Tente enganar a IA" e Queda pausam as outras câmeras.
-- Portal: 3 análises seguidas com tudo confirmado; EPI faltando zera.
-- Foco fora do palco: ≥ 50 % das vagas do agendador.
-
-## Ameaças conhecidas
-
-1. **CPU da máquina tomada por outros programas.** Com 80–100 % de CPU de
-   terceiros, a câmera em foco chegou a 3 inferências em 73 s e o pré-alerta de
-   aproximação não saiu (E2E). Na apresentação: fechar tudo que não for a demo
-   (Docker, Salesforce CLI, Teams, navegadores extras).
-2. Portal fora do palco é lento (p95 24 s): o peso vê o capacete em ~64 % dos
-   quadros; mostrar o Portal pelo palco.
-3. Subida leva ~1 min mesmo com cache: subir a demo antes e deixar no ar.
+- `pre-missao-4` = HEAD da `main` antes da missão. Ou `git revert` do squash de cada PR.
 
 ## Ações negadas pela permissão (não contornadas)
 
-- 14/10: lançar o portão com `nohup bash -c ... &` foi negado; o portão seguiu
-  pelo modo em segundo plano da ferramenta.
+- (nenhuma até agora)
 
-## Worktrees e pastas de apoio (fora do repositório)
+## Herdado da MISSÃO 2 (continua valendo)
 
-- `../ch5550-release-ensaio`: worktree do `release-main` (integração).
-- `../ch5550-clone-1`, `-2`, `-3`, `-4`: testes de clone limpo (README à risca;
-  o `-4` é a `main` final, 15/10).
-- `../ch5550-antes`: medições "antes" da missão.
+- Antes da apresentação: `python scripts/preparar.py` (véspera e manhã: `--so-cache`),
+  depois `python run.py --demo` e o roteiro de `DEMO.md`. Plano B: vídeo da Release
+  https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo.
+- Ameaça nº 1: CPU tomada por outros programas (Docker, Salesforce CLI, Teams).

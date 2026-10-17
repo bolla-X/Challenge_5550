@@ -15,7 +15,7 @@ from flask import Blueprint, current_app, jsonify, request
 from app.extensions import db
 from app.models import ROLE_SUPERVISOR, Alert, Camera, MetaDoSetor, utc_now
 from app.services.andon import agregar_setor, conquistas
-from app.utils.auth import camera_scope, login_required, require_role
+from app.utils.auth import camera_scope, exige_setor, login_required, require_role
 
 tv_bp = Blueprint("tv", __name__)
 
@@ -32,6 +32,7 @@ def _setor(camera: Camera) -> str:
 
 @tv_bp.get("/api/tv")
 @login_required
+@exige_setor
 def estado_tv():
     escopo = camera_scope()
     cameras = {c.id: c for c in Camera.query.all() if escopo is None or c.id == escopo}

@@ -1,0 +1,93 @@
+/* Páginas de exceção (Missão 4, Fase 3 item 9): 404, falha de tela, sem conexão,
+   sessão expirada e acesso negado. Só tokens de tokens.css. */
+
+.excecao {
+  min-height: 70vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--s3);
+  padding: var(--s6) var(--s4);
+  text-align: center;
+  color: var(--text);
+}
+/* Falha que derrubou a árvore inteira: não há barra superior, a tela é só isto. */
+.excecao.tela-cheia { min-height: 100vh; background: var(--canvas); }
+
+.excecao .ilustracao { width: 200px; height: 140px; }
+.excecao h1 {
+  font-size: var(--t-title-1);
+  line-height: var(--t-title-1-lh);
+  letter-spacing: var(--t-title-1-tr);
+  font-weight: 600;
+  margin-top: var(--s2);
+}
+.excecao p {
+  max-width: 46ch;
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  color: var(--text-2);
+}
+.excecao-endereco {
+  max-width: min(100%, 60ch);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--sunken);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-footnote);
+  line-height: var(--t-footnote-lh);
+  overflow-wrap: anywhere;
+}
+.excecao-acoes { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s2); margin-top: var(--s3); }
+
+/* Faixa de "sem conexão": discreta, fixa embaixo, não rouba clique do que está atrás. */
+.sem-conexao {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--s4);
+  pointer-events: none;
+}
+.sem-conexao-faixa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  max-width: 100%;
+  padding: var(--s2) var(--s4) var(--s2) var(--s3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  font-size: var(--t-footnote);
+  line-height: var(--t-footnote-lh);
+  animation: sem-conexao-entra var(--d-state) var(--ease-out);
+}
+.sem-conexao-faixa .ilustracao { width: 28px; height: 20px; flex: none; }
+@keyframes sem-conexao-entra {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sem-conexao-faixa { animation: none; }
+}
+
+/* Aviso de sessão expirada, no topo do cartão de login. */
+.sessao-expirada {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--sunken);
+  color: var(--text);
+  font-size: var(--t-footnote);
+  line-height: var(--t-footnote-lh);
+  letter-spacing: 0;
+}
+.sessao-expirada .ilustracao { width: 44px; height: 31px; flex: none; }

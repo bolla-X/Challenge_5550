@@ -142,10 +142,10 @@ class PersonComplianceMatcher:
                 evidence = self._evidence(key, itens_ok, negated[key], positive_conf, negative_conf)
                 if not enabled_ppe.get(key, False):
                     status = "disabled"
-                    message = "Feature desativada"
+                    message = "Recurso desativado"
                 elif not supported_ppe.get(key, False):
                     status = "unsupported"
-                    message = "Classe não suportada pelo modelo atual"
+                    message = "O modelo atual não detecta este item"
                 elif evidence == "detectado":
                     status = STATUS_OK
                     message = "Detectado"
@@ -353,7 +353,7 @@ class PersonComplianceMatcher:
         for i in range(len(polygon)):
             xi, yi = polygon[i]
             xj, yj = polygon[j]
-            intersects = ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / max(yj - yi, 1e-12) + xi)
+            intersects = ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi)
             if intersects:
                 inside = not inside
             j = i

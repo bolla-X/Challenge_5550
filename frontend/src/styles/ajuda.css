@@ -1,0 +1,161 @@
+/* Central de ajuda (`/ajuda`) e o botão "?" de cada tela. Só tokens de tokens.css. */
+
+/* ---- botão "?" (em cada tela, ao lado do título) ---------------------------- */
+.botao-de-ajuda {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-chip);
+  color: var(--text-2);
+  text-decoration: none;
+  transition: background-color var(--d-state) var(--ease-out), color var(--d-state) var(--ease-out),
+    transform var(--d-press) var(--ease-out);
+}
+.botao-de-ajuda:hover { background: var(--sunken); color: var(--text); }
+.botao-de-ajuda:active { transform: scale(.97); }
+
+/* ---- página ------------------------------------------------------------------ */
+.ajuda-grade {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.ajuda-busca {
+  position: sticky;
+  top: calc(var(--s4) + var(--s1));
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--s7));
+  overflow: hidden;
+}
+.ajuda-busca-corpo {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-bottom: 1px solid var(--hairline);
+}
+.ajuda-filtro { display: flex; width: 100%; }
+.ajuda-filtro button { flex: 1 1 0; padding: 0 var(--s2); }
+.ajuda-contagem { font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-3); }
+
+.ajuda-lista {
+  list-style: none;
+  margin: 0;
+  padding: var(--s2);
+  display: grid;
+  gap: var(--s1);
+  overflow-y: auto;
+}
+.ajuda-lista a {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color var(--d-state) var(--ease-out);
+}
+.ajuda-lista a:hover { background: var(--sunken); }
+.ajuda-lista a[aria-current="true"] { background: var(--sunken); box-shadow: inset 2px 0 0 var(--accent); }
+.ajuda-lista-titulo { font-size: var(--t-callout); line-height: var(--t-callout-lh); font-weight: 600; }
+.ajuda-lista-resumo { font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-2); }
+
+.ajuda-vazio { display: grid; justify-items: center; gap: var(--s3); padding: var(--s4); }
+
+/* ---- artigo ------------------------------------------------------------------ */
+.ajuda-conteudo { min-width: 0; }
+.ajuda-artigo,
+.ajuda-boas-vindas {
+  display: grid;
+  gap: var(--s5);
+  padding: var(--s5);
+  max-width: 76ch;
+}
+.ajuda-artigo-cab { display: grid; gap: var(--s2); }
+.ajuda-para { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.ajuda-artigo h2,
+.ajuda-boas-vindas h2 {
+  font-size: var(--t-title-2);
+  line-height: var(--t-title-2-lh);
+  letter-spacing: var(--t-title-2-tr);
+  font-weight: 600;
+  color: var(--text);
+}
+.ajuda-artigo h2:focus-visible { outline-offset: 4px; border-radius: var(--r-control); }
+.ajuda-artigo h3 {
+  margin-bottom: var(--s2);
+  font-size: var(--t-title-3);
+  line-height: var(--t-title-3-lh);
+  letter-spacing: var(--t-title-3-tr);
+  font-weight: 600;
+  color: var(--text);
+}
+.ajuda-resumo,
+.ajuda-artigo p,
+.ajuda-boas-vindas p { font-size: var(--t-body); line-height: var(--t-body-lh); color: var(--text-2); }
+.ajuda-resumo { color: var(--text); }
+
+.ajuda-passos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: passo;
+  display: grid;
+  gap: var(--s3);
+}
+.ajuda-passos li {
+  counter-increment: passo;
+  position: relative;
+  padding-left: calc(var(--s5) + var(--s2));
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  color: var(--text);
+}
+.ajuda-passos li::before {
+  content: counter(passo);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  display: grid;
+  place-items: center;
+  width: var(--s5);
+  height: var(--s5);
+  border-radius: var(--r-chip);
+  background: var(--sunken);
+  color: var(--text-2);
+  font-size: var(--t-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ajuda-notas {
+  padding: var(--s4);
+  border-radius: var(--r-control);
+  background: var(--sunken);
+}
+.ajuda-notas ul { margin: 0; padding-left: var(--s4); display: grid; gap: var(--s2); }
+.ajuda-notas li { font-size: var(--t-callout); line-height: var(--t-callout-lh); color: var(--text-2); }
+
+.ajuda-tela { margin-top: var(--s3); border: 1px solid var(--control-line); }
+
+.ajuda-icone-inline { display: inline-flex; vertical-align: text-bottom; }
+
+/* ---- celular e telas estreitas ----------------------------------------------- */
+@media (max-width: 860px) {
+  .ajuda-grade { grid-template-columns: minmax(0, 1fr); }
+  .ajuda-busca { position: static; max-height: none; }
+  .ajuda-lista { max-height: 320px; }
+  .ajuda-artigo,
+  .ajuda-boas-vindas { padding: var(--s4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .botao-de-ajuda,
+  .ajuda-lista a { transition: none; }
+  .botao-de-ajuda:active { transform: none; }
+}

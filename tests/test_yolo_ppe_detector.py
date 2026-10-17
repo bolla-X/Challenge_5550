@@ -71,7 +71,7 @@ def test_same_model_without_person_warns_when_require_person_true():
     diagnostics = _diagnostics_for(names, require_person=True)
 
     assert diagnostics["ppe_ready"] is False
-    assert "person" in diagnostics["warning"]
+    assert "pessoa" in diagnostics["warning"]
 
 
 def test_coco_person_model_reports_person_supported():

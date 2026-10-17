@@ -1,0 +1,30 @@
+/* Resultados da busca global na paleta de comandos (components/busca-global.ts). Só tokens. */
+
+.command-palette .palette-rotulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-palette .palette-detalhe {
+  flex: none;
+  max-width: 45%;
+  margin-left: auto;
+  padding-left: var(--s3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-footnote);
+  line-height: var(--t-footnote-lh);
+  color: var(--text-3);
+}
+
+/* Frase no lugar de um resultado (ex.: o ID de rastreio não está em incidente ativo). Não é selecionável. */
+.command-palette [cmdk-item].palette-nota {
+  display: block;
+  cursor: default;
+  font-size: var(--t-footnote);
+  line-height: var(--t-footnote-lh);
+  color: var(--text-2);
+  white-space: normal;
+}
