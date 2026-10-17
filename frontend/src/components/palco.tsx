@@ -379,6 +379,7 @@ export function PalcoControle() {
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   useEffect(() => {
+    if (!token) return undefined;
     const tick = () =>
       fetch(`/api/palco/estado?t=${encodeURIComponent(token)}`)
         .then(async (r) => {
@@ -402,6 +403,18 @@ export function PalcoControle() {
       .catch(() => setErro("Não chegou ao servidor. Use o teclado do notebook."))
       .finally(() => setOcupado(false));
   };
+  if (!token) {
+    return (
+      <div className="controle" data-testid="palco-controle">
+        <p className="controle-kicker">VisionEPI · controle da apresentação</p>
+        <h1>Abra pelo QR code</h1>
+        <p className="controle-proxima">
+          Este controle funciona só pelo QR code que aparece na tela do palco: ele traz a chave da apresentação.
+        </p>
+      </div>
+    );
+  }
+  const aguardando = !estado ? "Aguardando a conexão com o palco" : undefined;
   return (
     <div className="controle" data-testid="palco-controle">
       <p className="controle-kicker">VisionEPI · controle da apresentação</p>
@@ -422,10 +435,10 @@ export function PalcoControle() {
         </p>
       )}
       <div className="controle-botoes">
-        <button type="button" className="controle-anterior" disabled={ocupado || !estado || estado.cena === 0} onClick={() => mover("anterior")} data-testid="controle-anterior">
+        <button type="button" className="controle-anterior" disabled={ocupado || !estado || estado.cena === 0} title={aguardando ?? (estado?.cena === 0 ? "Esta é a primeira cena" : undefined)} onClick={() => mover("anterior")} data-testid="controle-anterior">
           Anterior
         </button>
-        <button type="button" className="primary controle-proxima-botao" disabled={ocupado || !estado || estado.proxima === null} onClick={() => mover("proxima")} data-testid="controle-proxima">
+        <button type="button" className="primary controle-proxima-botao" disabled={ocupado || !estado || estado.proxima === null} title={aguardando ?? (estado?.proxima === null ? "Esta é a última cena" : undefined)} onClick={() => mover("proxima")} data-testid="controle-proxima">
           Próxima
         </button>
       </div>

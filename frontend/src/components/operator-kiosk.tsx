@@ -1,3 +1,4 @@
+import { eFalhaDeRede } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { MuteToggle } from "./layout";
@@ -76,7 +77,7 @@ export function OperatorKiosk({ camId }: { camId: number }) {
     setStarting(true);
     startCamera(camId)
       .then(setStatus)
-      .catch((err) => console.error(err))
+      .catch((err) => !eFalhaDeRede(err) && console.error(err))
       .finally(() => setStarting(false));
   };
 

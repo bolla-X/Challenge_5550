@@ -1,4 +1,4 @@
-import { mensagemDeErro } from "../utils/erros";
+import { mensagemDeErro, eFalhaDeRede } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { FeatureGroups, OverlayControls, PartToggles } from "./features";
@@ -119,7 +119,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const handleStart = () => {
     setStarting(true);
     startCamera(camera.id)
-      .catch((err) => console.error(err))
+      .catch((err) => !eFalhaDeRede(err) && console.error(err))
       .finally(() => setStarting(false));
   };
 

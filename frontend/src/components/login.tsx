@@ -86,7 +86,7 @@ export function LoginScreen() {
           </p>
         )}
 
-        <button type="submit" className="primary block" disabled={enviando || !email || !senha}>
+        <button type="submit" className="primary block" disabled={enviando || !email || !senha} title={!email || !senha ? "Preencha o e-mail e a senha para entrar" : undefined}>
           {enviando ? "Entrando…" : "Entrar"}
         </button>
 

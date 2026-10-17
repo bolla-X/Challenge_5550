@@ -33,7 +33,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
   });
-  const body = await res.json().catch(() => null);
+  let corpoInterrompido = false;
+  const body = await res.json().catch(() => {
+    corpoInterrompido = true;
+    return null;
+  });
+  // Resposta 2xx sem JSON legível: a leitura foi cortada (navegação, conexão
+  // caiu). Trata como falha de rede, que quem chama já sabe repetir.
+  if (res.ok && corpoInterrompido && res.status !== 204) throw new TypeError("Failed to fetch (corpo interrompido)");
   if (!res.ok) {
     avisarSeSessaoExpirou(path, res.status);
     const message = (body && typeof body === "object" && "error" in body && String((body as { error: unknown }).error)) || `Falha na comunicação com o servidor (código ${res.status}).`;

@@ -1,3 +1,4 @@
+import { eFalhaDeRede } from "../utils/erros";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -141,7 +142,7 @@ export function Topbar() {
   const runAction = (which: "start" | "stop", action: () => Promise<void>) => {
     setPending(which);
     action()
-      .catch((err) => console.error(err))
+      .catch((err) => !eFalhaDeRede(err) && console.error(err))
       .finally(() => setPending(null));
   };
   const secundarios = (

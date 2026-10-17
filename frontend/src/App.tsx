@@ -15,7 +15,7 @@ import { TvScreen } from "./components/tv";
 import { RotularScreen } from "./components/rotular";
 import { DesafioScreen } from "./components/desafio";
 import { PanelSkeleton } from "./components/common";
-import { PaginaNaoEncontrada } from "./components/excecoes";
+import { AcessoNegado, PaginaNaoEncontrada } from "./components/excecoes";
 import { pluralizar } from "./utils/formato";
 
 // Telas pesadas (three.js) só carregam quando abertas.
@@ -46,6 +46,20 @@ const PREFIXOS_CONHECIDOS = [
   "/palco", "/desafio", "/rotular", "/gemeo", "/liga", "/retrospectiva", "/auditoria", "/simulador", "/evacuacao",
   "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso",
 ];
+
+// Telas de tela cheia que exigem um tipo de conta mínimo (o mesmo que a API
+// exige). Quem não tem o tipo vê "acesso negado" explicado, sem a tela chamar
+// a API e colecionar 403 (crawler da MISSÃO 4).
+const PAPEL_MINIMO: [string, "technical" | "supervisor", string][] = [
+  ["/auditoria", "technical", "a auditoria da cadeia de custódia"],
+  ["/simulador", "technical", "o simulador de regras"],
+  ["/regras", "technical", "o editor de regras"],
+  ["/evacuacao", "technical", "o Modo Evacuação"],
+  ["/rotular", "technical", "a fila de rótulos"],
+  ["/palco", "technical", "o Modo Apresentação"],
+  ["/primeiro-acesso", "supervisor", "o primeiro acesso"],
+];
+const NIVEL: Record<string, number> = { operator: 1, technical: 2, supervisor: 3 };
 
 function CarregandoTela() {
   return (
@@ -235,6 +249,14 @@ export default function App() {
     return (
       <main id="conteudo">
         <PaginaNaoEncontrada endereco={caminho} />
+      </main>
+    );
+  }
+  const exigencia = PAPEL_MINIMO.find(([prefixo]) => caminho === prefixo || caminho.startsWith(`${prefixo}/`));
+  if (exigencia && (NIVEL[user.role] ?? 0) < NIVEL[exigencia[1]]) {
+    return (
+      <main id="conteudo">
+        <AcessoNegado papelExigido={exigencia[1]} recurso={exigencia[2]} />
       </main>
     );
   }
