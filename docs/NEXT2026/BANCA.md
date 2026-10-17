@@ -212,3 +212,53 @@ melhoraria: mais análises por segundo por câmera — GPU dedicada, menos
 câmeras por máquina ou um modelo menor para a câmera de risco — sem afrouxar a
 regra. E numa planta de verdade quem cai fica no chão bem mais que 0,8 s; o
 caso difícil é a gravação, não o acidente.
+
+## Funcionalidades da MISSÃO 4
+
+**22. "Isso conversa com o CLP/SCADA da fábrica?"**
+Sim, por padrão aberto: um servidor OPC UA (nó `Planta.PlantaEmAlarme`, `Planta.Torre` e, por câmera, estado,
+conformidade, último alerta e incidentes ativos por regra), MQTT (`visionepi/planta/estado` retido e
+`visionepi/<camera>/alerta`) e webhook HTTP. Na demo, o OPC UA e um broker MQTT embutido sobem em 127.0.0.1, sem
+internet. Testado com clientes OPC UA e MQTT reais lendo o alarme. Limite honesto: o OPC UA sobe sem criptografia
+(NoSecurity) e só aceita leitura anônima — para produção, política com certificado e broker da planta com TLS
+(`docs/NEXT2026/INTEGRACAO.md`).
+
+**23. "E se alguém tapar ou virar a câmera?"**
+A saúde visual compara, uma vez por segundo, uma miniatura do quadro com a referência da câmera: imagem lisa
+(obstruída), escura, ofuscada, sem nitidez (desfocada) ou enquadramento mudado (movida). Cada estado precisa de 3 s
+seguidos para confirmar e 3 s de normalidade para liberar. Medido no E2E com a câmera de rede tampada no meio do teste:
+3,8 s até "OBSTRUÍDA" e 9,9 s até o alerta. Limite: "movida" só dispara com evidência geométrica; com a cena muito
+renovada desde a referência, fica inconclusiva (nunca alarme falso) — o técnico redefine a referência.
+
+**24. "Como funciona a evacuação? Vocês contam pessoas?"**
+Cada câmera conta quantas pessoas vê agora; o painel soma, mostra a última posição vista na planta e o pico no ponto
+de encontro, com cronômetro. O aviso fica sempre na tela: contagem por câmera — pode haver dupla contagem se as
+câmeras se sobrepõem. Não identifica ninguém: o número ao lado do ponto é rótulo de rastreio. Ao encerrar, o relatório
+entra na cadeia de custódia.
+
+**25. "Dá para criar regra sem programar?"**
+Sim: blocos de condição (zona, EPI presente/ausente, duração, postura, aproximação, horário, permissão ativa)
+combinados com E/OU, e ações (severidade, fala, integração, escalonamento). A regra compila para o MESMO motor das
+regras nativas — não existe um segundo caminho. Antes de ativar, "testar no histórico" reprocessa as trilhas gravadas
+e diz quantas vezes teria disparado; postura e aproximação não ficam nas trilhas, e a tela diz isso em vez de inventar.
+As 17 regras nativas reescritas no editor geram exatamente os mesmos alertas (teste de equivalência).
+
+**26. "E a NR-33 (espaço confinado) e a NR-35 (altura)?"**
+A permissão de trabalho digital registra zona, janela, responsável, EPIs e se exige vigia. Pessoa no espaço confinado
+sem ninguém na área de vigia gera alerta crítico; entrar fora da janela gera "sem permissão ativa". O que a NR-33 diz e
+nós repetimos (texto oficial no gov.br): o vigia fica fora do espaço confinado e não faz outras tarefas, e a câmera
+pode auxiliá-lo, mas não substitui o vigia nem o campo visual dele (33.3.4.1). EPI não é campo mínimo da PET da norma —
+por isso o sistema separa "fiscalizado pela câmera" de "verificação manual". Não emitimos a PET legal: é apoio.
+
+**27. "O que a pessoa nova precisa fazer no primeiro dia? E os dados dela (LGPD)?"**
+O supervisor tem um assistente de primeiro acesso que detecta sozinho o que já está pronto (câmera, referência,
+planta, zona, EPIs, contas) e mostra o checklist "pronto para operar" só com o que foi detectado. A conta criada no
+assistente recebe senha temporária exibida uma única vez, nunca gravada em claro nem registrada em log, sem envio de
+e-mail. O formulário de contato da página pública guarda só nome, empresa, e-mail e mensagem, com consentimento
+explícito, nesta instalação; o supervisor pode excluir. Nada é por pessoa nos painéis e não há reconhecimento facial.
+
+**28. "Como vocês testaram tudo isso?"**
+Cerca de 3.100 testes unitários e de API, uma matriz de permissões com ~1.400 casos (todo endpoint × todo tipo de
+conta, inclusive o operador fora do setor e sem setor — achou e corrigiu 8 falhas de escopo), um caçador de bugs que só
+reporta (7 bugs confirmados e corrigidos com teste de regressão), um crawler que clica em todo botão de toda tela com
+cada tipo de conta (0 botões sem efeito no portão) e jornadas ponta a ponta com 4 câmeras de gravação no servidor real.
