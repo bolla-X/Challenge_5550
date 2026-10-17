@@ -366,8 +366,8 @@ def test_primeiro_acesso_do_supervisor_ate_pronto_para_operar(navegador, servido
                 email = f"operador.onb.{int(time.time())}@e2e.local"
                 pagina.get_by_label("Nome", exact=True).fill("Operador do primeiro acesso")
                 pagina.get_by_label("E-mail (login)", exact=True).fill(email)
-                pagina.get_by_label("Tipo de conta", exact=True).select_option("operator")
-                pagina.get_by_label("Câmera do setor", exact=True).select_option(str(servidor.cameras["Multidão"]))
+                pagina.locator("form.onb-form select").nth(0).select_option("operator")
+                pagina.locator("form.onb-form select").nth(1).select_option(str(servidor.cameras["Multidão"]))
                 pagina.locator("form.onb-form button[type=submit]").click()
                 senha = pagina.locator("[data-testid=onb-senha-valor]")
                 senha.wait_for(timeout=30_000)
@@ -383,7 +383,8 @@ def test_primeiro_acesso_do_supervisor_ate_pronto_para_operar(navegador, servido
             _esperar(lambda n=nome: pagina.locator("[data-testid=onb-passo]").get_attribute("data-passo") != n
                      or pagina.locator("[data-testid=onb-concluido]").count() > 0, 30, 0.5, msg=f"passo {nome} não avançou")
         pagina.locator("[data-testid=onb-concluido]").wait_for(timeout=30_000)
-        assert vistos[:2] == ["camera", "referencia"] and "usuarios" in vistos, vistos
+        # O assistente retoma no primeiro passo PENDENTE: câmera e referência já são detectadas no E2E.
+        assert vistos[-1] == "pronto" and "usuarios" in vistos and "camera" not in vistos, vistos
         estado = supervisor.get(f"{servidor.base}/api/onboarding", timeout=20).json()
         assert estado["concluido"] is True
         # O checklist só marca ✓ no que foi DETECTADO (câmeras e contas existem no E2E).
