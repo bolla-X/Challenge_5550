@@ -26,16 +26,23 @@ Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGEL
 
 Telas novas: `/torre`, `/evacuacao`, `/regras`, `/permissoes` (E2E sem erro de console).
 
+Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (primeiro acesso, E2E jornada 1),
+3 (tour), 4 (ajuda), 5 (sino), 6 (busca global), 7 (/status, novidades), 8 (configurações), 9 (exceções, E2E),
+10 (/produto), 11 (feedback). Segurança extra: logout desfeito por requisição em voo (corrigido).
+
 ## Em andamento
 
-- Crawler botão a botão nos 4 papéis (`e2e/test_todos_os_botoes.py`) rodando; resultado vai para `docs/NEXT2026/QA.md`.
-- Agentes: identidade visual (Fase 3.1), páginas de exceção (3.9), primeiro acesso (3.2).
+- **Portão do PR8** sobre o commit `ad13411`: ruff ✓; pytest completo 2771 passed + os 4 que falharam corrigidos e
+  reexecutados isolados ✓ (guardas de segredo em teste novo, exceção pública `/api/contatos`, regressão do C3 no
+  `_loop_assincrono`); build ✓; E2E completo (`pytest e2e`: 4 câmeras + crawler + axe) rodando.
+- Agentes da Fase 4 (sem servidor): M6+M11, M7+M8, M10+M9. Identidade visual (3.1) finalizando.
 
 ## Próximo passo exato
 
-1. Corrigir o que o crawler apontar e rodar de novo até zero botão morto/erro de console.
-2. Ligar no `App.tsx` as entregas dos agentes da Fase 3 (exceções, `/primeiro-acesso`, marca).
-3. Portão do PR8: pytest completo, ruff, build, E2E completo (4 câmeras), crawler, axe → PR8 → squash → tag `missao-4-pr8`.
+1. Ler o resultado do E2E do portão (`scratchpad/portao_e2e.log`); corrigir o que falhar e reexecutar só o que falhou.
+2. Branch `pr8` no commit verificado → PR8 "QA de base + Fábrica conectada" → squash → tag `missao-4-pr8` →
+   recriar `missao-4` a partir da `main` e trazer o que veio depois (merge da antiga `missao-4`).
+3. Integrar M6–M11 (registrar blueprints, matriz, rotas), Fase 3 item 12 (revisão visual), PR9.
 
 ## Rollback
 
