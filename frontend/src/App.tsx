@@ -37,6 +37,9 @@ const OnboardingScreen = lazy(() => import("./components/onboarding"));
 const ProdutoScreen = lazy(() => import("./components/produto"));
 const CaixaDeEntradaScreen = lazy(() => import("./components/caixa-de-entrada"));
 const AjudaScreen = lazy(() => import("./components/ajuda"));
+const PaginaStatus = lazy(() => import("./components/pagina-status"));
+const NovidadesScreen = lazy(() => import("./components/novidades"));
+const ConfiguracoesScreen = lazy(() => import("./components/configuracoes"));
 
 // Marcado no `pagehide`/`beforeunload`: a partir daí, fetch abortado é esperado.
 let saindoDaPagina = false;
@@ -50,7 +53,7 @@ if (typeof window !== "undefined") {
 
 const PREFIXOS_CONHECIDOS = [
   "/palco", "/desafio", "/rotular", "/gemeo", "/liga", "/retrospectiva", "/auditoria", "/simulador", "/evacuacao",
-  "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso", "/produto", "/caixa-de-entrada", "/ajuda",
+  "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso", "/produto", "/caixa-de-entrada", "/ajuda", "/status", "/novidades", "/configuracoes",
 ];
 
 // Telas de tela cheia que exigem um tipo de conta mínimo (o mesmo que a API
@@ -65,6 +68,7 @@ const PAPEL_MINIMO: [string, "technical" | "supervisor", string][] = [
   ["/palco", "technical", "o Modo Apresentação"],
   ["/primeiro-acesso", "supervisor", "o primeiro acesso"],
   ["/caixa-de-entrada", "supervisor", "a caixa de entrada"],
+  ["/status", "technical", "a página de status"],
 ];
 const NIVEL: Record<string, number> = { operator: 1, technical: 2, supervisor: 3 };
 
@@ -87,6 +91,9 @@ function SupervisorOverview({ onBack }: { onBack: () => void }) {
     ["/permissoes", "Permissões de trabalho"],
     ["/primeiro-acesso", "Primeiro acesso"],
     ["/caixa-de-entrada", "Caixa de entrada"],
+    ["/status", "Status do sistema"],
+    ["/configuracoes", "Configurações"],
+    ["/novidades", "Novidades"],
     ["/gemeo", "Gêmeo digital"],
     ["/liga", "Liga de Setores"],
     ["/palco", "Apresentação"],
@@ -375,6 +382,36 @@ export default function App() {
         {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <EvacuacaoScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/status")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <PaginaStatus />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/novidades")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <NovidadesScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/configuracoes")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <ConfiguracoesScreen />
         </Suspense>
       </main>
     );

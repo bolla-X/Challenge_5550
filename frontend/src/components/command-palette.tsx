@@ -1,3 +1,4 @@
+import { eFalhaDeRede } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import { ROLE_ACCESS, useDashboardStore, type ViewMode } from "../store/dashboardStore";
@@ -130,7 +131,7 @@ export function CommandPalette() {
         {(mostraMonitoramento || mostraSom) && (
           <Command.Group heading="Monitoramento">
             {mostraMonitoramento && (
-              <Command.Item onSelect={() => runAndClose(() => (running ? stop() : start()).catch(console.error))}>{rotuloDoMonitoramento}</Command.Item>
+              <Command.Item onSelect={() => runAndClose(() => (running ? stop() : start()).catch((err) => !eFalhaDeRede(err) && console.error(err)))}>{rotuloDoMonitoramento}</Command.Item>
             )}
             {mostraSom && <Command.Item onSelect={() => runAndClose(toggleMuted)}>{rotuloDoSom}</Command.Item>}
           </Command.Group>

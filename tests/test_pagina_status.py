@@ -129,7 +129,8 @@ def test_modelos_dizem_runtime_pedido_e_se_aqueceram(tecnico):
 
 def test_integracoes_desligadas_dizem_como_ligar(tecnico):
     componentes = tecnico.get("/api/status").get_json()["componentes"]
-    for chave, variavel in (("opcua", "OPCUA_ATIVO"), ("mqtt", "MQTT_ATIVO"), ("broker", "MQTT_BROKER_EMBUTIDO"), ("webhook", "WEBHOOK_URL")):
+    variaveis = (("opcua", "OPCUA_ATIVO"), ("mqtt", "MQTT_ATIVO"), ("broker", "MQTT_BROKER_EMBUTIDO"), ("webhook", "WEBHOOK_URL"))
+    for chave, variavel in variaveis:
         assert componentes[chave]["estado"] == DESLIGADO
         assert componentes[chave]["como_ligar"] == variavel
 

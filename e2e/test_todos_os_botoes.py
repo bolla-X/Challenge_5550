@@ -59,6 +59,8 @@ NAO_ACIONAR: list[tuple[re.Pattern[str], str]] = [
 # Respostas 4xx esperadas (não são bug): login sem sessão consulta /api/auth/me.
 RESPOSTAS_ESPERADAS = [
     (re.compile(r"/api/auth/me$"), {401}),
+    # A rota de teste da página 404 desenhada: o servidor responde 404 com o shell, de propósito.
+    (re.compile(r"/nao-existe$"), {404}),
 ]
 
 JS_ENUMERAR = """(sel) => {
@@ -143,6 +145,13 @@ def _rotas_por_papel(servidor) -> dict[str, list[tuple[str, str, str | None]]]:
         ("evacuacao", "/evacuacao", None),
         ("regras", "/regras", None),
         ("permissoes", "/permissoes", None),
+        ("ajuda", "/ajuda", None),
+        ("novidades", "/novidades", None),
+        ("configuracoes", "/configuracoes", None),
+        ("status", "/status", None),
+        ("caixa-de-entrada", "/caixa-de-entrada", None),
+        ("primeiro-acesso", "/primeiro-acesso", None),
+        ("pagina-404", "/nao-existe", None),
     ]
     painel = [
         ("grade", "/", None),
@@ -150,7 +159,7 @@ def _rotas_por_papel(servidor) -> dict[str, list[tuple[str, str, str | None]]]:
         ("foco-multidao", "/", "Configurar Multidão"),
     ]
     return {
-        "sem_sessao": [("login", "/", None), ("palco-controle-sem-token", "/palco/controle", None)],
+        "sem_sessao": [("login", "/", None), ("palco-controle-sem-token", "/palco/controle", None), ("produto", "/produto", None)],
         "operator": [("kiosk", "/", None)] + comuns_tela_cheia,
         "technical": painel + comuns_tela_cheia,
         "supervisor": painel + [("inicio-supervisor", "/", "__inicio__")] + comuns_tela_cheia,
@@ -217,8 +226,8 @@ class Rastro:
 
 
 def _login(pagina, servidor, papel: str) -> None:
-    pagina.goto(servidor.base + "/")
-    pagina.get_by_label("E-mail").wait_for(timeout=60_000)
+    pagina.goto(servidor.base + "/", wait_until="domcontentloaded", timeout=90_000)
+    pagina.get_by_label("E-mail").wait_for(timeout=90_000)
     pagina.get_by_label("E-mail").fill(servidor.emails[papel])
     pagina.get_by_label("Senha").fill(servidor.senhas[papel])
     pagina.get_by_role("button", name="Entrar").click()
@@ -227,8 +236,9 @@ def _login(pagina, servidor, papel: str) -> None:
 
 
 def _abrir(pagina, servidor, url: str, preparo: str | None) -> None:
-    pagina.goto(servidor.base + url)
-    pagina.wait_for_load_state("domcontentloaded")
+    # domcontentloaded e prazo longo: o gêmeo 3D renderiza em software no headless e,
+    # depois dele, o navegador demora a liberar o evento `load` (não é o servidor).
+    pagina.goto(servidor.base + url, wait_until="domcontentloaded", timeout=90_000)
     pagina.wait_for_timeout(2500)
     if preparo == "__inicio__":
         botao = pagina.get_by_role("button", name=re.compile(r"Início"))
@@ -237,6 +247,10 @@ def _abrir(pagina, servidor, url: str, preparo: str | None) -> None:
             pagina.wait_for_timeout(1500)
     elif preparo:
         alvo = pagina.get_by_role("button", name=preparo)
+        try:
+            alvo.wait_for(timeout=20_000)
+        except Exception:  # noqa: BLE001
+            pass
         if not alvo.count():
             # Supervisor abre no Início: a grade de câmeras fica a um clique.
             pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.click(timeout=30_000)
@@ -496,7 +510,8 @@ def test_paleta_de_comandos_todos_os_itens(navegador, servidor):
             if any(p.search(texto) for p, _ in NAO_ACIONAR):
                 resultado["elementos"].append({"nome": texto, "resultado": "não acionado"})
                 continue
-            pagina.goto(servidor.base + "/")
+            rastro.esperar_rede(pagina)
+            pagina.goto(servidor.base + "/", wait_until="domcontentloaded", timeout=90_000)
             pagina.wait_for_timeout(2000)
             pagina.keyboard.press("Control+k")
             item = pagina.locator("[cmdk-item]").filter(has_text=texto).first
