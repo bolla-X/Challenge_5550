@@ -1418,3 +1418,50 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
   `aria-modal="true"` nos diálogos.
 - **Perfis de recursos.** Os botões Básico/EPI/Risco/Completo não mostravam qual perfil estava aplicado e, quando já
   estava, o clique não fazia nada. Agora `aria-pressed`, e o perfil em vigor fica desabilitado com explicação.
+- **Crawler (segunda rodada).** Telas de Técnico/Supervisor abertas por operador mostram "acesso negado"
+  explicado em vez de chamar a API (`PAPEL_MINIMO` em `App.tsx`); o controle do palco sem o token do QR orienta a
+  abrir pelo QR; "Entrar" desabilitado explica o motivo; `loadCameras` deixa a falha de rede subir para o retry do
+  App (antes o store engolia e logava erro a cada navegação); `apiFetch` trata corpo 2xx interrompido como falha de
+  rede; `getMe` com prazo de 20 s (servidor travado não deixa mais a tela em branco). Os "botões sem nome" que o
+  crawler acusou no foco eram dele: linhas com `content-visibility` têm `innerText` vazio; agora lê `textContent`.
+- **`.gitattributes`.** `app/static/dist/** text eol=lf` convertia o `palco.gif` do build (6.383.668 bytes no blob
+  contra 6.383.807 no disco). GIF, WebP, ICO e vídeo passaram a `binary`; blob conferido com o mesmo tamanho.
+
+## Fase 1 — matriz de permissões e bug hunt (MISSÃO 4)
+
+- **Matriz** (`tests/test_matriz_de_permissoes.py`, 1403 casos, ~8 min): todo endpoint × método × (sem sessão,
+  operador, operador fora do setor, operador sem setor, técnico, supervisor) e os 3 eventos de socket. Teste-guarda
+  falha para rota ou evento sem classificação. 8 divergências de segurança achadas e corrigidas (D1–D8, ver
+  `PERMISSOES.md`): `/snapshots/<arquivo>` sem escopo de câmera e seis listagens do parque entregues ao operador sem
+  setor — decorator único `exige_setor`.
+- **Bug hunt** (somente leitura) nos módulos centrais: 7 bugs confirmados com reprodução, todos corrigidos com teste
+  de regressão (`tests/test_regressao_bug_hunt.py`, `tests/test_regressao_c1_poligono.py`): ponto-em-polígono em
+  aresta inclinada (alerta falso de área de risco), commit falho envenenando o estado de alertas, dois loops de
+  captura após stop+start, falso positivo apagado pelo `touch`, incidente que não fechava, adulteração escondida na
+  verificação por incidente (hash do elo formato 2) e 500 no simulador.
+- **Copy**: revisão pt-BR de todas as telas, `GLOSSARIO.md`, plurais, decimal com vírgula, hora pt-BR.
+
+## Fase 2 — Fábrica conectada (MISSÃO 4)
+
+- **M1 saúde visual** (`app/vision/saude_visual.py`, 83 testes com quadros derivados das fixtures): obstrução,
+  escura, ofuscada, desfocada e câmera movida (ORB + RANSAC; pose por similaridade nos inliers, que errou menos que a
+  homografia livre em 160 px). Histerese de 3 s para confirmar e liberar. Zero falso positivo de "movida" em 6.804
+  observações densas das fixtures; recall de movida em cena renovada é baixo (fica "inconclusivo", nunca alarme falso)
+  — documentado. E2E com a fonte MJPEG tampada no meio do teste: **3,8 s até OBSTRUÍDA e 9,9 s até o alerta**
+  (`bench/runtime/missao4-tempos.jsonl`), e volta a OK ao destampar. Referência persistida por câmera; "Redefinir
+  referência" só técnico+.
+- **M2 integração**: servidor OPC UA (asyncua), publicador MQTT (paho) com broker embutido (amqtt) e webhook com
+  proteção SSRF; tudo desligado por padrão, ligado no modo demo. Estado da planta a cada 1 s
+  (`app/services/integracao/planta_viva.py`), torre de luz em `/torre` e no Modo TV. Porta ocupada vira "falhou" no
+  status, nunca derruba o app. Teste de integração e E2E com clientes OPC UA e MQTT reais. O OPC UA levou ~5 s para
+  subir nesta máquina e passou de 10 s com a CPU tomada por agentes: prazo de subida 45 s, em thread própria.
+  Semântica da torre: reconhecer cala a sirene; a torre só volta a verde quando a violação acaba (na Multidão, cada
+  pessoa nova sem capacete abre outro alerta crítico — o E2E verifica que os reconhecidos deixam de contar).
+- **M3 evacuação**: contagem por câmera e zona com o aviso de dupla contagem sempre visível, última posição na
+  planta, pico no ponto de encontro, cronômetro; relatório na cadeia de custódia (elo `evacuacao`). E2E pela tela.
+- **M4 editor de regras**: blocos E/OU compilados para o MESMO `RuleEngine` (sem segundo caminho), equivalência
+  provada com as 17 regras nativas, "testar no histórico" sobre as trilhas do X2 (postura e aproximação declaradas
+  não simuláveis, nunca fingidas). E2E: regra testada no histórico e disparando ao vivo.
+- **M5 permissão de trabalho**: zona controlada, janela, responsável em texto livre, EPIs com verificação automática
+  x manual, vigia (NR-33 citada do gov.br: a câmera auxilia o vigia, não o substitui). E2E: sem vigia → crítico; com
+  vigia na área → some.
