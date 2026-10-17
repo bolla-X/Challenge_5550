@@ -1370,3 +1370,17 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
 - **MQTT 3.1.1** (OASIS, https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html): '/' separa níveis (§4.7.1.1); RETAIN guarda a última mensagem do tópico (§3.3.1.3).
 - **OpenAPI 3.1.2**: https://spec.openapis.org/oas/v3.1.2.html.
 - **COCO**: "cell phone" está entre as 80 categorias do release 2014 (https://arxiv.org/pdf/1405.0312, Tabela 2); anotações CC BY 4.0, imagens sob os termos do Flickr (https://cocodataset.org/dataset/termsofuse.htm).
+
+## Fase 1 — correções de UI achadas pelo crawler (MISSÃO 4)
+
+- **Vibração sem gesto do usuário.** O crawler registrou no console "Blocked call to navigator.vibrate because user
+  hasn't tapped on the frame or any embedded frame yet" (https://www.chromestatus.com/feature/5644273861001216). A doc
+  da MDN de `Navigator.vibrate()` (https://developer.mozilla.org/en-US/docs/Web/API/Navigator/vibrate) registra que o
+  método exige ativação do usuário; e `navigator.userActivation.hasBeenActive`
+  (https://developer.mozilla.org/en-US/docs/Web/API/UserActivation/hasBeenActive) diz se a página já recebeu um gesto.
+  `pwa.ts` e o controle do palco só vibram depois de um gesto; a notificação local segue igual.
+- **Modais sem Esc.** "Prova de escala", "Adicionar câmera" e o replay não fechavam com Esc (o clique do crawler no
+  item seguinte batia no fundo do modal). Hook único `useFecharComEsc` (`frontend/src/utils/teclado.ts`) e
+  `aria-modal="true"` nos diálogos.
+- **Perfis de recursos.** Os botões Básico/EPI/Risco/Completo não mostravam qual perfil estava aplicado e, quando já
+  estava, o clique não fazia nada. Agora `aria-pressed`, e o perfil em vigor fica desabilitado com explicação.

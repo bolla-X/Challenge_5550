@@ -84,19 +84,19 @@ def test_remove_camera(real_monitor_client):
 def test_nome_obrigatorio(real_monitor_client):
     response = real_monitor_client.post("/api/cameras", json={"source_type": "USB", "source": "0"})
     assert response.status_code == 400
-    assert "name" in response.get_json()["error"]
+    assert "nome" in response.get_json()["error"]
 
 
 def test_source_obrigatorio(real_monitor_client):
     response = real_monitor_client.post("/api/cameras", json={"name": "X", "source_type": "USB"})
     assert response.status_code == 400
-    assert "source" in response.get_json()["error"]
+    assert "fonte" in response.get_json()["error"]
 
 
 def test_source_type_invalido(real_monitor_client):
     response = _create(real_monitor_client, source_type="Webcam")
     assert response.status_code == 400
-    assert "source_type" in response.get_json()["error"]
+    assert "Tipo de fonte" in response.get_json()["error"]
 
 
 def test_feature_desconhecida_e_rejeitada(real_monitor_client):

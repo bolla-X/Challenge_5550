@@ -1,3 +1,5 @@
+import { useFecharComEsc } from "../utils/teclado";
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { EmptyState } from "./common";
 import { IlustracaoCamera } from "./ilustracoes";
@@ -224,7 +226,7 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setDiscoverError(null);
     discoverCameras(5)
       .then((res) => setDiscovered(res.items))
-      .catch((err) => setDiscoverError(err instanceof Error ? err.message : "Falha ao detectar câmeras"))
+      .catch((err) => setDiscoverError(mensagemDeErro(err, "Falha ao detectar câmeras")))
       .finally(() => setDiscovering(false));
   };
 
@@ -246,13 +248,14 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setSubmitError(null);
     createCamera({ name: name.trim(), location: location.trim() || null, source_type: sourceType, source: sourceType === "Celular" ? "celular" : source.trim(), fps, width, height })
       .then(() => onCreated())
-      .catch((err) => setSubmitError(err instanceof Error ? err.message : "Falha ao cadastrar câmera"))
+      .catch((err) => setSubmitError(mensagemDeErro(err, "Falha ao cadastrar câmera")))
       .finally(() => setSubmitting(false));
   };
 
+  useFecharComEsc(onClose);
   return (
     <div className="modal-scrim" onClick={onClose}>
-      <div className="card modal" role="dialog" aria-labelledby="add-camera-title" onClick={(e) => e.stopPropagation()}>
+      <div className="card modal" role="dialog" aria-modal="true" aria-labelledby="add-camera-title" onClick={(e) => e.stopPropagation()}>
         <div className="card-head">
           <div>
             <h2 id="add-camera-title">Adicionar câmera</h2>

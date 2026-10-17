@@ -164,9 +164,7 @@ class GerenteDeIntegracao:
             self._falha("mqtt", None, f"Não foi possível iniciar o publicador MQTT: {exc}", exc)
             return
         self._mqtt = publicador  # fica de pé mesmo desconectado: ele reconecta sozinho
-        self._status["mqtt"] = _situacao(
-            True, "no_ar" if situacao["conectado"] else "falhou", situacao["endpoint"], situacao["erro"]
-        )
+        self._status["mqtt"] = _situacao(True, "no_ar" if situacao["conectado"] else "falhou", situacao["endpoint"], situacao["erro"])
 
     def _subir_opcua(self) -> None:
         if not _booleano(self._config.get("OPCUA_ATIVO")):

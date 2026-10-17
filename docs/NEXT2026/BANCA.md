@@ -71,8 +71,8 @@ quadro só): no palco, a gravação da queda toca a 0,25×, com o rótulo na tel
 - **nunca** se premia "zero alertas": minuto sem ninguém é neutro;
 - quem gera ou reporta alerta nunca perde ponto;
 - não há ranking por pessoa nem por ID: tudo é por setor (Modo TV);
-- a conquista "todos os alertas críticos reconhecidos" exige ter havido alerta
-  reconhecido.
+- a conquista "todos os alertas críticos tiveram o colaborador avisado" exige
+  ter havido alerta com colaborador avisado.
 
 **8. "E o 'Você vs. a IA'?"**
 O gabarito foi curado à mão (GABARITO.md), com a mesma regra de pontuação para

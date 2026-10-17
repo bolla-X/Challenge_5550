@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { useDashboardStore } from "../store/dashboardStore";
@@ -40,7 +41,7 @@ export function useLiga(intervaloMs = 5000): { liga: EstadoDaLiga | null; erro: 
     const tick = () =>
       fetch("/api/liga", { credentials: "same-origin" })
         .then(async (r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          if (!r.ok) throw new Error("o servidor não respondeu");
           return (await r.json()) as EstadoDaLiga;
         })
         .then((d) => {
@@ -48,7 +49,7 @@ export function useLiga(intervaloMs = 5000): { liga: EstadoDaLiga | null; erro: 
           setLiga(d);
           setErro(null);
         })
-        .catch((e) => vivo && setErro(e instanceof Error ? e.message : "falha"));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "erro desconhecido")));
     tick();
     const id = window.setInterval(tick, intervaloMs);
     return () => {
@@ -134,7 +135,7 @@ export function NivelDaPlanta({ planta }: { planta: EstadoDaLiga["planta"] }) {
         <span style={{ transform: `scaleX(${planta.progresso})` }} />
       </div>
       <span className="muted t-data">
-        {planta.xp} XP · {planta.xp_do_proximo - planta.xp} para o nível {planta.nivel + 1}
+        {planta.xp} pontos de experiência · faltam {planta.xp_do_proximo - planta.xp} para o nível {planta.nivel + 1}
       </span>
     </div>
   );
@@ -178,7 +179,7 @@ export function Placar({ liga, limite = 8 }: { liga: EstadoDaLiga; limite?: numb
             <strong>{s.setor}</strong>
             <span className="muted">
               {Object.entries(s.por_tipo)
-                .map(([tipo, n]) => `${n} ${(liga.rotulos[tipo] ?? tipo).toLowerCase()}`)
+                .map(([tipo, n]) => `${liga.rotulos[tipo] ?? tipo}: ${n}`)
                 .join(" · ") || "sem pontos ainda nesta temporada"}
             </span>
             <span className="liga-barra fina" aria-hidden="true">
@@ -235,12 +236,12 @@ function NovaMissao({ onCriada }: { onCriada: () => void }) {
       body: JSON.stringify({ titulo, tipo, alvo, ate_hora: ateHora || null }),
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error ?? `HTTP ${r.status}`);
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Falha ao criar a missão.");
         setTitulo("");
         setErro(null);
         onCriada();
       })
-      .catch((err) => setErro(err instanceof Error ? err.message : "falha"));
+      .catch((err) => setErro(mensagemDeErro(err, "Falha ao criar a missão.")));
   };
   return (
     <form className="liga-nova" onSubmit={criar}>

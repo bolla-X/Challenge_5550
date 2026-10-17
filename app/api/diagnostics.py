@@ -62,7 +62,7 @@ def get_settings():
 def patch_settings():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return jsonify({"error": "Payload inválido"}), 400
+        return jsonify({"error": "Dados inválidos."}), 400
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"settings": monitor.update_settings(payload)})
 
@@ -82,7 +82,7 @@ def get_overlay():
 def patch_overlay():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return jsonify({"error": "Payload inválido"}), 400
+        return jsonify({"error": "Dados inválidos."}), 400
     monitor = current_app.extensions["monitor_service"]
     return jsonify({"overlay": monitor.update_overlay(payload)})
 
@@ -95,7 +95,7 @@ def get_risk_area():
         return erro
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "risk_area_state"):
-        return jsonify({"error": "monitor atual não suporta área de risco runtime"}), 501
+        return jsonify({"error": "Este monitor não permite editar a área de risco."}), 501
     return jsonify({"risk_area": monitor.risk_area_state(camera_id=camera_id)})
 
 
@@ -107,10 +107,10 @@ def patch_risk_area():
         return erro
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
-        return jsonify({"error": "Payload inválido"}), 400
+        return jsonify({"error": "Dados inválidos."}), 400
     monitor = current_app.extensions["monitor_service"]
     if not hasattr(monitor, "update_risk_area"):
-        return jsonify({"error": "monitor atual não suporta área de risco runtime"}), 501
+        return jsonify({"error": "Este monitor não permite editar a área de risco."}), 501
     try:
         return jsonify({"risk_area": monitor.update_risk_area(payload, camera_id=camera_id)})
     except ValueError as exc:

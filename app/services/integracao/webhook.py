@@ -44,8 +44,7 @@ logger = logging.getLogger(__name__)
 Resolvedor = Callable[[str, int], list[str]]
 
 _SEMPRE_BLOQUEADAS = [
-    ipaddress.ip_network(rede)
-    for rede in ("0.0.0.0/8", "169.254.0.0/16", "fe80::/10", "fd00:ec2::254/128", "100.100.100.200/32")
+    ipaddress.ip_network(rede) for rede in ("0.0.0.0/8", "169.254.0.0/16", "fe80::/10", "fd00:ec2::254/128", "100.100.100.200/32")
 ]
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")
 

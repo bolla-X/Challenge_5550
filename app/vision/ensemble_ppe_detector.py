@@ -96,12 +96,15 @@ class EnsemblePPEDetector:
         avisos = [d.get("warning") for d in por_modelo if d.get("warning")]
         warning = None
         if erros and len(erros) == len(por_modelo):
-            warning = f"Todos os modelos de EPI indisponiveis: {'; '.join(erros)}"
+            warning = f"Todos os modelos de EPI estão indisponíveis: {'; '.join(erros)}"
         elif not any(supported_ppe.values()):
-            warning = "Nenhum modelo do ensemble possui classes de EPI."
+            warning = "Nenhum dos modelos combinados detecta EPI."
         elif not core_ok:
-            faltam = [k for k in PPE_CORE_CLASSES if not supported_ppe.get(k)]
-            warning = f"Ensemble parcial para EPI. Classes ausentes em todos: {', '.join(faltam)}."
+            # Import local: person_compliance_matcher importa yolo_ppe_detector.
+            from app.vision.person_compliance_matcher import PPE_LABELS
+
+            faltam = [PPE_LABELS.get(k, k).lower() for k in PPE_CORE_CLASSES if not supported_ppe.get(k)]
+            warning = f"Os modelos combinados detectam só parte dos EPIs. Faltam em todos: {', '.join(faltam)}."
         elif avisos:
             warning = " ".join(avisos)
 

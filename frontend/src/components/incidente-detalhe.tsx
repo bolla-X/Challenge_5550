@@ -251,7 +251,7 @@ export function IncidenteDetalhe({
   return createPortal(
     <>
       <div className="modal-scrim" onClick={onClose}>
-        <div className="card modal incidente-modal" role="dialog" aria-labelledby="incidente-titulo" onClick={(e) => e.stopPropagation()} data-testid="incidente-detalhe">
+        <div className="card modal incidente-modal" role="dialog" aria-modal="true" aria-labelledby="incidente-titulo" onClick={(e) => e.stopPropagation()} data-testid="incidente-detalhe">
           {cartao}
         </div>
       </div>

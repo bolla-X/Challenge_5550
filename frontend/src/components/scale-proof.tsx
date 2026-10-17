@@ -1,3 +1,5 @@
+import { useFecharComEsc } from "../utils/teclado";
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { decimal } from "../utils/formato";
 
@@ -21,6 +23,7 @@ async function chamar(metodo: string, corpo?: unknown): Promise<Estado | null> {
 }
 
 export function ScaleProof({ onClose }: { onClose: () => void }) {
+  useFecharComEsc(onClose);
   const [n, setN] = useState(4);
   const [estado, setEstado] = useState<Estado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -31,7 +34,7 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
     const atualizar = () =>
       chamar("GET")
         .then((e) => vivo && setEstado(e))
-        .catch((e: Error) => vivo && setErro(e.message));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
     atualizar();
     const id = window.setInterval(atualizar, 1500);
     return () => {
@@ -46,7 +49,7 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
     try {
       await chamar(metodo, metodo === "POST" ? { n } : undefined);
     } catch (e) {
-      setErro((e as Error).message);
+      setErro(mensagemDeErro(e, "Falha na prova de escala."));
     } finally {
       setOcupado(false);
     }
@@ -57,7 +60,7 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-scrim" onClick={onClose}>
-      <div className="card modal escala-modal" role="dialog" aria-labelledby="escala-titulo" onClick={(e) => e.stopPropagation()}>
+      <div className="card modal escala-modal" role="dialog" aria-modal="true" aria-labelledby="escala-titulo" onClick={(e) => e.stopPropagation()}>
         <header className="replay-cab">
           <div>
             <h2 id="escala-titulo">Prova de escala</h2>

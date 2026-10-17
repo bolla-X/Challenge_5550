@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Mark } from "./brand";
@@ -22,7 +23,7 @@ export function LoginScreen() {
     setErro(null);
     setEnviando(true);
     login(email, senha)
-      .catch((err) => setErro(err instanceof Error ? err.message : "Não foi possível entrar."))
+      .catch((err) => setErro(mensagemDeErro(err, "Não foi possível entrar.")))
       .finally(() => setEnviando(false));
   };
 

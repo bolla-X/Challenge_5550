@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { create } from "zustand";
 import { flushSync } from "react-dom";
 import { devtools } from "zustand/middleware";
@@ -673,7 +674,7 @@ export const useDashboardStore = create<DashboardState>()(
           const res = await apiPatchRiskArea(payload, useDashboardStore.getState().camId);
           set({ riskArea: res.risk_area, message: { text: "Área de risco atualizada.", tone: "ok" } }, false, "updateRiskArea");
         } catch (error) {
-          set({ message: { text: error instanceof Error ? error.message : "Falha ao salvar área de risco.", tone: "error" } }, false, "updateRiskArea:error");
+          set({ message: { text: mensagemDeErro(error, "Falha ao salvar área de risco."), tone: "error" } }, false, "updateRiskArea:error");
           throw error;
         }
       },
@@ -683,7 +684,7 @@ export const useDashboardStore = create<DashboardState>()(
           resolveAlert(res.alert);
           set({ message: { text: "Alerta marcado como falso positivo.", tone: "ok" } }, false, "markFalsePositive");
         } catch (error) {
-          set({ message: { text: error instanceof Error ? error.message : "Falha ao marcar falso positivo.", tone: "error" } }, false, "markFalsePositive:error");
+          set({ message: { text: mensagemDeErro(error, "Falha ao marcar falso positivo."), tone: "error" } }, false, "markFalsePositive:error");
         }
       },
       acknowledgeAlert: async (alertId, note) => {
@@ -692,7 +693,7 @@ export const useDashboardStore = create<DashboardState>()(
           upsertActiveAlert(res.alert);
           set({ message: { text: "Registrado: colaborador avisado.", tone: "ok" } }, false, "acknowledgeAlert");
         } catch (error) {
-          set({ message: { text: error instanceof Error ? error.message : "Falha ao registrar o aviso.", tone: "error" } }, false, "acknowledgeAlert:error");
+          set({ message: { text: mensagemDeErro(error, "Falha ao registrar o aviso."), tone: "error" } }, false, "acknowledgeAlert:error");
         }
       },
     }),

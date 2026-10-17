@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Callable
 
 from app.services.feature_manager import FeatureManager
@@ -123,6 +124,14 @@ class RuleEngine:
         self.queda_continuidade_s = QUEDA_CONTINUIDADE_S
         self.relogio: Callable[[], float] = time.monotonic
         self._quedas_recentes: list[tuple[float, Detection, dict[str, Any]]] = []
+        # Editor de regras sem código (M4, app/services/regras_editor.py). Sem
+        # avaliador o motor se comporta exatamente como antes. O chamador
+        # atualiza `contexto_do_editor` a cada análise: `pre_alertas` (avisos do
+        # EstimadorDeAproximacao), `permissao_ativa` (a câmera tem permissão de
+        # trabalho ativa) e `camera_id` (escopo `camera_ids` das regras).
+        self.avaliador_do_editor: Any = None
+        self.contexto_do_editor: dict[str, Any] = {"pre_alertas": [], "permissao_ativa": False, "camera_id": None}
+        self.agora_local: Callable[[], datetime] = datetime.now
 
     def analyze(
         self,
@@ -141,6 +150,7 @@ class RuleEngine:
         alerts.extend(self._evaluate_pose(poses_avaliadas, frame_shape))
         alerts.extend(self._evaluate_quedas_do_modelo(detections, people))
         alerts.extend(self._evaluate_risk_area(people, pose))
+        alerts.extend(self._evaluate_editor(people, poses_avaliadas, frame_shape))
         return RuleEvaluation(alerts=alerts, people=people, poses=poses_avaliadas)
 
     def evaluate(self, detections: list[Detection], pose: PoseResult | None, frame_shape: tuple[int, int, int]) -> list[RuleAlert]:
@@ -303,6 +313,45 @@ class RuleEngine:
             )
         self._quedas_recentes = recentes + vistas
         return alertas
+
+    def _evaluate_editor(
+        self, people: list[dict[str, Any]], poses: list[PoseResult], frame_shape: tuple[int, int, int]
+    ) -> list[RuleAlert]:
+        """Regras do editor sem código, sobre os mesmos fatos que as nativas usaram."""
+        if self.avaliador_do_editor is None:
+            return []
+        # Import tardio: regras_editor importa RuleAlert deste módulo.
+        from app.services.regras_editor import fatos_ao_vivo
+
+        contexto = self.contexto_do_editor
+        fatos = fatos_ao_vivo(
+            people,
+            self._posturas_por_pessoa(poses, frame_shape),
+            contexto.get("pre_alertas"),
+            self.agora_local(),
+            bool(contexto.get("permissao_ativa")),
+        )
+        return self.avaliador_do_editor.avaliar(fatos, self.relogio(), contexto.get("camera_id"))
+
+    def _posturas_por_pessoa(self, poses: list[PoseResult], frame_shape: tuple[int, int, int]) -> dict[str, set[str]]:
+        """id da pessoa -> {"caida", "suspeita"}, com a MESMA geometria e os mesmos
+        recursos ligados de `_evaluate_pose`. A pose sem pessoa vai em "global_pose"."""
+        if not self.feature_manager.is_enabled("pose"):
+            return {}
+        quedas = self.feature_manager.is_enabled("falls")
+        posturas = self.feature_manager.is_enabled("posture")
+        saida: dict[str, set[str]] = {}
+        for pose in poses:
+            if not pose or not pose.found:
+                continue
+            achadas = set()
+            if quedas and self._is_fallen(pose, frame_shape):
+                achadas.add("caida")
+            if posturas and self._is_bad_posture(pose, frame_shape):
+                achadas.add("suspeita")
+            if achadas:
+                saida.setdefault(pose.person_id or "global_pose", set()).update(achadas)
+        return saida
 
     @staticmethod
     def _pose_subject(pose: PoseResult) -> dict[str, Any]:

@@ -187,8 +187,11 @@ class AlertStateService:
             state = self._states[key]
             if state.rule_alert.feature not in desligadas:
                 continue
-            if state.alert is not None and state.alert.status == "active":
-                incidente = self.incidentes.desanexar(key)
+            ativo = state.alert is not None and state.alert.status == "active"
+            # Desanexa SEMPRE: alerta resolvido por fora (falso positivo) também
+            # sai do incidente, senão ele nunca fecha.
+            incidente = self.incidentes.desanexar(key)
+            if ativo:
                 state.alert = self.repository.resolve(
                     state.alert,
                     metadata=(state.alert.metadata_json or {}) | {"resolution_reason": "feature_disabled"},
@@ -200,6 +203,9 @@ class AlertStateService:
                 resolved.append(payload)
                 self._emitir("alert_resolved", payload)
                 logger.info("alert_resolved", extra={"alert": payload})
+            elif incidente is not None:
+                self.repository.salvar()
+                self._emitir("incident_updated", incidente)
             del self._states[key]
         return resolved
 
@@ -332,15 +338,19 @@ class AlertStateService:
             state.violacao_desde = None
             if self._confirmou(state.normal_frames, state.normal_desde, agora, self.resolve_after_frames,
                                self.resolve_after_seconds, self.min_confirmacoes_resolver):
-                if state.alert is not None and state.alert.status == "active":
+                ativo = state.alert is not None and state.alert.status == "active"
+                if ativo:
                     state.alert = self.repository.resolve(
                         state.alert,
                         metadata=(state.alert.metadata_json or {}) | {"resolution_frames": state.normal_frames},
                         commit=False,
                     )
-                    incidente = self.incidentes.desanexar(key)
-                    if incidente is not None:
-                        emitir("incident_updated", incidente)
+                # Desanexa SEMPRE: alerta resolvido por fora (falso positivo) também
+                # sai do incidente, senão ele nunca fecha.
+                incidente = self.incidentes.desanexar(key)
+                if incidente is not None:
+                    emitir("incident_updated", incidente)
+                if ativo:
                     payload = state.alert.to_dict()
                     state.snapshot = payload
                     resolved.append(payload)
@@ -349,7 +359,11 @@ class AlertStateService:
                 del self._states[key]
 
         if pendentes:
-            self.repository.salvar()
+            try:
+                self.repository.salvar()
+            except Exception:
+                self._descartar_criados(novos)
+                raise
         if self.custodia and novos:
             # Elos dos alertas DEPOIS do commit deles, numa transação curta e
             # sob a trava da cadeia. Na mesma transação dos alertas o worker
@@ -365,6 +379,26 @@ class AlertStateService:
         active = self.active_alerts()
         self._emit_active(active)
         return {"active": active, "changed": created_or_updated, "created": created, "updated": updated, "resolved": resolved}
+
+    def _descartar_criados(self, novos: list[Alert]) -> None:
+        """O commit da análise falhou: os alertas criados nela não existem no banco.
+
+        Sem isto `state.alert` ficava apontando para um objeto transitório (o
+        rollback do worker o solta da sessão) e o `touch` da análise seguinte
+        levantava `InvalidRequestError` para sempre, congelando alertas e vídeo.
+        Aqui a sessão é desfeita e o estado em memória volta a "sem alerta": a
+        violação continua contada, então a próxima análise recria tudo limpo.
+        """
+        self.repository.desfazer()
+        for key, state in self._states.items():
+            if state.alert is None or not any(state.alert is alerta for alerta in novos):
+                continue
+            self.incidentes.desanexar(key)
+            state.alert = None
+            state.snapshot = None
+            state.incidente_id = None
+            state.ocorrencias_pendentes = 0
+            state.ultimo_touch = 0.0
 
     @staticmethod
     def _confirmou(confirmacoes: int, desde: float | None, agora: float, limiar_quadros: int,

@@ -25,7 +25,7 @@ crítica: é o único estado que o motor já classifica como alarme.
 
 `saude_visual` não tem vocabulário fechado no motor. Casamos por prefixo, sem
 acento: "obstru*" e "mov*" derrubam a torre para vermelho; "degrad*", "desfoc*"
-e "escur*" para amarelo. Qualquer outro valor (inclusive "ok", "normal") é neutro.
+, "escur*" e "ofusc*" para amarelo. Qualquer outro valor (inclusive "ok", "normal") é neutro.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ TORRE_AMARELO = "amarelo"
 TORRE_VERMELHO = "vermelho"
 
 _VISAO_CEGA = ("obstru", "mov")
-_VISAO_DEGRADADA = ("degrad", "desfoc", "escur")
+_VISAO_DEGRADADA = ("degrad", "desfoc", "escur", "ofusc")
 
 
 def _normalizar(texto: Any) -> str:
@@ -87,11 +87,7 @@ def _torre_da_camera(camera: dict[str, Any]) -> str:
     saude = _normalizar(camera["saude_visual"])
     if camera["incidentes_criticos"] > 0 or saude.startswith(_VISAO_CEGA):
         return TORRE_VERMELHO
-    if (
-        sum(camera["incidentes_por_regra"].values()) > 0
-        or camera["estado"] in ("atencao", "offline")
-        or saude.startswith(_VISAO_DEGRADADA)
-    ):
+    if sum(camera["incidentes_por_regra"].values()) > 0 or camera["estado"] in ("atencao", "offline") or saude.startswith(_VISAO_DEGRADADA):
         return TORRE_AMARELO
     return TORRE_VERDE
 

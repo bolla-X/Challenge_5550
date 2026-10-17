@@ -24,6 +24,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 from app.models import Alert, Camera, EventLog, utc_now
 from app.services.nr6 import FONTE_NR6, mapear
 from app.utils.auth import camera_scope, login_required
+from app.vision.person_compliance_matcher import PPE_LABELS
 
 relatorio_bp = Blueprint("relatorio", __name__)
 
@@ -109,16 +110,12 @@ def relatorio_json():
     return jsonify(montar_relatorio(horas, camera_id))
 
 
-_NOMES_EPI = {"helmet": "Capacete", "vest": "Colete", "gloves": "Luvas", "glasses": "Óculos", "mask": "Máscara",
-              "safety_shoe": "Calçado", "ear_protection": "Protetor auricular"}
-
-
 def _secao_nr6(nr6: dict[str, Any]) -> str:
     if not nr6["linhas"]:
         return ""
     linhas = []
     for linha in nr6["linhas"]:
-        nome = html.escape(_NOMES_EPI.get(linha["epi"], linha["epi"]))
+        nome = html.escape(PPE_LABELS.get(linha["epi"], linha["epi"]))
         if linha["itens"]:
             itens = "<br>".join(f"<b>{html.escape(i['item'])}</b>: “{html.escape(i['texto'])}”" for i in linha["itens"])
         else:

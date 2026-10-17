@@ -69,3 +69,9 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
   background: var(--stop); color: var(--on-accent); font-size: var(--t-caption); font-weight: 700; letter-spacing: .04em;
 }
 .saude-badge.medio { background: var(--danger); }
+
+/* torre no Modo TV */
+.tv-torre { display: inline-flex; align-items: center; font-size: var(--t-title-3); font-weight: 600; }
+.tv-torre .torre-mini .torre-lampada { width: 22px; }
+.tv-torre.sirene .torre-lampada.vermelho { animation: torre-pisca 0.9s steps(2, jump-none) infinite; }
+@media (prefers-reduced-motion: reduce) { .tv-torre.sirene .torre-lampada.vermelho { animation: none; outline: 3px solid var(--stop); outline-offset: 3px; } }

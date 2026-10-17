@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useCallback, useEffect, useState } from "react";
 import { rotuloDaClasse } from "../api/ppe";
 import { pluralizar } from "../utils/formato";
@@ -29,7 +30,7 @@ export function RotularScreen() {
         setEstado(r);
         setErro(null);
       })
-      .catch((e: Error) => setErro(e.message));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
   }, []);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function RotularScreen() {
       setOcupado(true);
       pedir<{ contagem: Contagem }>(`/api/rotulos/${item.id}`, { method: "POST", body: JSON.stringify({ decisao }) })
         .then(carregar)
-        .catch((e: Error) => setErro(e.message))
+        .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")))
         .finally(() => setOcupado(false));
     },
     [estado, ocupado, carregar],

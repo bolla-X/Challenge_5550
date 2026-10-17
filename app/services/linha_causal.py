@@ -6,7 +6,7 @@ Exemplo do que sai, por ID de rastreio:
     13:02:14 entrou na Zona A sem capacete
     → permaneceu 38 s
     13:02:52 postura de risco
-    → alerta reconhecido em 6 s
+    → incidente reconhecido em 6 s
 
 Fontes, todas persistidas (sobrevivem a reinício): os eventos de aproximação
 (F3, `approach_risk_area`), os alertas da pessoa naquela câmera (criação e
@@ -152,7 +152,7 @@ def montar(incidente: dict[str, Any], alertas: list[dict[str, Any]], eventos: li
         # 5) Reconhecimento humano do incidente.
         if reconhecido is not None:
             t_rec = _ts(incidente.get("reconhecido_em"))
-            passo(t_rec, f"alerta reconhecido em {_duracao(float(reconhecido))}", "reconhecimento", duracao=True)
+            passo(t_rec, f"incidente reconhecido em {_duracao(float(reconhecido))}", "reconhecimento", duracao=True)
 
         passos.sort(key=lambda p: (p["t"], p["tipo"] == "reconhecimento"))
         linhas[str(pid)] = passos

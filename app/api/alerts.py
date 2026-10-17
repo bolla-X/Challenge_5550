@@ -157,7 +157,7 @@ def mark_false_positive(alert_id: int):
     event = _log_and_broadcast(
         alert,
         alert_payload,
-        message=f"Alerta resolvido como falso positivo: {alert.message}",
+        message=f"Falso positivo resolvido: {alert.message}",
         metadata={"reason": reason, "false_positive": True},
         broadcast_resolved=True,
     )

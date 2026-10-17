@@ -99,6 +99,7 @@ FRACAO_NITIDEZ = 0.35
 NITIDEZ_MINIMA_DA_REFERENCIA = 15.0
 # Movida.
 ORB_PONTOS = 300
+ORB_NIVEIS = 4  # miniatura de 160 px: os níveis a mais do padrão (8) caem abaixo de 50 px e só custam tempo
 RAZAO_LOWE = 0.75
 MIN_CORRESPONDENCIAS = 12  # ORB só "tem com o que trabalhar" com pelo menos isto nos DOIS quadros
 MIN_INLIERS = 8
@@ -111,8 +112,21 @@ BLOCO = 16  # lado do bloco da checagem de alinhamento, em px da miniatura
 DESVIO_MINIMO_DO_BLOCO = 6.0
 NCC_DO_BLOCO = 0.6
 MIN_BLOCOS = 4  # blocos texturizados (e visíveis após o alinhamento) para a checagem valer
-ALINHAMENTO_MINIMO = 0.80
+ALINHAMENTO_MINIMO = 0.90
 CORRELACAO_MINIMA = 0.30  # só no fallback, quando ORB não tem pontos
+CORRELACAO_SEM_DUVIDA = 0.90  # miniaturas quase idênticas: a câmera não se mexeu, nem se gasta ORB
+
+
+# Medidas de movimento quando não há comparação a fazer (ou ela não concluiu).
+_SEM_MOVIMENTO: dict[str, float] = {
+    "correlacao": 0.0,
+    "deslocamento": 0.0,
+    "rotacao": 0.0,
+    "escala": 0.0,
+    "inliers": 0,
+    "alinhamento": 0.0,
+    "identidade": 0.0,
+}
 
 
 @dataclass
@@ -183,6 +197,55 @@ def _arredondar(metricas: dict[str, float | int]) -> dict[str, float | int]:
     return {k: (round(v, 3) if isinstance(v, float) else v) for k, v in metricas.items()}
 
 
+class Histerese:
+    """Transforma observações brutas (uma por medição) num estado CONFIRMADO, por tipo e em tempo.
+
+    - um tipo não-OK só é confirmado depois de `confirmar_s` de observações seguidas desse tipo;
+    - um estado confirmado só é liberado depois de `liberar_s` de observações OK seguidas;
+    - um tipo que muda no meio da confirmação reinicia a contagem; trocar de um estado confirmado
+      para outro não passa por OK (o novo tipo só precisa se confirmar).
+    """
+
+    def __init__(self, confirmar_s: float, liberar_s: float) -> None:
+        self.confirmar_s = confirmar_s
+        self.liberar_s = liberar_s
+        self.reiniciar()
+
+    def reiniciar(self) -> None:
+        self.estado = OK
+        self.desde: float | None = None  # quando começou a sequência que confirmou o estado atual
+        self._candidato: str | None = None  # tipo não-OK em confirmação
+        self._candidato_desde: float | None = None
+        self._ok_desde: float | None = None  # início da sequência de OK que libera o estado
+
+    def avancar(self, bruto: str, agora: float, inconclusivo: bool = False) -> None:
+        """`inconclusivo`: o quadro não prova nada sobre "movida" (ver `MonitorDeSaudeVisual._medir_movimento`)."""
+        if bruto == OK:
+            if inconclusivo and MOVIDA in (self.estado, self._candidato):
+                # Quadro sem evidência (multidão, oclusão parcial) não confirma nem libera "movida":
+                # senão a mesma câmera movida piscaria entre MOVIDA e OK a cada quadro ruim.
+                return
+            self._candidato = self._candidato_desde = None
+            if self.estado == OK:
+                self._ok_desde = None
+                return
+            if self._ok_desde is None:
+                self._ok_desde = agora
+            if agora - self._ok_desde >= self.liberar_s:
+                self.estado, self.desde, self._ok_desde = OK, None, None
+            return
+
+        self._ok_desde = None  # um quadro ruim interrompe a contagem de liberação
+        if bruto == self.estado:
+            self._candidato = self._candidato_desde = None
+            return
+        if bruto != self._candidato:
+            self._candidato, self._candidato_desde = bruto, agora
+        if agora - self._candidato_desde >= self.confirmar_s:  # type: ignore[operator]
+            self.estado, self.desde = bruto, self._candidato_desde
+            self._candidato = self._candidato_desde = None
+
+
 class MonitorDeSaudeVisual:
     """Diz, a cada `intervalo_s`, se a câmera está obstruída, escura, ofuscada, desfocada ou movida.
 
@@ -202,7 +265,7 @@ class MonitorDeSaudeVisual:
         self.liberar_s = liberar_s
         self.lado = lado
         self._relogio = relogio
-        self._orb = cv2.ORB_create(nfeatures=ORB_PONTOS, edgeThreshold=15, patchSize=15, fastThreshold=10)
+        self._orb = cv2.ORB_create(nfeatures=ORB_PONTOS, nlevels=ORB_NIVEIS, edgeThreshold=15, patchSize=15, fastThreshold=10)
         self._casador = cv2.BFMatcher(cv2.NORM_HAMMING)
 
         self._referencia: _Referencia | None = None
@@ -213,11 +276,7 @@ class MonitorDeSaudeVisual:
 
         self._ultima_medicao: float | None = None
         self._ultimas_metricas: dict[str, float | int] = {}
-        self._estado = OK
-        self._desde: float | None = None
-        self._candidato: str | None = None  # tipo não-OK em confirmação
-        self._candidato_desde: float | None = None
-        self._ok_desde: float | None = None  # início da sequência de OK que libera o estado
+        self._histerese = Histerese(confirmar_s, liberar_s)
 
     # ------------------------------------------------------------------ referência
 
@@ -235,8 +294,7 @@ class MonitorDeSaudeVisual:
         self._referencia_automatica = automatica
         self._referencia_provisoria = provisoria
         if not automatica:
-            self._estado, self._desde = OK, None
-            self._candidato = self._candidato_desde = self._ok_desde = None
+            self._histerese.reiniciar()
 
     def _orb_do(self, cinza: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         pontos, descritores = self._orb.detectAndCompute(cinza, None)
@@ -282,7 +340,7 @@ class MonitorDeSaudeVisual:
         metricas: dict[str, float | int] = dict(absolutas)
         if adotou:
             # Comparar o quadro com ele mesmo não mede nada; vale só o absoluto.
-            metricas.update(nitidez_relativa=1.0, correlacao=1.0, deslocamento=0.0, rotacao=0.0, escala=0.0, inliers=0, alinhamento=1.0, conclusivo=1.0)
+            metricas.update(_SEM_MOVIMENTO, correlacao=1.0, alinhamento=1.0, identidade=1.0, nitidez_relativa=1.0, conclusivo=1.0)
             bruto = tipo_absoluto
             inconclusivo = False
         else:
@@ -293,10 +351,10 @@ class MonitorDeSaudeVisual:
             inconclusivo = not movimento["conclusivo"]
 
         self._ultimas_metricas = _arredondar(metricas)
-        self._avancar_histerese(bruto, agora, inconclusivo)
+        self._histerese.avancar(bruto, agora, inconclusivo)
         return {
             "bruto": bruto,
-            "estado": self._estado,
+            "estado": self._histerese.estado,
             "metricas": dict(self._ultimas_metricas),
             "referencia_automatica": adotou and self._referencia_automatica,
         }
@@ -348,16 +406,10 @@ class MonitorDeSaudeVisual:
         correlacao = float(cv2.matchTemplate(cinza, ref.cinza, cv2.TM_CCOEFF_NORMED)[0, 0])
         if not math.isfinite(correlacao):  # quadro constante: variância zero
             correlacao = 0.0
-        saida: dict[str, float] = {
-            "correlacao": correlacao,
-            "deslocamento": 0.0,
-            "rotacao": 0.0,
-            "escala": 0.0,
-            "inliers": 0,
-            "alinhamento": 0.0,
-            "conclusivo": 1.0,
-            "movida": 0.0,
-        }
+        saida: dict[str, float] = {**_SEM_MOVIMENTO, "correlacao": correlacao, "conclusivo": 1.0, "movida": 0.0}
+
+        if correlacao >= CORRELACAO_SEM_DUVIDA:
+            return saida
 
         pontos, descritores = self._orb_do(cinza)
         ref_tem_pontos = ref.descritores is not None and len(ref.descritores) >= MIN_CORRESPONDENCIAS
@@ -399,6 +451,7 @@ class MonitorDeSaudeVisual:
             return None
 
         altura, largura = ref.cinza.shape
+
         centro = np.array([[[largura / 2, altura / 2]], [[largura / 2 + largura / 4, altura / 2]]], dtype=np.float32)
         c0, c1 = cv2.perspectiveTransform(centro, h).reshape(2, 2)
         vetor = c1 - c0
@@ -414,6 +467,7 @@ class MonitorDeSaudeVisual:
             np.full(cinza.shape, 255, np.uint8), h, (largura, altura), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_NEAREST
         )
         alinhamento = _alinhamento(alinhado, ref.cinza, visivel)
+        identidade = _alinhamento(cinza, ref.cinza, np.full(cinza.shape, 255, np.uint8)) or 0.0
         if alinhamento is None or alinhamento < ALINHAMENTO_MINIMO:
             return None
         return {
@@ -422,44 +476,18 @@ class MonitorDeSaudeVisual:
             "escala": escala,
             "inliers": inliers,
             "alinhamento": alinhamento,
+            "identidade": identidade,
         }
-
-    # ------------------------------------------------------------------ histerese
-
-    def _avancar_histerese(self, bruto: str, agora: float, inconclusivo: bool = False) -> None:
-        if bruto == OK:
-            if inconclusivo and MOVIDA in (self._estado, self._candidato):
-                # Quadro sem evidência (multidão, oclusão parcial) não confirma nem libera "movida":
-                # senão a mesma câmera movida piscaria entre MOVIDA e OK a cada quadro ruim.
-                return
-            self._candidato = self._candidato_desde = None
-            if self._estado == OK:
-                self._ok_desde = None
-                return
-            if self._ok_desde is None:
-                self._ok_desde = agora
-            if agora - self._ok_desde >= self.liberar_s:
-                self._estado, self._desde, self._ok_desde = OK, None, None
-            return
-
-        self._ok_desde = None  # um quadro ruim interrompe a contagem de liberação
-        if bruto == self._estado:
-            self._candidato = self._candidato_desde = None
-            return
-        if bruto != self._candidato:
-            self._candidato, self._candidato_desde = bruto, agora
-        if agora - self._candidato_desde >= self.confirmar_s:  # type: ignore[operator]
-            self._estado, self._desde = bruto, self._candidato_desde
-            self._candidato = self._candidato_desde = None
 
     # ------------------------------------------------------------------ saída
 
     def estado(self) -> dict[str, Any]:
         """Estado CONFIRMADO (com histerese) + métricas da última medição. `desde` está no domínio do relógio."""
+        estado = self._histerese.estado
         return {
-            "estado": self._estado,
-            "rotulo": ROTULOS[self._estado],
-            "desde": self._desde,
+            "estado": estado,
+            "rotulo": ROTULOS[estado],
+            "desde": self._histerese.desde,
             "metricas": dict(self._ultimas_metricas),
             "tem_referencia": self.tem_referencia,
             "referencia_automatica": self._referencia_automatica and self.tem_referencia,
@@ -467,14 +495,15 @@ class MonitorDeSaudeVisual:
 
     def alertas(self) -> list[dict[str, Any]]:
         """Um dict compatível com `RuleAlert(**dict)` para o estado confirmado, ou lista vazia se OK."""
-        if self._estado == OK or self._desde is None:
+        estado, desde = self._histerese.estado, self._histerese.desde
+        if estado == OK or desde is None:
             return []
-        fim = self._ultima_medicao if self._ultima_medicao is not None else self._desde
+        fim = self._ultima_medicao if self._ultima_medicao is not None else desde
         return [
             {
-                "rule": f"camera_{self._estado}",
-                "severity": SEVERIDADES[self._estado],
-                "message": _mensagem(self._estado, max(0, round(fim - self._desde))),
+                "rule": f"camera_{estado}",
+                "severity": SEVERIDADES[estado],
+                "message": _mensagem(estado, max(0, round(fim - desde))),
                 "feature": FEATURE,
                 "metadata": {"subject": "camera", "metricas": dict(self._ultimas_metricas)},
             }

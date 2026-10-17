@@ -33,6 +33,7 @@ from typing import Any
 
 import cv2
 
+from app.utils.texto import pluralizar
 from app.vision.person_compliance_matcher import PPE_KEYS
 
 MARGEM = 0.3  # recorte = caixa + 30 % de cada lado, para ter contexto
@@ -138,7 +139,7 @@ class FilaDeRotulos:
                 n += 1
             nomes = "\n".join(f"  {i}: {k}" for i, k in enumerate(PPE_KEYS))
             z.writestr("data.yaml", f"path: .\ntrain: images/train\nval: images/train\nnames:\n{nomes}\n")
-            z.writestr("README.md", _README.format(n=n))
+            z.writestr("README.md", _README.format(n=pluralizar(n, "recorte confirmado", "recortes confirmados")))
         return buffer.getvalue()
 
 
@@ -165,7 +166,7 @@ def _recortar(quadro, box) -> tuple[Any, list[float] | None]:
 
 _README = """# Recortes rotulados pela equipe — VisionEPI (aprendizado ativo)
 
-{n} recorte(s) confirmados por um técnico. Formato YOLO (Ultralytics):
+{n} por um técnico. Formato YOLO (Ultralytics):
 `images/train/*.jpg`, `labels/train/*.txt` (classe cx cy w h, normalizados) e
 `data.yaml` com os nomes das classes.
 

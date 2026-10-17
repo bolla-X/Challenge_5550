@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Numero, Panel } from "./common";
@@ -65,7 +66,7 @@ const ATALHOS: { href: string; titulo: string; texto: string; Icone: (p: { size?
   { href: "/liga", titulo: "Liga de Setores", texto: "Pontos da equipe e missões do turno.", Icone: IconeTrofeu },
   { href: "/auditoria", titulo: "Cadeia de custódia", texto: "Verificar a integridade das evidências.", Icone: IconeEscudo },
   { href: "/simulador", titulo: "Simulador", texto: "Testar uma regra nas últimas horas.", Icone: IconeFrasco },
-  { href: "/retrospectiva", titulo: "Retrospectiva", texto: "O turno em stories, com dados reais.", Icone: IconeStories },
+  { href: "/retrospectiva", titulo: "Retrospectiva", texto: "O turno em cartões, com dados reais.", Icone: IconeStories },
   { href: "/tv", titulo: "Modo TV", texto: "Setores e metas para a parede.", Icone: IconeTv },
 ];
 
@@ -152,7 +153,7 @@ export function AccountsScreen() {
   const carregar = () =>
     listUsers()
       .then((r) => setUsuarios(r.items))
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao listar contas.", "error"));
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao listar contas."), "error"));
 
   useEffect(() => {
     carregar();
@@ -178,7 +179,7 @@ export function AccountsScreen() {
         setCameraId("");
         return carregar();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao criar a conta.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao criar a conta."), "error"))
       .finally(() => setSalvando(false));
   };
 
@@ -188,7 +189,7 @@ export function AccountsScreen() {
         showMessage(ok, "ok");
         return carregar();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha na operação.", "error"));
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha na operação."), "error"));
 
   const trocarSenha = (u: AuthUser) => {
     const nova = window.prompt(`Nova senha para ${u.email}:`);

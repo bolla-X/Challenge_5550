@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState, Numero, PanelSkeleton } from "./common";
 import { IlustracaoEscudo } from "./ilustracoes";
@@ -254,14 +255,14 @@ export function PalcoScreen() {
   useEffect(() => {
     fetch("/api/palco/roteiro", { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 401 ? "Entre como técnico ou supervisor." : `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(r.status === 401 ? "Entre como técnico ou supervisor." : "Falha ao carregar a apresentação.");
         return r.json();
       })
       .then((d) => {
         setCenas(d.cenas);
         setEstado(d.estado);
       })
-      .catch((e) => setErro(e instanceof Error ? e.message : "falha"));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a apresentação.")));
   }, []);
 
   // O celular muda a cena pelo servidor: a tela acompanha.
@@ -381,21 +382,21 @@ export function PalcoControle() {
     const tick = () =>
       fetch(`/api/palco/estado?t=${encodeURIComponent(token)}`)
         .then(async (r) => {
-          if (!r.ok) throw new Error(r.status === 403 ? "Link expirado: leia o QR da tela de novo." : `HTTP ${r.status}`);
+          if (!r.ok) throw new Error(r.status === 403 ? "Link expirado: leia o QR da tela de novo." : "O servidor não respondeu.");
           return (await r.json()) as Estado;
         })
         .then((d) => {
           setEstado(d);
           setErro(null);
         })
-        .catch((e) => setErro(e instanceof Error ? e.message : "sem conexão"));
+        .catch((e) => setErro(mensagemDeErro(e, "sem conexão")));
     tick();
     const id = window.setInterval(tick, 800);
     return () => window.clearInterval(id);
   }, [token]);
   const mover = (acao: "proxima" | "anterior") => {
     setOcupado(true);
-    if (navigator.vibrate) navigator.vibrate(15);
+    if (navigator.vibrate && (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive !== false) navigator.vibrate(15);
     ir(acao, undefined, token)
       .then(setEstado)
       .catch(() => setErro("Não chegou ao servidor. Use o teclado do notebook."))

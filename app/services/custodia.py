@@ -4,7 +4,11 @@ Cada evidência — o alerta (os campos que não mudam depois de criado), o
 snapshot, o clipe do replay e cada troca de privacidade — vira um elo:
 
     conteudo = sha256(da evidência)
-    elo      = sha256(seq | tipo | ref | conteudo | elo_anterior | criado_em)
+    elo      = sha256(seq | tipo | ref | conteudo | elo_anterior | criado_em)   (formato 1)
+    elo      = formato 1 + camera_id, alert_id e detalhe (JSON canônico)       (formato 2)
+
+O formato 2 (marca `formato_elo` no `detalhe`) cobre as colunas que o filtro por
+incidente lê; elos do formato 1, gravados antes, seguem verificados pelo cálculo antigo.
 
 A verificação refaz tudo a partir das fontes (arquivo no disco, linha no
 banco) e aponta o PRIMEIRO elo que não fecha, com o motivo:
@@ -38,10 +42,14 @@ from typing import Any
 
 from app.extensions import db
 from app.models import Alert, ElodeCustodia, EventLog
+from app.utils.texto import pluralizar
 
 logger = logging.getLogger(__name__)
 
 GENESE = "0" * 64
+# Versão do formato do hash do elo, gravada no `detalhe` (e por isso coberta por ele).
+CHAVE_FORMATO = "formato_elo"
+FORMATO_ATUAL = 2
 # Um elo por vez no processo inteiro: workers, gravador e rotas HTTP anexam.
 _trava = threading.Lock()
 
@@ -62,8 +70,27 @@ def _iso(valor: datetime | None) -> str | None:
     return valor.astimezone(timezone.utc).isoformat()
 
 
-def hash_do_elo(seq: int, tipo: str, ref: str, conteudo: str, anterior: str, criado_em: str) -> str:
-    return sha256_bytes(f"{seq}|{tipo}|{ref}|{conteudo}|{anterior}|{criado_em}".encode())
+def hash_do_elo(seq: int, tipo: str, ref: str, conteudo: str, anterior: str, criado_em: str, *,
+                camera_id: int | None = None, alert_id: int | None = None, detalhe: dict[str, Any] | None = None) -> str:
+    """Formato 1 (sem `detalhe`): só os seis campos. Formato 2 (com `detalhe`): inclui também
+    `camera_id`, `alert_id` e `detalhe` — o filtro por incidente da verificação lê essas colunas,
+    então elas têm de estar no hash para que editá-las não esconda adulteração."""
+    base = f"{seq}|{tipo}|{ref}|{conteudo}|{anterior}|{criado_em}".encode()
+    if detalhe is None:
+        return sha256_bytes(base)
+    return sha256_bytes(base + b"|" + _json_canonico({"camera_id": camera_id, "alert_id": alert_id, "detalhe": detalhe}))
+
+
+def hash_do_registro(elo: ElodeCustodia) -> str:
+    """Recalcula o hash do elo no formato em que ele foi gravado (marca `formato_elo` no `detalhe`).
+
+    Elos anteriores à marca (formato 1) seguem verificados pelo cálculo antigo. Tirar a marca de um
+    elo novo não o rebaixa em silêncio: o hash do formato 1 não fecha com o gravado."""
+    detalhe = elo.detalhe or {}
+    campos = {}
+    if detalhe.get(CHAVE_FORMATO) == FORMATO_ATUAL:
+        campos = {"camera_id": elo.camera_id, "alert_id": elo.alert_id, "detalhe": detalhe}
+    return hash_do_elo(elo.id, elo.tipo, elo.ref, elo.conteudo_sha256, elo.anterior_sha256, elo.criado_em, **campos)
 
 
 # ------------------------------------------------------------- conteúdos
@@ -110,6 +137,7 @@ def _novo_elo(ultimo: ElodeCustodia | None, *, tipo: str, ref: str, conteudo_sha
     anterior = ultimo.elo_sha256 if ultimo else GENESE
     seq = (ultimo.id if ultimo else 0) + 1
     criado_em = datetime.now(timezone.utc).isoformat()
+    detalhe = {**(detalhe or {}), CHAVE_FORMATO: FORMATO_ATUAL}
     elo = ElodeCustodia(
         id=seq,
         tipo=tipo,
@@ -117,10 +145,11 @@ def _novo_elo(ultimo: ElodeCustodia | None, *, tipo: str, ref: str, conteudo_sha
         camera_id=camera_id,
         alert_id=alert_id,
         descricao=descricao[:255],
-        detalhe=detalhe or {},
+        detalhe=detalhe,
         conteudo_sha256=conteudo_sha256,
         anterior_sha256=anterior,
-        elo_sha256=hash_do_elo(seq, tipo, ref[:240], conteudo_sha256, anterior, criado_em),
+        elo_sha256=hash_do_elo(seq, tipo, ref[:240], conteudo_sha256, anterior, criado_em,
+                               camera_id=camera_id, alert_id=alert_id, detalhe=detalhe),
         criado_em=criado_em,
     )
     db.session.add(elo)
@@ -210,7 +239,7 @@ def registrar_clipe(alert_id: int, camera_id: int | None, pastas: Path | list[Pa
     quadros = sum(1 for n in manifesto if n.endswith(".jpg"))
     ids = alert_ids or [alert_id]
     return _anexar(tipo="clipe", ref=f"clipe:{lista[0].name}", conteudo_sha256=sha256_bytes(conteudo_do_manifesto(manifesto)),
-                   descricao=f"Replay do alerta {alert_id} ({quadros} quadros)"
+                   descricao=f"Replay do alerta {alert_id} ({pluralizar(quadros, 'quadro')})"
                    + (f", compartilhado com mais {len(ids) - 1}" if len(ids) > 1 else ""),
                    camera_id=camera_id, alert_id=alert_id,
                    detalhe={"caminho": str(lista[0]), "pastas": [str(x) for x in lista], "manifesto": manifesto, "alert_ids": ids})
@@ -288,7 +317,7 @@ def verificar(*, alert_ids: set[int] | None = None) -> dict[str, Any]:
         situacao, arquivo = "ok", None
         if elo.id != esperado_seq or elo.anterior_sha256 != anterior:
             situacao = "cadeia_quebrada"
-        elif hash_do_elo(elo.id, elo.tipo, elo.ref, elo.conteudo_sha256, elo.anterior_sha256, elo.criado_em) != elo.elo_sha256:
+        elif hash_do_registro(elo) != elo.elo_sha256:
             situacao = "registro_alterado"
         elif do_incidente(elo):
             recalculado, arquivo = recalculados.get(elo.id) or _recalcular(elo, alertas, eventos)

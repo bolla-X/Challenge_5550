@@ -512,14 +512,18 @@ class YoloPPEDetector:
             warning = f"Modelo YOLO indisponível: {error}"
         elif not any(supported_ppe.values()):
             warning = (
-                "O modelo YOLO carregado não possui classes de EPI. "
-                "Configure PPE_MODEL_PATH com pesos treinados para helmet/vest/gloves."
+                "O modelo YOLO carregado não detecta nenhum EPI. "
+                "Configure PPE_MODEL_PATH com pesos treinados para capacete, colete e luvas."
             )
         elif not ready:
+            # Import local: person_compliance_matcher importa este módulo.
+            from app.vision.person_compliance_matcher import PPE_LABELS
+
             missing = [key for key in PPE_CORE_CLASSES if not supported_ppe[key]]
             if self.require_person and not has_person:
                 missing.append("person")
-            warning = f"Modelo YOLO parcial para EPI. Classes ausentes: {', '.join(missing)}."
+            nomes = [{**PPE_LABELS, "person": "Pessoa"}.get(key, key).lower() for key in missing]
+            warning = f"O modelo YOLO detecta só parte dos EPIs. Faltam: {', '.join(nomes)}."
 
         return {
             "model_path": self.model_path,

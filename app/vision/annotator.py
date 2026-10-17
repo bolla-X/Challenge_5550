@@ -187,7 +187,7 @@ class FrameAnnotator:
                 else:
                     text = self._display_label(det.label)
                 if show_confidence:
-                    text = f"{text} {det.confidence:.2f}"
+                    text = f"{text} {det.confidence:.2f}".replace(".", ",")
                 # Pessoa: pilula acima da caixa. EPI: dentro da propria caixa,
                 # senao colide com a pilula da pessoa quando os topos coincidem.
                 rotulos.append((text, det.box.x1, det.box.y1, not e_pessoa))

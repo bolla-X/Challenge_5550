@@ -19,7 +19,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    const message = (body && typeof body === "object" && "error" in body && String((body as { error: unknown }).error)) || res.statusText;
+    const message = (body && typeof body === "object" && "error" in body && String((body as { error: unknown }).error)) || `Falha na comunicação com o servidor (código ${res.status}).`;
     throw new ApiError(message, res.status, body);
   }
   return body as T;

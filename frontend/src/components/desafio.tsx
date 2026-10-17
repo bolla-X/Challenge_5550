@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { PanelSkeleton } from "./common";
 import { decimal, pluralizar } from "../utils/formato";
@@ -54,7 +55,7 @@ export function DesafioScreen() {
     fetch("/api/desafio/rodadas", { credentials: "same-origin" })
       .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao carregar o desafio."))))
       .then((d: { rodadas: Rodada[] }) => setRodadas(d.rodadas))
-      .catch((e: Error) => setErro(e.message));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
   }, []);
 
   const rodada = rodadas[indice];
@@ -100,7 +101,7 @@ export function DesafioScreen() {
           /* janela privada: o placar fica só na memória */
         }
       })
-      .catch((e: Error) => setErro(e.message));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
   };
 
   // Relógio da fase de clique.

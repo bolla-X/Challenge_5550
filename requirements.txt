@@ -46,3 +46,11 @@ playwright==1.55.0
 # numpy 1.26.4, protobuf 4.25.9, mediapipe e ultralytics ficam intactos.
 google-genai==2.22.0
 pydantic==2.13.5
+
+# --- Integração industrial (MISSÃO 4, M2) --------------------------------
+# Opcionais em tempo de execução (desligados por padrão; o modo demo liga).
+# Instalados sem alterar nenhum pacote existente (`pip install --dry-run` e
+# `pip check` limpos em 17/10/2026). Licenças em docs/NEXT2026/ATRIBUICOES.md.
+asyncua==2.1.0
+paho-mqtt==2.1.0
+amqtt==0.12.1

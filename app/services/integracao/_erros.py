@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import socket
 
 # 10048 = WSAEADDRINUSE e 10013 = WSAEACCES (Windows). No Windows, abrir uma porta que
 # outro processo já escuta pode vir como "em uso" (10048) ou "acesso negado" (10013),
@@ -28,5 +29,14 @@ def descrever_falha_de_bind(exc: BaseException, servico: str, host: str, porta: 
     if isinstance(causa, OSError):
         codigo = getattr(causa, "winerror", None) or causa.errno
         if codigo in _EM_USO:
-            return f"Porta {porta} já está em uso em {host}: outro programa (ou outra instância) escuta nela. Servidor {servico} não iniciou."
-    
+            return (
+                f"Porta {porta} já está em uso em {host}: outro programa (ou outra instância) escuta nela. "
+                f"Servidor {servico} não iniciou."
+            )
+        if codigo in _SEM_ACESSO:
+            return (
+                f"Sem acesso à porta {porta} em {host}: ela está em uso por outro programa ou reservada pelo sistema. "
+                f"Servidor {servico} não iniciou."
+            )
+        return f"Não foi possível abrir {host}:{porta} para o servidor {servico}: {causa.strerror or causa}."
+    return f"Falha ao iniciar o servidor {servico}: {type(causa).__name__}: {causa}"

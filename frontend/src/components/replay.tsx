@@ -1,3 +1,5 @@
+import { useFecharComEsc } from "../utils/teclado";
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { desenharOverlay, type Overlay } from "./live-video";
 import { rotuloDaClasse, rotuloDoRecurso } from "../api/ppe";
@@ -95,7 +97,7 @@ export function IncidentReplay({
           setIndice(0);
         }
       })
-      .catch((e: Error) => vivo && setErro(e.message));
+      .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
     return () => {
       vivo = false;
     };
@@ -139,9 +141,10 @@ export function IncidentReplay({
   const quadro = clipe?.quadros[indice];
   const momento = clipe ? clipe.quadros.reduce((m, q, i) => (Math.abs(q.rel_ms) < Math.abs(clipe.quadros[m].rel_ms) ? i : m), 0) : 0;
 
+  useFecharComEsc(onClose);
   return (
     <div className="modal-scrim" onClick={onClose}>
-      <div className="card modal replay-modal" role="dialog" aria-labelledby="replay-titulo" onClick={(e) => e.stopPropagation()}>
+      <div className="card modal replay-modal" role="dialog" aria-modal="true" aria-labelledby="replay-titulo" onClick={(e) => e.stopPropagation()}>
         <header className="replay-cab">
           <div>
             <h2 id="replay-titulo">{clipe?.mensagem ?? "Replay do incidente"}</h2>

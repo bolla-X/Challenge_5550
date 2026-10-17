@@ -45,7 +45,7 @@ from typing import Any
 from asyncua import Server, ua
 from asyncua.crypto.permission_rules import SimpleRoleRuleset
 
-from ._erros import descrever_falha_de_bind
+from ._erros import descrever_falha_de_bind, sondar_porta
 
 logger = logging.getLogger(__name__)
 # O asyncua loga cada sessão/subscription em INFO; em produção isso é ruído.
@@ -82,7 +82,7 @@ class ServidorOPCUA:
         porta: int = 4840,
         host: str = "127.0.0.1",
         namespace: str = "urn:visionepi",
-        timeout_inicio_s: float = 10.0,
+        timeout_inicio_s: float = 45.0,
     ) -> None:
         self.porta = int(porta)
         self.host = host
@@ -171,6 +171,7 @@ class ServidorOPCUA:
         return descrever_falha_de_bind(exc, "OPC UA", self.host, self.porta)
 
     async def _subir(self) -> None:
+        sondar_porta(self.host, self.porta)
         self._tranca = asyncio.Lock()
         servidor = Server()
         await servidor.init()

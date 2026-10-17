@@ -143,11 +143,26 @@ export function FeatureGroups() {
       <div className="sidebar-group">
         <h2>Perfis</h2>
         <div className="side-profiles">
-          {(["basic", "epi", "risk", "full"] as const).map((profile) => (
-            <button key={profile} type="button" className="small" onClick={() => updateFeatures(FEATURE_PROFILES[profile]).catch(console.error)}>
-              {PROFILE_TITLES[profile]}
-            </button>
-          ))}
+          {(["basic", "epi", "risk", "full"] as const).map((profile) => {
+            // Perfil já em vigor: o botão mostra isso (aria-pressed) em vez de
+            // aceitar um clique que não mudaria nada.
+            const ativo = Object.entries(FEATURE_PROFILES[profile]).every(
+              ([chave, valor]) => (features.find((f) => f.key === chave)?.enabled ?? false) === valor,
+            );
+            return (
+              <button
+                key={profile}
+                type="button"
+                className={`small ${ativo ? "is-active" : ""}`.trim()}
+                aria-pressed={ativo}
+                disabled={ativo}
+                title={ativo ? `O perfil ${PROFILE_TITLES[profile]} já está aplicado` : `Aplicar o perfil ${PROFILE_TITLES[profile]}`}
+                onClick={() => updateFeatures(FEATURE_PROFILES[profile]).catch(console.error)}
+              >
+                {PROFILE_TITLES[profile]}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="sidebar-group">

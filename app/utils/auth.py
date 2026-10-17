@@ -106,7 +106,7 @@ def require_role(minimo: str, *, sempre: bool = False) -> Callable[..., Any]:
                 return (
                     jsonify(
                         {
-                            "error": "Seu perfil não permite esta ação.",
+                            "error": "Seu tipo de conta não permite esta ação.",
                             "code": "forbidden",
                             "required_role": minimo,
                             "your_role": usuario.role,

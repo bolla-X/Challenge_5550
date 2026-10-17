@@ -86,18 +86,21 @@ def _estado_verde():
     return estado_da_planta([_camera(1, "ok", {"sem_capacete": 0}, conformidade=1.0)])
 
 
-@pytest.fixture(autouse=True)
+def _threads_da_integracao() -> list[str]:
+    return [t.name for t in threading.enumerate() if t.name in _THREADS_DA_INTEGRACAO and t.is_alive()]
+
+
+@pytest.fixture(autouse=True, scope="module")
 def sem_threads_vazados():
+    """Ao fim do módulo (depois dos servidores compartilhados caírem) não pode sobrar thread da integração."""
     yield
-    vivos = _esperar(
-        lambda: not [t for t in threading.enumerate() if t.name in _THREADS_DA_INTEGRACAO and t.is_alive()], prazo_s=5
-    )
-    restantes = [t.name for t in threading.enumerate() if t.name in _THREADS_DA_INTEGRACAO and t.is_alive()]
-    assert vivos, f"threads da integração ficaram vivos após o teste: {restantes}"
+    assert _esperar(lambda: not _threads_da_integracao(), prazo_s=5), f"threads vazados: {_threads_da_integracao()}"
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def servidor_opcua():
+    """Um servidor OPC UA para o módulo (a subida custa alguns segundos). Cada teste publica o estado
+    completo antes de ler, então a ordem dos testes não importa."""
     servidor = ServidorOPCUA(porta=_porta_livre())
     status = servidor.iniciar()
     try:
@@ -431,6 +434,25 @@ def test_mqtt_com_broker_fora_nao_lanca_e_status_indica_desconectado():
         assert publicador.status()["conectado"] is False
     finally:
         publicador.parar()
+
+
+def test_mqtt_reconecta_sozinho_e_entrega_o_estado_enfileirado_quando_o_broker_volta(assinantes):
+    porta = _porta_livre()
+    publicador = PublicadorMQTT("127.0.0.1", porta)
+    broker = BrokerEmbutido(porta=porta)
+    try:
+        assert publicador.iniciar(aguardar_s=0.5)["conectado"] is False
+        estado = _estado_vermelho()
+        assert publicador.publicar_estado(estado) is True  # fica na fila do paho
+        assert broker.iniciar()["estado"] == "no_ar"
+        assert _esperar(lambda: publicador.conectado, prazo_s=20), publicador.status()
+        # Quem assina depois do reenvio recebe o estado retido: ele foi entregue após a reconexão.
+        retidas = assinantes(porta).receber(1)
+        assert retidas and retidas[0][0] == "visionepi/planta/estado" and retidas[0][2] is True
+        assert retidas[0][1] == json.loads(json.dumps(estado))
+    finally:
+        publicador.parar()
+        broker.parar()
 
 
 def test_mqtt_publicar_antes_de_iniciar_devolve_false():

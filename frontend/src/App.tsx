@@ -25,6 +25,8 @@ const LigaScreen = lazy(() => import("./components/liga"));
 const PalcoScreen = lazy(() => import("./components/palco"));
 const PalcoControle = lazy(() => import("./components/palco").then((m) => ({ default: m.PalcoControle })));
 const RetrospectivaScreen = lazy(() => import("./components/retrospectiva"));
+const EvacuacaoScreen = lazy(() => import("./components/evacuacao"));
+const TorreScreen = lazy(() => import("./components/torre"));
 
 function CarregandoTela() {
   return (
@@ -39,6 +41,8 @@ function CarregandoTela() {
 function SupervisorOverview({ onBack }: { onBack: () => void }) {
   const atalhos: [string, string][] = [
     ["/tv", "Modo TV"],
+    ["/torre", "Torre de luz"],
+    ["/evacuacao", "Evacuação"],
     ["/gemeo", "Gêmeo digital"],
     ["/liga", "Liga de Setores"],
     ["/palco", "Apresentação"],
@@ -265,6 +269,24 @@ export default function App() {
       <main id="conteudo">
         <Suspense fallback={<CarregandoTela />}>
           <SimuladorScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/evacuacao")) {
+    return (
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <EvacuacaoScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/torre")) {
+    return (
+      <main id="conteudo">
+        <Suspense fallback={<CarregandoTela />}>
+          <TorreScreen />
         </Suspense>
       </main>
     );

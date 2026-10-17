@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { Panel } from "./common";
 
@@ -139,7 +140,7 @@ export function PlantaPanel({ cameraId, podeEditar }: { cameraId: number; podeEd
               type="button"
               className="primary"
               disabled={noVideo.length < 4 || naPlanta.length < 4}
-              onClick={() => salvar({ pontos_camera: noVideo, pontos_planta: naPlanta }).catch((e: Error) => setErro(e.message))}
+              onClick={() => salvar({ pontos_camera: noVideo, pontos_planta: naPlanta }).catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")))}
             >
               Salvar calibração
             </button>
@@ -198,7 +199,7 @@ export function PlantaPanel({ cameraId, podeEditar }: { cameraId: number; podeEd
               <button type="button" className="ghost" onClick={() => setEditando(true)}>
                 Recalibrar
               </button>
-              <button type="button" className="ghost" onClick={() => salvar({ pontos_camera: null }).catch((e: Error) => setErro(e.message))}>
+              <button type="button" className="ghost" onClick={() => salvar({ pontos_camera: null }).catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")))}>
                 Apagar calibração
               </button>
             </div>

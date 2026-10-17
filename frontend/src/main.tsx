@@ -6,6 +6,7 @@ import { registrarServiceWorker } from "./pwa";
 import "./styles/tokens.css";
 import "./styles/global.css";
 import "./styles/missao2.css";
+import "./styles/missao4.css";
 
 // Antes do primeiro paint do React: sem isso a tela abriria no tema do
 // sistema e pularia pro tema salvo um quadro depois. Sem valor salvo, o

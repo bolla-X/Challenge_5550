@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { playGateApprovedChime, playGateDeniedChime } from "../audio/chime";
@@ -136,7 +137,7 @@ export function GateConfigPanel({ camera }: { camera: CameraRecord }) {
         showMessage(required ? "Portaria ligada nesta câmera." : "Portaria desligada.", "ok");
         return loadCameras();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao salvar a portaria.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao salvar a portaria."), "error"))
       .finally(() => setSalvando(false));
   };
 

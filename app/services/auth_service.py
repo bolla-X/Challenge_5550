@@ -7,6 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.models import VALID_ROLES, User, utc_now
+from app.utils.texto import pluralizar
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class AuthService:
             # ja encarece.
             logger.warning("login_locked", extra={"email": email})
             raise AuthError(
-                f"Muitas tentativas. Tente de novo em {max(1, restante // 60)} minuto(s).",
+                f"Muitas tentativas. Tente de novo em {pluralizar(max(1, restante // 60), 'minuto')}.",
                 status=429,
                 retry_after=restante,
             )
@@ -139,7 +140,7 @@ class AuthService:
         if not (name or "").strip():
             raise ValueError("Nome é obrigatório.")
         if role not in VALID_ROLES:
-            raise ValueError(f"Papel deve ser um de {sorted(VALID_ROLES)}.")
+            raise ValueError("Tipo de conta inválido.")
         if User.query.filter_by(email=email).first() is not None:
             raise ValueError("Já existe usuário com este e-mail.")
 

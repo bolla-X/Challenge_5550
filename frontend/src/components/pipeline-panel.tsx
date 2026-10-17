@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { Panel, PanelSkeleton } from "./common";
 import { estatisticasDoVideo } from "./live-video";
@@ -80,7 +81,7 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
       fetch("/api/diagnostics/pipeline?janela_s=10", { credentials: "same-origin" })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Falha ao carregar o diagnóstico."))))
         .then((d: Diag) => vivo && (setDiag(d), setErro(null)))
-        .catch((e: Error) => vivo && setErro(e.message));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
       setVideo(estatisticasDoVideo(cameraId));
     };
     atualizar();

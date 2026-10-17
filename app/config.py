@@ -386,6 +386,21 @@ class Config:
     ROTULOS_DIR = os.getenv("ROTULOS_DIR", "")
     # Modo demonstração (`python run.py --demo`): tema claro e /api/demo/reset.
     DEMO_MODE = env_bool("DEMO_MODE", False)
+    # Integração industrial (M2, app/services/integracao/): tudo desligado por
+    # padrão; o modo demo liga OPC UA e MQTT com broker embutido, só em 127.0.0.1.
+    # OPC UA sem segurança (NoSecurity) e broker anônimo: para rede de chão de
+    # fábrica isolada — ver docs/NEXT2026/INTEGRACAO.md.
+    OPCUA_ATIVO = env_bool("OPCUA_ATIVO", False)
+    OPCUA_HOST = os.getenv("OPCUA_HOST", "127.0.0.1")
+    OPCUA_PORTA = env_int("OPCUA_PORTA", 4840)
+    MQTT_ATIVO = env_bool("MQTT_ATIVO", False)
+    MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
+    MQTT_PORTA = env_int("MQTT_PORTA", 1883)
+    MQTT_BROKER_EMBUTIDO = env_bool("MQTT_BROKER_EMBUTIDO", False)
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+    WEBHOOK_PERMITIR_REDE_LOCAL = env_bool("WEBHOOK_PERMITIR_REDE_LOCAL", False)
+    # Tique do estado da planta (torre de luz, OPC UA, MQTT). 0 = desligado.
+    ESTADO_DA_PLANTA_S = env_float("ESTADO_DA_PLANTA_S", 1.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)

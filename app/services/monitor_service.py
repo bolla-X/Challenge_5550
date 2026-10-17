@@ -17,6 +17,8 @@ from app.services.camera_worker import CameraWorker
 from app.services.controlador_adaptativo import ControladorAdaptativo
 from app.services.feature_manager import FeatureManager
 from app.services.gravador_assincrono import GravadorAssincrono
+from app.services.integracao.gerente import GerenteDeIntegracao
+from app.services.integracao.planta_viva import PublicadorDaPlanta
 from app.services.llm_risk_service import ServicoDeRiscoLLM
 from app.utils.limites_de_cpu import manter_afinidade
 from app.utils.salas import SALA_PARQUE, sala_da_camera
@@ -280,6 +282,17 @@ class MonitorService:
             self._thread_adaptativo.start()
         self._workers_lock = threading.RLock()
         self._default_camera_id: int | None = None
+        self._nomes: dict[int, str] = {}
+
+        # ---- integração industrial e torre de luz (M2) ---------------------
+        # O tique roda num thread próprio e o gerente sobe DENTRO dele: o
+        # servidor OPC UA leva ~5 s para carregar o address space e não pode
+        # atrasar o boot. Porta ocupada ou rede fora viram status "falhou".
+        self.integracao = GerenteDeIntegracao(app.config)
+        self.publicador_da_planta = PublicadorDaPlanta(self._workers_com_nome, self.integracao, socketio,
+                                         intervalo_s=float(app.config.get("ESTADO_DA_PLANTA_S", 1.0)) or 1.0)
+        if not app.config.get("TESTING") and float(app.config.get("ESTADO_DA_PLANTA_S", 1.0)) > 0:
+            self.publicador_da_planta.iniciar()
 
     # ---- ciclo de vida dos workers -----------------------------------------
     def validar_runtimes(self) -> None:
@@ -334,6 +347,15 @@ class MonitorService:
                         new_worker.start()
 
             self._default_camera_id = default_id
+        # Regras do editor (M4): worker novo nasce sem avaliador; entrega as ativas.
+        try:
+            from app.services.regras_repositorio import aplicar_regras
+
+            aplicar_regras(self.app)
+        except Exception as exc:  # noqa: BLE001  (tabela ainda não migrada no `flask db upgrade`)
+            import logging
+
+            logging.getLogger(__name__).info("regras_do_editor_nao_aplicadas", extra={"motivo": type(exc).__name__})
 
     @staticmethod
     def _worker_config_changed(worker: CameraWorker, camera: Camera) -> bool:
@@ -386,6 +408,7 @@ class MonitorService:
         )
         worker.fila_de_rotulos = self.fila_de_rotulos
         worker.planta = camera.planta
+        self._nomes[camera.id] = camera.name
         worker.pausada_pelo_palco = camera.id in self._pausa_palco
         return worker
 
@@ -671,6 +694,14 @@ class MonitorService:
     def portal_state(self, camera_id: int) -> dict[str, Any]:
         self.marcar_foco(camera_id)
         return self._get_worker(camera_id).portal_state()
+
+    def _workers_com_nome(self) -> list[tuple[CameraWorker, str]]:
+        with self._workers_lock:
+            return [(w, self._nomes.get(cid, f"Câmera {cid}")) for cid, w in self._workers.items()]
+
+    def estado_da_planta(self) -> dict[str, Any]:
+        """Último estado publicado (torre, OPC UA, MQTT); calcula na hora se o tique ainda não rodou."""
+        return self.publicador_da_planta.estado
 
     def andon(self) -> list[dict[str, Any]]:
         """Resumo do Modo TV por câmera (G8); quem agrega por setor é a API."""

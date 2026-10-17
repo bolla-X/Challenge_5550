@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { Panel } from "./common";
+import { pluralizar } from "../utils/formato";
 
 
 /**
@@ -189,7 +190,7 @@ export function RiskAreaEditorPanel() {
   };
 
   const statusText = riskArea
-    ? `${riskArea.name}, ${riskEditorPoints.length} ponto(s), modo ${riskEditorActive ? "edição" : "visualização"}`
+    ? `${riskArea.name}, ${pluralizar(riskEditorPoints.length, "ponto")}, modo ${riskEditorActive ? "edição" : "visualização"}`
     : "Área atual não carregada.";
 
   return (

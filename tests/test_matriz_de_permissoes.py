@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -244,22 +245,24 @@ def _hash_da_senha() -> str:
     return _HASH_CACHE["hash"]
 
 
-def _derrubar(app) -> None:
+def _soltar_banco(app) -> None:
+    """Fecha as conexões do SQLite (no Windows o arquivo não some enquanto aberto)."""
     with app.app_context():
         db.session.remove()
-        db.drop_all()
+        db.engine.dispose()
 
 
 @pytest.fixture(scope="module")
-def cookies_de_sessao(tmp_path_factory):
-    """Cookie de sessão de cada conta, emitido pelo LOGIN REAL (POST /api/auth/login).
+def molde(tmp_path_factory):
+    """Banco + arquivos semeados UMA vez, e o cookie de cada conta emitido pelo LOGIN REAL.
 
-    Uma vez por módulo: cada célula da matriz monta um app novo (rotas que
-    apagam câmera, usuário e alerta não podem contaminar a célula seguinte) e
-    reaproveita o cookie, que continua válido porque os usuários nascem com os
-    mesmos ids e o mesmo `session_epoch`.
+    Cada célula da matriz parte de uma CÓPIA deste molde (rotas que apagam
+    câmera, usuário e alerta não podem contaminar a célula seguinte) e reaproveita
+    os cookies, que continuam válidos porque os usuários vêm com os mesmos ids e
+    o mesmo `session_epoch`.
     """
-    app, _ids = _montar_app(tmp_path_factory.mktemp("matriz-login"))
+    raiz = tmp_path_factory.mktemp("matriz-molde")
+    app, ids = _montar_app(raiz)
     cookies: dict[str, str] = {}
     try:
         for papel, (email, _nome, _funcao, _camera) in CONTAS.items():
@@ -270,8 +273,24 @@ def cookies_de_sessao(tmp_path_factory):
             assert cookie is not None, f"login de {email} não emitiu cookie de sessão"
             cookies[papel] = cookie.value
     finally:
-        _derrubar(app)
-    return cookies
+        _soltar_banco(app)
+    return SimpleNamespace(raiz=raiz, ids=ids, cookies=cookies)
+
+
+def _clonar_app(molde, raiz: Path):
+    """App novo sobre uma cópia do molde: mesmos ids, mesmos arquivos, estado em memória virgem."""
+    raiz.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(molde.raiz / "matriz.db", raiz / "matriz.db")
+    for pasta in ("snapshots", "clips"):
+        shutil.copytree(molde.raiz / pasta, raiz / pasta)
+    app = create_app(_config(raiz))
+    with app.app_context():
+        monitor = app.extensions["monitor_service"]
+        monitor.socketio = _SocketMudo()
+        monitor.load_cameras_from_db()
+        db.session.remove()
+    app.extensions["palco"] = Palco()
+    return app, dict(molde.ids, token_palco=app.extensions["palco"].token)
 
 
 class Mundo:
@@ -308,8 +327,8 @@ class Mundo:
 
 
 @pytest.fixture()
-def mundo(tmp_path, cookies_de_sessao, monkeypatch):
-    app, ids = _montar_app(tmp_path)
+def mundo(tmp_path, molde, monkeypatch):
+    app, ids = _clonar_app(molde, tmp_path / "celula")
     monkeypatch.setattr("app.api.cameras.cv2", _CV2_FALSO)
     # O reset de verdade apaga `instance/demo/{clips,snapshots,trilhas}` e as
     # tabelas de histórico: numa máquina de desenvolvedor isso destrói dado.
@@ -318,8 +337,8 @@ def mundo(tmp_path, cookies_de_sessao, monkeypatch):
     token = tmp_path / "token-da-demo"
     token.write_text("token-da-demo-de-teste", encoding="utf-8")
     monkeypatch.setattr("app.api.demo.TOKEN", token)
-    yield Mundo(app, ids, cookies_de_sessao)
-    _derrubar(app)
+    yield Mundo(app, ids, molde.cookies)
+    _soltar_banco(app)
 
 
 # ================================================================== tabela ==
@@ -558,7 +577,15 @@ LINHAS: list[Linha] = [
 # falha, exigindo remover a entrada) no dia em que a correção entrar.
 # Chave: (id da linha, papel). Preenchido a partir da medição — ver
 # docs/NEXT2026/PERMISSOES.md.
-DIVERGENCIAS: dict[tuple[str, str], str] = {}
+_BUG_SNAPSHOT = (
+    "BUG-SEG: GET /snapshots/<arquivo> só exige login e nunca aplica o escopo de câmera "
+    "(app/api/diagnostics.py::get_snapshot): a evidência (imagem de pessoas) de um alerta de OUTRO setor é "
+    "entregue a quem souber o nome do arquivo. /alerts/<id>/evidence, que serve o mesmo arquivo, respeita o escopo."
+)
+DIVERGENCIAS: dict[tuple[str, str], str] = {
+    ("GET /snapshots/{snap}", OP_FORA): _BUG_SNAPSHOT + " Esperado 404 (fora do setor), obtido 200.",
+    ("GET /snapshots/{snap}", OP_SEM_SETOR): _BUG_SNAPSHOT + " Esperado 403 (sem setor), obtido 200.",
+}
 
 
 def _validar_tabela() -> None:
@@ -579,7 +606,9 @@ def _gravar_medicao():
     yield
     destino = os.environ.get("VISIONEPI_MATRIZ_DUMP")
     if destino:
-        Path(destino).write_text(json.dumps(_MEDIDOS, ensure_ascii=False, indent=1), encoding="utf-8")
+        # Uma célula por linha (JSON compacto): dá para ler e filtrar com grep.
+        linhas = [json.dumps(medida, ensure_ascii=False) for medida in _MEDIDOS]
+        Path(destino).write_text("\n".join(linhas) + "\n", encoding="utf-8")
 
 
 def _resolver(valor: Any, subs: dict[str, Any]) -> Any:
@@ -591,6 +620,15 @@ def _resolver(valor: Any, subs: dict[str, Any]) -> Any:
         puro = re.fullmatch(r"\{(\w+)\}", valor)
         return subs[puro.group(1)] if puro else valor.format(**subs)
     return valor
+
+
+def _texto_da_resposta(resposta) -> str:
+    """Corpo legível: imagem/zip viram texto com substituição; JSON sai sem escapes `\\uXXXX`."""
+    texto = resposta.get_data().decode("utf-8", errors="replace")
+    try:
+        return json.dumps(json.loads(texto), ensure_ascii=False)
+    except ValueError:
+        return texto
 
 
 def _celulas() -> list:
@@ -617,7 +655,7 @@ def test_matriz_rest(mundo, linha, papel):
         raise AssertionError(f"{linha.id} como {papel}: exceção não tratada {type(exc).__name__}: {exc}") from exc
     try:
         status = resposta.status_code
-        texto = "" if linha.stream else resposta.get_data(as_text=True)
+        texto = "" if linha.stream else _texto_da_resposta(resposta)
     finally:
         resposta.close()  # fecha o gerador de vídeo: sem isto ele ficaria registrado como espectador
     _MEDIDOS.append(_medida(linha, papel, str(status)))
@@ -789,7 +827,20 @@ def _esperado_da_listagem(listagem: Listagem, papel: str, mundo: Mundo):
 
 
 # Listagens em que o código diverge do README: (nome, papel) -> motivo.
-DIVERGENCIAS_DE_CONTEUDO: dict[tuple[str, str], str] = {}
+_BUG_SEM_SETOR = (
+    "BUG-SEG: operador SEM setor recebe o dado do parque inteiro ({}). `camera_scope()` devolve None tanto para "
+    "técnico/supervisor (vê tudo) quanto para o operador sem `camera_id`, e esta rota só consulta `camera_scope()` "
+    "sem a guarda `_operador_sem_setor()` que /alerts, /events e /api/cameras já têm. README: 'operador sem setor "
+    "não vê nada'."
+)
+DIVERGENCIAS_DE_CONTEUDO: dict[tuple[str, str], str] = {
+    ("/api/gemeo", OP_SEM_SETOR): _BUG_SEM_SETOR.format("planta, pés projetados e incidentes de todas as câmeras: app/api/gemeo.py"),
+    ("/api/tv", OP_SEM_SETOR): _BUG_SEM_SETOR.format("setores, conformidade e alertas críticos de todos: app/api/tv.py"),
+    ("/risk-score", OP_SEM_SETOR): _BUG_SEM_SETOR.format("score de risco agregado de todas as câmeras: app/api/risk.py"),
+    ("/risk-score/trend", OP_SEM_SETOR): _BUG_SEM_SETOR.format("tendência de risco de todas as câmeras: app/api/risk.py"),
+    ("/api/relatorio/turno", OP_SEM_SETOR): _BUG_SEM_SETOR.format("relatório de turno de todas as câmeras: app/api/relatorio.py::_parametros"),
+    ("/relatorio/turno (HTML)", OP_SEM_SETOR): _BUG_SEM_SETOR.format("relatório de turno imprimível de todas as câmeras: app/api/relatorio.py::_parametros"),
+}
 
 
 def _celulas_de_conteudo() -> list:

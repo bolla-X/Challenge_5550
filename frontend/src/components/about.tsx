@@ -17,7 +17,7 @@ const MODELOS: Item[] = [
     link: "https://huggingface.co/Hexmon/vyra-yolo-ppe-detection",
   },
   { nome: "YOLOv8n (Ultralytics)", papel: "Detecção de pessoa", licenca: "AGPL-3.0", link: "https://github.com/ultralytics/assets/releases" },
-  { nome: "YOLO11n-pose (Ultralytics)", papel: "Pose multi-pessoa", licenca: "AGPL-3.0", link: "https://github.com/ultralytics/assets/releases" },
+  { nome: "YOLO11n-pose (Ultralytics)", papel: "Pose de várias pessoas", licenca: "AGPL-3.0", link: "https://github.com/ultralytics/assets/releases" },
 ];
 
 const VIDEOS: Item[] = [

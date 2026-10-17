@@ -46,7 +46,11 @@ export function avisarAlertaCritico(alerta: Alert, nomeDaCamera?: string): boole
   const agora = Date.now();
   if (agora - ultimaNotificacao < 8000) return false;
   ultimaNotificacao = agora;
-  if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+  // O Chromium bloqueia vibrate() sem um toque prévio do usuário na página
+  // (ativação de usuário "pegajosa") e registra erro no console — visto no
+  // crawler da MISSÃO 4. Ver CHANGELOG (MDN Navigator.vibrate).
+  const tocou = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? true;
+  if ("vibrate" in navigator && tocou) navigator.vibrate([200, 100, 200]);
   if (permissaoDeNotificacao() !== "granted") return false;
   const incidente = (alerta.metadata || {}).incidente_id;
   const titulo = `Alerta crítico${nomeDaCamera ? ` · ${nomeDaCamera}` : ""}`;

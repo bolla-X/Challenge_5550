@@ -1,7 +1,11 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
 import { EmptyState, Numero, PanelSkeleton } from "./common";
 import { IlustracaoGrafico } from "./ilustracoes";
+import { rotuloDoRecurso } from "../api/ppe";
+import { horaCurta } from "../utils/datas";
+import { decimal, inteiro, pluralizar } from "../utils/formato";
 
 /**
  * Simulador "E se?" (X2, `/simulador`, técnico ou acima). Reprocessa as trilhas
@@ -38,11 +42,11 @@ const ROTULO_REGRA = (regra: string, rotulos: Record<string, string>) => {
   if (regra === "risk_area_presence") return "Na zona de risco";
   const [tipo, ...resto] = regra.split("_");
   const chave = resto.join("_");
-  return `${rotulos[chave] ?? chave}${tipo === "incorrect" ? " (uso incorreto)" : ""}`;
+  return `${rotulos[chave] ?? rotuloDoRecurso(chave)}${tipo === "incorrect" ? " (uso incorreto)" : ""}`;
 };
 
 function hora(t: number) {
-  return new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return horaCurta(new Date(t * 1000));
 }
 
 /** Duas faixas de barras alinhadas no tempo, mesma escala (uma pergunta: "quando, e quanto?"). */
@@ -171,7 +175,7 @@ export function SimuladorScreen() {
     setResultado(null);
     fetch(`/api/simulador/contexto?camera_id=${camId}`, { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 403 ? "Só técnico ou supervisor usa o simulador." : `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(r.status === 403 ? "Só técnico ou supervisor usa o simulador." : "Falha ao carregar o simulador.");
         return (await r.json()) as Contexto;
       })
       .then((c) => {
@@ -182,7 +186,7 @@ export function SimuladorScreen() {
         setHisterese(c.atual.criar_apos_s ?? 2);
         setErro(null);
       })
-      .catch((e) => setErro(e instanceof Error ? e.message : "falha"));
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar o simulador.")));
   }, [camId]);
 
   useEffect(carregarContexto, [carregarContexto]);
@@ -199,11 +203,11 @@ export function SimuladorScreen() {
     })
       .then(async (r) => {
         const corpo = await r.json();
-        if (!r.ok) throw new Error(corpo.error ?? `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(corpo.error ?? "Falha ao reprocessar.");
         return corpo as Resultado;
       })
       .then(setResultado)
-      .catch((e) => setErro(e instanceof Error ? e.message : "falha"))
+      .catch((e) => setErro(mensagemDeErro(e, "Falha ao reprocessar.")))
       .finally(() => setRodando(false));
   };
 
@@ -285,8 +289,8 @@ export function SimuladorScreen() {
                 </fieldset>
                 <label className="sim-campo">
                   <span>
-                    Histerese para criar: <strong className="t-data">{histerese.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s</strong>
-                    <span className="muted"> (hoje {ctx.atual.criar_apos_s ?? "sem dado"} s ou {ctx.atual.criar_apos_quadros} análises)</span>
+                    Histerese para criar: <strong className="t-data">{decimal(histerese)} s</strong>
+                    <span className="muted"> (hoje {ctx.atual.criar_apos_s == null ? "sem dado" : decimal(ctx.atual.criar_apos_s, Number.isInteger(ctx.atual.criar_apos_s) ? 0 : 1)} s ou {pluralizar(ctx.atual.criar_apos_quadros, "análise")})</span>
                   </span>
                   <input type="range" min={0.5} max={10} step={0.5} value={histerese} onChange={(e) => setHisterese(Number(e.target.value))} data-testid="sim-histerese" />
                 </label>
@@ -309,7 +313,7 @@ export function SimuladorScreen() {
                 </button>
                 <p className="muted">
                   {ctx.trilha.registros
-                    ? `${ctx.trilha.registros.toLocaleString("pt-BR")} análises gravadas desde ${hora(ctx.trilha.primeiro ?? 0)} (${(ctx.trilha.bytes / 1024 / 1024).toFixed(1)} MB, sem imagem).`
+                    ? `${pluralizar(ctx.trilha.registros, "análise gravada", "análises gravadas")} desde ${hora(ctx.trilha.primeiro ?? 0)} (${decimal(ctx.trilha.bytes / 1024 / 1024)} MB, sem imagem).`
                     : "Ainda não há trilha gravada desta câmera. Ligue a câmera e espere algumas análises."}
                 </p>
               </>
@@ -336,7 +340,7 @@ export function SimuladorScreen() {
                   <div>
                     <dt>Teriam disparado</dt>
                     <dd className="t-data" data-testid="sim-total" data-valor={resultado.simulado.total}><Numero valor={resultado.simulado.total} /></dd>
-                    <span className="muted">{resultado.simulado.incidentes === 1 ? "1 incidente" : `${resultado.simulado.incidentes} incidentes`}</span>
+                    <span className="muted">{pluralizar(resultado.simulado.incidentes ?? 0, "incidente")}</span>
                   </div>
                   <div>
                     <dt>Dispararam de fato</dt>
@@ -372,7 +376,7 @@ export function SimuladorScreen() {
                   </tbody>
                 </table>
                 <p className="muted">
-                  {resultado.registros.toLocaleString("pt-BR")} análises reprocessadas em {resultado.custo_ms} ms. O simulador usa o que o modelo viu na época
+                  {pluralizar(resultado.registros, "análise reprocessada", "análises reprocessadas")} em {inteiro(resultado.custo_ms)} ms. O simulador usa o que o modelo viu na época
                   (não reroda o modelo) e ignora a “soneca” do “resolver todos” e as regras de emergência.
                 </p>
               </>

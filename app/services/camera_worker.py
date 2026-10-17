@@ -5,6 +5,7 @@ import logging
 import threading
 import time
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ from app.services.feature_manager import FeatureManager
 from app.services.gate_service import GateState, PortalState, avaliar_portal, avaliar_quadro
 from app.services.linha_do_tempo_conformidade import LinhaDoTempoPorId
 from app.services.mapa_de_calor import MapaDeCalor, pes_em_risco
+from app.services.permissoes import AvaliadorDePermissao, permissao_ativa
 from app.services.pipeline_stats import EstatisticasDoPipeline
 from app.services.replay import BufferDeReplay, ClipePendente, gravar_clipe
 from app.services.risk_rules import RuleAlert, RuleEngine
@@ -148,6 +150,11 @@ class CameraWorker:
         self._limpeza_alertas_pedida = threading.Event()
         self._thread_lock = threading.RLock()
         self._task = None
+        # Geração do loop de captura: cada `start()` abre uma nova. Um loop de
+        # geração antiga (o `stop()` não espera a volta terminar) sai sozinho em
+        # vez de rodar em paralelo com o novo — `stop()` + `start()` seguidos
+        # (cena da queda, app/api/palco.py) deixavam dois loops no mesmo worker.
+        self._geracao = 0
         self._latest_jpeg: bytes | None = None
         # Instante (epoch, ms) em que o frame do `_latest_jpeg` saiu da captura.
         # Vai no cabecalho de cada parte do MJPEG para o navegador medir a
@@ -274,6 +281,11 @@ class CameraWorker:
             )
         )
         self._alertas_temporais: list[RuleAlert] = []
+        # Permissão de Trabalho (M5) e saúde visual da câmera (M1): alertas que
+        # não saem do RuleEngine mas seguem pelo MESMO AlertStateService.
+        self._alertas_de_permissao: list[RuleAlert] = []
+        self._alertas_de_saude: list[RuleAlert] = []
+        self.avaliador_permissao = AvaliadorDePermissao()
         # Modo privacidade (F4). Por câmera, em memória: volta ao padrão (ligado)
         # a cada reinício — o estado seguro é o default, não o último clique.
         self.privacidade_ativa = bool(app.config.get("PRIVACIDADE_PADRAO", True))
@@ -517,8 +529,9 @@ class CameraWorker:
                     pos_lote=self._pos_inferencia,
                     preparar=self._preparar_quadro,
                 )
+            self._geracao += 1
             self._running.set()
-            self._task = self.socketio.start_background_task(self._loop)
+            self._task = self.socketio.start_background_task(self._loop, self._geracao)
             logger.info("monitor_started", extra={"camera_id": self.camera_id, "cleanup": self._last_cleanup})
             self._emit_timeline_event("monitor_started", "Monitoramento iniciado", "info", metadata={"cleanup": self._last_cleanup})
             self._emitir("monitor_status", self.status())
@@ -1186,15 +1199,17 @@ class CameraWorker:
             "alerts_cleared", "Alertas ativos resolvidos manualmente", "info", metadata={"resolvidos": len(resolvidos)}
         )
 
-    def _loop(self) -> None:
+    def _loop(self, geracao: int | None = None) -> None:
+        if geracao is None:
+            geracao = self._geracao
         if self.agendador is not None:
-            self._loop_assincrono()
+            self._loop_assincrono(geracao)
             return
         target_fps = self.target_fps
         frame_interval = 1.0 / target_fps
 
         with self.app.app_context():
-            while self._running.is_set():
+            while self._running.is_set() and self._geracao == geracao:
                 self._atender_pedidos()
                 start_time = time.perf_counter()
                 self._perf_inicio()
@@ -1235,7 +1250,7 @@ class CameraWorker:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("limpeza_de_alertas_falhou", extra={"error": str(exc)})
 
-    def _loop_assincrono(self) -> None:
+    def _loop_assincrono(self, geracao: int) -> None:
         """Captura em thread, inferência no agendador, este loop só publica.
 
         Dirigido pela CHEGADA de frame (não por relógio próprio): espera o
@@ -1245,11 +1260,13 @@ class CameraWorker:
         sai na taxa da fonte (limitada por `fps` da câmera); a detecção, na
         taxa que a máquina aguenta.
         """
-        self.captura = CapturaContinua(
+        # Referência local: um loop de geração antiga que ainda esteja saindo não
+        # pode parar (nem ler de) a captura do loop novo, que reatribui `self.captura`.
+        captura = self.captura = CapturaContinua(
             lambda: self.video_stream, stats=self.stats, nome=f"captura-{self.camera_id}", taxa_util=self._taxa_util_de_captura,
             ritmo_de_gravacao=self._ritmo_de_gravacao,
         )
-        self.captura.iniciar()
+        captura.iniciar()
         intervalo_minimo = 1.0 / max(1, self.target_fps)
         # Sem ninguém no MJPEG, o vídeo só alimenta a miniatura (1 quadro/s por
         # cartão, camera-grid.tsx) e o snapshot de alerta: publicar a 12 fps
@@ -1262,11 +1279,11 @@ class CameraWorker:
         contador = 0
         try:
             with self.app.app_context():
-                while self._running.is_set():
+                while self._running.is_set() and self._geracao == geracao:
                     self._atender_pedidos()
-                    item = self.captura.esperar_novo(ultimo_seq, timeout=0.5)
+                    item = captura.esperar_novo(ultimo_seq, timeout=0.5)
                     if item is None:
-                        if self.captura.falhando:
+                        if captura.falhando:
                             self._handle_capture_failure()
                         continue
                     frame, ts_captura_ms, ultimo_seq = item
@@ -1318,7 +1335,7 @@ class CameraWorker:
                         time.sleep(0.5)
                     self.stats.duracao("loop_total", (time.perf_counter() - inicio) * 1000.0)
         finally:
-            self.captura.parar()
+            captura.parar()
 
     def _atualizar_aproximacao(self, analysis: FrameAnalysis, frame_shape) -> None:
         """Alimenta a projeção cinemática com os pés de cada track (só em análise nova)."""
@@ -1352,6 +1369,24 @@ class CameraWorker:
                     subject=f"Pessoa {aviso['track_id']}",
                     metadata=aviso,
                 )
+
+    def _permissao_vigente(self):
+        """Permissão de Trabalho vigente desta câmera (cache curto no serviço; nunca derruba o loop)."""
+        try:
+            return permissao_ativa(self.camera_id, datetime.now(timezone.utc))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("permissao_indisponivel", extra={"camera_id": self.camera_id, "error": type(exc).__name__})
+            return None
+
+    def _atualizar_permissao(self, evaluation, frame_shape) -> None:
+        """M5: sem permissão ativa na zona controlada, sem vigia, EPI exigido pela permissão."""
+        try:
+            brutos = self.avaliador_permissao.avaliar(self.camera_id, evaluation.people, frame_shape,
+                                                      datetime.now(timezone.utc), self.rule_engine.supported_ppe())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("avaliador_de_permissao_falhou", extra={"camera_id": self.camera_id, "error": type(exc).__name__})
+            brutos = []
+        self._alertas_de_permissao = [RuleAlert(**a) for a in brutos]
 
     def _atualizar_sinais(self, evaluation, frame_shape) -> None:
         """G3/G4/G7: sinais por ID que só existem no tempo (app/vision/sinais_por_id.py)."""
@@ -1458,6 +1493,12 @@ class CameraWorker:
         # UMA passada de regras por análise. O resultado (alertas + estado por
         # pessoa) alimenta tanto o AlertStateService quanto o ComplianceService
         # — que antes refazia todo o trabalho por conta própria.
+        if nova:
+            # Antes das regras: o editor de regras (M4) usa os pré-alertas de
+            # aproximação DESTA análise, não os da anterior.
+            self._atualizar_aproximacao(analysis, frame.shape)
+            self.rule_engine.contexto_do_editor["pre_alertas"] = list(self._pre_alertas)
+            self.rule_engine.contexto_do_editor["permissao_ativa"] = self._permissao_vigente() is not None
         if reaproveitavel:
             evaluation = cache["evaluation"]
             self.stats.contar("publicacoes_reaproveitadas")
@@ -1470,14 +1511,15 @@ class CameraWorker:
             )
         self._perf_marca("regras")
         if nova:
-            self._atualizar_aproximacao(analysis, frame.shape)
             inicio = time.perf_counter()
             self._atualizar_sinais(evaluation, frame.shape)
             self.stats.duracao("g3_g4_g7_sinais", (time.perf_counter() - inicio) * 1000.0)
+            self._atualizar_permissao(evaluation, frame.shape)
+        extras = self._alertas_temporais + self._alertas_de_permissao + self._alertas_de_saude
         # `deteccao_nova` impede que uma inferência reaproveitada conte como
         # confirmação nova na histerese.
         alert_state = self.alert_state_service.process(
-            evaluation.alerts + self._alertas_temporais if self._alertas_temporais else evaluation.alerts,
+            evaluation.alerts + extras if extras else evaluation.alerts,
             deteccao_nova=nova,
             features_desligadas=self._features_desligadas(),
         )
@@ -2274,7 +2316,7 @@ class CameraWorker:
         if raw is None or raw == []:
             return None
         if not isinstance(raw, list) or len(raw) < 3:
-            raise ValueError("polygon deve conter pelo menos 3 pontos")
+            raise ValueError("A área de risco precisa de pelo menos 3 pontos.")
         polygon: list[tuple[float, float]] = []
         for point in raw:
             if isinstance(point, dict):
@@ -2282,18 +2324,18 @@ class CameraWorker:
             elif isinstance(point, (list, tuple)) and len(point) >= 2:
                 x, y = point[0], point[1]
             else:
-                raise ValueError("cada ponto deve conter x e y")
+                raise ValueError("Cada ponto da área de risco precisa de x e y.")
             try:
                 xf, yf = float(x), float(y)
             except (TypeError, ValueError) as exc:
-                raise ValueError("cada ponto deve conter x e y numéricos") from exc
+                raise ValueError("Cada ponto da área de risco precisa de x e y numéricos.") from exc
             polygon.append((max(0.0, min(1.0, xf)), max(0.0, min(1.0, yf))))
         return polygon
 
     def update_risk_area(self, payload: dict[str, Any]) -> dict[str, Any]:
         polygon = self._normalizar_poligono(payload.get("polygon"))
         if polygon is None:
-            raise ValueError("polygon deve conter pelo menos 3 pontos")
+            raise ValueError("A área de risco precisa de pelo menos 3 pontos.")
         self.rule_engine.risk_polygon = polygon
         self.annotator.risk_polygon = polygon
         if str(payload.get("name", "")).strip():

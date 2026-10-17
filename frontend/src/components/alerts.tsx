@@ -1,3 +1,4 @@
+import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useMemo, useState } from "react";
 import { IlustracaoEscudo, IlustracaoGrafico } from "./ilustracoes";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -130,7 +131,7 @@ function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null
           "ok",
         ),
       )
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao reconhecer o incidente.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao reconhecer o incidente."), "error"))
       .finally(() => setOcupado(false));
   };
   const zona = zonaDoIncidente(inc);
@@ -183,7 +184,7 @@ export function AlertPanel() {
     setOcupado(true);
     acknowledgeAllAlerts(camId)
       .then((r) => showMessage(r.acknowledged ? `Colaborador avisado em ${pluralizar(r.acknowledged, "alerta")}.` : "Nenhum alerta pendente de aviso.", "ok"))
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao registrar o aviso dos alertas.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao registrar o aviso dos alertas."), "error"))
       .finally(() => setOcupado(false));
   };
 
@@ -204,7 +205,7 @@ export function AlertPanel() {
           "ok",
         ),
       )
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao resolver alertas.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao resolver alertas."), "error"))
       .finally(() => setOcupado(false));
   };
 
@@ -426,7 +427,7 @@ export function AlertHistoryPanel() {
         showMessage(`${pluralizar(r.deleted, "alerta")} ${r.deleted === 1 ? "resolvido apagado" : "resolvidos apagados"}.`, "ok");
         return carregar();
       })
-      .catch((err) => showMessage(err instanceof Error ? err.message : "Falha ao apagar alertas.", "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao apagar alertas."), "error"))
       .finally(() => setApagando(false));
   };
 

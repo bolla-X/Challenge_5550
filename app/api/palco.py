@@ -36,7 +36,7 @@ def _negado():
     usuario = current_user()
     if usuario is None:
         return jsonify({"error": "Autenticação necessária.", "code": "unauthenticated"}), 401
-    return None if usuario.has_role(ROLE_TECHNICAL) else (jsonify({"error": "Seu perfil não permite esta ação."}), 403)
+    return None if usuario.has_role(ROLE_TECHNICAL) else (jsonify({"error": "Seu tipo de conta não permite esta ação."}), 403)
 
 
 def _cameras_por_nome() -> dict[str, int]:

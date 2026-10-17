@@ -123,11 +123,11 @@ def update_user(user_id: int):
     if "role" in payload:
         papel = str(payload["role"])
         if papel not in VALID_ROLES:
-            return jsonify({"error": f"Papel deve ser um de {sorted(VALID_ROLES)}."}), 400
+            return jsonify({"error": "Tipo de conta inválido."}), 400
         # Um supervisor nao pode se rebaixar: se for o ultimo, o sistema fica
         # sem ninguem capaz de gerir usuarios.
         if atual is not None and usuario.id == atual.id and papel != ROLE_SUPERVISOR:
-            return jsonify({"error": "Você não pode alterar o próprio papel."}), 400
+            return jsonify({"error": "Você não pode alterar o próprio tipo de conta."}), 400
         usuario.role = papel
 
     if "name" in payload and str(payload["name"]).strip():
@@ -154,7 +154,7 @@ def update_user(user_id: int):
         # furava, por esta rota, a trava que /api/auth/password impoe.
         if atual is not None and usuario.id == atual.id:
             return jsonify(
-                {"error": "Para trocar a própria senha use POST /api/auth/password (exige a senha atual)."}
+                {"error": "Para trocar a própria senha, use a opção de trocar senha (exige a senha atual)."}
             ), 400
         try:
             AuthService().set_password(usuario, str(payload["password"]))
