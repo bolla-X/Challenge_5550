@@ -4,6 +4,11 @@ Uma câmera IP de verdade não está disponível no E2E. Este servidor HTTP serv
 uma fixture como MJPEG (`multipart/x-mixed-replace`, o mesmo formato de muita
 câmera IP barata) e pode ser parado e iniciado de novo na mesma porta — é o
 que exercita o caminho RECONECTANDO → AO VIVO do worker de ponta a ponta.
+
+`tampar()` / `destampar()` (MISSÃO 4, M1): no meio do teste a câmera passa a
+servir quadros "tampados" — uma mão/fita na lente: escuros, quase lisos, com
+um pouco de ruído de sensor — sem cair a conexão. É a sabotagem que a saúde
+visual da câmera tem de acusar.
 """
 
 from __future__ import annotations
@@ -30,6 +35,23 @@ class FonteMJPEG:
         self._servidor: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._vivo = threading.Event()
+        self._tampada = threading.Event()
+        self._quadro_tampado = self._gerar_tampado()
+
+    def _gerar_tampado(self) -> bytes:
+        import numpy as np
+
+        largura, altura = self.tamanho or (640, 360)
+        gerador = np.random.default_rng(7)
+        base = np.full((altura, largura, 3), (22, 18, 16), dtype=np.uint8)
+        ruido = gerador.integers(0, 4, size=base.shape, dtype=np.uint8)
+        return cv2.imencode(".jpg", cv2.add(base, ruido), [int(cv2.IMWRITE_JPEG_QUALITY), 80])[1].tobytes()
+
+    def tampar(self) -> None:
+        self._tampada.set()
+
+    def destampar(self) -> None:
+        self._tampada.clear()
 
     @property
     def url(self) -> str:
@@ -70,7 +92,7 @@ class FonteMJPEG:
                 proximo = time.monotonic()
                 try:
                     while fonte._vivo.is_set():
-                        corpo = fonte._quadros[i % len(fonte._quadros)]
+                        corpo = fonte._quadro_tampado if fonte._tampada.is_set() else fonte._quadros[i % len(fonte._quadros)]
                         self.wfile.write(b"--quadro\r\nContent-Type: image/jpeg\r\nContent-Length: "
                                          + str(len(corpo)).encode() + b"\r\n\r\n" + corpo + b"\r\n")
                         i += 1

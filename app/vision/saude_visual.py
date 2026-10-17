@@ -107,12 +107,12 @@ LIMIAR_RANSAC_PX = 3.0
 DESLOCAMENTO_MAXIMO = 0.06  # fração do lado maior da miniatura
 ROTACAO_MAXIMA_GRAUS = 4.0
 ESCALA_MAXIMA = 0.12  # |log(escala)|, ~ ±10 %
-ESCALA_PLAUSIVEL = 0.35  # fora disso a homografia é degenerada, não uma câmera movida
+ESCALA_PLAUSIVEL = 0.35  # fora disso a pose é degenerada, não uma câmera movida
 BLOCO = 16  # lado do bloco da checagem de alinhamento, em px da miniatura
 DESVIO_MINIMO_DO_BLOCO = 6.0
 NCC_DO_BLOCO = 0.6
 MIN_BLOCOS = 4  # blocos texturizados (e visíveis após o alinhamento) para a checagem valer
-ALINHAMENTO_MINIMO = 0.90
+ALINHAMENTO_MINIMO = 0.85
 CORRELACAO_MINIMA = 0.30  # só no fallback, quando ORB não tem pontos
 CORRELACAO_SEM_DUVIDA = 0.90  # miniaturas quase idênticas: a câmera não se mexeu, nem se gasta ORB
 
@@ -125,7 +125,6 @@ _SEM_MOVIMENTO: dict[str, float] = {
     "escala": 0.0,
     "inliers": 0,
     "alinhamento": 0.0,
-    "identidade": 0.0,
 }
 
 
@@ -340,7 +339,7 @@ class MonitorDeSaudeVisual:
         metricas: dict[str, float | int] = dict(absolutas)
         if adotou:
             # Comparar o quadro com ele mesmo não mede nada; vale só o absoluto.
-            metricas.update(_SEM_MOVIMENTO, correlacao=1.0, alinhamento=1.0, identidade=1.0, nitidez_relativa=1.0, conclusivo=1.0)
+            metricas.update(_SEM_MOVIMENTO, correlacao=1.0, alinhamento=1.0, nitidez_relativa=1.0, conclusivo=1.0)
             bruto = tipo_absoluto
             inconclusivo = False
         else:
@@ -435,7 +434,14 @@ class MonitorDeSaudeVisual:
     def _geometria(
         self, cinza: np.ndarray, ref: _Referencia, pontos: np.ndarray, descritores: np.ndarray
     ) -> dict[str, float] | None:
-        """Homografia referência → atual, ou None se não houver base para CONFIAR nela."""
+        """Quanto a cena se deslocou/girou/escalou em relação à referência, ou None se não há base para CONFIAR.
+
+        `findHomography` (RANSAC) separa os pontos do fundo rígido dos outliers (pessoas). O "quanto" é
+        medido com uma SIMILARIDADE (translação + rotação + escala uniforme) ajustada só nesses inliers:
+        a homografia livre tem 8 graus de liberdade e, numa miniatura de 160 px, superajusta o ruído dos
+        pontos — nas fixtures isso derrubava o alinhamento até de câmeras realmente movidas, e deixava
+        uma pessoa grande se mexendo chegar mais perto de passar por câmera movida.
+        """
         assert ref.descritores is not None
         pares = self._casador.knnMatch(ref.descritores, descritores, k=2)
         boas = [p[0] for p in pares if len(p) == 2 and p[0].distance < RAZAO_LOWE * p[1].distance]
@@ -443,40 +449,43 @@ class MonitorDeSaudeVisual:
             return None
         origem = ref.pontos[[m.queryIdx for m in boas]].reshape(-1, 1, 2)
         destino = pontos[[m.trainIdx for m in boas]].reshape(-1, 1, 2)
-        h, mascara = cv2.findHomography(origem, destino, cv2.RANSAC, LIMIAR_RANSAC_PX)
-        if h is None or mascara is None:
+        _, mascara = cv2.findHomography(origem, destino, cv2.RANSAC, LIMIAR_RANSAC_PX)
+        if mascara is None:
             return None
-        inliers = int(mascara.sum())
+        do_fundo = mascara.ravel() > 0
+        if int(do_fundo.sum()) < MIN_INLIERS:
+            return None
+        pose, mascara_pose = cv2.estimateAffinePartial2D(
+            origem[do_fundo], destino[do_fundo], method=cv2.RANSAC, ransacReprojThreshold=LIMIAR_RANSAC_PX
+        )
+        if pose is None or mascara_pose is None:
+            return None
+        inliers = int(mascara_pose.sum())
         if inliers < MIN_INLIERS:
             return None
 
         altura, largura = ref.cinza.shape
-
-        centro = np.array([[[largura / 2, altura / 2]], [[largura / 2 + largura / 4, altura / 2]]], dtype=np.float32)
-        c0, c1 = cv2.perspectiveTransform(centro, h).reshape(2, 2)
-        vetor = c1 - c0
-        escala = float(math.log(max(np.linalg.norm(vetor), 1e-6) / (largura / 4)))
+        centro = np.array([[[largura / 2, altura / 2]]], dtype=np.float32)
+        deslocado = cv2.transform(centro, pose).reshape(2)
+        escala = float(math.log(max(math.hypot(pose[0, 0], pose[1, 0]), 1e-6)))
         if abs(escala) > ESCALA_PLAUSIVEL:
             return None
 
-        # Contraprova: trazer o quadro atual de volta para a referência com a
-        # homografia achada. Se ela é real, o fundo reaparece; se foi RANSAC
-        # fechando em pessoas, não.
-        alinhado = cv2.warpPerspective(cinza, h, (largura, altura), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
-        visivel = cv2.warpPerspective(
-            np.full(cinza.shape, 255, np.uint8), h, (largura, altura), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_NEAREST
+        # Contraprova: trazer o quadro atual de volta para a referência com a pose achada. Se ela é
+        # real, o fundo reaparece; se foi RANSAC fechando em pessoas, não.
+        alinhado = cv2.warpAffine(cinza, pose, (largura, altura), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
+        visivel = cv2.warpAffine(
+            np.full(cinza.shape, 255, np.uint8), pose, (largura, altura), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_NEAREST
         )
         alinhamento = _alinhamento(alinhado, ref.cinza, visivel)
-        identidade = _alinhamento(cinza, ref.cinza, np.full(cinza.shape, 255, np.uint8)) or 0.0
         if alinhamento is None or alinhamento < ALINHAMENTO_MINIMO:
             return None
         return {
-            "deslocamento": float(np.linalg.norm(c0 - centro[0, 0]) / max(largura, altura)),
-            "rotacao": float(math.degrees(math.atan2(vetor[1], vetor[0]))),
+            "deslocamento": float(np.linalg.norm(deslocado - centro[0, 0]) / max(largura, altura)),
+            "rotacao": float(math.degrees(math.atan2(pose[1, 0], pose[0, 0]))),
             "escala": escala,
             "inliers": inliers,
             "alinhamento": alinhamento,
-            "identidade": identidade,
         }
 
     # ------------------------------------------------------------------ saída
