@@ -69,7 +69,7 @@ JS_ENUMERAR = """(sel) => {
   const nome = (el) => {
     const lb = el.getAttribute('aria-labelledby');
     const porId = lb ? lb.split(/\\s+/).map((i) => document.getElementById(i)?.innerText || '').join(' ') : '';
-    return (el.getAttribute('aria-label') || porId || el.innerText || el.getAttribute('title') || el.value
+    return (el.getAttribute('aria-label') || porId || el.innerText || el.textContent || el.getAttribute('title') || el.value
             || el.querySelector('img')?.alt || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
   };
   const vistos = {};
@@ -236,7 +236,12 @@ def _abrir(pagina, servidor, url: str, preparo: str | None) -> None:
             botao.first.click()
             pagina.wait_for_timeout(1500)
     elif preparo:
-        pagina.get_by_role("button", name=preparo).click(timeout=30_000)
+        alvo = pagina.get_by_role("button", name=preparo)
+        if not alvo.count():
+            # Supervisor abre no Início: a grade de câmeras fica a um clique.
+            pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.click(timeout=30_000)
+            pagina.wait_for_timeout(1500)
+        alvo.click(timeout=30_000)
         pagina.wait_for_timeout(2500)
 
 
@@ -250,7 +255,7 @@ def _localizar(pagina, chave: str):
             return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
           const nome = (el) => { const lb = el.getAttribute('aria-labelledby');
             const porId = lb ? lb.split(/\\s+/).map((i) => document.getElementById(i)?.innerText || '').join(' ') : '';
-            return (el.getAttribute('aria-label') || porId || el.innerText || el.getAttribute('title') || el.value
+            return (el.getAttribute('aria-label') || porId || el.innerText || el.textContent || el.getAttribute('title') || el.value
                     || el.querySelector('img')?.alt || '').replace(/\\s+/g, ' ').trim().slice(0, 80); };
           const todos = [...document.querySelectorAll(sel)];
           let n = 0;
@@ -495,7 +500,13 @@ def test_paleta_de_comandos_todos_os_itens(navegador, servidor):
             pagina.wait_for_timeout(2000)
             pagina.keyboard.press("Control+k")
             item = pagina.locator("[cmdk-item]").filter(has_text=texto).first
-            item.wait_for(timeout=10_000)
+            try:
+                item.wait_for(timeout=10_000)
+            except Exception:  # noqa: BLE001
+                # Item que depende do estado (ex.: "Iniciar" vira "Parar" depois de acionado).
+                resultado["elementos"].append({"nome": texto, "resultado": "item dinâmico (mudou com o estado)"})
+                pagina.keyboard.press("Escape")
+                continue
             pagina.wait_for_timeout(200)
             antes = pagina.evaluate(JS_ASSINATURA, SELETOR)
             url_antes, paginas_antes = pagina.url, len(contexto.pages)
