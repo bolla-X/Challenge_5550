@@ -6,7 +6,7 @@ import { devtools } from "zustand/middleware";
 import { socket } from "../socket/client";
 import { playAlertChime, playAllClearChime } from "../audio/chime";
 import { calarFala, falarAlerta } from "../audio/fala";
-import { avisarAlertaCritico } from "../pwa";
+import { avisarAlertaCritico, avisarEscalonamento } from "../pwa";
 import { consumirRetorno, EVENTO_SESSAO_EXPIRADA, guardarRetorno, rotaAtual } from "../utils/sessao";
 import type { ServerEventName, ServerEvents } from "../socket/events";
 import {
@@ -950,6 +950,16 @@ export function subscribeToServerEvents(): () => void {
     if (belongsToFocusedCamera(alert)) upsertActiveAlert(alert);
   });
   on("alert_resolved", resolveAlert);
+  // M7: crítico sem reconhecimento além do prazo. Nível 1 avisa a SUPERVISÃO (aviso local do PWA + mensagem na tela);
+  // o nível 2 só acende a torre e a TV (via /api/integracao/estado, campo `escalonado`), sem aviso aqui.
+  on("escalonamento", (evento) => {
+    const estado = useDashboardStore.getState();
+    if (evento.nivel !== 1 || (estado.user && estado.user.role !== "supervisor")) return;
+    const camera = estado.cameras.find((c) => c.id === evento.camera_id)?.name;
+    avisarEscalonamento(evento, camera);
+    const minutos = Math.max(1, Math.round(evento.segundos_sem_reconhecer / 60));
+    estado.showMessage(`Alerta crítico sem reconhecimento há ${minutos} min${camera ? ` em ${camera}` : ""}.`, "warning");
+  });
 
   if (!socket.connected) socket.connect();
 

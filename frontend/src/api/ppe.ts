@@ -68,6 +68,26 @@ export function rotuloDoRecurso(chave: string): string {
   return ROTULOS_DE_RECURSO[chave] ?? chave;
 }
 
+/**
+ * Rótulo pt-BR da REGRA que gerou o alerta (a chave `rule` da API, ex.: "missing_helmet"): as de EPI
+ * saem de `PPE_LABELS`; as demais nativas ficam no mapa; regra do editor ("regra:<id>") mostra o id que a pessoa escolheu.
+ */
+export const ROTULOS_DE_REGRA: Record<string, string> = {
+  risk_area_presence: "Pessoa em área de risco",
+  fallen_person: "Pessoa caída",
+  suspicious_posture: "Postura suspeita",
+};
+
+export function rotuloDaRegra(regra: string): string {
+  const epi = /^(missing|incorrect)_(\w+)$/.exec(regra);
+  if (epi && epi[2] in PPE_LABELS) {
+    const nome = PPE_LABELS[epi[2] as PpeKey];
+    return epi[1] === "missing" ? `Sem ${nome.toLowerCase()}` : `${nome} incorreto`;
+  }
+  if (regra.startsWith("regra:")) return `Regra do editor (${regra.slice("regra:".length)})`;
+  return ROTULOS_DE_REGRA[regra] ?? regra;
+}
+
 /** Severidade e situação do alerta, como a tela e o CSV as escrevem. */
 export const ROTULOS_DE_SEVERIDADE: Record<string, string> = {
   critical: "Crítico",

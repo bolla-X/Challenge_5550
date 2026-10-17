@@ -1,4 +1,5 @@
 import type { Alert } from "./api/types";
+import type { EventoDeEscalonamento } from "./socket/events";
 
 /**
  * PWA do supervisor (X10): service worker da casca offline e aviso local de
@@ -51,15 +52,36 @@ export function avisarAlertaCritico(alerta: Alert, nomeDaCamera?: string): boole
   // crawler da MISSÃO 4. Ver CHANGELOG (MDN Navigator.vibrate).
   const tocou = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? true;
   if ("vibrate" in navigator && tocou) navigator.vibrate([200, 100, 200]);
-  if (permissaoDeNotificacao() !== "granted") return false;
   const incidente = (alerta.metadata || {}).incidente_id;
   const titulo = `Alerta crítico${nomeDaCamera ? ` · ${nomeDaCamera}` : ""}`;
-  const opcoes: NotificationOptions = {
+  return mostrarNotificacao(titulo, {
     body: alerta.message.split(/ [·—] /)[0],
     tag: incidente ? `incidente-${incidente}` : `alerta-${alerta.id}`,
     icon: "/static/dist/icons/icone-192.png",
     badge: "/static/dist/icons/icone-192.png",
-  };
+  });
+}
+
+/**
+ * Escalonamento nível 1 (M7): o alerta crítico ficou sem reconhecimento além do prazo.
+ * Mesma notificação local do alerta crítico, sem o limite de 8 s (é raro e é o que importa),
+ * com tag própria por alerta: o aviso do escalonamento troca, não empilha.
+ */
+export function avisarEscalonamento(evento: EventoDeEscalonamento, nomeDaCamera?: string): boolean {
+  if (evento.nivel !== 1) return false;
+  const tocou = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? true;
+  if ("vibrate" in navigator && tocou) navigator.vibrate([300, 100, 300, 100, 300]);
+  const minutos = Math.max(1, Math.round(evento.segundos_sem_reconhecer / 60));
+  return mostrarNotificacao(`Sem reconhecimento há ${minutos} min${nomeDaCamera ? ` · ${nomeDaCamera}` : ""}`, {
+    body: (evento.mensagem ?? "Alerta crítico").split(/ [·—] /)[0],
+    tag: `escalonamento-${evento.alerta_id}`,
+    icon: "/static/dist/icons/icone-192.png",
+    badge: "/static/dist/icons/icone-192.png",
+  });
+}
+
+function mostrarNotificacao(titulo: string, opcoes: NotificationOptions): boolean {
+  if (permissaoDeNotificacao() !== "granted") return false;
   // Contador lido pelo E2E (o headless não mostra a notificação na tela).
   const w = window as unknown as { __visionepiNotificacoes?: number };
   w.__visionepiNotificacoes = (w.__visionepiNotificacoes ?? 0) + 1;

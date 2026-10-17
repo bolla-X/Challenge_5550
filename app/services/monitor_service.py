@@ -15,6 +15,7 @@ from app.services.agendador_de_inferencia import AgendadorDeInferencia
 from app.services.aprendizado_ativo import FilaDeRotulos
 from app.services.camera_worker import CameraWorker
 from app.services.controlador_adaptativo import ControladorAdaptativo
+from app.services.escalonamento import Escalonador
 from app.services.feature_manager import FeatureManager
 from app.services.gravador_assincrono import GravadorAssincrono
 from app.services.integracao.gerente import GerenteDeIntegracao
@@ -290,7 +291,8 @@ class MonitorService:
         # atrasar o boot. Porta ocupada ou rede fora viram status "falhou".
         self.integracao = GerenteDeIntegracao(app.config)
         self.publicador_da_planta = PublicadorDaPlanta(self._workers_com_nome, self.integracao, socketio,
-                                         intervalo_s=float(app.config.get("ESTADO_DA_PLANTA_S", 1.0)) or 1.0)
+                                                       intervalo_s=float(app.config.get("ESTADO_DA_PLANTA_S", 1.0)) or 1.0,
+                                                       escalonador=Escalonador.da_configuracao(app.config), app=app)
         if not app.config.get("TESTING") and float(app.config.get("ESTADO_DA_PLANTA_S", 1.0)) > 0:
             self.publicador_da_planta.iniciar()
 

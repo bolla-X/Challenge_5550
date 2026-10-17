@@ -1471,3 +1471,61 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
   `tests/test_auth.py::test_requisicao_em_voo_nao_desfaz_o_logout` (falhava com o Set-Cookie da sessão), corrigido
   com `SESSION_REFRESH_EACH_REQUEST = False` (doc: https://flask.palletsprojects.com/en/stable/config/#SESSION_REFRESH_EACH_REQUEST).
   Efeito: a sessão vale `SESSION_HOURS` (12 h, um turno) a partir do login, não do último clique — documentado.
+
+## M9 — laboratório: celular em área de risco (MISSÃO 4)
+
+Resultado: **ficou LABORATÓRIO, desligado por padrão** (`LAB_CELULAR_ATIVO=false`). Não há evidência medida de que o
+detector enxerga celular nas imagens que o projeto tem, e "em uso" é mais do que o modelo sabe dizer.
+
+**Fatos verificados no repositório e na máquina (17/10/2026)**
+
+- O detector de pessoa é o YOLOv8n do COCO (`PERSON_MODEL_PATH = models/yolov8n.pt`). Carregando o peso: 80 classes,
+  `names[0] = person`, `names[67] = cell phone`. Fonte da classe: COCO, Tabela 2 (https://arxiv.org/pdf/1405.0312).
+- O celular é descartado **na inferência**, não depois: `MonitorService.person_detector` roda com `classes=[0]`
+  (`app/services/monitor_service.py`, linha 157). Para a regra ver o celular, o filtro precisa virar `[0, 67]`.
+- Fixtures de licença livre checadas (as derivadas em `tests/fixtures/`, geradas por `scripts/fetch_fixtures.py`;
+  licenças em `docs/NEXT2026/ATRIBUICOES.md`): `bench.mp4` (CC BY-SA 4.0), `next_multidao.mp4` (CC0),
+  `next_queda.mp4` (domínio público), `portal.mp4` (CC BY-SA 4.0) e as cenas `segura`, `risco`, `ambigua`
+  (CC BY 2.0 e domínio público). Nada foi baixado da internet para isto.
+- Medição: yolov8n sem filtro de classe, confiança mínima 0,05, 1 quadro a cada 5 nos vídeos (42 + 75 + 100 + 100
+  quadros) e as 3 imagens inteiras. **Nenhum quadro com celular a 0,25 ou mais; o maior sinal foi 0,141, em 1 quadro
+  da `multidao`** (abaixo de qualquer limiar plausível). `bench`, `queda`, `portal` e as 3 cenas: 0,000. Ou seja: as
+  fixtures não têm celular visível para o detector (não revi os quadros a olho; a medição é do detector).
+  Como isso mede ausência e não acerto, **não dá para afirmar recall nem falso positivo** do celular.
+
+**O que foi entregue (inerte quando desligado)**
+
+- `app/services/lab_celular.py`: função pura `avaliar_celular(deteccoes, *, ativo, limiar, poligono, forma_do_quadro)`
+  → lista de `RuleAlert` (`celular_em_area`, severidade `medium`, mensagem "Celular em uso na área de risco · Pessoa N",
+  recurso `celular`). Com `ativo=False` devolve `[]` sem olhar as detecções. Conta quando o centro do celular
+  (`cell phone` com confiança ≥ limiar) está na área de risco **e** dentro da caixa de uma pessoa (a de menor caixa);
+  celular sem pessoa por perto não alerta. Um alerta por pessoa, com a maior confiança.
+- `Config.LAB_CELULAR_ATIVO` (padrão `false`) e `Config.LAB_CELULAR_CONF_MIN` (padrão 0,5).
+- `tests/test_lab_celular.py`: detecções sintéticas (desligado, limiar, fora da área, sem pessoa, pessoas aninhadas).
+
+**Limites que valem mesmo ligado**: "em uso" é presença do celular junto de uma pessoa na área; o sistema não sabe se
+ela olha a tela ou fala. Celular na mão, de longe, em câmera de baixa resolução, é objeto pequeno: hipótese a medir.
+Custo de inferência de abrir a classe 67: **hipótese**, não medido.
+
+**Como validar na máquina da apresentação** (antes de ligar na demo)
+
+1. `LAB_CELULAR_ATIVO=true` no `.env`; o integrador abre `classes=[0, 67]` no `person_detector` só nesse caso e chama
+   `avaliar_celular` com as detecções do quadro, o polígono da câmera e `frame.shape`.
+2. Câmera da demo, área de risco desenhada. Gravar 20 passagens com o celular na mão dentro da área e 20 sem (mão
+   vazia, caneta, controle remoto, garrafa). Contar quadros com alerta em cada grupo.
+3. Critério sugerido para ligar: pelo menos 16 das 20 passagens com celular alertam e 0 das 20 sem celular alertam;
+   ajustar `LAB_CELULAR_CONF_MIN` e repetir. Medir o tempo por análise antes e depois (`scripts/` de bench do projeto).
+4. Se não passar, deixa desligado e a demo segue sem a regra: nada mais depende dela.
+
+## M10 — relatório mensal para a CIPA (MISSÃO 4)
+
+`GET /relatorio/mensal?mes=AAAA-MM` (página A4 imprimível, sem dependência externa) e `GET /api/relatorio/mensal`
+(JSON). Mesmo perfil do relatório de turno: sessão obrigatória, Operador só do setor dele (sem setor, 403).
+Só totais, medianas e nomes de câmera/zona/regra; nenhum rótulo de rastreio, nome ou e-mail. Evacuações e cadeia de
+custódia são da planta inteira e não aparecem para o Operador. Código em `app/services/relatorio_mensal.py`.
+
+- **Limite honesto**: o total de minutos com gente não é gravado por mês (só os minutos conformes, como pontos da
+  Liga). O relatório mostra os conformes do mês e, só no mês corrente, o contador do servidor desde que subiu; não
+  inventa percentual de conformidade mensal. Para tê-lo, o fechamento de minuto no `camera_worker` teria de gravar
+  também os minutos com gente.
+- Mês inválido: 400 `mes_invalido`. Sem `mes`, vale o mês corrente (hora local do servidor).

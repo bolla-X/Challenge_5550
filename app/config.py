@@ -389,6 +389,11 @@ class Config:
     ROTULOS_INTERVALO_S = env_float("ROTULOS_INTERVALO_S", 5.0)
     # Laboratório "Pergunte à planta": desligado por padrão; exige também LLM ligado e chave.
     LAB_PERGUNTE_ATIVO = env_bool("LAB_PERGUNTE_ATIVO", False)
+    # Laboratório "celular em área de risco" (M9): desligado por padrão, regra em
+    # app/services/lab_celular.py. Ligar exige também abrir o filtro de classes do
+    # detector de pessoa para [0, 67]; evidência em docs/NEXT2026/CHANGELOG.md.
+    LAB_CELULAR_ATIVO = env_bool("LAB_CELULAR_ATIVO", False)
+    LAB_CELULAR_CONF_MIN = env_float("LAB_CELULAR_CONF_MIN", 0.5)
     # Pasta da fila de recortes (G9); vazio = instance/rotulos.
     ROTULOS_DIR = os.getenv("ROTULOS_DIR", "")
     # Modo demonstração (`python run.py --demo`): tema claro e /api/demo/reset.
@@ -412,6 +417,11 @@ class Config:
     SAUDE_VISUAL_DIR = os.getenv("SAUDE_VISUAL_DIR", "")
     # Tique do estado da planta (torre de luz, OPC UA, MQTT). 0 = desligado.
     ESTADO_DA_PLANTA_S = env_float("ESTADO_DA_PLANTA_S", 1.0)
+    # Escalonamento de alerta crítico sem reconhecimento (M7, app/services/escalonamento.py):
+    # segundos até avisar o supervisor e até a torre/TV piscarem. A regra do
+    # editor pode trazer prazos próprios; estes são o padrão.
+    ESCALONAR_SUPERVISOR_S = env_float("ESCALONAR_SUPERVISOR_S", 60.0)
+    ESCALONAR_TV_S = env_float("ESCALONAR_TV_S", 180.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)
     ADAPTATIVO_N_MAX = env_int("ADAPTATIVO_N_MAX", 6)
     ADAPTATIVO_LIMITE_ALTO_MS = env_float("ADAPTATIVO_LIMITE_ALTO_MS", 1500.0)

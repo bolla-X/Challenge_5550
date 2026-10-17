@@ -1,4 +1,4 @@
-import { Torre, useEstadoDaIntegracao } from "./torre";
+import { Torre, plantaEscalonada, useEstadoDaIntegracao } from "./torre";
 import { mensagemDeErro } from "../utils/erros";
 import { useEffect, useState } from "react";
 import { PanelSkeleton } from "./common";
@@ -127,9 +127,12 @@ function useRetroNoFimDoTurno(embutido: boolean): [boolean, () => void] {
 function TorreDaTv() {
   const { estado } = useEstadoDaIntegracao(3000);
   if (!estado) return null;
+  const escalonado = plantaEscalonada(estado.planta); // M7: crítico sem reconhecimento além do prazo da TV
   return (
-    <span className={`tv-torre ${estado.planta.sirene ? "sirene" : ""}`.trim()} data-testid="tv-torre" data-cor={estado.planta.torre}>
-      <Torre cor={estado.planta.torre} sirene={estado.planta.sirene} compacta />
+    <span className={`tv-torre ${estado.planta.sirene ? "sirene" : ""} ${escalonado ? "escalonado" : ""}`.trim()}
+          data-testid="tv-torre" data-cor={estado.planta.torre} data-escalonado={escalonado ? "1" : "0"}>
+      <Torre cor={estado.planta.torre} sirene={estado.planta.sirene} escalonado={escalonado} compacta />
+      {escalonado && <span className="tv-escalonado">Sem reconhecimento: supervisão avisada</span>}
     </span>
   );
 }

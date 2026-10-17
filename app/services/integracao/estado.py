@@ -18,7 +18,9 @@ Entrada por câmera (campos extras são ignorados; ausentes viram o neutro):
     incidentes_por_regra {regra: n}, conformidade 0-1 | None,
     ultimo_alerta {"mensagem", "severidade", "ts"} | None, saude_visual str,
     incidentes_criticos int  (opcional: quantos dos incidentes ativos são críticos),
-    critico_nao_reconhecido bool
+    critico_nao_reconhecido bool,
+    escalonado bool  (crítico sem reconhecimento além do prazo da TV; ver app/services/escalonamento.py.
+                      Só repassado: a cor da torre continua a regra abaixo, a UI usa o campo para piscar)
 
 Quando `incidentes_criticos` não vem, a câmera em `estado == "alarme"` conta como
 crítica: é o único estado que o motor já classifica como alarme.
@@ -80,6 +82,7 @@ def _normalizar_camera(bruta: dict[str, Any]) -> dict[str, Any]:
         "ultimo_alerta": bruta.get("ultimo_alerta") or None,
         "saude_visual": str(bruta.get("saude_visual") or ""),
         "critico_nao_reconhecido": bool(bruta.get("critico_nao_reconhecido")),
+        "escalonado": bool(bruta.get("escalonado")),
     }
 
 

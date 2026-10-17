@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime, timezone
 from typing import Any, Callable
 
+from app.services.escalonamento import Escalonador, publicar
 from app.services.integracao.estado import estado_da_planta
 from app.utils.salas import SALA_PARQUE
 
@@ -95,8 +97,12 @@ def resumo_da_camera(worker: Any, nome: str) -> dict[str, Any]:
 class PublicadorDaPlanta:
     """Tique periódico: resume, publica (com deduplicação no gerente) e avisa a UI."""
 
-    def __init__(self, workers: Callable[[], list[tuple[Any, str]]], gerente: Any, socketio: Any = None, intervalo_s: float = 1.0) -> None:
+    def __init__(self, workers: Callable[[], list[tuple[Any, str]]], gerente: Any, socketio: Any = None, intervalo_s: float = 1.0,
+                 escalonador: Escalonador | None = None, app: Any = None) -> None:
         self._workers = workers
+        # Escalonamento (M7): crítico sem reconhecimento sobe para supervisor e depois TV/torre.
+        self.escalonador = escalonador
+        self.app = app
         self.gerente = gerente
         self.socketio = socketio
         self.intervalo_s = intervalo_s
@@ -122,6 +128,13 @@ class PublicadorDaPlanta:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("resumo_de_camera_falhou",
                                extra={"camera_id": getattr(worker, "camera_id", None), "erro": type(exc).__name__})
+        if self.escalonador is not None:
+            try:
+                eventos = self.escalonador.avaliar({r["id"]: r["_ativos"] for r in resumos}, datetime.now(timezone.utc))
+                publicar(eventos, self.socketio, self.app)
+                self.escalonador.marcar(resumos)
+            except Exception as exc:  # noqa: BLE001  (escalonamento nunca derruba o tique)
+                logger.warning("escalonamento_falhou", extra={"erro": type(exc).__name__})
         novos: list[tuple[int, dict[str, Any]]] = []
         for r in resumos:
             ativos = r.pop("_ativos")

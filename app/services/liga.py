@@ -42,6 +42,12 @@ ROTULOS = {
     "rotulo": "Rótulos contribuídos",
     "minuto_conforme": "Minutos conformes",
 }
+# Faixas do mesmo fato: reconhecer o incidente (ou o alerta dele) vale UM ponto,
+# na faixa em que o primeiro reconhecimento caiu; o segundo não soma outra faixa.
+FAIXAS_DO_MESMO_FATO = {
+    "reconhecido_rapido": ("reconhecido_rapido", "reconhecido"),
+    "reconhecido": ("reconhecido_rapido", "reconhecido"),
+}
 TIPOS_DE_MISSAO = ("checkin_portal", "rotulo", "reconhecido_rapido", "minuto_conforme")
 
 
@@ -63,7 +69,8 @@ def registrar(tipo: str, *, ref: str, camera_id: int | None = None, setor: str |
     try:
         if setor is None:
             setor = setor_da_camera(db.session.get(Camera, camera_id) if camera_id is not None else None)
-        if PontoDaLiga.query.filter_by(tipo=tipo, ref=ref[:120]).first() is not None:
+        equivalentes = FAIXAS_DO_MESMO_FATO.get(tipo, (tipo,))
+        if PontoDaLiga.query.filter(PontoDaLiga.tipo.in_(equivalentes), PontoDaLiga.ref == ref[:120]).first() is not None:
             return None
         ponto = PontoDaLiga(setor=setor, camera_id=camera_id, tipo=tipo, pontos=PONTOS[tipo], ref=ref[:120],
                             criado_em=_utc(quando or datetime.now(timezone.utc)))

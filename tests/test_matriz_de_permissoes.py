@@ -408,7 +408,7 @@ LINHAS: list[Linha] = [
         for regra in (
             "/", "/dashboard", "/dashboard/", "/portal", "/tv", "/rotular", "/desafio", "/gemeo", "/simulador",
             "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga", "/evacuacao", "/torre", "/regras", "/produto",
-            "/caixa-de-entrada", "/ajuda",
+            "/caixa-de-entrada", "/ajuda", "/intervencoes", "/busca",
             "/permissoes", "/primeiro-acesso", "/novidades", "/configuracoes",
         )
     ],
@@ -533,6 +533,18 @@ LINHAS: list[Linha] = [
     L("PATCH", "/features", TEC_OU_MAIS, corpo={"features": {"helmet": True}}),
     # ---------------------------------------------------------------- gêmeo --
     L("GET", "/api/gemeo", PARQUE),
+    # busca nas trilhas (M6) e API documentada (M11)
+    L("GET", "/api/busca/trilhas", TEC_OU_MAIS, ok=(400,)),
+    L("GET", "/api/openapi.json", TEC_OU_MAIS),
+    L("GET", "/api/docs", TEC_OU_MAIS),
+    # intervenções e ROI (MISSÃO 4, M8)
+    L("GET", "/api/intervencoes", TEC_OU_MAIS),
+    L("POST", "/api/intervencoes", SO_SUPERVISOR, corpo={}, ok=(400,)),
+    L("GET", "/api/intervencoes/<int:intervencao_id>", TEC_OU_MAIS, "/api/intervencoes/9999", ok=(404,)),
+    L("PUT", "/api/intervencoes/<int:intervencao_id>", SO_SUPERVISOR, "/api/intervencoes/9999", corpo={}, ok=(404,)),
+    L("DELETE", "/api/intervencoes/<int:intervencao_id>", SO_SUPERVISOR, "/api/intervencoes/9999", ok=(404,)),
+    L("GET", "/api/intervencoes/<int:intervencao_id>/comparacao", TEC_OU_MAIS, "/api/intervencoes/9999/comparacao", ok=(404,)),
+    L("POST", "/api/intervencoes/<int:intervencao_id>/roi", TEC_OU_MAIS, "/api/intervencoes/9999/roi", corpo={}, ok=(404, 400)),
     # feedback e contatos (MISSÃO 4, Fase 3 itens 10 e 11)
     L("POST", "/api/feedback", QUALQUER_LOGADO, corpo={"texto": "teste"}, ok=(201,)),
     L("GET", "/api/feedback", SO_SUPERVISOR),
@@ -600,6 +612,8 @@ LINHAS: list[Linha] = [
     L("POST", "/api/relatorio/turno/resumo", PARQUE),
     L("GET", "/api/relatorio/turno/resumo", PARQUE),
     # ----------------------------------------------------------- risk score --
+    L("GET", "/api/relatorio/mensal", PARQUE),
+    L("GET", "/relatorio/mensal", PARQUE),
     L("GET", "/risk-score", PARQUE),
     L("GET", "/risk-score/trend", PARQUE),
     # --------------------------------------------------------------- rótulos --

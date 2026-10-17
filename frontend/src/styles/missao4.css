@@ -76,6 +76,16 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 .tv-torre.sirene .torre-lampada.vermelho { animation: torre-pisca 0.9s steps(2, jump-none) infinite; }
 @media (prefers-reduced-motion: reduce) { .tv-torre.sirene .torre-lampada.vermelho { animation: none; outline: 3px solid var(--stop); outline-offset: 3px; } }
 
+/* escalonamento (M7): crítico sem reconhecimento além do prazo da TV. Pisca mais rápido que a sirene e ganha um anel,
+   para não parecer "a mesma sirene de sempre". Sem movimento: só o anel. */
+.torre.escalonado .torre-lampada.vermelho.acesa,
+.tv-torre.escalonado .torre-lampada.vermelho { animation: torre-pisca 0.45s steps(2, jump-none) infinite; outline: 3px solid var(--stop); outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .torre.escalonado .torre-lampada.vermelho.acesa,
+  .tv-torre.escalonado .torre-lampada.vermelho { animation: none; outline-width: 5px; }
+}
+.tv-escalonado { margin-inline-start: var(--s3); padding: 2px var(--s3); border-radius: var(--r-chip); background: var(--stop); color: var(--on-accent); font-size: var(--t-caption); font-weight: 700; }
+
 /* pílula de saúde visual sobre o vídeo (M1) */
 .saude-pill { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2); max-width: 520px; }
 .saude-pill button.ghost { color: var(--on-overlay); }

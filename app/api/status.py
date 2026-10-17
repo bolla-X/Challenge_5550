@@ -83,6 +83,8 @@ def nao_encontrado(erro: NotFound):
 @status_bp.get("/permissoes")
 @status_bp.get("/primeiro-acesso")
 @status_bp.get("/produto")
+@status_bp.get("/intervencoes")
+@status_bp.get("/busca")
 @status_bp.get("/ajuda")
 @status_bp.get("/caixa-de-entrada")
 @status_bp.get("/novidades")

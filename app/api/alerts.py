@@ -190,11 +190,16 @@ def acknowledge_alert(alert_id: int):
     alert = repository.acknowledge(alert, note=note)
     alert_payload = alert.to_dict()
 
+    # M7: o tempo até reconhecer fica na linha do tempo e, se rápido, vira ponto
+    # POSITIVO do setor na Liga (demorar não tira nada de ninguém).
+    from app.services.escalonamento import registrar_reconhecimento
+
+    reconhecimento = registrar_reconhecimento(alert)
     event = _log_and_broadcast(
         alert,
         alert_payload,
         message=f"Colaborador avisado: {alert.message}",
-        metadata={"acknowledged": True, "note": note},
+        metadata={"acknowledged": True, "note": note, **({"segundos": reconhecimento["segundos"]} if reconhecimento else {})},
         broadcast_resolved=False,
     )
     return jsonify({"alert": alert_payload, "event": event})

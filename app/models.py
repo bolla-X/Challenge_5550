@@ -463,6 +463,40 @@ class Contato(db.Model):
         }
 
 
+class Intervencao(db.Model):
+    """Mudança feita na planta (obra, treinamento, nova sinalização) para comparar antes e depois (MISSÃO 4, M8).
+
+    Vale para UMA câmera (`camera_id`) OU para um setor (`setor`, o `location` das
+    câmeras): exatamente um dos dois. Sem ForeignKey, como `Alert.camera_id`:
+    descadastrar a câmera não apaga o registro do que foi feito. `data_da_intervencao`
+    é um dia (hora local do servidor); a comparação usa janelas iguais de dias
+    antes e depois dela. Ver app/services/intervencoes.py.
+    """
+
+    __tablename__ = "intervencoes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    camera_id = db.Column(db.Integer, nullable=True, index=True)
+    setor = db.Column(db.String(160), nullable=True, index=True)
+    titulo = db.Column(db.String(160), nullable=False)
+    descricao = db.Column(db.String(2000), nullable=False, default="")
+    data_da_intervencao = db.Column(db.Date, nullable=False, index=True)
+    criada_por = db.Column(db.String(180), nullable=False)
+    criada_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "camera_id": self.camera_id,
+            "setor": self.setor,
+            "titulo": self.titulo,
+            "descricao": self.descricao,
+            "data_da_intervencao": self.data_da_intervencao.isoformat() if self.data_da_intervencao else None,
+            "criada_por": self.criada_por,
+            "criada_em": self.criada_em.isoformat() if self.criada_em else None,
+        }
+
+
 class Camera(db.Model):
     __tablename__ = "cameras"
 

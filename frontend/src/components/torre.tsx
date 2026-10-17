@@ -9,7 +9,15 @@ import { useEffect, useState } from "react";
  */
 
 export type CorDaTorre = "verde" | "amarelo" | "vermelho";
-type CameraDaPlanta = { id: number; nome: string; estado: string; saude_visual?: string; critico_nao_reconhecido?: boolean };
+type CameraDaPlanta = {
+  id: number;
+  nome: string;
+  estado: string;
+  saude_visual?: string;
+  critico_nao_reconhecido?: boolean;
+  /** Crítico sem reconhecimento além do prazo da TV (M7): a torre e a TV piscam mais rápido. */
+  escalonado?: boolean;
+};
 type Integracao = { ativo?: boolean; estado?: string; endpoint?: string | null; erro?: string | null };
 export type EstadoDaIntegracao = {
   planta: { planta_em_alarme: boolean; torre: CorDaTorre; sirene: boolean; cameras: CameraDaPlanta[]; ts: string };
@@ -59,18 +67,25 @@ export function useEstadoDaIntegracao(intervaloMs = 2000) {
   return { estado, erro };
 }
 
-export function Torre({ cor, sirene, compacta = false }: { cor: CorDaTorre; sirene: boolean; compacta?: boolean }) {
+/** Alguma câmera com crítico sem reconhecimento além do prazo da TV (escalonamento nível 2, M7). */
+export function plantaEscalonada(planta: EstadoDaIntegracao["planta"]): boolean {
+  return planta.cameras.some((c) => c.escalonado === true);
+}
+
+export function Torre({ cor, sirene, escalonado = false, compacta = false }: { cor: CorDaTorre; sirene: boolean; escalonado?: boolean; compacta?: boolean }) {
+  const sufixo = escalonado ? ", escalonado: sem reconhecimento além do prazo" : "";
   if (compacta) {
     return (
-      <span className="torre-mini" data-testid="torre-mini" data-cor={cor} aria-label={`Torre de luz: ${TEXTO[cor]}`}>
+      <span className="torre-mini" data-testid="torre-mini" data-cor={cor} aria-label={`Torre de luz: ${TEXTO[cor]}${sufixo}`}>
         <span className={`torre-lampada ${cor} acesa`} aria-hidden="true" />
         {TEXTO[cor]}
       </span>
     );
   }
   return (
-    <div className={`torre ${sirene ? "sirene" : ""}`} data-testid="torre" data-cor={cor} data-sirene={sirene ? "1" : "0"}
-         role="img" aria-label={`Torre de luz: ${TEXTO[cor]}${sirene ? ", sirene ligada" : ""}`}>
+    <div className={`torre ${sirene ? "sirene" : ""} ${escalonado ? "escalonado" : ""}`.trim()} data-testid="torre" data-cor={cor}
+         data-sirene={sirene ? "1" : "0"} data-escalonado={escalonado ? "1" : "0"}
+         role="img" aria-label={`Torre de luz: ${TEXTO[cor]}${sirene ? ", sirene ligada" : ""}${sufixo}`}>
       <div className="torre-corpo">
         {(["vermelho", "amarelo", "verde"] as CorDaTorre[]).map((c) => (
           <span key={c} className={`torre-lampada ${c} ${c === cor ? "acesa" : ""}`} />
@@ -92,13 +107,18 @@ function motivo(estado: EstadoDaIntegracao["planta"]): string {
 
 export function TorreScreen() {
   const { estado, erro } = useEstadoDaIntegracao();
+  const escalonado = estado ? plantaEscalonada(estado.planta) : false;
   return (
     <div className="torre-tela" data-testid="torre-tela">
       {estado ? (
         <>
-          <Torre cor={estado.planta.torre} sirene={estado.planta.sirene} />
+          <Torre cor={estado.planta.torre} sirene={estado.planta.sirene} escalonado={escalonado} />
           <div>
-            <p className="torre-estado" aria-live="polite">{TEXTO[estado.planta.torre]}{estado.planta.sirene ? " — alerta crítico sem reconhecimento" : ""}</p>
+            <p className="torre-estado" aria-live="polite">
+              {TEXTO[estado.planta.torre]}
+              {estado.planta.sirene ? " — alerta crítico sem reconhecimento" : ""}
+              {escalonado ? " há muito tempo: supervisão avisada" : ""}
+            </p>
             <p className="torre-detalhe">{motivo(estado.planta)}</p>
           </div>
           <div className="torre-integracoes" aria-label="Integrações industriais">

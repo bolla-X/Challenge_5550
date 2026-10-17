@@ -40,6 +40,8 @@ const AjudaScreen = lazy(() => import("./components/ajuda"));
 const PaginaStatus = lazy(() => import("./components/pagina-status"));
 const NovidadesScreen = lazy(() => import("./components/novidades"));
 const ConfiguracoesScreen = lazy(() => import("./components/configuracoes"));
+const IntervencoesScreen = lazy(() => import("./components/intervencoes"));
+const BuscaTrilhasScreen = lazy(() => import("./components/busca-trilhas"));
 
 // Marcado no `pagehide`/`beforeunload`: a partir daí, fetch abortado é esperado.
 let saindoDaPagina = false;
@@ -53,7 +55,7 @@ if (typeof window !== "undefined") {
 
 const PREFIXOS_CONHECIDOS = [
   "/palco", "/desafio", "/rotular", "/gemeo", "/liga", "/retrospectiva", "/auditoria", "/simulador", "/evacuacao",
-  "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso", "/produto", "/caixa-de-entrada", "/ajuda", "/status", "/novidades", "/configuracoes",
+  "/permissoes", "/regras", "/torre", "/tv", "/portal", "/dashboard", "/primeiro-acesso", "/produto", "/caixa-de-entrada", "/ajuda", "/status", "/novidades", "/configuracoes", "/intervencoes", "/busca",
 ];
 
 // Telas de tela cheia que exigem um tipo de conta mínimo (o mesmo que a API
@@ -69,6 +71,8 @@ const PAPEL_MINIMO: [string, "technical" | "supervisor", string][] = [
   ["/primeiro-acesso", "supervisor", "o primeiro acesso"],
   ["/caixa-de-entrada", "supervisor", "a caixa de entrada"],
   ["/status", "technical", "a página de status"],
+  ["/intervencoes", "technical", "o antes e depois das intervenções"],
+  ["/busca", "technical", "a busca nas trilhas"],
 ];
 const NIVEL: Record<string, number> = { operator: 1, technical: 2, supervisor: 3 };
 
@@ -94,6 +98,9 @@ function SupervisorOverview({ onBack }: { onBack: () => void }) {
     ["/status", "Status do sistema"],
     ["/configuracoes", "Configurações"],
     ["/novidades", "Novidades"],
+    ["/intervencoes", "Antes e depois"],
+    ["/busca", "Busca nas trilhas"],
+    ["/relatorio/mensal", "Relatório mensal (CIPA)"],
     ["/gemeo", "Gêmeo digital"],
     ["/liga", "Liga de Setores"],
     ["/palco", "Apresentação"],
@@ -412,6 +419,26 @@ export default function App() {
         {ajudaFlutuante}
         <Suspense fallback={<CarregandoTela />}>
           <ConfiguracoesScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/busca")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <BuscaTrilhasScreen />
+        </Suspense>
+      </main>
+    );
+  }
+  if (window.location.pathname.startsWith("/intervencoes")) {
+    return (
+      <main id="conteudo">
+        {ajudaFlutuante}
+        <Suspense fallback={<CarregandoTela />}>
+          <IntervencoesScreen />
         </Suspense>
       </main>
     );
