@@ -2394,6 +2394,8 @@ class CameraWorker:
             return None
         if not isinstance(raw, list) or len(raw) < 3:
             raise ValueError("A área de risco precisa de pelo menos 3 pontos.")
+        if len(raw) > 64:
+            raise ValueError("A área de risco aceita no máximo 64 pontos.")
         polygon: list[tuple[float, float]] = []
         for point in raw:
             if isinstance(point, dict):

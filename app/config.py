@@ -40,6 +40,16 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+def env_origens(name: str) -> str | list[str] | None:
+    """Origens permitidas do Socket.IO: ausente/vazio = só a MESMA origem (None); "*" só se pedido; senão a lista por vírgula."""
+    valor = os.getenv(name, "").strip()
+    if not valor:
+        return None
+    if valor == "*":
+        return "*"
+    return [origem.strip() for origem in valor.split(",") if origem.strip()]
+
+
 @dataclass(frozen=True)
 class RiskAreaConfig:
     enabled: bool
@@ -161,6 +171,9 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     AUTO_CREATE_TABLES = env_bool("AUTO_CREATE_TABLES", True)
+    # Teto do corpo de qualquer requisição (o Flask responde 413). Fica acima do maior quadro do
+    # celular-câmera (MAX_BYTES_QUADRO = 4 MiB em app/vision/fonte_celular.py).
+    MAX_CONTENT_LENGTH = env_int("MAX_CONTENT_LENGTH", 6 * 1024 * 1024)
 
     VIDEO_SOURCE = os.getenv("VIDEO_SOURCE", "0")
     FRAME_WIDTH = env_int("FRAME_WIDTH", 960)
@@ -503,7 +516,9 @@ class Config:
     # alerta, sem esperar o tempo mínimo (ver AlertStateService, PR3).
     ALERT_EMERGENCY_RULES = os.getenv("ALERT_EMERGENCY_RULES", "fall_detected")
     ALERT_EMERGENCY_MIN_CONFIRMATIONS = env_int("ALERT_EMERGENCY_MIN_CONFIRMATIONS", 2)
-    SOCKETIO_CORS_ALLOWED_ORIGINS = os.getenv("SOCKETIO_CORS_ALLOWED_ORIGINS", "*")
+    # Padrão: só a mesma origem. Com "*" o servidor refletia qualquer Origin junto com credenciais.
+    # Para o Vite em dev, liste http://localhost:5173 (ver .env.example).
+    SOCKETIO_CORS_ALLOWED_ORIGINS = env_origens("SOCKETIO_CORS_ALLOWED_ORIGINS")
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
 
     CLEANUP_ON_MONITOR_START = env_bool("CLEANUP_ON_MONITOR_START", True)

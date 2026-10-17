@@ -29,7 +29,7 @@ torch==2.13.0
 torchvision==0.28.0
 mediapipe==0.10.14
 numpy==1.26.4
-gunicorn==22.0.0
+gunicorn==23.0.0
 # Certificado local do `run.py --https` (celular como camera, F6).
 cryptography==50.0.1
 pytest==8.3.3

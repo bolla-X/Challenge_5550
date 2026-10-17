@@ -25,13 +25,15 @@ de regra que zera continua existindo com valor 0 (nó não é apagado até reini
 
 LIMITAÇÕES (decisão consciente):
 
-- SEM segurança: política `None`, sem certificado, sem usuário/senha. É para rede
-  de chão de fábrica ISOLADA (VLAN/DMZ industrial), nunca exposta à internet nem
-  à rede corporativa. Quem precisar de Basic256Sha256 + certificado precisa de
-  configuração adicional (fora do escopo desta entrega).
+- SEM segurança: política `None`, sem certificado, sem usuário/senha (só token
+  anônimo; login "admin" é recusado). É para rede de chão de fábrica ISOLADA
+  (VLAN/DMZ industrial), nunca exposta à internet nem à rede corporativa. Quem
+  precisar de Basic256Sha256 + certificado precisa de configuração adicional
+  (fora do escopo desta entrega).
 - Somente leitura: `WriteRequest` e `CallRequest` são negados no servidor
   (regra de permissão) e os nós têm AccessLevel só de leitura. Cliente também não
-  altera o espaço de endereços (AddNodes é de admin).
+  altera o espaço de endereços: o ruleset nega AddNodes, DeleteNodes,
+  AddReferences, DeleteReferences e RegisterServer para todos os papéis.
 """
 
 from __future__ import annotations
@@ -43,7 +45,7 @@ import threading
 from typing import Any
 
 from asyncua import Server, ua
-from asyncua.crypto.permission_rules import SimpleRoleRuleset
+from asyncua.crypto.permission_rules import ADMIN_TYPES, SimpleRoleRuleset
 
 from ._erros import descrever_falha_de_bind, sondar_porta
 
@@ -56,11 +58,12 @@ _TIPOS_PROIBIDOS = (ua.ObjectIds.WriteRequest_Encoding_DefaultBinary, ua.ObjectI
 
 
 class _PermissaoSomenteLeitura(SimpleRoleRuleset):
-    """O ruleset padrão deixa o papel User escrever. Aqui ninguém escreve nem chama método."""
+    """O ruleset padrão deixa o papel User escrever e o Admin mexer no espaço de endereços.
+    Aqui ninguém escreve, chama método nem altera nós/referências, nem como Admin."""
 
     def __init__(self) -> None:
         super().__init__()
-        negados = {ua.NodeId(tipo) for tipo in _TIPOS_PROIBIDOS}
+        negados = {ua.NodeId(tipo) for tipo in (*_TIPOS_PROIBIDOS, *ADMIN_TYPES)}
         for papel, permitidos in self._permission_dict.items():
             self._permission_dict[papel] = permitidos - negados
 
@@ -175,6 +178,10 @@ class ServidorOPCUA:
         self._tranca = asyncio.Lock()
         servidor = Server()
         await servidor.init()
+        # O gerenciador de usuários padrão do asyncua é permissivo: "admin" com QUALQUER senha vira Admin.
+        # Só token anônimo e sem Admin remoto: não há credencial para adivinhar.
+        servidor.set_identity_tokens([ua.AnonymousIdentityToken])
+        servidor.allow_remote_admin(False)
         servidor.set_endpoint(self.endpoint)
         servidor.set_server_name("VisionEPI")
         servidor.set_security_policy([ua.SecurityPolicyType.NoSecurity], permission_ruleset=_PermissaoSomenteLeitura())

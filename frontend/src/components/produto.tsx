@@ -253,8 +253,9 @@ function FormularioDeContato() {
             </span>
           )}
           <p id={`${id}-privacidade`} className="produto-privacidade">
-            Os dados ficam só no servidor desta instalação do VisionEPI e não são enviados a terceiros. Você escolhe o que escrever: não
-            peça nem informe dados de pessoas da sua planta.
+            Os dados ficam só no servidor desta instalação do VisionEPI e não são enviados a terceiros. Eles servem apenas para
+            responder ao seu contato e podem ser excluídos a pedido. Você escolhe o que escrever: não peça nem informe dados de pessoas
+            da sua planta.
           </p>
         </div>
 

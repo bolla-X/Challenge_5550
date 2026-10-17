@@ -7,7 +7,7 @@ Tudo é gravado LOCALMENTE (tabelas `feedback` e `contatos`), sem envio a tercei
 | `POST /api/feedback` | qualquer conta logada (a sessão dá o tipo de conta e o `user_id`) |
 | `GET /api/feedback`, `POST /api/feedback/<id>/lido` | Supervisor |
 | `POST /api/contatos` | PÚBLICA (sem sessão), com limite por IP em memória |
-| `GET /api/contatos`, `POST /api/contatos/<id>/lido` | Supervisor |
+| `GET /api/contatos`, `POST /api/contatos/<id>/lido`, `DELETE /api/contatos/<id>` | Supervisor |
 
 `sempre=True` nas rotas com sessão: mesmo com `AUTH_REQUIRED=false` elas exigem login,
 porque gravam (ou leem) o que uma conta específica escreveu.
@@ -33,7 +33,9 @@ _MAXIMO_NOME = 120
 _MAXIMO_EMPRESA = 160
 _MAXIMO_EMAIL = 254
 _MAXIMO_TELA = 200
-_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# `?&#%/` ficam de fora: o e-mail vira `mailto:` na caixa de entrada e esses caracteres abririam
+# parâmetros (`?bcc=`, `&cc=`) ou escapes no link. `fullmatch`: `$` aceitaria "\n" no fim.
+_EMAIL = re.compile(r"[^@\s?&#%/]+@[^@\s?&#%/]+\.[^@\s?&#%/]+")
 _LIMITE_PADRAO = 100
 _LIMITE_MAXIMO = 500
 
@@ -176,7 +178,7 @@ def criar_contato():
     email, falha = _texto(corpo.get("email"), rotulo="E-mail", maximo=_MAXIMO_EMAIL)
     if falha:
         return _erro(falha, "email")
-    if not _EMAIL.match(email):
+    if not _EMAIL.fullmatch(email):
         return _erro("E-mail: informe um endereço válido, como nome@empresa.com.br.", "email")
     mensagem, falha = _texto(corpo.get("mensagem"), rotulo="Mensagem", maximo=TAMANHO_MAXIMO_FEEDBACK)
     if falha:
@@ -202,3 +204,15 @@ def listar_contatos():
 def marcar_contato_lido(contato_id: int):
     item, erro = _marcar_lido(Contato, contato_id)
     return erro if erro else jsonify({"contato": item.to_dict()})
+
+
+@feedback_bp.delete("/api/contatos/<int:contato_id>")
+@require_role(ROLE_SUPERVISOR, sempre=True)
+def excluir_contato(contato_id: int):
+    """Apaga o contato de vez (pedido do titular dos dados). 404 se não existe (ou já foi apagado)."""
+    item = db.session.get(Contato, contato_id)
+    if item is None:
+        return _erro("Item não encontrado.", status=404)
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"deleted": True, "id": contato_id})

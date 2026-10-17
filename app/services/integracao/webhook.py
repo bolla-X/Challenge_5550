@@ -156,9 +156,8 @@ class Webhook:
 
     @property
     def endpoint(self) -> str:
-        """URL sem query nem credenciais: pode aparecer em status/log sem vazar token."""
-        caminho = self._caminho.split("?", 1)[0]
-        return f"{self._esquema}://{self._host}:{self._porta}{caminho}"
+        """Só `esquema://host:porta`: o caminho (e a query) pode carregar o segredo, no estilo dos webhooks do Slack."""
+        return f"{self._esquema}://{self._host}:{self._porta}"
 
     def estatisticas(self) -> dict[str, Any]:
         return {

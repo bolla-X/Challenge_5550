@@ -131,6 +131,8 @@ def update_user(user_id: int):
 
     payload = request.get_json(silent=True) or {}
     atual = current_user()
+    # Papel e setor mudam o que a conta enxerga e pode fazer: sessão aberta com o acesso antigo não pode sobreviver.
+    acesso_mudou = False
 
     if "role" in payload:
         papel = str(payload["role"])
@@ -140,6 +142,7 @@ def update_user(user_id: int):
         # sem ninguem capaz de gerir usuarios.
         if atual is not None and usuario.id == atual.id and papel != ROLE_SUPERVISOR:
             return jsonify({"error": "Você não pode alterar o próprio tipo de conta."}), 400
+        acesso_mudou = acesso_mudou or papel != usuario.role
         usuario.role = papel
 
     if "name" in payload and str(payload["name"]).strip():
@@ -153,7 +156,15 @@ def update_user(user_id: int):
             return jsonify({"error": "Já existe usuário com este e-mail."}), 400
         usuario.email = email
     if "camera_id" in payload:
-        usuario.camera_id = payload["camera_id"]
+        camera_id = payload["camera_id"]
+        if camera_id is not None and (
+            isinstance(camera_id, bool) or not isinstance(camera_id, int) or db.session.get(Camera, camera_id) is None
+        ):
+            return jsonify({"error": "Câmera não cadastrada no sistema."}), 400
+        acesso_mudou = acesso_mudou or camera_id != usuario.camera_id
+        usuario.camera_id = camera_id
+    if acesso_mudou:
+        AuthService.revoke_sessions(usuario, motivo="access_changed")
     if "active" in payload:
         ativo = bool(payload["active"])
         if atual is not None and usuario.id == atual.id and not ativo:

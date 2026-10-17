@@ -45,6 +45,7 @@ python run.py --demo --https
   e celular como câmera). Aceite o aviso do certificado autoassinado uma vez,
   no notebook e no celular. Sem `--https` tudo funciona no notebook; só o
   celular fica de fora (o teclado continua mandando no palco);
+- a demo escuta só em `127.0.0.1`: para o controle pelo celular, rode com `--https` (abre na rede local);
 - cria `instance/demo/demo.db` do zero, isolado do banco do dia a dia;
 - imprime **só no terminal** três contas (`supervisor@`, `tecnico@`,
   `operador@demo.local`) com senha gerada agora — anote antes de projetar;

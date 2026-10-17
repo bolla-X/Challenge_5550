@@ -4,7 +4,8 @@
 nós OPC UA e no tópico `visionepi/planta/estado`, mais o status de cada
 integração (no ar, desligada, falhou + motivo). O Operador vê só a própria
 câmera: o estado é recalculado só com ela, para a torre dele não acender por
-outro setor e para não vazar o estado das outras áreas.
+outro setor e para não vazar o estado das outras áreas. Dos canais de integração
+ele recebe só o `estado` (sem `endpoint` nem `erro`).
 """
 
 from __future__ import annotations
@@ -27,4 +28,8 @@ def estado():
     planta = monitor.estado_da_planta()
     if escopo is not None:
         planta = estado_da_planta([c for c in planta.get("cameras", []) if c.get("id") == escopo])
-    return jsonify({"planta": planta, "integracoes": monitor.integracao.status()})
+    integracoes = monitor.integracao.status()
+    if escopo is not None:
+        # O Operador vê se cada canal está no ar; endereço e motivo da falha são de quem administra a planta.
+        integracoes = {canal: {"estado": situacao.get("estado")} for canal, situacao in integracoes.items()}
+    return jsonify({"planta": planta, "integracoes": integracoes})

@@ -359,6 +359,10 @@ def test_opcua_login_admin_com_qualquer_senha_nao_vira_admin(servidor_opcua):
     try:
         cliente.connect()
     except Exception:  # noqa: BLE001 - token de usuário/senha recusado: é o resultado esperado
+        try:
+            cliente.disconnect()  # solta o thread do cliente síncrono (senão o processo não sai)
+        except Exception:  # noqa: BLE001
+            pass
         return
     try:
         idx = cliente.get_namespace_index("urn:visionepi")

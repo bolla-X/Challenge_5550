@@ -149,10 +149,16 @@ def _instante(valor: Any, campo: str) -> datetime:
     return resultado.astimezone(timezone.utc) if resultado.tzinfo else resultado.replace(tzinfo=timezone.utc)
 
 
+# Um polígono desenhado à mão não passa disso; o teto barra corpo gigante que só gastaria CPU no avaliador.
+MAXIMO_DE_PONTOS_DO_POLIGONO = 64
+
+
 def normalizar_poligono(raw: Any, campo: str) -> list[list[float]]:
     """Lista de [x, y] ou {x, y} (≥ 3 pontos) → [[x, y], ...] limitado a 0–1."""
     if not isinstance(raw, list) or len(raw) < 3:
         raise PermissaoInvalida("campo_invalido", f"'{campo}' deve conter pelo menos 3 pontos.")
+    if len(raw) > MAXIMO_DE_PONTOS_DO_POLIGONO:
+        raise PermissaoInvalida("campo_invalido", f"'{campo}' deve conter no máximo {MAXIMO_DE_PONTOS_DO_POLIGONO} pontos.")
     pontos: list[list[float]] = []
     for ponto in raw:
         if isinstance(ponto, dict):

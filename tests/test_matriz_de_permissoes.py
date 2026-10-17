@@ -553,6 +553,7 @@ LINHAS: list[Linha] = [
       publica_por="formulário público de /produto: só grava, valida, exige consentimento e tem limite por IP"),
     L("GET", "/api/contatos", SO_SUPERVISOR),
     L("POST", "/api/contatos/<int:contato_id>/lido", SO_SUPERVISOR, "/api/contatos/9999/lido", ok=(404,)),
+    L("DELETE", "/api/contatos/<int:contato_id>", SO_SUPERVISOR, "/api/contatos/9999", ok=(404,)),
     # primeiro acesso do supervisor (MISSÃO 4, Fase 3 item 2)
     L("GET", "/api/onboarding", SO_SUPERVISOR),
     L("PUT", "/api/onboarding/<passo>", SO_SUPERVISOR, "/api/onboarding/camera", corpo={"estado": "pendente"}),

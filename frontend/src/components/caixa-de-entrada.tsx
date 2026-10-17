@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api/client";
 import {
+  excluirContato,
   listarContatos,
   listarFeedback,
   marcarContatoLido,
@@ -34,6 +35,7 @@ const marcarContato = (id: number, lido: boolean) => marcarContatoLido(id, lido)
 function useCaixa<T extends { id: number; lido: boolean }>(
   carregar: () => Promise<Caixa<T>>,
   marcar: (id: number, lido: boolean) => Promise<T>,
+  excluir?: (id: number) => Promise<unknown>,
 ) {
   const [itens, setItens] = useState<T[] | null>(null);
   const [erro, setErro] = useState<{ mensagem: string; status?: number } | null>(null);
@@ -57,7 +59,15 @@ function useCaixa<T extends { id: number; lido: boolean }>(
       .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Falha ao marcar como lido.") }))
       .finally(() => setOcupado(null));
   };
-  return { itens, erro, ocupado, recarregar, alternar, naoLidos: (itens ?? []).filter((i) => !i.lido).length };
+  const apagar = (item: T) => {
+    if (!excluir) return;
+    setOcupado(item.id);
+    excluir(item.id)
+      .then(() => setItens((atuais) => (atuais ?? []).filter((i) => i.id !== item.id)))
+      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Falha ao excluir o contato.") }))
+      .finally(() => setOcupado(null));
+  };
+  return { itens, erro, ocupado, recarregar, alternar, apagar, naoLidos: (itens ?? []).filter((i) => !i.lido).length };
 }
 
 function Quando({ iso }: { iso: string | null }) {
@@ -157,6 +167,16 @@ function PainelDeContatos({ caixa, filtro }: { caixa: ReturnType<typeof useCaixa
           <div className="caixa-acoes">
             <span className="caixa-consentimento">Aceitou guardarmos os dados para responder o contato.</span>
             <BotaoLido lido={c.lido} ocupado={caixa.ocupado === c.id} aoAlternar={() => caixa.alternar(c)} />
+            <button
+              type="button"
+              className="ghost small"
+              disabled={caixa.ocupado === c.id}
+              onClick={() => {
+                if (window.confirm(`Excluir o contato de ${c.nome}? Nome, e-mail e mensagem somem do sistema e não dá para desfazer.`)) caixa.apagar(c);
+              }}
+            >
+              Excluir
+            </button>
           </div>
         </>
       )}
@@ -166,7 +186,7 @@ function PainelDeContatos({ caixa, filtro }: { caixa: ReturnType<typeof useCaixa
 
 export function CaixaDeEntradaScreen() {
   const feedback = useCaixa<ItemDeFeedback>(listarFeedback, marcarFeedback);
-  const contatos = useCaixa<ItemDeContato>(listarContatos, marcarContato);
+  const contatos = useCaixa<ItemDeContato>(listarContatos, marcarContato, excluirContato);
   const [aba, setAba] = useState("feedback");
   const [filtro, setFiltro] = useState<Filtro>("todos");
 

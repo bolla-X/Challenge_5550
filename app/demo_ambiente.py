@@ -87,6 +87,9 @@ def preparar_ambiente() -> None:
         "DATABASE_URL": f"sqlite:///{BANCO.as_posix()}",
         "AUTO_CREATE_TABLES": "true",
         "AUTH_REQUIRED": "true",
+        # Só esta máquina enxerga a demo. Sem isto o app escutava em 0.0.0.0 (padrão do Config) com
+        # contas de demo à mão de qualquer um na rede. `run.py --https` reabre para a LAN (celular).
+        "HOST": os.environ.get("HOST", "127.0.0.1"),
         "SECRET_KEY": secrets.token_hex(32),
         "LLM_ENABLED": "false",
         "REPLAY_DIR": str(PASTA / "clips"),

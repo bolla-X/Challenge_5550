@@ -1529,3 +1529,40 @@ custódia são da planta inteira e não aparecem para o Operador. Código em `ap
   inventa percentual de conformidade mensal. Para tê-lo, o fechamento de minuto no `camera_worker` teria de gravar
   também os minutos com gente.
 - Mês inválido: 400 `mes_invalido`. Sem `mes`, vale o mês corrente (hora local do servidor).
+
+## Fase 5 item 5 — segurança (auditoria)
+
+Dezoito achados de uma auditoria, cada um com teste escrito antes (vermelho no código anterior, verde depois). Testes novos em
+`tests/test_seguranca_missao4.py`; os que exigem servidor de verdade estão em `tests/test_integracao_industrial.py`.
+
+| # | Sev. | Achado | Correção | Teste |
+|---|---|---|---|---|
+| 1 | Alta | OPC UA: o gerenciador de usuários padrão do asyncua torna "admin"/qualquer senha em Admin (AddNodes, DeleteNodes, AddReferences, DeleteReferences, RegisterServer) | `set_identity_tokens([Anonymous])` + `allow_remote_admin(False)` e o ruleset nega também `ADMIN_TYPES`; leitura anônima segue valendo | `test_opcua_login_admin_com_qualquer_senha_nao_vira_admin`, `test_opcua_anonimo_nao_altera_o_espaco_de_enderecos_mas_continua_lendo` |
+| 2 | Média | O token do celular-câmera (`celular://<token>`) saía inteiro em `Camera.to_dict` | `redigir_segredos` troca por `celular://***` (vale também para os logs da fonte); o update de câmera Celular já ignorava o `source` do cliente | `test_camera_celular_nao_expoe_o_token_no_to_dict`, `test_api_de_cameras_nao_devolve_o_token_do_celular`, `test_atualizar_camera_celular_nao_depende_do_source_do_cliente` |
+| 3 | Média | `SOCKETIO_CORS_ALLOWED_ORIGINS` padrão `*` refletia o Origin com credenciais | Padrão = mesma origem (`None`); `env_origens` aceita lista por vírgula, `*` só se explícito; sem fallback `*` no `create_app`; `.env.example` documenta (inclui `http://localhost:5173` para o Vite) | `test_env_origens_*`, `test_socketio_*` (handshake real com `Origin`) |
+| 4 | Média | Sem `MAX_CONTENT_LENGTH` | `MAX_CONTENT_LENGTH = env_int(..., 6 MiB)`, acima de `MAX_BYTES_QUADRO` (4 MiB) | `test_corpo_maior_que_o_limite_e_413`, `test_corpo_pequeno_continua_passando` |
+| 5 | Média | CSRF residual same-site (`SameSite=Lax` deixa passar outro subdomínio) | `app/utils/protecao_http.py`: escrita barrada (403 JSON) se `Sec-Fetch-Site` ≠ `same-origin`/`none`; sem ele compara `Origin` com `request.host_url`; sem nenhum dos dois (curl, test client) passa | `test_mutacao_*`, `test_todo_metodo_de_escrita_e_barrado`, `test_sem_sec_fetch_site_compara_o_origin_com_o_host`, `test_sec_fetch_site_tem_precedencia_sobre_o_origin` |
+| 6 | Média | A demo escutava em `0.0.0.0` | `preparar_ambiente` define `HOST=127.0.0.1` (respeita um `HOST` já definido). `run.py --https` continua abrindo para a LAN (o ramo `host in (127.0.0.1, localhost) → 0.0.0.0` está vivo); `DEMO.md` ganhou a linha | `test_demo_escuta_so_no_loopback_por_padrao`, `test_demo_respeita_o_host_ja_definido` |
+| 7 | Média | Broker MQTT embutido anônimo e sem TLS aceitava subir em qualquer host | `BrokerEmbutido.iniciar` recusa host fora de `127.0.0.1`/`localhost` (status `falhou`: use um broker da planta com TLS e credencial) | `test_broker_embutido_anonimo_recusa_subir_fora_do_loopback`, `test_gerente_nao_sobe_broker_embutido_fora_do_loopback` |
+| 8 | Média | LGPD: contatos de `/produto` não podiam ser excluídos | `DELETE /api/contatos/<id>` (Supervisor; 404 se não existe), botão "Excluir" com confirmação na caixa de entrada, texto de guarda no formulário (dados só para responder ao contato; excluídos a pedido) | `test_excluir_contato_*`, `test_so_supervisor_exclui_contato`; linha nova na matriz de permissões |
+| 9 | Média | gunicorn 22.0.0 (CVE-2024-6827) | `requirements.txt` → 23.0.0 (dry-run: só ele muda; `pip check` limpo) | `pip install --dry-run` + `pip check` |
+| 10 | Baixa | Token no log de acesso do werkzeug (`?t=`, `/api/celular/<token>/`) | `FiltroDeTokensNoAcesso` no logger `werkzeug`, instalado por `configure_logging` (uma vez) | `test_filtro_do_log_de_acesso_esconde_tokens`, `test_configure_logging_instala_o_filtro_no_werkzeug_uma_vez` |
+| 11 | Baixa | `endpoint` do webhook mostrava o caminho (segredo estilo Slack); Operador via endpoint/erro | `Webhook.endpoint` = `esquema://host:porta`; Operador recebe só `estado` por canal | `test_webhook_mostra_so_esquema_host_e_porta_no_status`, `test_gerente_status_do_webhook_nao_vaza_o_caminho`, `test_operador_ve_so_o_estado_de_cada_integracao` |
+| 12 | Baixa | `PATCH /api/users/<id>` mudava papel/câmera sem derrubar sessões nem validar a câmera | Mudar `role` ou `camera_id` chama `revoke_sessions`; câmera inexistente ou de tipo errado = 400 | `test_mudar_o_papel_derruba_as_sessoes_da_conta`, `test_mudar_a_camera_*`, `test_camera_que_nao_existe_e_400_*` |
+| 13 | Baixa | O HTML do relatório podia virar a casca offline do PWA | `relatorio` entra no `SEM_CASCA` de `frontend/public/sw.js` | `test_service_worker_nao_guarda_o_relatorio_como_casca` |
+| 14 | Baixa | E-mail aceitava `?&#%/` (injeção em `mailto:`) | Regex recusa esses caracteres e usa `fullmatch` | `test_email_com_caracteres_de_mailto_e_400`, `test_email_comum_continua_valido` |
+| 15 | Baixa | Polígonos sem teto de pontos | No máximo 64 pontos em `area_vigia` (`normalizar_poligono`, 400) e na área de risco (`CameraWorker._normalizar_poligono`) | `test_area_vigia_com_mais_de_64_pontos_e_recusada`, `test_area_de_risco_do_worker_recusa_mais_de_64_pontos` |
+| 16 | Baixa | `_ID.match` com `$` aceitava `"abc\n"` | `_ID.fullmatch` | `test_id_de_regra_nao_aceita_quebra_de_linha` |
+| 17 | Baixa | `redigir_segredos` não cobria query nem senha com `@` cru | Query (`user`, `pass`, `pwd`, `password`, `token`, `auth`, `key`, `secret`) e userinfo até o último `@` antes do host | `test_redigir_segredos_cobre_query_senha_com_arroba_e_celular` |
+| 18 | Baixa | Sem cabeçalhos de segurança | `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin` em toda resposta do Flask | `test_cabecalhos_de_seguranca_em_toda_resposta` |
+
+**Pendente: CSP.** Não entra agora: o tema da demo usa um script inline no `index.html` e o three.js do gêmeo digital
+pede `blob:`/`unsafe-eval`; uma CSP restritiva quebraria os dois. Caminho: nonce no script do tema e CSP em modo
+`Report-Only` primeiro.
+
+**Notas de operação**
+- Quem tem `SOCKETIO_CORS_ALLOWED_ORIGINS=*` no `.env` (cópia antiga do `.env.example`) continua com `*` até remover a linha.
+  Em dev com o Vite, use `SOCKETIO_CORS_ALLOWED_ORIGINS=http://localhost:5173`.
+- O CSRF compara `Origin` com `request.host_url` só quando o navegador não manda `Sec-Fetch-Site`. Atrás de proxy que
+  termina TLS, repasse o esquema (`ProxyFix`) para essa comparação bater.
+- Sessões abertas de uma conta caem quando o Supervisor muda o papel ou o setor dela (login de novo).
