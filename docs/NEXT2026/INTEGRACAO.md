@@ -10,7 +10,8 @@ três canais, todos opcionais e desligados por padrão:
 | Webhook HTTP | `WEBHOOK_URL=https://...` | — | sistema de chamados, ERP, Teams/Slack via integrador |
 
 No modo demo (`python run.py --demo`) o OPC UA e o MQTT sobem ligados, com um
-**broker MQTT embutido** (amqtt, MIT) em `127.0.0.1:1883` — tudo offline.
+**broker MQTT embutido** (amqtt, MIT) em `127.0.0.1:1883` — tudo offline. O broker embutido é anônimo e
+por isso **recusa subir fora do loopback**; para a rede da planta, use um broker com TLS e credencial.
 
 O mesmo estado alimenta a **torre de luz virtual** em `/torre` e no Modo TV:
 o que a torre mostra é exatamente o que o CLP lê.
@@ -31,8 +32,9 @@ a verde quando a violação acaba. `PlantaEmAlarme` = torre vermelha.
 
 - Namespace `urn:visionepi` — **leia o índice pelo URI** (`GetNamespaceIndex`),
   não fixe o número (no servidor de hoje é 2).
-- Todos os NodeIds são do tipo string. Somente leitura: escrita e chamada de
-  método voltam `BadUserAccessDenied`.
+- Todos os NodeIds são do tipo string. Somente leitura e **só sessão anônima**: login com usuário e senha é
+  recusado (o asyncua aceitaria "admin" com qualquer senha por padrão — auditoria da MISSÃO 4), e escrita,
+  chamada de método e criação/remoção de nós voltam `BadUserAccessDenied`.
 
 | BrowsePath (a partir de Objects) | NodeId | Tipo |
 |---|---|---|

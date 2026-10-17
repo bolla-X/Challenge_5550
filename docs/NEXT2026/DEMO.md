@@ -15,6 +15,19 @@ foi verificado é o servidor (`tests/test_palco.py`, `tests/test_evacuacao.py`) 
 `tsc`. Ensaie as seis **uma vez, na máquina da apresentação**, antes da banca;
 as colunas "E2E" abaixo dizem "ensaiar" onde isso vale.
 
+## Dia da apresentação (checklist)
+
+1. **Véspera e manhã**, na máquina da apresentação: `python scripts/preparar.py --so-cache`.
+2. Feche tudo o que não é a demo: Docker, Salesforce CLI, Teams, navegadores extras (CPU de terceiros foi a
+   ameaça nº 1 em todas as medições).
+3. Suba **antes** da banca e deixe no ar: `python run.py --demo --https` (≈ 1 min até a 1ª análise).
+4. Anote as três senhas que o terminal imprime (não aparecem de novo).
+5. Abra `https://127.0.0.1:5000`, entre como **supervisor**, confira em `/status` que tudo está "OK" (modelos, 4
+   câmeras, OPC UA e MQTT "no ar"; LLM "desligado" é o esperado).
+6. Ensaie uma vez as 6 cenas novas do palco (lista abaixo), com a webcam ligada para "Tape a câmera".
+7. Entre apresentações: `flask --app wsgi demo reset` (< 10 s).
+8. Plano B: o vídeo da Release `next-2026-demo` (baixe antes) e a tabela "Plano B por falha" abaixo.
+
 ## Antes da banca (uma vez, com internet)
 
 ```bash
