@@ -20,8 +20,9 @@ import "../styles/produto.css";
  * lê em /caixa-de-entrada.
  */
 
-const GIF_DO_PALCO = "/produto/palco.gif";
-const QUADRO_DO_PALCO = "/produto/palco-quadro.webp";
+// Arquivos de public/ saem do build em /static/dist/ (vite `base`).
+const GIF_DO_PALCO = `${import.meta.env.BASE_URL}produto/palco.gif`;
+const QUADRO_DO_PALCO = `${import.meta.env.BASE_URL}produto/palco-quadro.webp`;
 const EMAIL_VALIDO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function Secao({ id, titulo, introducao, children }: { id: string; titulo: string; introducao?: string; children: ReactNode }) {

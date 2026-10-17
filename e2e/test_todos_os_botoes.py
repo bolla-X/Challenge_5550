@@ -427,6 +427,14 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
                 continue
             efeito, problemas = _efeito(pagina, contexto, rastro, antes, url_antes, paginas_antes, inicio,
                                         downloads_antes, dialogos_antes)
+            if efeito is None and alvo is not None:
+                try:
+                    ja_ativo = alvo.evaluate("e => e.getAttribute('aria-selected') === 'true' || !!e.getAttribute('aria-current')"
+                                             " || e.getAttribute('aria-pressed') === 'true'")
+                except Exception:  # noqa: BLE001
+                    ja_ativo = False
+                if ja_ativo:
+                    efeito = "já ativo (aba/passo atual)"
             registro |= {"resultado": efeito or "SEM EFEITO"}
             if efeito is None:
                 resultado["bugs"].append(f"botão sem efeito: {item['nome'] or item['chave']}")
@@ -445,6 +453,9 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
                 pagina.wait_for_timeout(300)
                 if pagina.evaluate(JS_ASSINATURA_LEVE) != leve_antes:
                     _abrir(pagina, servidor, url, preparo)
+        # Na rota da página 404 o próprio navegador registra o 404 do documento (é o status certo).
+        rastro.erros_console = [e for e in rastro.erros_console
+                                if not (nome == "pagina-404" and "status of 404" in e)]
         resultado["erros_console"] = sorted(set(rastro.erros_console))
         ruins = [(m, u, s) for m, u, s, _ in rastro.respostas if s >= 400 and not _resposta_esperada(u, s)]
         resultado["respostas_ruins"] = sorted({f"{m} {u.split('://', 1)[-1].split('/', 1)[-1]} → {s}" for m, u, s in ruins})

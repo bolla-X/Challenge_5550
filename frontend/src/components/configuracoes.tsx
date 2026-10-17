@@ -517,6 +517,7 @@ export default function ConfiguracoesScreen() {
                 className={`config-nav-item ${s.id === ativa ? "ativa" : ""}`.trim()}
                 aria-current={s.id === ativa ? "page" : undefined}
                 aria-disabled={!podeUsar || undefined}
+                title={!podeUsar ? `${s.quem}: ${s.explicacao}` : undefined}
                 data-secao={s.id}
                 onClick={() => escolher(s.id)}
               >

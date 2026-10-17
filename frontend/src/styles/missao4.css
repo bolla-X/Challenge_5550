@@ -90,3 +90,6 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 /* "?" contextual flutuante nas telas de tela cheia */
 .ajuda-flutuante { position: fixed; right: var(--s4); bottom: var(--s4); z-index: 40; }
 @media print { .ajuda-flutuante { display: none; } }
+
+/* vértice selecionado no simulador: as setas movem este */
+.sim-vertice.selecionado { outline: 3px solid var(--accent); outline-offset: 2px; transform: scale(1.15); }

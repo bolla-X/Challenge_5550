@@ -101,6 +101,7 @@ function LinhaLadoALado({ resultado }: { resultado: Resultado }) {
 function EditorDeZona({ cameraId, zona, onZona }: { cameraId: number; zona: [number, number][]; onZona: (z: [number, number][]) => void }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
+  const [selecionado, setSelecionado] = useState<number | null>(null);
   const mover = (e: React.PointerEvent) => {
     if (arrastando === null || !svgRef.current) return;
     const r = svgRef.current.getBoundingClientRect();
@@ -126,12 +127,15 @@ function EditorDeZona({ cameraId, zona, onZona }: { cameraId: number; zona: [num
         <button
           key={i}
           type="button"
-          className="sim-vertice"
+          className={`sim-vertice ${selecionado === i ? "selecionado" : ""}`.trim()}
           style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
-          aria-label={`Vértice ${i + 1} da zona: setas movem`}
+          aria-label={`Vértice ${i + 1} da zona: selecione e use as setas para mover`}
+          aria-pressed={selecionado === i}
           data-testid="sim-vertice"
+          onClick={() => setSelecionado((atual) => (atual === i ? null : i))}
           onPointerDown={(e) => {
             e.preventDefault();
+            setSelecionado(i);
             setArrastando(i);
           }}
           onKeyDown={(e) => {
@@ -303,7 +307,13 @@ export function SimuladorScreen() {
                   </legend>
                   {usarZona && camId !== null && <EditorDeZona cameraId={camId} zona={zona} onZona={setZona} />}
                   {usarZona && (
-                    <button type="button" className="ghost small" onClick={() => setZona(ctx.atual.zona.length >= 3 ? ctx.atual.zona : zona)}>
+                    <button
+                      type="button"
+                      className="ghost small"
+                      disabled={JSON.stringify(zona) === JSON.stringify(ctx.atual.zona)}
+                      title={JSON.stringify(zona) === JSON.stringify(ctx.atual.zona) ? "A zona editada já é igual à zona atual da câmera" : undefined}
+                      onClick={() => setZona(ctx.atual.zona.length >= 3 ? ctx.atual.zona : zona)}
+                    >
                       Voltar à zona atual
                     </button>
                   )}
