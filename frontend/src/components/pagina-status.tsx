@@ -346,7 +346,7 @@ export default function PaginaStatus() {
           </p>
         )}
         <div className="screen-actions">
-          <button type="button" className="ghost" disabled={carregando} onClick={() => void carregar()}>
+          <button type="button" className="ghost" disabled={carregando} title={carregando ? "Lendo o estado agora; aguarde" : undefined} onClick={() => void carregar()}>
             {carregando && dados ? "Atualizando…" : "Atualizar"}
           </button>
           <a className="button ghost" href="/">

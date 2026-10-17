@@ -335,7 +335,7 @@ def test_sem_conexao_aparece_e_some(navegador, servidor):
         pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
         faixa = pagina.locator("[data-testid=sem-conexao]")
         contexto.set_offline(True)
-        _esperar(lambda: "conex" in faixa.inner_text().lower(), 15, 0.5, msg="faixa de sem conexão não apareceu")
+        _esperar(lambda: "sem rede" in faixa.inner_text().lower(), 15, 0.5, msg="faixa de sem conexão não apareceu")
         contexto.set_offline(False)
         _esperar(lambda: not faixa.inner_text().strip(), 60, 1, msg="faixa de sem conexão não sumiu")
     finally:
@@ -364,10 +364,10 @@ def test_primeiro_acesso_do_supervisor_ate_pronto_para_operar(navegador, servido
             vistos.append(nome)
             if nome == "usuarios":
                 email = f"operador.onb.{int(time.time())}@e2e.local"
-                pagina.get_by_label("Nome").fill("Operador do primeiro acesso")
-                pagina.get_by_label("E-mail (login)").fill(email)
-                pagina.get_by_label("Tipo de conta").select_option("operator")
-                pagina.get_by_label("Câmera do setor").select_option(str(servidor.cameras["Multidão"]))
+                pagina.get_by_label("Nome", exact=True).fill("Operador do primeiro acesso")
+                pagina.get_by_label("E-mail (login)", exact=True).fill(email)
+                pagina.get_by_label("Tipo de conta", exact=True).select_option("operator")
+                pagina.get_by_label("Câmera do setor", exact=True).select_option(str(servidor.cameras["Multidão"]))
                 pagina.locator("form.onb-form button[type=submit]").click()
                 senha = pagina.locator("[data-testid=onb-senha-valor]")
                 senha.wait_for(timeout=30_000)

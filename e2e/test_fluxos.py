@@ -550,7 +550,7 @@ def test_prova_de_escala_sobe_cameras_virtuais_e_remove(pagina, servidor):
     try:
         pagina.wait_for_function(
             """() => [...document.querySelectorAll('table.escala-tabela tbody tr:not(.escala-media)')]
-                     .filter(tr => parseFloat(tr.children[2].textContent) > 0).length >= 2""",
+                     .filter(tr => parseFloat(tr.children[2].textContent.replace(',', '.')) > 0).length >= 2""",
             timeout=120_000,
         )
         assert linhas.count() == 2
