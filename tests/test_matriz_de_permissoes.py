@@ -46,6 +46,7 @@ import os
 import re
 import shutil
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
@@ -63,7 +64,9 @@ from app.models import (
     Camera,
     Incidente,
     Missao,
+    PermissaoDeTrabalho,
     User,
+    utc_now,
 )
 from app.repositories.alert_repository import AlertRepository
 from app.repositories.event_repository import EventRepository
@@ -229,6 +232,16 @@ def _montar_app(raiz: Path):
         db.session.add(missao)
         db.session.commit()
         ids["missao"] = missao.id
+        agora = utc_now()
+        for chave in NOME_DA_CAMERA:
+            permissao = PermissaoDeTrabalho(
+                numero=f"PT-2026-000{chave[1]}", camera_id=ids[chave], tipo="geral", descricao="Serviço de teste",
+                responsavel="Responsável de teste", inicio=agora - timedelta(hours=1), fim=agora + timedelta(hours=4),
+                epis_exigidos=["helmet"], criada_por="supervisor@fabrica.com",
+            )
+            db.session.add(permissao)
+            db.session.commit()
+            ids[f"p{chave[1]}"] = permissao.id
         db.session.remove()
 
     app.extensions["palco"] = Palco()
@@ -315,7 +328,7 @@ class Mundo:
         k = "1" if papel in (ANON, OP, OP_SEM_SETOR) else "2"
         return {
             "cam": self.ids[f"c{k}"], "alerta": self.ids[f"a{k}"], "incidente": self.ids[f"i{k}"],
-            "snap": self.ids[f"snap{k}"], "alvo": self.ids["alvo"], "missao": self.ids["missao"],
+            "snap": self.ids[f"snap{k}"], "permissao": self.ids[f"p{k}"], "alvo": self.ids["alvo"], "missao": self.ids["missao"],
             "token": self.ids["token_palco"], "setor": NOME_DA_CAMERA[f"c{k}"],
         }
 
@@ -514,6 +527,25 @@ LINHAS: list[Linha] = [
     L("PATCH", "/features", TEC_OU_MAIS, corpo={"features": {"helmet": True}}),
     # ---------------------------------------------------------------- gêmeo --
     L("GET", "/api/gemeo", QUALQUER_LOGADO),
+    # ------------------------------------------------------- integração (torre) --
+    L("GET", "/api/integracao/estado", LEGADA),
+    # ------------------------------------------------- permissão de trabalho --
+    L("GET", "/api/permissoes", QUALQUER_LOGADO),
+    L("POST", "/api/permissoes", TEC_OU_MAIS, corpo={}, ok=(400,)),
+    L("GET", "/api/permissoes/<int:permissao_id>", DA_CAMERA, "/api/permissoes/{permissao}"),
+    L("POST", "/api/permissoes/<int:permissao_id>/encerrar", TEC_OU_MAIS, "/api/permissoes/{permissao}/encerrar"),
+    L("POST", "/api/permissoes/<int:permissao_id>/cancelar", TEC_OU_MAIS, "/api/permissoes/{permissao}/cancelar"),
+    L("GET", "/api/cameras/<int:camera_id>/zona-controlada", DA_CAMERA, "/api/cameras/{cam}/zona-controlada"),
+    L("PUT", "/api/cameras/<int:camera_id>/zona-controlada", TEC_OU_MAIS, "/api/cameras/{cam}/zona-controlada",
+      corpo={"exige_permissao": True}),
+    # --------------------------------------------------- editor de regras --
+    L("GET", "/api/regras", TEC_OU_MAIS),
+    L("POST", "/api/regras", TEC_OU_MAIS, corpo={}, ok=(400,)),
+    L("PUT", "/api/regras/<regra_id>", TEC_OU_MAIS, "/api/regras/inexistente", corpo={}, ok=(404,)),
+    L("DELETE", "/api/regras/<regra_id>", TEC_OU_MAIS, "/api/regras/inexistente", ok=(404,)),
+    L("POST", "/api/regras/<regra_id>/ativar", TEC_OU_MAIS, "/api/regras/inexistente/ativar", ok=(404,)),
+    L("POST", "/api/regras/<regra_id>/desativar", TEC_OU_MAIS, "/api/regras/inexistente/desativar", ok=(404,)),
+    L("POST", "/api/regras/testar", TEC_OU_MAIS, corpo={}, ok=(400,)),
     # ------------------------------------------------------------ incidentes --
     L("GET", "/api/incidentes", QUALQUER_LOGADO),
     L("GET", "/api/incidentes/<int:incidente_id>", DA_CAMERA, "/api/incidentes/{incidente}"),
@@ -800,6 +832,11 @@ LISTAGENS = [
     Listagem("/alerts", "/alerts", _nomes_alertas),
     Listagem("/events", "/events?limit=300", lambda j, m: {m.nome_da_camera(i["camera_id"]) for i in j["items"]} - {None}),
     Listagem("/api/incidentes", "/api/incidentes", _nomes_alertas),
+    Listagem("/api/permissoes", "/api/permissoes", _nomes_alertas),
+    Listagem(
+        "/api/integracao/estado", "/api/integracao/estado",
+        lambda j, m: {c["nome"] for c in j["planta"]["cameras"]}, presenca=False,
+    ),
     Listagem("/api/gemeo", "/api/gemeo", lambda j, m: {c["nome"] for c in j["cameras"]}),
     Listagem("/api/tv", "/api/tv", lambda j, m: {s["setor"] for s in j["setores"]}),
     Listagem(
@@ -869,7 +906,7 @@ def test_o_conteudo_respeita_o_escopo_de_camera(mundo, listagem, papel):
     assert resposta.status_code == 200, f"{listagem.nome} como {papel}: {resposta.status_code}"
     visto = listagem.extrai(resposta.get_json() if listagem.json else resposta.get_data(as_text=True), mundo)
     _MEDIDOS.append({"conteudo": listagem.nome, "papel": papel, "obtido": repr(visto), "diverge": (listagem.nome, papel) in DIVERGENCIAS_DE_CONTEUDO})
-    if papel in (OP, OP_SEM_SETOR) and isinstance(esperado, set) and not listagem.presenca:
+    if isinstance(esperado, set) and not listagem.presenca:
         assert visto <= esperado, f"{listagem.nome} como {papel}: viu {sorted(visto)}, só podia ver {sorted(esperado)}"
         return
     assert visto == esperado, f"{listagem.nome} como {papel}: viu {visto!r}, o README manda ver {esperado!r}"

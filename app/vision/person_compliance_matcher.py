@@ -353,7 +353,7 @@ class PersonComplianceMatcher:
         for i in range(len(polygon)):
             xi, yi = polygon[i]
             xj, yj = polygon[j]
-            intersects = ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / max(yj - yi, 1e-12) + xi)
+            intersects = ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi)
             if intersects:
                 inside = not inside
             j = i

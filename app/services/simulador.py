@@ -76,7 +76,7 @@ def dentro(ponto: tuple[float, float], poligono: tuple[tuple[float, float], ...]
     for i in range(len(poligono)):
         xi, yi = poligono[i]
         xj, yj = poligono[j]
-        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / max(yj - yi, 1e-12) + xi):
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi):
             dentro_ = not dentro_
         j = i
     return dentro_

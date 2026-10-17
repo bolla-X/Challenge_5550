@@ -354,7 +354,8 @@ def app_auth(tmp_path):
         EVACUACAO_DIR = str(tmp_path / "relatorios")
 
     app = create_app(Cfg)
-    app.register_blueprint(evacuacao_bp)  # o app factory registra na integração; aqui, só no app de teste
+    if "evacuacao" not in app.blueprints:  # o app factory já registra; só garante em app de teste antigo
+        app.register_blueprint(evacuacao_bp)
     with app.app_context():
         db.create_all()
         db.session.add_all([Camera(id=1, name="Portaria", source_type="Arquivo", source="x", fps=12, width=64, height=48),
