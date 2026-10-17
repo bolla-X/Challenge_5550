@@ -1465,3 +1465,9 @@ A falha (`test_pill_de_aproximacao_aparece`) é ambiental, com evidência:
 - **M5 permissão de trabalho**: zona controlada, janela, responsável em texto livre, EPIs com verificação automática
   x manual, vigia (NR-33 citada do gov.br: a câmera auxilia o vigia, não o substitui). E2E: sem vigia → crítico; com
   vigia na área → some.
+- **Logout desfeito por requisição em voo (segurança).** O crawler achou o "Sair" que não deslogava: o Flask
+  regravava o cookie de sessão em TODA resposta (`SESSION_REFRESH_EACH_REQUEST`, padrão); uma requisição enviada antes
+  do clique em "Sair" e respondida depois devolvia o cookie antigo e a pessoa continuava logada. Reproduzido em
+  `tests/test_auth.py::test_requisicao_em_voo_nao_desfaz_o_logout` (falhava com o Set-Cookie da sessão), corrigido
+  com `SESSION_REFRESH_EACH_REQUEST = False` (doc: https://flask.palletsprojects.com/en/stable/config/#SESSION_REFRESH_EACH_REQUEST).
+  Efeito: a sessão vale `SESSION_HOURS` (12 h, um turno) a partir do login, não do último clique — documentado.

@@ -322,3 +322,18 @@ def test_supervisor_cria_operador_so_com_camera_cadastrada(app, client):
     assert client.post("/api/users", json=corpo).status_code == 400  # sem câmera
     assert client.post("/api/users", json=corpo | {"camera_id": 9999}).status_code == 400  # não existe
     assert client.post("/api/users", json=corpo | {"camera_id": cam_id}).status_code == 201
+
+
+# ------------------------------------------- logout x requisição em voo --
+def test_requisicao_em_voo_nao_desfaz_o_logout(client):
+    """Regressão (crawler da MISSÃO 4): o navegador manda uma requisição com o cookie da sessão,
+    a pessoa clica "Sair" e a resposta dessa requisição chega DEPOIS do logout. Com o cookie renovado
+    a cada resposta (`SESSION_REFRESH_EACH_REQUEST`), essa resposta regravava a sessão antiga e a
+    pessoa continuava logada. Resposta comum não pode trazer Set-Cookie de sessão."""
+    entrar(client, ROLE_TECHNICAL)
+    em_voo = client.get("/api/auth/me")
+    assert em_voo.get_json()["user"] is not None
+    cabecalhos = [v for k, v in em_voo.headers.items() if k.lower() == "set-cookie"]
+    assert not cabecalhos, f"requisição comum regravou o cookie de sessão: {cabecalhos}"
+    client.post("/api/auth/logout")
+    assert client.get("/api/auth/me").get_json()["user"] is None

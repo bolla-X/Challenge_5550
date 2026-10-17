@@ -142,6 +142,13 @@ class Config:
     # cookie Secure nao viaja em http://localhost e quebraria o dev.
     SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", False)
     PERMANENT_SESSION_LIFETIME = timedelta(hours=env_int("SESSION_HOURS", 12))
+    # O cookie só é (re)gravado quando a sessão MUDA (login/logout). Com a
+    # renovação a cada resposta (padrão do Flask), uma requisição que já estava
+    # em voo quando a pessoa clicou "Sair" respondia depois do logout com o
+    # cookie antigo e desfazia o logout (crawler da MISSÃO 4; teste em
+    # tests/test_auth.py). Efeito colateral aceito: a sessão vale SESSION_HOURS
+    # a partir do login (um turno), não do último clique.
+    SESSION_REFRESH_EACH_REQUEST = False
 
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = env_int("PORT", 5000)
