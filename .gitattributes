@@ -17,3 +17,9 @@ app/static/dist/**    text eol=lf
 *.jpg    binary
 *.pdf    binary
 *.pptx   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.jpeg   binary
+*.mp4    binary
+*.webm   binary
