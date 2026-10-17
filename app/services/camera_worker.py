@@ -49,6 +49,7 @@ from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.privacidade import desfocar, regioes_de_olhos_e_nariz, regioes_de_rosto
 from app.vision.quedas import pessoas_com_quedas
 from app.vision.reassociacao import RastreadorComReassociacao, ReassociadorDeIds
+from app.vision.saude_visual import MonitorDeSaudeVisual
 from app.vision.schemas import FrameAnalysis, PoseResult
 from app.vision.sinais_por_id import ConfigSinais, SinaisPorId
 from app.vision.video_stream import VideoStream, e_arquivo_local
@@ -286,6 +287,11 @@ class CameraWorker:
         self._alertas_de_permissao: list[RuleAlert] = []
         self._alertas_de_saude: list[RuleAlert] = []
         self.avaliador_permissao = AvaliadorDePermissao()
+        # Saúde visual (M1): obstrução, escuro/ofuscado, desfoque e câmera movida,
+        # medidos ~1x/s contra a referência; a referência persiste em disco.
+        self.saude_visual = MonitorDeSaudeVisual() if app.config.get("SAUDE_VISUAL_ATIVA", True) else None
+        self._saude_anterior = "ok"
+        self._carregar_referencia_visual()
         # Modo privacidade (F4). Por câmera, em memória: volta ao padrão (ligado)
         # a cada reinício — o estado seguro é o default, não o último clique.
         self.privacidade_ativa = bool(app.config.get("PRIVACIDADE_PADRAO", True))
@@ -591,6 +597,7 @@ class CameraWorker:
             # Pré-alertas de aproximação (amarelo): projeção, não alerta.
             "pre_alertas": list(self._pre_alertas),
             "privacidade": {"ativa": self.privacidade_ativa},
+            "saude_visual": self.saude_visual_estado(),
             "replay": self.replay.estado() if self.replay is not None else None,
         }
 
@@ -1871,10 +1878,78 @@ class CameraWorker:
         # A resolução que CHEGOU da fonte (antes do ajuste para a da câmera).
         self._resolucao_da_fonte = getattr(self, "_resolucao_original", None) or (largura, altura)
         self._amostrar_brilho(frame, agora)
+        self._observar_saude_visual(frame, agora)
         if not foi_nova:
             return
         for deteccao in analise.detections:
             self._deteccoes_recentes.append((agora, deteccao.label))
+
+    # ------------------------------------------------- saúde visual (M1) -
+    def _caminho_da_referencia(self) -> Path:
+        pasta = Path(self.app.config.get("SAUDE_VISUAL_DIR") or Path(self.app.instance_path) / "referencias")
+        return pasta / f"camera_{self.camera_id}.png"
+
+    def _carregar_referencia_visual(self) -> None:
+        if self.saude_visual is None or self.camera_id is None:
+            return
+        try:
+            caminho = self._caminho_da_referencia()
+            if caminho.exists():
+                self.saude_visual.carregar_referencia(caminho.read_bytes())
+        except Exception as exc:  # noqa: BLE001  (referência corrompida: a próxima é capturada sozinha)
+            logger.warning("referencia_visual_ilegivel", extra={"camera_id": self.camera_id, "error": type(exc).__name__})
+
+    def _gravar_referencia_visual(self) -> None:
+        if self.saude_visual is None or self.camera_id is None or not self.saude_visual.tem_referencia:
+            return
+        try:
+            caminho = self._caminho_da_referencia()
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+            caminho.write_bytes(self.saude_visual.serializar_referencia())
+        except OSError as exc:
+            logger.warning("referencia_visual_nao_gravada", extra={"camera_id": self.camera_id, "error": str(exc)})
+
+    def _observar_saude_visual(self, frame, agora: float) -> None:
+        """No máximo 1 medição/s (o monitor só compara o relógio nas outras chamadas)."""
+        if self.saude_visual is None:
+            return
+        tinha_referencia = self.saude_visual.tem_referencia
+        try:
+            medicao = self.saude_visual.observar(frame, agora)
+        except Exception as exc:  # noqa: BLE001  (nunca derruba o loop de captura)
+            logger.warning("saude_visual_falhou", extra={"camera_id": self.camera_id, "error": type(exc).__name__})
+            return
+        if medicao is None:
+            return
+        if not tinha_referencia and self.saude_visual.tem_referencia:
+            self._gravar_referencia_visual()
+        self._alertas_de_saude = [RuleAlert(**a) for a in self.saude_visual.alertas()]
+        estado = self.saude_visual.estado()
+        if estado.get("estado") != self._saude_anterior:
+            self._saude_anterior = estado.get("estado")
+            self._emitir("saude_visual", estado | {"camera_id": self.camera_id})
+            if estado.get("estado") != "ok":
+                self._emit_timeline_event("camera_saude_visual", f"Câmera {estado.get('rotulo', '').lower()}", "warning",
+                                          metadata={"metricas": estado.get("metricas")})
+
+    def redefinir_referencia_visual(self) -> dict[str, Any]:
+        """Técnico: "esta é a imagem certa agora" (câmera reposicionada de propósito, luz nova)."""
+        if self.saude_visual is None:
+            return {"ativa": False}
+        with self._thread_lock:
+            quadro = self._quadro_bruto
+        if quadro is None:
+            raise ValueError("A câmera ainda não entregou imagem; ligue-a e tente de novo.")
+        self.saude_visual.definir_referencia(quadro)
+        self._alertas_de_saude = []
+        self._saude_anterior = "ok"
+        self._gravar_referencia_visual()
+        estado = self.saude_visual.estado()
+        self._emitir("saude_visual", estado | {"camera_id": self.camera_id})
+        return estado
+
+    def saude_visual_estado(self) -> dict[str, Any]:
+        return self.saude_visual.estado() if self.saude_visual is not None else {"estado": "ok", "rotulo": "OK", "ativa": False}
 
     def _amostrar_brilho(self, frame, agora: float) -> None:
         """Mede brilho no maximo uma vez por `INTERVALO_AMOSTRA_BRILHO_S`.

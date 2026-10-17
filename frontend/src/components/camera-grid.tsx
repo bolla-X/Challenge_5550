@@ -8,6 +8,7 @@ import { createCamera, discoverCameras, getCameraStatus } from "../api/endpoints
 import { IconeAvancar, IconeMais } from "./icones";
 import { estadoDoFeed } from "./feed-status";
 import { pluralizar } from "../utils/formato";
+import type { SaudeVisual } from "../api/types";
 import type { Alert, CameraDiagnostico, CameraDiscoveryEntry, CameraRecord, Incidente, ModoAdaptativo } from "../api/types";
 
 // Cada cartão consulta o status/feed da SUA PRÓPRIA câmera via
@@ -29,7 +30,19 @@ export type EstadoDaCamera = {
   incidentes?: Incidente[];
   /** Reduções do controlador adaptativo (banner DEGRADADO). */
   adaptativo?: ModoAdaptativo | null;
+  /** Saúde visual (M1): badge OBSTRUÍDA, MOVIDA... */
+  saude?: SaudeVisual;
 };
+
+/** Badge de sabotagem/imagem ruim (M1). Vermelho para obstruída/movida, laranja para o resto. */
+export function BadgeDeSaude({ saude }: { saude: SaudeVisual }) {
+  const grave = saude.estado === "obstruida" || saude.estado === "movida";
+  return (
+    <span className={`saude-badge ${grave ? "" : "medio"}`.trim()} data-testid="saude-badge" data-estado={saude.estado} role="status">
+      {saude.rotulo}
+    </span>
+  );
+}
 
 const PARADA: EstadoDaCamera = { running: false, tentativas: 0, alertas: [] };
 
@@ -53,6 +66,7 @@ export function useCameraEstado(cameraId: number): EstadoDaCamera {
             alertas: status.active_alerts ?? [],
             incidentes: status.active_incidents,
             adaptativo: status.adaptativo ?? null,
+            saude: status.saude_visual,
           });
         })
         .catch(() => {
@@ -191,6 +205,7 @@ function CameraCard({
             </span>
           </span>
         </span>
+        {estado.running && estado.saude && estado.saude.estado !== "ok" && <BadgeDeSaude saude={estado.saude} />}
         {incidentes > 0 && (
           <span className="cam-incidentes" data-testid="cam-incidentes">
             {pluralizar(incidentes, "incidente")}

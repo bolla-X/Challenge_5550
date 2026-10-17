@@ -146,12 +146,13 @@ def test_camera_movida(cena, dx, dy, graus):
     assert medicao["metricas"]["inliers"] >= 8
 
 
-def test_movida_tem_prioridade_sobre_obstruida_so_quando_ha_cena_para_comparar(cena):
-    """Quadro preto contra referência rica: obstruída (prioridade máxima), não movida."""
+def test_quadro_preto_contra_referencia_rica_e_obstruida_e_nao_movida(cena):
+    """Também NÃO bate com a referência (correlação ~0), mas obstruída tem a prioridade máxima."""
     nome, quadros = cena
     monitor = _monitor(quadros[0])
     medicao = monitor.observar(_tampado(quadros[0], (10, 10, 10)), agora=0.0)
     assert medicao["bruto"] == "obstruida"
+    assert medicao["metricas"]["correlacao"] < 0.3, "os dois valem; só a prioridade escolhe"
 
 
 def test_prioridade_obstruida_movida_escura_ofuscada_desfocada(cena):

@@ -484,6 +484,33 @@ def camera_mapa_de_calor(camera_id: int):
         return jsonify({"error": "câmera sem worker ativo"}), 409
 
 
+@cameras_bp.get("/api/cameras/<int:camera_id>/saude-visual")
+@login_required
+def camera_saude_visual(camera_id: int):
+    """Saúde visual da câmera (M1): obstruída, movida, escura, ofuscada, desfocada ou OK."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        return jsonify(monitor.worker_da_camera(camera_id).saude_visual_estado() | {"camera_id": camera_id})
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+
+
+@cameras_bp.post("/api/cameras/<int:camera_id>/saude-visual/referencia")
+@require_role(ROLE_TECHNICAL)
+def camera_redefinir_referencia(camera_id: int):
+    """"Esta é a imagem certa agora": nova referência para obstrução/movimento (técnico ou acima)."""
+    monitor = current_app.extensions["monitor_service"]
+    try:
+        estado = monitor.worker_da_camera(camera_id).redefinir_referencia_visual()
+    except LookupError:
+        return jsonify({"error": "câmera sem worker ativo"}), 409
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 409
+    return jsonify(estado | {"camera_id": camera_id})
+
+
 @cameras_bp.patch("/api/cameras/<int:camera_id>/privacidade")
 @require_role(ROLE_SUPERVISOR)
 def camera_privacidade(camera_id: int):

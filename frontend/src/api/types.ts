@@ -377,6 +377,8 @@ export interface MonitorStatus extends CameraScoped {
   snapshot: SnapshotInfo;
   /** Modo privacidade (F4): desfoque de rosto em tudo que sai do worker. */
   privacidade?: { ativa: boolean };
+  /** Saúde visual da câmera (M1): obstruída, movida, escura, ofuscada, desfocada ou ok. */
+  saude_visual?: SaudeVisual;
 }
 
 // ---- GET /status: {"system": "VisionEPI", ...status()} -------------------
@@ -582,4 +584,15 @@ export interface TvSetor {
 export interface TvEstado {
   setores: TvSetor[];
   janela_h: number;
+}
+
+/** Saúde visual da câmera (M1, app/vision/saude_visual.py). */
+export interface SaudeVisual {
+  estado: "ok" | "obstruida" | "movida" | "escura" | "ofuscada" | "desfocada" | string;
+  rotulo: string;
+  desde?: number | null;
+  tem_referencia?: boolean;
+  referencia_automatica?: boolean;
+  metricas?: Record<string, number>;
+  ativa?: boolean;
 }

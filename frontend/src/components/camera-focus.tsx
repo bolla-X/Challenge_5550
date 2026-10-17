@@ -13,7 +13,8 @@ import { ComplianceCard, PersonCard } from "./compliance";
 import { TimelineCard } from "./timeline";
 import { ExportPanel } from "./export";
 import { EASE, ScreenHead } from "./layout";
-import { cobrePreAlerta, incidenteCritico, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import { BadgeDeSaude, cobrePreAlerta, incidenteCritico, Miniatura, temAlertaCritico, textoDeEstado, useCameraEstado } from "./camera-grid";
+import type { SaudeVisual } from "../api/types";
 import { rotuloDoIncidente } from "../utils/incidentes";
 import { LiveVideo, type EstadoDoStream } from "./live-video";
 import { PipelinePanel } from "./pipeline-panel";
@@ -31,7 +32,7 @@ import {
   updateCamera,
 } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
-import { useDashboardStore, type ViewMode } from "../store/dashboardStore";
+import { ROLE_ACCESS, useDashboardStore, type ViewMode } from "../store/dashboardStore";
 import { paraDate } from "../utils/datas";
 import { decimal } from "../utils/formato";
 
@@ -51,6 +52,46 @@ function decorrido(desde: string | null, agora: number): string {
  * topo do vídeo em pílulas translúcidas, que é onde importam. Alerta crítico
  * ganha a própria pílula, à direita, com o tempo decorrido.
  */
+const EXPLICACAO_DA_SAUDE: Record<string, string> = {
+  obstruida: "A imagem ficou sem detalhe: algo pode estar tampando a lente.",
+  movida: "O enquadramento mudou em relação à referência: a câmera pode ter sido movida.",
+  escura: "Imagem escura demais para analisar.",
+  ofuscada: "Imagem estourada de luz: ofuscamento ou contraluz.",
+  desfocada: "Imagem sem nitidez: lente suja, embaçada ou fora de foco.",
+};
+
+/** Sabotagem/imagem ruim sobre o vídeo (M1) + "Redefinir referência" para técnico ou acima. */
+function SaudeNaTela({ cameraId, saude }: { cameraId: number; saude: SaudeVisual }) {
+  const pode = ROLE_ACCESS[useDashboardStore((s) => s.mode)].canConfigure;
+  const [ocupado, setOcupado] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const redefinir = () => {
+    setOcupado(true);
+    setMsg(null);
+    fetch(`/api/cameras/${cameraId}/saude-visual/referencia`, { method: "POST", credentials: "same-origin" })
+      .then(async (r) => {
+        const corpo = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(corpo?.error || "Não foi possível redefinir a referência.");
+        setMsg("Referência redefinida com a imagem atual.");
+      })
+      .catch((e) => setMsg(mensagemDeErro(e, "Não foi possível redefinir a referência.")))
+      .finally(() => setOcupado(false));
+  };
+  return (
+    <span className="over-pill saude-pill" data-testid="saude-pilula" title={EXPLICACAO_DA_SAUDE[saude.estado] ?? undefined}>
+      <BadgeDeSaude saude={saude} />
+      <span>{EXPLICACAO_DA_SAUDE[saude.estado] ?? "Imagem com problema."}</span>
+      {pode && (
+        <button type="button" className="ghost small" onClick={redefinir} disabled={ocupado} data-testid="saude-redefinir"
+                title="Use quando a mudança foi intencional (câmera reposicionada, iluminação nova)">
+          {ocupado ? "Redefinindo…" : "Redefinir referência"}
+        </button>
+      )}
+      {msg && <span role="status" className="t-data">{msg}</span>}
+    </span>
+  );
+}
+
 function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const estado = useCameraEstado(camera.id);
   const connected = useDashboardStore((s) => s.connected);
@@ -121,6 +162,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
             </div>
             {/* Alertas numa segunda linha, à direita: não disputam espaço com o estado do vídeo. */}
             <div className="over-alertas">
+              {estado.saude && estado.saude.estado !== "ok" && <SaudeNaTela cameraId={camera.id} saude={estado.saude} />}
               {preAlertas.length > 0 && !cobrePreAlerta(critico) && (
                 <span className="over-pill pre-alerta" role="status" data-testid="pre-alerta">
                   <span className="dot" />

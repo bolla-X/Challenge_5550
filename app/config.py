@@ -399,6 +399,10 @@ class Config:
     MQTT_BROKER_EMBUTIDO = env_bool("MQTT_BROKER_EMBUTIDO", False)
     WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
     WEBHOOK_PERMITIR_REDE_LOCAL = env_bool("WEBHOOK_PERMITIR_REDE_LOCAL", False)
+    # Saúde visual da câmera (M1, app/vision/saude_visual.py) e onde guardar a
+    # referência de cada câmera (vazio = instance/referencias).
+    SAUDE_VISUAL_ATIVA = env_bool("SAUDE_VISUAL_ATIVA", True)
+    SAUDE_VISUAL_DIR = os.getenv("SAUDE_VISUAL_DIR", "")
     # Tique do estado da planta (torre de luz, OPC UA, MQTT). 0 = desligado.
     ESTADO_DA_PLANTA_S = env_float("ESTADO_DA_PLANTA_S", 1.0)
     ADAPTATIVO = env_bool("ADAPTATIVO", True)

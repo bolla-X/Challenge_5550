@@ -75,3 +75,8 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 .tv-torre .torre-mini .torre-lampada { width: 22px; }
 .tv-torre.sirene .torre-lampada.vermelho { animation: torre-pisca 0.9s steps(2, jump-none) infinite; }
 @media (prefers-reduced-motion: reduce) { .tv-torre.sirene .torre-lampada.vermelho { animation: none; outline: 3px solid var(--stop); outline-offset: 3px; } }
+
+/* pílula de saúde visual sobre o vídeo (M1) */
+.saude-pill { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2); max-width: 520px; }
+.saude-pill button.ghost { color: var(--on-overlay); }
+.saude-pill button.ghost:hover { background: color-mix(in srgb, var(--on-overlay) 12%, transparent); color: var(--on-overlay); }

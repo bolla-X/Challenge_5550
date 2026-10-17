@@ -25,17 +25,21 @@ Decisões que não são óbvias:
 - **Desfoque é RELATIVO à referência.** Cada cena tem uma nitidez própria
   (variância do Laplaciano de um pátio ≠ de um corredor), então um limiar
   absoluto acusaria a cena errada. Compara-se com a referência.
-- **Câmera movida exige evidência POSITIVA.** ORB + homografia (RANSAC) entre a
-  referência e o quadro atual; "movida" só sai quando a homografia é
-  CONFIÁVEL (inliers suficientes e, ao alinhar o quadro com ela, o fundo da
-  referência reaparece) E o deslocamento/rotação/escala é grande. O RANSAC fica
-  com o modelo que explica a maioria dos pontos: numa cena de canteiro é o
-  fundo estático, então pessoas andando são outliers e não disparam nada. Se
-  ORB acha pontos nos dois quadros mas não consegue casá-los (multidão em
-  primeiro plano, oclusão parcial), o veredito é "inconclusivo" = NÃO movida:
-  dizer "movida" aí seria o falso positivo que faz o operador desligar o
-  alerta. Só quando ORB não tem com o que trabalhar (cena lisa, poucos pontos)
-  cai para a correlação normalizada das miniaturas.
+- **Câmera movida exige evidência POSITIVA.** ORB + `findHomography` (RANSAC)
+  entre a referência e o quadro atual; "movida" só sai quando a geometria é
+  CONFIÁVEL (inliers suficientes e, ao trazer o quadro de volta com ela, o
+  fundo da referência reaparece) E o deslocamento/rotação/escala é grande. O
+  RANSAC fica com o modelo que explica a maioria dos pontos: numa cena de
+  canteiro é o fundo estático, então pessoas andando são outliers e não
+  disparam nada. Se ORB acha pontos nos dois quadros mas não consegue casá-los
+  (multidão em primeiro plano, oclusão parcial), o veredito é "inconclusivo" =
+  NÃO movida: dizer "movida" aí seria o falso positivo que faz o operador
+  desligar o alerta. Quadro inconclusivo também não libera uma "movida" já
+  confirmada (`Histerese.avancar`). Só quando ORB não tem com o que trabalhar
+  (cena lisa, poucos pontos) cai para a correlação normalizada das miniaturas.
+  Limite conhecido: com a referência velha e a cena já renovada (muita gente
+  entrou/saiu), a câmera movida pode passar como inconclusiva; a saída é
+  renovar a referência (`definir_referencia`) em momento calmo.
 - **Histerese por tipo, em tempo e não em quadros.** Mesmo motivo do brilho em
   `camera_worker._amostrar_brilho`: o operador percebe segundos, e a mesma
   oclusão acusaria em tempos diferentes numa câmera de 25 fps e numa de 6.
@@ -106,7 +110,7 @@ MIN_INLIERS = 8
 LIMIAR_RANSAC_PX = 3.0
 DESLOCAMENTO_MAXIMO = 0.08  # fração do lado maior da miniatura
 ROTACAO_MAXIMA_GRAUS = 4.0
-ESCALA_MAXIMA = 0.12  # |log(escala)|, ~ ±10 %
+ESCALA_MAXIMA = 0.12  # |log(escala)|, ~ ±12 %
 ESCALA_PLAUSIVEL = 0.35  # fora disso a pose é degenerada, não uma câmera movida
 BLOCO = 16  # lado do bloco da checagem de alinhamento, em px da miniatura
 DESVIO_MINIMO_DO_BLOCO = 6.0
@@ -397,7 +401,11 @@ class MonitorDeSaudeVisual:
         return next((tipo for tipo in PRIORIDADE if tipo in presentes), OK)
 
     def _medir_movimento(self, cinza: np.ndarray) -> dict[str, float]:
-        """Correlação e, quando ORB consegue, deslocamento/rotação/escala da cena. `movida` é 0.0 ou 1.0."""
+        """Correlação e, quando ORB consegue, deslocamento/rotação/escala da cena.
+
+        `movida` e `conclusivo` são 0.0 ou 1.0; `conclusivo` = 0.0 quando ORB tinha pontos nos dois
+        quadros mas não produziu uma geometria em que se possa confiar.
+        """
         ref = self._referencia
         assert ref is not None
         if cinza.shape != ref.cinza.shape:
