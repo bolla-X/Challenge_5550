@@ -45,7 +45,7 @@ function useCaixa<T extends { id: number; lido: boolean }>(
     setErro(null);
     return carregar()
       .then((c) => setItens(c.items))
-      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Falha ao ler a caixa de entrada."), status: e instanceof ApiError ? e.status : undefined }));
+      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Não foi possível ler a caixa de entrada."), status: e instanceof ApiError ? e.status : undefined }));
   }, [carregar]);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ function useCaixa<T extends { id: number; lido: boolean }>(
     setOcupado(item.id);
     marcar(item.id, !item.lido)
       .then((novo) => setItens((atuais) => (atuais ?? []).map((i) => (i.id === novo.id ? novo : i))))
-      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Falha ao marcar como lido.") }))
+      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Não foi possível marcar como lido.") }))
       .finally(() => setOcupado(null));
   };
   const apagar = (item: T) => {
@@ -64,7 +64,7 @@ function useCaixa<T extends { id: number; lido: boolean }>(
     setOcupado(item.id);
     excluir(item.id)
       .then(() => setItens((atuais) => (atuais ?? []).filter((i) => i.id !== item.id)))
-      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Falha ao excluir o contato.") }))
+      .catch((e: unknown) => setErro({ mensagem: mensagemDeErro(e, "Não foi possível excluir o contato.") }))
       .finally(() => setOcupado(null));
   };
   return { itens, erro, ocupado, recarregar, alternar, apagar, naoLidos: (itens ?? []).filter((i) => !i.lido).length };

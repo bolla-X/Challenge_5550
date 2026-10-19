@@ -24,14 +24,14 @@ export function AuditoriaScreen() {
     setErro(null);
     fetch("/api/custodia?limit=100", { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 403 ? "A auditoria é para o técnico ou o supervisor." : "Falha ao carregar a auditoria.");
+        if (!r.ok) throw new Error(r.status === 403 ? "A auditoria é para o técnico ou o supervisor." : "Não foi possível carregar a auditoria.");
         return r.json();
       })
       .then((d) => {
         setElos(d.items);
         setTotal(d.total);
       })
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a auditoria.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar a auditoria.")));
   };
   useEffect(carregar, []);
 

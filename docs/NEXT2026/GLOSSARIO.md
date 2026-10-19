@@ -61,9 +61,9 @@ termo da coluna 1 aparece muito mais vezes que os da coluna 3.
   idioma do navegador.
 - **Unidade separada por espaço**: "30 s", "12 fps", "24 h", "5 m". Não "30s".
 - **Erro**: "Não foi possível <verbo> <objeto>." (ex.: "Não foi possível iniciar a
-  câmera.", tom do `MARCA.md`). O formato antigo "Falha ao <verbo>." (ex.: "Falha ao
-  salvar a câmera.") ainda aparece em 67 textos de `frontend/src` e continua aceito;
-  a unificação está registrada como pendência no `ESTADO.md`. Sem rede:
+  câmera.", tom do `MARCA.md`). O formato antigo "Falha ao <verbo>." foi trocado nos
+  67 textos de `frontend/src` (MISSÃO 4, PR10), e `tests/test_copy_do_frontend.py`
+  falha se ele voltar. Sem rede:
   "Sem conexão com o servidor." (`mensagemDeErro` em
   `frontend/src/utils/erros.ts`; o texto nativo do navegador vem em inglês).
   Nunca mostrar "HTTP 500", `str(exc)` de exceção Python sem necessidade, nomes de

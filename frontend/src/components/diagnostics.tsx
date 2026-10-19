@@ -18,7 +18,7 @@ export function ChecklistPanel() {
       const res = await getPreflight();
       setChecks(res.checks);
     } catch {
-      setChecks([{ key: "preflight", label: "Checklist", status: "error", message: "Falha ao executar o checklist" }]);
+      setChecks([{ key: "preflight", label: "Checklist", status: "error", message: "Não foi possível executar o checklist." }]);
     }
   };
 

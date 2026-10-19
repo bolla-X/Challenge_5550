@@ -144,7 +144,7 @@ function FormularioDeIntervencao({ aoCriar, aoCancelar }: { aoCriar: (i: Interve
       });
       aoCriar(res.intervencao);
     } catch (err) {
-      setErros({ geral: mensagemDeErro(err, "Falha ao registrar a intervenção.") });
+      setErros({ geral: mensagemDeErro(err, "Não foi possível registrar a intervenção.") });
     } finally {
       setOcupado(false);
     }
@@ -322,7 +322,7 @@ function FormularioDeRoi({ intervencaoId, comparacao }: { intervencaoId: number;
       setResultado(await apiFetch<ResultadoRoi>(`/api/intervencoes/${intervencaoId}/roi`, { method: "POST", body: JSON.stringify(numeros) }));
     } catch (err) {
       setResultado(null);
-      setErro(mensagemDeErro(err, "Falha ao calcular o retorno."));
+      setErro(mensagemDeErro(err, "Não foi possível calcular o retorno."));
     } finally {
       setOcupado(false);
     }
@@ -410,7 +410,7 @@ function DetalheDaIntervencao({ item, podeApagar, aoApagar }: { item: Intervenca
       .catch((e) => {
         if (!vivo) return;
         setDados(null);
-        setErro(mensagemDeErro(e, "Falha ao carregar a comparação."));
+        setErro(mensagemDeErro(e, "Não foi possível carregar a comparação."));
       })
       .finally(() => vivo && setCarregando(false));
     return () => {
@@ -424,7 +424,7 @@ function DetalheDaIntervencao({ item, podeApagar, aoApagar }: { item: Intervenca
       await apiFetch(`/api/intervencoes/${item.id}`, { method: "DELETE" });
       aoApagar();
     } catch (e) {
-      setErro(mensagemDeErro(e, "Falha ao apagar a intervenção."));
+      setErro(mensagemDeErro(e, "Não foi possível apagar a intervenção."));
       setConfirmando(false);
     } finally {
       setApagando(false);
@@ -504,7 +504,7 @@ export default function Intervencoes() {
     setErro(null);
     return apiFetch<{ items: Intervencao[] }>("/api/intervencoes")
       .then((res) => setItens(res.items))
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar as intervenções.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar as intervenções.")));
   }, []);
   useEffect(() => {
     void carregar();

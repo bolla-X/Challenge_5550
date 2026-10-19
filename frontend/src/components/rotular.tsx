@@ -15,7 +15,7 @@ type Resposta = { habilitado: boolean; item: Item | null; contagem: Contagem | n
 
 async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...init });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao consultar os rótulos.");
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Não foi possível consultar os rótulos.");
   return r.json() as Promise<T>;
 }
 
@@ -30,7 +30,7 @@ export function RotularScreen() {
         setEstado(r);
         setErro(null);
       })
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
   }, []);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function RotularScreen() {
       setOcupado(true);
       pedir<{ contagem: Contagem }>(`/api/rotulos/${item.id}`, { method: "POST", body: JSON.stringify({ decisao }) })
         .then(carregar)
-        .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")))
+        .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")))
         .finally(() => setOcupado(false));
     },
     [estado, ocupado, carregar],

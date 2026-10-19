@@ -53,7 +53,7 @@ const ROTULO_DO_MOTOR: Record<string, string> = { sqlite: "SQLite", postgresql: 
 function textoDoErro(err: unknown): string {
   // O prazo da chamada estourou: o navegador entrega um DOMException em inglês.
   if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) return "O servidor demorou demais para responder.";
-  return mensagemDeErro(err, "Falha ao ler o status do sistema.");
+  return mensagemDeErro(err, "Não foi possível ler o status do sistema.");
 }
 
 /** Ponto + palavra. Só o ponto e o selo carregam a cor do estado. */

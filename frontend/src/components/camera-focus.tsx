@@ -227,7 +227,7 @@ function PrivacidadeControle({ cameraId, ativa, rodando, onMudou }: {
     setErro(null);
     definirPrivacidade(cameraId, !ativa)
       .then(onMudou)
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao trocar a privacidade")))
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível trocar a privacidade.")))
       .finally(() => setPendente(false));
   };
   return (
@@ -258,7 +258,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
   const refresh = () => {
     getCameraStatus(camera.id)
       .then(setStatus)
-      .catch((err) => setError(mensagemDeErro(err, "Falha ao consultar o estado da câmera")));
+      .catch((err) => setError(mensagemDeErro(err, "Não foi possível consultar o estado da câmera.")));
   };
 
   // Consulta ao trocar de câmera e a cada 3 s enquanto essa aba estiver
@@ -288,7 +288,7 @@ function CameraLiveControl({ camera }: { camera: CameraRecord }) {
     setError(null);
     stopCamera(camera.id)
       .then(setStatus)
-      .catch((err) => setError(mensagemDeErro(err, "Falha ao parar câmera")))
+      .catch((err) => setError(mensagemDeErro(err, "Não foi possível parar a câmera.")))
       .finally(() => setPending(false));
   };
 
@@ -366,7 +366,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
         setMessage("Câmera salva. Se estava rodando, já reiniciou sozinha com a configuração nova.");
         return loadCameras();
       })
-      .catch((err) => setMessage(mensagemDeErro(err, "Falha ao salvar câmera")))
+      .catch((err) => setMessage(mensagemDeErro(err, "Não foi possível salvar a câmera.")))
       .finally(() => setSaving(false));
   };
 
@@ -378,7 +378,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
         setScreen("grid");
         return loadCameras();
       })
-      .catch((err) => setMessage(mensagemDeErro(err, "Falha ao remover câmera")))
+      .catch((err) => setMessage(mensagemDeErro(err, "Não foi possível remover a câmera.")))
       .finally(() => setDeleting(false));
   };
 
@@ -394,7 +394,7 @@ function CameraConfigPanel({ camera }: { camera: CameraRecord }) {
         const match = res.items.find((d) => d.source === source);
         setMessage(match?.available ? `Índice ${source}: respondendo agora.` : `Índice ${source}: não respondeu ao teste.`);
       })
-      .catch((err) => setMessage(mensagemDeErro(err, "Falha ao testar conexão")))
+      .catch((err) => setMessage(mensagemDeErro(err, "Não foi possível testar a conexão.")))
       .finally(() => setTesting(false));
   };
 

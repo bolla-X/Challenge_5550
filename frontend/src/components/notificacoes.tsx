@@ -113,7 +113,7 @@ function useHistoricoDeAlertas() {
     setErro(null);
     return listAlerts({ limit: 50 })
       .then((res) => setBuscados(res.items))
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar as notificações.")))
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar as notificações.")))
       .finally(() => setCarregando(false));
   }, []);
 

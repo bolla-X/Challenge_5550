@@ -170,7 +170,7 @@ export function AccountsScreen() {
   const carregar = () =>
     listUsers()
       .then((r) => setUsuarios(r.items))
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao listar contas."), "error"));
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível listar as contas."), "error"));
 
   useEffect(() => {
     carregar();
@@ -196,7 +196,7 @@ export function AccountsScreen() {
         setCameraId("");
         return carregar();
       })
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao criar a conta."), "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível criar a conta."), "error"))
       .finally(() => setSalvando(false));
   };
 

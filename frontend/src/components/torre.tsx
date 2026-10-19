@@ -48,7 +48,7 @@ export function useEstadoDaIntegracao(intervaloMs = 2000) {
       fetch("/api/integracao/estado", { credentials: "same-origin" })
         .then(async (r) => {
           avisarSeSessaoExpirou("/api/integracao/estado", r.status);
-          if (!r.ok) throw new Error(r.status === 401 ? "Sessão encerrada. Entre de novo." : `Falha ao ler o estado da planta (código ${r.status}).`);
+          if (!r.ok) throw new Error(r.status === 401 ? "Sessão encerrada. Entre de novo." : `Não foi possível ler o estado da planta (código ${r.status}).`);
           return (await r.json()) as EstadoDaIntegracao;
         })
         .then((d) => {
@@ -56,7 +56,7 @@ export function useEstadoDaIntegracao(intervaloMs = 2000) {
           setEstado(d);
           setErro(null);
         })
-        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao ler o estado da planta.")));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Não foi possível ler o estado da planta.")));
     tick();
     const id = window.setInterval(tick, intervaloMs);
     return () => {

@@ -78,7 +78,7 @@ export function IncidentReplay({
     let vivo = true;
     fetch(`/api/alerts/${alertId}/clip`, { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 404 ? "O replay é gravado 3 s depois do alerta. Tente de novo em instantes." : "Falha ao carregar o replay.");
+        if (!r.ok) throw new Error(r.status === 404 ? "O replay é gravado 3 s depois do alerta. Tente de novo em instantes." : "Não foi possível carregar o replay.");
         return (await r.json()) as Clipe;
       })
       .then((dados) => {
@@ -97,7 +97,7 @@ export function IncidentReplay({
           setIndice(0);
         }
       })
-      .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+      .catch((e) => vivo && setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
     return () => {
       vivo = false;
     };
