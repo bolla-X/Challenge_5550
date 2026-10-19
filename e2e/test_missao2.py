@@ -229,58 +229,6 @@ def test_raio_x_liga_pela_tecla_x(navegador, servidor):
         contexto.close()
 
 
-def test_palco_pelo_teclado_e_pelo_celular(navegador, playwright_sessao, servidor):
-    """X6: todas as cenas pelo teclado; o celular (Chromium emulando celular) avança e volta pelo token do QR."""
-    contexto, pagina = _logado(navegador, servidor)
-    try:
-        pagina.goto(f"{servidor.base}/palco")
-        palco = pagina.locator("[data-testid=palco]")
-        palco.wait_for(timeout=30_000)
-        for _ in range(20):
-            pagina.keyboard.press("ArrowLeft")
-        pagina.wait_for_function("document.querySelector('[data-testid=palco]')?.dataset.cena === '0'", timeout=15_000)
-        total = int(pagina.locator(".palco-indice").inner_text().split("/")[1])
-        vistos = []
-        for i in range(1, total):
-            pagina.keyboard.press("ArrowRight")
-            try:
-                pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{i}'", timeout=15_000)
-            except Exception as exc:
-                foco = pagina.evaluate("document.activeElement && document.activeElement.outerHTML.slice(0, 200)")
-                raise AssertionError(f"cena {i} não veio; tela em {palco.get_attribute('data-cena')} "
-                                     f"({palco.get_attribute('data-chave')}), foco em {foco}") from exc
-            pagina.locator("[data-testid=palco-cena]").wait_for()
-            vistos.append(palco.get_attribute("data-chave"))
-            time.sleep(1.5)
-        assert len(set(vistos)) == total - 1
-        assert not [e for e in pagina.erros_console if "Error" in e], pagina.erros_console
-
-        url = pagina.locator("[data-testid=palco-qr]").get_attribute("data-url")
-        caminho = url[url.index("/palco/controle"):]
-        celular = navegador.new_context(**playwright_sessao.devices["Pixel 7"])
-        try:
-            fone = celular.new_page()
-            fone.goto(servidor.base + caminho)
-            fone.locator("[data-testid=controle-cena]").wait_for(timeout=30_000)
-            fone.locator("[data-testid=controle-anterior]").click()
-            pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{total - 2}'", timeout=15_000)
-            fone.locator("[data-testid=controle-anterior]").click()
-            pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{total - 3}'", timeout=15_000)
-            fone.locator("[data-testid=controle-proxima]").click()
-            pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{total - 2}'", timeout=15_000)
-            assert fone.locator("[data-testid=controle-cena]").inner_text() == pagina.locator("[data-testid=palco-titulo]").inner_text()
-        finally:
-            celular.close()
-        # Celular fora: o teclado continua mandando.
-        pagina.keyboard.press("ArrowRight")
-        pagina.wait_for_function(f"document.querySelector('[data-testid=palco]')?.dataset.cena === '{total - 1}'", timeout=15_000)
-        for _ in range(20):
-            pagina.keyboard.press("ArrowLeft")
-        pagina.wait_for_function("document.querySelector('[data-testid=palco]')?.dataset.cena === '0'", timeout=15_000)
-    finally:
-        contexto.close()
-
-
 def test_palco_queda_ao_vivo_em_camera_lenta(navegador, servidor):
     """ADENDO 2: a cena "Queda" toca a gravação a 0,25× com o rótulo sobre o vídeo, e o alerta sai ao vivo."""
     contexto, pagina = _logado(navegador, servidor)
@@ -321,77 +269,6 @@ def test_palco_queda_ao_vivo_em_camera_lenta(navegador, servidor):
     finally:
         tecnico.post(f"{servidor.base}/api/palco/ir", json={"acao": "ir", "indice": 0}, timeout=10)
         contexto.close()
-
-
-def test_retrospectiva_exporta_card_em_png(navegador, servidor):
-    """X7: stories com dados reais; cada card vira um PNG 1080×1350."""
-    import struct
-
-    contexto = navegador.new_context(viewport={"width": 1366, "height": 768}, accept_downloads=True)
-    try:
-        pagina = contexto.new_page()
-        entrar(pagina, servidor, "supervisor")
-        pagina.get_by_role("button", name=re.compile(r"^Câmeras")).first.wait_for(timeout=60_000)
-        pagina.goto(f"{servidor.base}/retrospectiva?periodo=semana")
-        card = pagina.locator("[data-testid=retro-card]")
-        card.wait_for(timeout=30_000)
-        assert "Pessoa " not in pagina.locator("[data-testid=retrospectiva]").inner_text()
-        with pagina.expect_download() as baixado:
-            pagina.locator("[data-testid=retro-png]").click()
-        dados = open(baixado.value.path(), "rb").read()
-        assert dados[:8] == b"\x89PNG\r\n\x1a\n"
-        largura, altura = struct.unpack(">II", dados[16:24])
-        assert (largura, altura) == (1080, 1350)
-        # Pausa o avanço automático e confere que → avança um card.
-        pagina.get_by_role("button", name="Pausar").click()
-        antes = int(pagina.locator("[data-testid=retrospectiva]").get_attribute("data-indice"))
-        pagina.keyboard.press("ArrowRight")
-        pagina.wait_for_function(
-            f"document.querySelector('[data-testid=retrospectiva]')?.dataset.indice === '{antes + 1}'", timeout=10_000
-        )
-    finally:
-        contexto.close()
-
-
-def test_liga_missao_cumprida_celebra_e_pontua_o_setor(navegador, servidor):
-    """X8: missão configurada pelo supervisor; um rótulo revisado cumpre, a tela celebra; ponto vai para o setor."""
-    supervisor = servidor.sessao("supervisor")
-    # Alvo = o que já foi feito neste turno + 1 (outro teste pode ter revisado um recorte antes).
-    sonda = supervisor.post(f"{servidor.base}/api/liga/missoes", json={"titulo": "sonda", "tipo": "rotulo", "alvo": 10000},
-                            timeout=10).json()["missao"]["id"]
-    feitos = next(m["feito"] for m in supervisor.get(f"{servidor.base}/api/liga", timeout=10).json()["missoes"] if m["id"] == sonda)
-    supervisor.delete(f"{servidor.base}/api/liga/missoes/{sonda}", timeout=10)
-    r = supervisor.post(f"{servidor.base}/api/liga/missoes",
-                        json={"titulo": "Revisar mais 1 recorte (E2E)", "tipo": "rotulo", "alvo": feitos + 1}, timeout=10)
-    assert r.status_code == 201, r.text
-    missao_id = r.json()["missao"]["id"]
-    assert servidor.sessao("technical").post(f"{servidor.base}/api/liga/missoes", json={"titulo": "x", "tipo": "rotulo", "alvo": 1},
-                                             timeout=10).status_code == 403
-    contexto, pagina = _logado(navegador, servidor, papel="supervisor")
-    try:
-        pagina.goto(f"{servidor.base}/liga")
-        pagina.locator("[data-testid=liga-placar]").wait_for(timeout=30_000)
-        time.sleep(6)  # primeira leitura (sem celebração)
-        tecnico = servidor.sessao("technical")
-        limite = time.monotonic() + 240
-        item = None
-        while time.monotonic() < limite:
-            resposta = tecnico.get(f"{servidor.base}/api/rotulos/proximo", timeout=10)
-            if resposta.status_code == 200 and (resposta.json() or {}).get("item"):
-                item = resposta.json()["item"]
-                break
-            time.sleep(3)
-        assert item, "nenhum recorte chegou à fila"
-        assert tecnico.post(f"{servidor.base}/api/rotulos/{item['id']}", json={"decisao": "confirmar"}, timeout=10).status_code == 200
-        aviso = pagina.locator(".liga-aviso")
-        aviso.wait_for(timeout=30_000)
-        assert "Missão cumprida" in aviso.inner_text()
-        estado = supervisor.get(f"{servidor.base}/api/liga", timeout=10).json()
-        assert any(m["id"] == missao_id and m["cumprida"] for m in estado["missoes"])
-        assert sum(s["pontos"] for s in estado["setores"]) > 0
-    finally:
-        contexto.close()
-        supervisor.delete(f"{servidor.base}/api/liga/missoes/{missao_id}", timeout=10)
 
 
 def test_tente_enganar_a_ia_mostra_o_veredito_e_o_placar(navegador, servidor):

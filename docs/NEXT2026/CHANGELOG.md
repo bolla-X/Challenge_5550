@@ -1529,3 +1529,125 @@ custódia são da planta inteira e não aparecem para o Operador. Código em `ap
   inventa percentual de conformidade mensal. Para tê-lo, o fechamento de minuto no `camera_worker` teria de gravar
   também os minutos com gente.
 - Mês inválido: 400 `mes_invalido`. Sem `mes`, vale o mês corrente (hora local do servidor).
+
+## Fase 5 item 5 — segurança (auditoria)
+
+Dezoito achados de uma auditoria, cada um com teste escrito antes (vermelho no código anterior, verde depois). Testes novos em
+`tests/test_seguranca_missao4.py`; os que exigem servidor de verdade estão em `tests/test_integracao_industrial.py`.
+
+| # | Sev. | Achado | Correção | Teste |
+|---|---|---|---|---|
+| 1 | Alta | OPC UA: o gerenciador de usuários padrão do asyncua torna "admin"/qualquer senha em Admin (AddNodes, DeleteNodes, AddReferences, DeleteReferences, RegisterServer) | `set_identity_tokens([Anonymous])` + `allow_remote_admin(False)` e o ruleset nega também `ADMIN_TYPES`; leitura anônima segue valendo | `test_opcua_login_admin_com_qualquer_senha_nao_vira_admin`, `test_opcua_anonimo_nao_altera_o_espaco_de_enderecos_mas_continua_lendo` |
+| 2 | Média | O token do celular-câmera (`celular://<token>`) saía inteiro em `Camera.to_dict` | `redigir_segredos` troca por `celular://***` (vale também para os logs da fonte); o update de câmera Celular já ignorava o `source` do cliente | `test_camera_celular_nao_expoe_o_token_no_to_dict`, `test_api_de_cameras_nao_devolve_o_token_do_celular`, `test_atualizar_camera_celular_nao_depende_do_source_do_cliente` |
+| 3 | Média | `SOCKETIO_CORS_ALLOWED_ORIGINS` padrão `*` refletia o Origin com credenciais | Padrão = mesma origem (`None`); `env_origens` aceita lista por vírgula, `*` só se explícito; sem fallback `*` no `create_app`; `.env.example` documenta (inclui `http://localhost:5173` para o Vite) | `test_env_origens_*`, `test_socketio_*` (handshake real com `Origin`) |
+| 4 | Média | Sem `MAX_CONTENT_LENGTH` | `MAX_CONTENT_LENGTH = env_int(..., 6 MiB)`, acima de `MAX_BYTES_QUADRO` (4 MiB) | `test_corpo_maior_que_o_limite_e_413`, `test_corpo_pequeno_continua_passando` |
+| 5 | Média | CSRF residual same-site (`SameSite=Lax` deixa passar outro subdomínio) | `app/utils/protecao_http.py`: escrita barrada (403 JSON) se `Sec-Fetch-Site` ≠ `same-origin`/`none`; sem ele compara `Origin` com `request.host_url`; sem nenhum dos dois (curl, test client) passa | `test_mutacao_*`, `test_todo_metodo_de_escrita_e_barrado`, `test_sem_sec_fetch_site_compara_o_origin_com_o_host`, `test_sec_fetch_site_tem_precedencia_sobre_o_origin` |
+| 6 | Média | A demo escutava em `0.0.0.0` | `preparar_ambiente` define `HOST=127.0.0.1` (respeita um `HOST` já definido). `run.py --https` continua abrindo para a LAN (o ramo `host in (127.0.0.1, localhost) → 0.0.0.0` está vivo); `DEMO.md` ganhou a linha | `test_demo_escuta_so_no_loopback_por_padrao`, `test_demo_respeita_o_host_ja_definido` |
+| 7 | Média | Broker MQTT embutido anônimo e sem TLS aceitava subir em qualquer host | `BrokerEmbutido.iniciar` recusa host fora de `127.0.0.1`/`localhost` (status `falhou`: use um broker da planta com TLS e credencial) | `test_broker_embutido_anonimo_recusa_subir_fora_do_loopback`, `test_gerente_nao_sobe_broker_embutido_fora_do_loopback` |
+| 8 | Média | LGPD: contatos de `/produto` não podiam ser excluídos | `DELETE /api/contatos/<id>` (Supervisor; 404 se não existe), botão "Excluir" com confirmação na caixa de entrada, texto de guarda no formulário (dados só para responder ao contato; excluídos a pedido) | `test_excluir_contato_*`, `test_so_supervisor_exclui_contato`; linha nova na matriz de permissões |
+| 9 | Média | gunicorn 22.0.0 (CVE-2024-6827) | `requirements.txt` → 23.0.0 (dry-run: só ele muda; `pip check` limpo) | `pip install --dry-run` + `pip check` |
+| 10 | Baixa | Token no log de acesso do werkzeug (`?t=`, `/api/celular/<token>/`) | `FiltroDeTokensNoAcesso` no logger `werkzeug`, instalado por `configure_logging` (uma vez) | `test_filtro_do_log_de_acesso_esconde_tokens`, `test_configure_logging_instala_o_filtro_no_werkzeug_uma_vez` |
+| 11 | Baixa | `endpoint` do webhook mostrava o caminho (segredo estilo Slack); Operador via endpoint/erro | `Webhook.endpoint` = `esquema://host:porta`; Operador recebe só `estado` por canal | `test_webhook_mostra_so_esquema_host_e_porta_no_status`, `test_gerente_status_do_webhook_nao_vaza_o_caminho`, `test_operador_ve_so_o_estado_de_cada_integracao` |
+| 12 | Baixa | `PATCH /api/users/<id>` mudava papel/câmera sem derrubar sessões nem validar a câmera | Mudar `role` ou `camera_id` chama `revoke_sessions`; câmera inexistente ou de tipo errado = 400 | `test_mudar_o_papel_derruba_as_sessoes_da_conta`, `test_mudar_a_camera_*`, `test_camera_que_nao_existe_e_400_*` |
+| 13 | Baixa | O HTML do relatório podia virar a casca offline do PWA | `relatorio` entra no `SEM_CASCA` de `frontend/public/sw.js` | `test_service_worker_nao_guarda_o_relatorio_como_casca` |
+| 14 | Baixa | E-mail aceitava `?&#%/` (injeção em `mailto:`) | Regex recusa esses caracteres e usa `fullmatch` | `test_email_com_caracteres_de_mailto_e_400`, `test_email_comum_continua_valido` |
+| 15 | Baixa | Polígonos sem teto de pontos | No máximo 64 pontos em `area_vigia` (`normalizar_poligono`, 400) e na área de risco (`CameraWorker._normalizar_poligono`) | `test_area_vigia_com_mais_de_64_pontos_e_recusada`, `test_area_de_risco_do_worker_recusa_mais_de_64_pontos` |
+| 16 | Baixa | `_ID.match` com `$` aceitava `"abc\n"` | `_ID.fullmatch` | `test_id_de_regra_nao_aceita_quebra_de_linha` |
+| 17 | Baixa | `redigir_segredos` não cobria query nem senha com `@` cru | Query (`user`, `pass`, `pwd`, `password`, `token`, `auth`, `key`, `secret`) e userinfo até o último `@` antes do host | `test_redigir_segredos_cobre_query_senha_com_arroba_e_celular` |
+| 18 | Baixa | Sem cabeçalhos de segurança | `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin` em toda resposta do Flask | `test_cabecalhos_de_seguranca_em_toda_resposta` |
+
+**Pendente: CSP.** Não entra agora: o tema da demo usa um script inline no `index.html` e o three.js do gêmeo digital
+pede `blob:`/`unsafe-eval`; uma CSP restritiva quebraria os dois. Caminho: nonce no script do tema e CSP em modo
+`Report-Only` primeiro.
+
+**Notas de operação**
+- Quem tem `SOCKETIO_CORS_ALLOWED_ORIGINS=*` no `.env` (cópia antiga do `.env.example`) continua com `*` até remover a linha.
+  Em dev com o Vite, use `SOCKETIO_CORS_ALLOWED_ORIGINS=http://localhost:5173`.
+- O CSRF compara `Origin` com `request.host_url` só quando o navegador não manda `Sec-Fetch-Site`. Atrás de proxy que
+  termina TLS, repasse o esquema (`ProxyFix`) para essa comparação bater.
+- Sessões abertas de uma conta caem quando o Supervisor muda o papel ou o setor dela (login de novo).
+
+## Portão do PR9 — classificação das falhas do E2E completo (MISSÃO 4)
+
+1ª rodada (sobre `9aae8a1`): interrompida pelo fim da sessão; o log `-q` só tinha o progresso (8 F) e nenhuma falha
+pôde ser classificada. 2ª rodada, única, sobre `d250824` (dist gerado do HEAD): **9 falhas, 62 passaram, 2 skips**
+(os 2 skips de sempre, porta OPC UA ocupada e broker fora, cobertos em `tests/test_integracao_industrial.py`),
+1 h 50 min. A partir desta rodada o E2E grava as inferências/s de cada câmera a cada 2 s
+(`bench/runtime/e2e-inferencia.jsonl`) e a janela de cada teste (`bench/runtime/e2e-testes.jsonl`);
+`scripts/e2e_carga.py` cruza os dois.
+
+Regra: (a) bug de produto; (b) premissa errada do teste; (c) sensível à carga **só** se passar isolado e a câmera
+envolvida tiver recebido < 1 inferência/s durante a espera. Sem essa evidência, (a) ou (b).
+
+| Falha | Classe | Evidência |
+|---|---|---|
+| `test_falhas::test_camera_cai_a_tela_diz_reconectando_e_volta` | (b) | Falha também isolada. `inner_text()` devolve `RECONECTANDO · TENTATIVA 2`: o `.feed-badge` tem `text-transform: uppercase` desde o PR7 (`global.css`), e o regex `Reconectando\|Sem sinal` diferencia caixa. O texto do DOM é `Reconectando · tentativa 2`. Correção: o assert lê `text_content()` (texto do DOM, independente do CSS), mesmo regex |
+| `test_falhas::test_webcam_ausente_diz_sem_sinal_e_nao_derruba_as_outras` | (b) | Mesma causa (`RECONECTANDO · TENTATIVA 4`), mesma correção |
+| `test_falhas::test_sessao_expirada_no_meio_de_uma_acao_avisa_e_volta_depois_do_login` | (b) | Falha também isolada; a captura mostra o select "Câmera" na tela. Caso mínimo no Chromium: a árvore de acessibilidade dá `combobox "Câmera"` (nome certo), mas `get_by_label("Câmera", exact=True)` compara o texto inteiro do `<label>`, que inclui as opções (`Câmera Multidão Canteiro…`) → 0 elementos. Correção: `get_by_role("combobox", name="Câmera", exact=True)` (nome acessível, mais estrito) |
+| `test_jornada_04_investigacao::test_investigacao_busca_nas_trilhas_e_simulador_com_regra_editada` | (b) | Mesmo localizador, mesma correção |
+| `test_fase4::test_relatorio_mensal_abre_sem_pessoa_nem_email` | (b) | Falha também isolada. `"Pessoa " not in html` pegou "Pessoa em área de risco" e "Pessoa imóvel na área de risco", nomes de **regra**, não rótulo de rastreio. Correção: regex `\bPessoa\s+(?![a-zà-ú])\S` (barra "Pessoa 3", "Pessoa A7", "Pessoa #2"; nome de regra continua em minúscula) |
+| `test_jornada_09_gamificacao::test_checkin_no_portal_…_retrospectiva` | (b) | Falha também isolada. A conferência da API (`missoes ≥ 1`) vinha **depois** do `finally` que apaga a missão; a retrospectiva conta só missões ativas (`retrospectiva.py:99`), então deu 0 ("Nenhuma missão configurada pelo supervisor"). Correção: conferir antes da limpeza |
+| `test_todos_os_botoes[operator-light]`, `[technical-light]`, `[supervisor-light]`: "não foi possível acionar: Ajuda / Rever tour / Enviar feedback" | (b) | Os três ficam no menu "Mais" (`<details>`). Depois que um item abre outra aba o menu fecha, e o clique seguinte esperava 5 s um item escondido. Reprodução isolada antes da correção: mesmo padrão (Ajuda → nova aba, os seguintes "falhou ao acionar"). Correção: o crawler abre o menu pelo summary **antes** de tirar a assinatura de "antes" e, ao comparar, reabre o menu, para que abrir ou fechar o menu não conte como efeito (sem isso, um item sem efeito passaria). Verificado: kiosk do operador com Ajuda → nova aba, Rever tour e Enviar feedback → mudança de estado, 0 bugs |
+| `test_todos_os_botoes[technical-light]` em `/regras`: "botão sem efeito: Ajuda sobre esta tela" | (b) provisório | **Não reproduziu** em 2 rodadas isoladas (nova aba nas duas; no supervisor, na mesma rodada completa, também nova aba). A rodada completa não deixou captura (o JSON do crawler e o `e2e.log` foram sobrescritos pelas reproduções). Hipótese, não verificada: a aba nova chegou depois da janela de 2,5 s do crawler. Para não ficar sem evidência de novo, todo "sem efeito" agora grava a tela, a URL e se uma aba nova apareceu tarde (`diagnostico` no JSON do crawler e `bench/runtime/e2e-falhas/crawler-*.png`). Só registra: o item continua contado como bug. Se repetir, a classe sai desse registro |
+
+Nenhuma falha entrou em (c): todas reproduzem isoladas e nenhuma depende de inferência (o cruzamento de
+`scripts/e2e_carga.py` está nos registros acima, por teste).
+
+Comportamento de produto observado (não é falha de teste, fica como pendência): apagar uma missão já cumprida a tira
+também da contagem de "Missões cumpridas" da retrospectiva, inclusive de turnos passados, porque a contagem é refeita
+sobre as missões ativas.
+
+**3ª rodada (sobre `0257acd`), invalidada pelo ambiente.** 69 passaram, 2 skips e 2 falhas, ambas no crawler
+(`[technical-light]` e `[supervisor-light]`, na rota `foco-canteiro`: "Câmeras" não apareceu em 30 s). A rodada levou
+20 h 11 min. O log do Windows (Kernel-Power 506/507) mostra a tampa fechada às 15:22:52 de 17/10 e espera moderna
+repetida (tampa, orçamento de bateria) até 11:03 de 18/10. O crawler do técnico caiu às 15:23; o do supervisor ficou
+congelado sem nenhuma requisição de escrita entre 15:31 e 11:03. Não é (a), (b) nem (c): a rodada não vale como
+rodada única. Refeita do zero (4ª rodada, mesmo commit).
+
+**4ª rodada (sobre `0257acd`), invalidada pelo ambiente.** As 3 falhas (`test_liga_missao_cumprida_celebra_e_pontua_o_setor`,
+`test_retrospectiva_exporta_card_em_png`, `test_palco_do_inicio_ao_fim_pelo_teclado_e_pelo_celular`) começaram e
+terminaram exatamente nas janelas de espera moderna do Windows (11:17→12:30, 12:30→18:16 de 18/10, 18:16→09:21 de
+19/10; Kernel-Power 506/507). A máquina estava na bateria e o app só segura a suspensão por inatividade quando está
+na tomada. Rodada parada no crawler e refeita do zero (5ª rodada, mesmo commit) com a máquina na tomada.
+Bloqueio de ambiente registrado no ESTADO: o portão precisa de ~2 h com a máquina na tomada e a tampa aberta.
+
+**5ª rodada (sobre `0257acd`), válida: 71 passaram, 0 falhas, 2 skips, 2 h 23 min**, com a máquina na tomada.
+Crawler: 78 rotas × papéis, 834 elementos, 0 botões sem efeito, 0 erros de console, 0 respostas inesperadas
+(`QA.md`). O "Ajuda sobre esta tela" do técnico em `/regras` deu nova aba e não se repetiu: segue (b) provisório,
+sem evidência de bug de produto.
+
+### Suíte unitária do portão do PR9 — 3201 passaram, 4 falharam
+
+| Falha | Classe | Evidência e correção |
+|---|---|---|
+| `test_credencial_rtsp::test_nenhum_arquivo_versionado_carrega_credencial_em_url` | (b) | O guarda acusou `tests/test_seguranca_missao4.py`: os dados do teste de redação (achado 17) tinham literal uma URL RTSP com usuário e senha falsa contendo `@` (o caso testado). Falha também isolada. Correção: literal concatenado, como em `test_pagina_status.py`; o caso testado é o mesmo |
+| `test_palco::test_preparo_que_estoura_vira_log_e_contingencia_sem_derrubar_o_palco` | (b) | Passa isolado; falha depois de `test_feedback_contatos.py`/`test_onboarding.py` (reproduzido: os 4 arquivos juntos → 2 falhas). Esses testes rodam `flask_migrate.upgrade` no mesmo processo; o `fileConfig` do `migrations/env.py` desliga todo logger já criado (`disable_existing_loggers=True`), e o `caplog` fica vazio. O app não migra no próprio processo, então produção não é afetada. Correção: fixture autouse em `tests/conftest.py` que religa os loggers depois de cada teste |
+| `test_palco::test_saida_que_estoura_vira_log_e_a_troca_de_cena_continua` | (b) | Mesma causa, mesma correção |
+| `test_pagina_status::test_politicas_trazem_privacidade_e_retencao_do_config` | (b) | Passa isolado e passou na ordem acima. Mecanismo lido no código: sonda que não responde no prazo real (2,5 s de relógio) vira `_falha_da_sonda`, sem a chave `cameras`, e `_politicas` devolve `[]`. A ocorrência no full run é **hipótese**: o aviso `status_sonda_sem_resposta` teria ido para um logger desligado pela causa acima. Correção: o teste, que verifica o conteúdo das políticas, usa `prazo_s=30`; o prazo tem teste próprio (`test_sonda_que_trava_vira_falha_no_prazo`). O assert agora mostra o componente de câmeras se falhar |
+
+Verificado: os 6 arquivos envolvidos na ordem que reproduzia: 235 passaram.
+
+### Suíte unitária — a causa das falhas de tempo: loops de captura vazados pela matriz de permissões
+
+Duas rodadas seguidas da suíte completa: uma travou 25 min em `test_matriz_rest[POST /api/cameras/{cam}/start :: sup]`
+com o pytest gastando ~4 núcleos (parada à mão); a outra deu 4 falhas diferentes das da 1ª rodada
+(`test_metricas_do_portao`: "leu 2 em 1 s" quando esperava ≥ 35; `test_pagina_status`: `KeyError 'cameras'`, a
+sonda estourando o prazo de 2,5 s; e o guarda de credencial acusando o próprio CHANGELOG, corrigido no texto).
+Isolada, a matriz passava (1633 em 6 min 48 s). Evidência coletada com um plugin de diagnóstico fora do repo
+(threads vivas e CPU do processo depois de cada teste): a suíte inteira gastou **8327 s de CPU em 1788 s de
+relógio (4,6 núcleos em média)**, e 11 threads `CameraWorker._loop` nasciam nos casos de `start` da matriz e viviam
+até o fim.
+
+Causa (classe b, isolamento do teste): `_clonar_app` cria o app sobre um banco que **já tem câmeras**; o
+`create_app` monta os workers com o socketio real; o teste troca `monitor.socketio` pelo mudo e chama
+`load_cameras_from_db()`, que **reaproveita** os workers existentes (config igual). Então `start` subia o loop de
+captura de verdade e ninguém parava. Em produção o socketio é o real mesmo, então não há bug de produto.
+Correção: o mudo também vai para cada worker já montado. Medido depois: a matriz termina com **0 threads vivas**,
+em 2 min 36 s, com CPU = relógio (1 núcleo).
+
+Fica registrado (não corrigido agora, baixo custo de CPU): `TestSecretKey` em `test_auth_revogacao.py` cria o app
+fora de `TESTING` e deixa vivos o publicador do estado da planta, o controlador adaptativo e o gravador assíncrono;
+os testes de Socket.IO de `test_seguranca_missao4.py` deixam threads de ping do cliente.
+
+**Suíte unitária completa em `f443076`: 3205 passaram, 0 falhas, 15 min 39 s** (antes 27–30 min). CPU da suíte
+733 s em 944 s de relógio (antes 8327 s em 1788 s); nenhum loop de captura vivo no fim.

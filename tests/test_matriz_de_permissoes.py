@@ -298,8 +298,14 @@ def _clonar_app(molde, raiz: Path):
     app = create_app(_config(raiz))
     with app.app_context():
         monitor = app.extensions["monitor_service"]
-        monitor.socketio = _SocketMudo()
+        mudo = _SocketMudo()
+        monitor.socketio = mudo
         monitor.load_cameras_from_db()
+        # O banco copiado já tem câmeras: o `create_app` montou os workers com o socketio REAL e o
+        # `load_cameras_from_db` acima os reaproveita (config igual). Sem isto, `POST .../start` subia o
+        # loop de captura de verdade, que ficava vivo até o fim da suíte (11 threads, ~4 núcleos).
+        for worker in list(monitor._workers.values()):
+            worker.socketio = mudo
         db.session.remove()
     app.extensions["palco"] = Palco()
     return app, dict(molde.ids, token_palco=app.extensions["palco"].token)
@@ -553,6 +559,7 @@ LINHAS: list[Linha] = [
       publica_por="formulário público de /produto: só grava, valida, exige consentimento e tem limite por IP"),
     L("GET", "/api/contatos", SO_SUPERVISOR),
     L("POST", "/api/contatos/<int:contato_id>/lido", SO_SUPERVISOR, "/api/contatos/9999/lido", ok=(404,)),
+    L("DELETE", "/api/contatos/<int:contato_id>", SO_SUPERVISOR, "/api/contatos/9999", ok=(404,)),
     # primeiro acesso do supervisor (MISSÃO 4, Fase 3 item 2)
     L("GET", "/api/onboarding", SO_SUPERVISOR),
     L("PUT", "/api/onboarding/<passo>", SO_SUPERVISOR, "/api/onboarding/camera", corpo={"estado": "pendente"}),

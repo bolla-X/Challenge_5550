@@ -94,6 +94,23 @@ Detalhe, números e decisões em [`docs/NEXT2026/`](docs/NEXT2026/) — CHANGELO
   - relatório ligado aos itens literais da NR-6.
 - **Modo demonstração:** `python run.py --demo` (banco isolado, offline) e `flask --app wsgi demo reset` em menos de 10 s.
 
+### MISSÃO 4 — pronto de empresa
+
+- **Fábrica conectada:** OPC UA, MQTT (broker embutido na demo) e webhook com proteção SSRF; torre de luz virtual
+  (`/torre` e Modo TV) com o mesmo estado que o CLP lê — ver [`docs/NEXT2026/INTEGRACAO.md`](docs/NEXT2026/INTEGRACAO.md).
+- **Câmera tampada ou movida:** saúde visual por câmera (obstruída, movida, escura, ofuscada, desfocada) com alerta e
+  "redefinir referência".
+- **Evacuação:** contagem por câmera, última posição na planta, ponto de encontro, cronômetro; relatório na cadeia de custódia.
+- **Regras sem código:** editor em blocos que compila para o mesmo motor, com "testar no histórico".
+- **Permissão de trabalho:** vigia (NR-33), janela, EPIs com verificação automática x manual.
+- **Operação:** busca nas trilhas, escalonamento de alerta crítico, antes/depois de intervenção com ROI das suas
+  premissas, relatório mensal para a CIPA, API documentada (`/api/docs`).
+- **Experiência:** primeiro acesso guiado, tour por tipo de conta, central de ajuda (`/ajuda`), notificações,
+  busca global (Ctrl+K), `/status`, novidades, páginas de exceção, página pública (`/produto`).
+- **Qualidade:** matriz de permissões (todo endpoint × todo tipo de conta), crawler que aciona todo botão de toda tela,
+  jornadas ponta a ponta e auditoria de segurança — ver [`docs/NEXT2026/QA.md`](docs/NEXT2026/QA.md) e
+  [`docs/NEXT2026/PERMISSOES.md`](docs/NEXT2026/PERMISSOES.md).
+
 ## Stack
 
 **Backend**

@@ -4,8 +4,9 @@ Mesmo desenho do `opcua.py`: thread próprio com event loop próprio, porque o a
 threading e o amqtt é asyncio. `iniciar()` devolve o status e nunca lança.
 
 Escopo: demo e bancada. Aceita conexão anônima, sem TLS, sem ACL e guarda
-retained só em memória (some ao reiniciar). Para produção use um broker de
-verdade (Mosquitto, EMQX, HiveMQ) e aponte `MQTT_HOST`/`MQTT_PORTA` para ele.
+retained só em memória (some ao reiniciar). Por isso RECUSA subir fora do
+loopback (127.0.0.1/localhost). Para produção use um broker de verdade
+(Mosquitto, EMQX, HiveMQ) com TLS e credencial e aponte `MQTT_HOST`/`MQTT_PORTA` para ele.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 # O amqtt loga cada pacote em INFO/DEBUG; em demo isso afoga o console.
 logging.getLogger("amqtt").setLevel(logging.WARNING)
 logging.getLogger("transitions").setLevel(logging.WARNING)
+
+HOSTS_LOCAIS = ("127.0.0.1", "localhost")
 
 
 class BrokerEmbutido:
@@ -47,6 +50,14 @@ class BrokerEmbutido:
     def iniciar(self) -> dict[str, Any]:
         """Sobe o broker e devolve `status()`. Nunca lança: falha vira `erro` em pt-BR."""
         if self._thread is not None and self._thread.is_alive():
+            return self.status()
+        if self.host not in HOSTS_LOCAIS:
+            # Anônimo e sem TLS: aberto na rede, qualquer máquina publicaria no tópico de alerta da planta.
+            self._erro = (
+                f"O broker MQTT embutido é anônimo e sem TLS: só sobe em 127.0.0.1 ou localhost (recebi {self.host}). "
+                "Use um broker da planta com TLS e credencial e aponte MQTT_HOST para ele."
+            )
+            logger.warning("broker_embutido_recusado_fora_do_loopback", extra={"host": self.host})
             return self.status()
         self._pronto.clear()
         self._erro = None

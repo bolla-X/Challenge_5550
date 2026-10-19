@@ -62,6 +62,9 @@ export const listarContatos = () => apiFetch<Caixa<ItemDeContato>>("/api/contato
 export const marcarContatoLido = (id: number, lido = true) =>
   apiFetch<{ contato: ItemDeContato }>(`/api/contatos/${id}/lido`, { method: "POST", body: JSON.stringify({ lido }) });
 
+/** Exclui o contato de vez (pedido do titular dos dados). */
+export const excluirContato = (id: number) => apiFetch<{ deleted: true; id: number }>(`/api/contatos/${id}`, { method: "DELETE" });
+
 /** Campo que o servidor apontou num 400 de validação (`campo` no corpo), se houver. */
 export function campoDoErro(err: unknown): string | null {
   if (!(err instanceof ApiError) || !err.body || typeof err.body !== "object") return null;

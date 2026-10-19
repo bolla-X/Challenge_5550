@@ -289,8 +289,11 @@ def _localizar(pagina, chave: str):
 
 
 def _efeito(pagina, contexto, rastro: Rastro, antes: str, url_antes: str, paginas_antes: int, inicio: float,
-            downloads_antes: int, dialogos_antes: int) -> tuple[str | None, list[str]]:
-    """Devolve (efeito, problemas). Espera até ~2,5 s por qualquer sinal."""
+            downloads_antes: int, dialogos_antes: int, menu=None) -> tuple[str | None, list[str]]:
+    """Devolve (efeito, problemas). Espera até ~2,5 s por qualquer sinal.
+
+    `menu`: summary do menu em que o item mora. O menu fecha ao acionar o item; antes de comparar a
+    assinatura ele é reaberto, para que só fechar o menu não conte como "mudança de estado"."""
     problemas: list[str] = []
     limite = time.monotonic() + 2.5
     efeito = None
@@ -310,7 +313,16 @@ def _efeito(pagina, contexto, rastro: Rastro, antes: str, url_antes: str, pagina
             ruins = [r for r in depois_req if r[2] >= 400 and not _resposta_esperada(r[1], r[2])]
             if ruins:
                 problemas += [f"{m} {u.split('://', 1)[-1].split('/', 1)[-1]} → {s}" for m, u, s, _ in ruins]
-            if pagina.evaluate(JS_ASSINATURA, SELETOR) != antes:
+            atual = pagina.evaluate(JS_ASSINATURA, SELETOR)
+            if atual != antes and menu is not None:
+                try:
+                    if not menu.evaluate("s => s.parentElement.open"):
+                        menu.click(timeout=2000)
+                        pagina.wait_for_timeout(150)
+                        atual = pagina.evaluate(JS_ASSINATURA, SELETOR)
+                except Exception:  # noqa: BLE001  (o summary sumiu: a tela mudou de verdade)
+                    pass
+            if atual != antes:
                 efeito = "mudança de estado"
             elif ok and any(m != "GET" for m, *_ in ok):
                 efeito = "requisição ok"
@@ -336,6 +348,48 @@ def _acionar(alvo, item: dict) -> None:
     else:
         alvo.scroll_into_view_if_needed(timeout=5000)
         alvo.click(timeout=5000)
+
+
+def _diagnosticar_sem_efeito(pagina, contexto, paginas_antes: int, papel: str, tema: str, rota: str, item: dict) -> dict:
+    """Evidência de um "sem efeito" (só registra; o item continua contado como bug).
+
+    Espera mais 5 s por uma aba nova (aba que abriu tarde demais para a janela de 2,5 s) e guarda a tela em
+    bench/runtime/e2e-falhas/crawler-<papel>-<tema>-<rota>-<item>.png."""
+    inicio = time.monotonic()
+    tardia = None
+    while time.monotonic() - inicio < 5.0:
+        if len(contexto.pages) > paginas_antes:
+            tardia = round(2.5 + time.monotonic() - inicio, 1)
+            break
+        pagina.wait_for_timeout(250)
+    pasta = RAIZ / "bench" / "runtime" / "e2e-falhas"
+    pasta.mkdir(parents=True, exist_ok=True)
+    arquivo = pasta / re.sub(r"[^\w.-]+", "_", f"crawler-{papel}-{tema}-{rota}-{item['nome'] or item['chave']}.png")[:150]
+    try:
+        pagina.screenshot(path=str(arquivo))
+    except Exception:  # noqa: BLE001  (diagnóstico nunca derruba o crawler)
+        arquivo = None
+    return {"url": pagina.url, "aba_nova_tardia_s": tardia, "abas": len(contexto.pages),
+            "captura": arquivo.name if arquivo else None}
+
+
+def _abrir_menu_do_item(pagina, alvo):
+    """Item dentro de um <details> (menu "Mais" da barra): abre o menu pelo summary, como a pessoa faria, e
+    devolve o summary (ou None se o item não está num menu, ou se ele próprio é o summary).
+
+    O menu fecha depois que um item é acionado, e os itens seguintes ficariam escondidos. Roda ANTES da
+    assinatura de "antes", para que abrir o menu não conte como efeito do item; `_efeito` reabre o menu antes
+    de comparar, para que FECHAR o menu também não conte."""
+    if alvo.evaluate("e => e.tagName === 'SUMMARY'"):
+        return None
+    summary = alvo.locator("xpath=ancestor::details[1]/summary")
+    if not summary.count():
+        return None
+    summary = summary.first
+    if not summary.evaluate("s => s.parentElement.open"):
+        summary.click(timeout=5000)
+        pagina.wait_for_timeout(200)
+    return summary
 
 
 def _restaurar_cameras(servidor) -> None:
@@ -388,6 +442,7 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
                 registro |= {"resultado": "não reencontrado (lista dinâmica)"}
                 resultado["elementos"].append(registro)
                 continue
+            menu = _abrir_menu_do_item(pagina, alvo)
             leve_antes = pagina.evaluate(JS_ASSINATURA_LEVE)
             antes = pagina.evaluate(JS_ASSINATURA, SELETOR)
             url_antes, paginas_antes = pagina.url, len(contexto.pages)
@@ -411,6 +466,7 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
                         alvo = _localizar(pagina, item["chave"])
                         if alvo is None:
                             break
+                        menu = _abrir_menu_do_item(pagina, alvo)
                         antes = pagina.evaluate(JS_ASSINATURA, SELETOR)
                         url_antes, paginas_antes = pagina.url, len(contexto.pages)
                         inicio = time.monotonic()
@@ -426,7 +482,7 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
                 _abrir(pagina, servidor, url, preparo)
                 continue
             efeito, problemas = _efeito(pagina, contexto, rastro, antes, url_antes, paginas_antes, inicio,
-                                        downloads_antes, dialogos_antes)
+                                        downloads_antes, dialogos_antes, menu)
             if efeito is None and alvo is not None:
                 try:
                     ja_ativo = alvo.evaluate("e => e.getAttribute('aria-selected') === 'true' || !!e.getAttribute('aria-current')"
@@ -438,6 +494,7 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
             registro |= {"resultado": efeito or "SEM EFEITO"}
             if efeito is None:
                 resultado["bugs"].append(f"botão sem efeito: {item['nome'] or item['chave']}")
+                registro["diagnostico"] = _diagnosticar_sem_efeito(pagina, contexto, paginas_antes, papel, tema, nome, item)
             for p in problemas:
                 resultado["bugs"].append(f"resposta inesperada ao acionar {item['nome']}: {p}")
             resultado["elementos"].append(registro)

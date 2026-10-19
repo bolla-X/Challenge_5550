@@ -261,7 +261,7 @@ def validar(regra: Any) -> Regra:
     if not isinstance(regra, dict):
         _erro("", "a regra precisa ser um objeto JSON")
     id_ = regra.get("id")
-    if not isinstance(id_, str) or not _ID.match(id_):
+    if not isinstance(id_, str) or not _ID.fullmatch(id_):
         _erro("id", "use de 1 a 64 caracteres: letras, números, '_' ou '-'")
     origem = _escolha(regra.get("origem", "usuario"), "origem", ORIGENS)
     if origem == "pre_carregada":

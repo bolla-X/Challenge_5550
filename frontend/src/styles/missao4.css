@@ -103,3 +103,17 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 
 /* vértice selecionado no simulador: as setas movem este */
 .sim-vertice.selecionado { outline: 3px solid var(--accent); outline-offset: 2px; transform: scale(1.15); }
+
+/* "Mais" da barra superior (desktop): o mesmo painel do menu do celular */
+.appbar-mais { position: relative; display: inline-block; }
+.appbar-mais summary { list-style: none; cursor: pointer; }
+.appbar-mais summary::-webkit-details-marker { display: none; }
+.appbar-mais[open] > summary { background: var(--sunken); color: var(--text); }
+
+/* torre: cabe inteira na tela, com o texto abaixo, de 768 px de altura para cima */
+.torre-corpo { width: min(200px, 40vw, 22dvh); }
+.torre-tela { align-content: center; }
+.appbar-secundarios { display: inline-flex; align-items: center; gap: var(--s1); }
+.appbar-mais { vertical-align: middle; }
+.appbar-mais > summary { display: inline-flex; align-items: center; height: var(--h-control); padding: 0 var(--s3); border-radius: var(--r-control); }
+.appbar-mais > summary:hover { background: var(--sunken); color: var(--text); }

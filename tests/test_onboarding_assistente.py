@@ -11,6 +11,7 @@ registrado por `create_app` (quem liga é `app/__init__.py`), então a fixture o
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -86,6 +87,16 @@ def _camera(app, **campos) -> int:
         return camera.id
 
 
+def _referencia(tmp_path, camera_id: int) -> Path:
+    """Arquivo de referência da câmera de teste (fonte "0"), pela MESMA regra do worker."""
+    from app.config import Config
+    from app.vision.saude_visual import caminho_da_referencia
+
+    caminho = caminho_da_referencia(str(tmp_path / "referencias"), "", camera_id, Config.parse_video_source("0"))
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    return caminho
+
+
 def _estado(sup) -> dict:
     r = sup.get("/api/onboarding")
     assert r.status_code == 200, r.get_json()
@@ -159,11 +170,9 @@ def test_detecta_camera_cadastrada(app, sup):
 def test_detecta_referencia_da_saude_visual_pelo_arquivo_no_disco(app, sup, tmp_path):
     cid = _camera(app)
     assert _passo(_estado(sup), "referencia")["detectado"] is False
-    pasta = tmp_path / "referencias"
-    pasta.mkdir()
-    (pasta / f"camera_{cid + 1}.png").write_bytes(b"png")  # referência de OUTRA câmera não conta
+    _referencia(tmp_path, cid + 1).write_bytes(b"png")  # referência de OUTRA câmera não conta
     assert _passo(_estado(sup), "referencia")["detectado"] is False
-    (pasta / f"camera_{cid}.png").write_bytes(b"png")
+    _referencia(tmp_path, cid).write_bytes(b"png")
     passo = _passo(_estado(sup), "referencia")
     assert (passo["detectado"], passo["estado"]) == (True, "feito")
     assert passo["detalhe"] == "1 câmera com imagem de referência."
@@ -171,8 +180,7 @@ def test_detecta_referencia_da_saude_visual_pelo_arquivo_no_disco(app, sup, tmp_
 
 def test_referencia_com_saude_visual_desligada_nao_finge(app, sup, tmp_path):
     cid = _camera(app)
-    (tmp_path / "referencias").mkdir()
-    (tmp_path / "referencias" / f"camera_{cid}.png").write_bytes(b"png")
+    _referencia(tmp_path, cid).write_bytes(b"png")
     app.config["SAUDE_VISUAL_ATIVA"] = False
     passo = _passo(_estado(sup), "referencia")
     assert passo["detectado"] is False
@@ -185,8 +193,10 @@ def test_caminho_da_referencia_e_o_do_worker(app, tmp_path):
 
     for pasta in (str(tmp_path / "referencias"), ""):
         app.config["SAUDE_VISUAL_DIR"] = pasta
-        do_worker = CameraWorker._caminho_da_referencia(SimpleNamespace(app=app, camera_id=7))
-        assert servico.caminho_da_referencia(app.config, app.instance_path, 7) == do_worker
+        do_worker = CameraWorker._caminho_da_referencia(SimpleNamespace(app=app, camera_id=7, fonte_configurada="x.mp4"))
+        assert servico.caminho_da_referencia(app.config, app.instance_path, 7, "x.mp4") == do_worker
+        # Outra fonte na mesma câmera (banco recriado) não reaproveita a referência antiga.
+        assert servico.caminho_da_referencia(app.config, app.instance_path, 7, "outra.mp4") != do_worker
 
 
 def test_detecta_planta_calibrada_so_com_quatro_pontos_nos_dois_lados(app, sup):
@@ -256,8 +266,7 @@ def test_checklist_pronto_so_com_tudo_detectado(app, sup, tmp_path):
     assert [i["ok"] for i in estado["checklist"]["itens"]] == [True, False, True, True, True, True]
     assert estado["checklist"]["pendentes"] == 1 and estado["checklist"]["pronto_para_operar"] is False
 
-    (tmp_path / "referencias").mkdir()
-    (tmp_path / "referencias" / f"camera_{cid}.png").write_bytes(b"png")
+    _referencia(tmp_path, cid).write_bytes(b"png")
     estado = _estado(sup)
     assert all(i["ok"] for i in estado["checklist"]["itens"])
     assert estado["checklist"]["pronto_para_operar"] is True

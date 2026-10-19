@@ -19,10 +19,10 @@
  * Referência: MDN, Service Worker API (contexto seguro; `http://localhost` conta
  * como seguro): https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API
  */
-const VERSAO = "visionepi-casca-v1";
+const VERSAO = "visionepi-casca-v2";
 
 // Mesma lista de prefixos que o servidor não trata como "página" (app/api/status.py).
-const SEM_CASCA = /^\/(api|static|socket\.io|snapshots|alerts|events)(\/|$)/;
+const SEM_CASCA = /^\/(api|static|socket\.io|snapshots|alerts|events|relatorio)(\/|$)/;
 
 self.addEventListener("install", (evento) => {
   evento.waitUntil(caches.open(VERSAO).then((c) => c.addAll(["/"])).then(() => self.skipWaiting()));

@@ -4,24 +4,30 @@
 
 O servidor sobe como em produção (`run.py`), com banco isolado em
 `bench/runtime/e2e.db`, sem ler o `.env` de quem roda (VISIONEPI_DOTENV=0),
-e três câmeras:
+e quatro câmeras:
 
 1. "Multidão" — fixture com várias pessoas sem EPI (gera alerta);
 2. "Canteiro" — `portal.mp4`: um trabalhador de capacete e colete, de perto
    (é a câmera de todos os testes do portal; ADENDO 3 da MISSÃO 2);
-3. "Rede" — fonte MJPEG por HTTP (`e2e/fonte_mjpeg.py`) que o teste derruba.
+3. "Rede" — fonte MJPEG por HTTP (`e2e/fonte_mjpeg.py`) que o teste derruba;
+4. "Queda" — fixture com a queda da classe `fall_detected` do modelo.
+
+Os prazos de escalonamento (M7) são curtos aqui (20 s e 40 s) para o E2E da
+Fase 4 não esperar os 60 s e 180 s de produção.
 
 Senhas são geradas a cada execução e nunca impressas.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -41,6 +47,38 @@ def _porta_livre() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def esperar(condicao, limite_s: float, passo_s: float = 1.0, msg: str = ""):
+    """Repete `condicao()` até devolver algo verdadeiro (e o devolve) ou estourar `limite_s`.
+
+    Substitui `time.sleep` fixo: o teste anda assim que a condição vale. Estourar o tempo
+    é falha do teste, com a mensagem e o último valor visto (não "não apareceu" sem pista).
+    """
+    fim = time.monotonic() + limite_s
+    ultimo = None
+    while time.monotonic() < fim:
+        ultimo = condicao()
+        if ultimo:
+            return ultimo
+        time.sleep(passo_s)
+    raise AssertionError(f"tempo esgotado ({limite_s:g} s): {msg} — último valor: {ultimo!r}")
+
+
+def alertas_ativos(sessao, servidor, camera: str) -> list[dict]:
+    """Alertas ativos da câmera pelo estado dela (a mesma fonte da pílula sobre o vídeo)."""
+    cid = servidor.cameras[camera]
+    return sessao.get(f"{servidor.base}/api/cameras/{cid}/status", timeout=20).json().get("active_alerts") or []
+
+
+TEMPOS = RAIZ / "bench" / "runtime" / "missao4-tempos.jsonl"
+
+
+def registrar_tempo(medida: str, segundos: float, **extra) -> None:
+    """Acrescenta uma medida de tempo (uma linha JSON) em bench/runtime/missao4-tempos.jsonl."""
+    TEMPOS.parent.mkdir(parents=True, exist_ok=True)
+    with TEMPOS.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"medida": medida, "segundos": round(segundos, 1), "ts": time.time(), **extra}) + "\n")
 
 
 def encerrar_arvore(proc: subprocess.Popen | None, espera_s: float = 10.0) -> None:
@@ -116,6 +154,9 @@ class ServidorE2E:
             "MQTT_PORTA": str(self.porta_mqtt),
             "SAUDE_VISUAL_DIR": "bench/runtime/e2e-referencias",
             "EVACUACAO_DIR": "bench/runtime/e2e-evacuacoes",
+            # Escalonamento (M7) com prazos curtos: o E2E espera um crítico sem reconhecimento subir de nível.
+            "ESCALONAR_SUPERVISOR_S": "20",
+            "ESCALONAR_TV_S": "40",
         }
         self.log = runtime / "e2e.log"
         self.proc: subprocess.Popen | None = None
@@ -172,14 +213,61 @@ class ServidorE2E:
         self.fonte_rede.parar()
 
 
+AMOSTRAS_DE_INFERENCIA = RAIZ / "bench" / "runtime" / "e2e-inferencia.jsonl"
+JANELAS_DOS_TESTES = RAIZ / "bench" / "runtime" / "e2e-testes.jsonl"
+
+
+class AmostradorDeInferencia(threading.Thread):
+    """Grava, a cada 2 s, as inferências/s de cada câmera (janela de 2 s).
+
+    É a evidência para chamar uma falha de "sensível à carga": junto com
+    `e2e-testes.jsonl` (início e fim de cada teste), `scripts/e2e_carga.py`
+    diz quantas inferências/s a câmera do teste recebeu enquanto ele esperava.
+    """
+
+    def __init__(self, srv: ServidorE2E) -> None:
+        super().__init__(daemon=True, name="amostrador-de-inferencia")
+        self.srv = srv
+        self.parar = threading.Event()
+
+    def run(self) -> None:
+        sessao = None
+        with AMOSTRAS_DE_INFERENCIA.open("w", encoding="utf-8") as saida:
+            while not self.parar.wait(2.0):
+                try:
+                    sessao = sessao or self.srv.sessao("technical")
+                    r = sessao.get(self.srv.base + "/api/diagnostics/pipeline", params={"janela_s": 2}, timeout=5)
+                    if r.status_code == 401:
+                        sessao = None
+                        continue
+                    cameras = r.json().get("cameras", {})
+                except (requests.RequestException, ValueError):
+                    continue
+                taxas = {cid: c.get("stats", {}).get("taxas_por_s", {}) for cid, c in cameras.items()}
+                saida.write(json.dumps({"ts": time.time(), "cameras": {
+                    cid: {"inferencias": t.get("inferencias", 0.0), "analises": t.get("analises_publicadas", 0.0),
+                          "running": cameras[cid].get("running")} for cid, t in taxas.items()}}) + "\n")
+                saida.flush()
+
+
 @pytest.fixture(scope="session")
 def servidor():
     srv = ServidorE2E()
+    amostrador = None
     try:
         srv.subir()
+        amostrador = AmostradorDeInferencia(srv)
+        amostrador.start()
         yield srv
     finally:
+        if amostrador is not None:
+            amostrador.parar.set()
         srv.parar()
+
+
+def pytest_sessionstart(session):
+    JANELAS_DOS_TESTES.parent.mkdir(parents=True, exist_ok=True)
+    JANELAS_DOS_TESTES.write_text("", encoding="utf-8")
 
 
 @pytest.fixture(scope="session")
@@ -266,6 +354,10 @@ def pytest_runtest_makereport(item, call):
     """
     resultado = yield
     relatorio = resultado.get_result()
+    if relatorio.when == "call":
+        with JANELAS_DOS_TESTES.open("a", encoding="utf-8") as saida:
+            saida.write(json.dumps({"teste": item.nodeid, "inicio": call.start, "fim": call.stop,
+                                    "resultado": relatorio.outcome}) + "\n")
     pagina = item.funcargs.get("pagina") if hasattr(item, "funcargs") else None
     if relatorio.when != "call" or not relatorio.failed or pagina is None:
         return

@@ -149,6 +149,9 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
         extra = {"is_mobile": True, "has_touch": True, "device_scale_factor": 2} if celular else {}
         ctx = navegador.new_context(viewport={"width": largura, "height": altura}, color_scheme=tema, **extra)
         ctx.add_init_script(f"try {{ localStorage.setItem('visionepi-theme', '{tema}'); }} catch (e) {{}}")
+        # Tour guiado já visto: a camada dele cobriria a tela das capturas.
+        ctx.add_init_script("try{['operator','technical','supervisor'].forEach(p=>"
+                            "localStorage.setItem('visionepi-tour-visto-'+p,'1'))}catch(e){}")
         return ctx
 
     def logado(papel: str):
@@ -163,6 +166,8 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
     pg = ctx.new_page()
     pg.goto(base + "/")
     _foto(pg, pasta, "01-login", feitas)
+    if _quer("55-produto"):
+        _tentar("55-produto", lambda: (pg.goto(base + "/produto"), _foto(pg, pasta, "55-produto", feitas, 3000)))
     ctx.close()
 
     # Supervisor: início, câmeras, contas, sobre, prova de escala.
@@ -172,8 +177,12 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
                                    _foto(pg, pasta, "03-cameras-grade", feitas, 3000)))
     _tentar("04-contas", lambda: (pg.goto(base + "/"), pg.get_by_role("button", name="Contas").first.click(timeout=20_000),
                                   _foto(pg, pasta, "04-supervisor-contas", feitas)))
-    _tentar("05-sobre", lambda: (pg.goto(base + "/"), pg.get_by_role("button", name="Sobre", exact=True).first.click(timeout=20_000),
+    _tentar("05-sobre", lambda: (pg.goto(base + "/"), pg.locator("[data-testid=menu-mais]").click(timeout=20_000),
+                                 pg.get_by_role("button", name="Sobre", exact=True).first.click(timeout=20_000),
                                  _foto(pg, pasta, "05-sobre", feitas)))
+    for nome, rota in (("53-primeiro-acesso", "/primeiro-acesso"), ("54-caixa-de-entrada", "/caixa-de-entrada")):
+        if _quer(nome):
+            _tentar(nome, lambda nome=nome, rota=rota: (pg.goto(base + rota), _foto(pg, pasta, nome, feitas, 3000)))
     ctx.close()
 
     # Técnico: foco na multidão (alerta crítico), as abas e o Raio-X.
@@ -205,6 +214,13 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
         ("17-portal", f"/portal?camera={canteiro}", 3000), ("18-portal-enganar", f"/portal?camera={canteiro}&desafio=1", 3000),
         ("19-rotular", "/rotular", 2500), ("20-desafio", "/desafio", 2500), ("21-relatorio-turno", "/relatorio/turno", 2500),
         ("22-palco", "/palco", 3000),
+        # MISSÃO 4
+        ("40-torre", "/torre", 3000), ("41-evacuacao", "/evacuacao", 2500), ("42-regras", "/regras", 3000),
+        ("43-permissoes", "/permissoes", 3000), ("44-ajuda", "/ajuda", 2500), ("45-status", "/status", 4000),
+        ("46-novidades", "/novidades", 2500), ("47-configuracoes", "/configuracoes", 2500),
+        ("48-busca-trilhas", "/busca", 2500), ("49-intervencoes", "/intervencoes", 2500),
+        ("50-relatorio-mensal", "/relatorio/mensal", 3000), ("51-api-docs", "/api/docs", 2500),
+        ("52-pagina-404", "/nao-existe", 2500),
     ]
     for nome, rota, espera in rotas:
         if _quer(nome):

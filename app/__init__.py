@@ -47,6 +47,7 @@ from app.services.monitor_service import CameraNotFoundError, MonitorService
 from app.utils.auth import current_user
 from app.utils.limites_de_cpu import aplicar_limites_de_cpu
 from app.utils.logging_config import configure_logging
+from app.utils.protecao_http import registrar_protecoes_http
 from app.utils.salas import sala_de_foco, salas_do_usuario
 
 
@@ -105,7 +106,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     migrate.init_app(app, db)
     socketio.init_app(
         app,
-        cors_allowed_origins=app.config.get("SOCKETIO_CORS_ALLOWED_ORIGINS", "*"),
+        # Sem fallback "*": ausente = mesma origem (ver `env_origens` em app/config.py).
+        cors_allowed_origins=app.config.get("SOCKETIO_CORS_ALLOWED_ORIGINS"),
         async_mode=app.config.get("SOCKETIO_ASYNC_MODE", "threading"),
         logger=False,
         engineio_logger=False,
@@ -153,6 +155,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(escala_bp)
     app.register_blueprint(relatorio_bp)
     app.register_blueprint(celular_bp)
+    registrar_protecoes_http(app)
 
     # Cobre toda rota LEGADA que opera sobre "a câmera padrão" (/start,
     # /stop, /status, /preflight, /settings, /overlay, /risk-area,

@@ -19,7 +19,14 @@ def _rotas(servidor):
     canteiro = servidor.cameras["Canteiro"]
     return ["/", "/gemeo", "/gemeo?2d=1", f"/simulador?camera={servidor.cameras['Multidão']}", "/auditoria", "/liga",
             "/retrospectiva", "/retrospectiva?periodo=semana", "/palco", "/tv", f"/portal?camera={canteiro}",
-            f"/portal?camera={canteiro}&desafio=1", "/rotular", "/desafio", "/relatorio/turno"]
+            f"/portal?camera={canteiro}&desafio=1", "/rotular", "/desafio", "/relatorio/turno",
+            # MISSÃO 4
+            "/torre", "/evacuacao", "/regras", "/permissoes", "/ajuda", "/status", "/novidades", "/configuracoes",
+            "/busca", "/intervencoes", "/relatorio/mensal", "/primeiro-acesso", "/caixa-de-entrada"]
+
+
+# Frase exigida LITERALMENTE pela MISSÃO 4 (M3), com travessão: é a única exceção à regra do sistema de design.
+EXCECOES = ("contagem por câmera — pode haver dupla contagem",)
 
 
 def test_nenhum_texto_de_obra_em_rota_nenhuma(navegador, servidor):
@@ -33,7 +40,8 @@ def test_nenhum_texto_de_obra_em_rota_nenhuma(navegador, servidor):
             pagina.goto(servidor.base + rota)
             pagina.wait_for_timeout(3000)
             texto = pagina.inner_text("body")
-            linhas = [ln.strip() for ln in texto.splitlines() if PROIBIDOS.search(ln)]
+            linhas = [ln.strip() for ln in texto.splitlines()
+                      if PROIBIDOS.search(ln) and not any(e in ln.lower() for e in EXCECOES)]
             if linhas:
                 achados[rota] = linhas[:5]
         # Tela de foco (a mais densa), aba a aba.

@@ -15,7 +15,7 @@ import { pluralizar } from "../utils/formato";
 
 export const AVISO_DUPLA_CONTAGEM = "Contagem por câmera — pode haver dupla contagem se as câmeras se sobrepõem.";
 
-type CameraNaEvacuacao = {
+export type CameraNaEvacuacao = {
   id: number;
   nome: string;
   online: boolean;
@@ -26,7 +26,7 @@ type CameraNaEvacuacao = {
   desatualizada: boolean;
 };
 type Posicao = { camera_id: number; track_id: number | string; x: number; y: number; visto_em: string; ha_s: number; visivel_agora: boolean };
-type Resumo = {
+export type Resumo = {
   numero: number;
   inicio: string;
   fim: string;
@@ -35,7 +35,7 @@ type Resumo = {
   chegadas_ponto_de_encontro: number | null;
   sha256: string;
 };
-type EstadoAtivo = {
+export type EstadoAtivo = {
   ativa: true;
   inicio: string;
   iniciada_por: string;
@@ -47,8 +47,8 @@ type EstadoAtivo = {
   ultimas_posicoes: Posicao[];
   chegadas_ponto_de_encontro: number | null;
 };
-type EstadoInativo = { ativa: false; ultima: Resumo | null; aviso?: string };
-type EstadoDaEvacuacao = EstadoAtivo | EstadoInativo;
+export type EstadoInativo = { ativa: false; ultima: Resumo | null; aviso?: string };
+export type EstadoDaEvacuacao = EstadoAtivo | EstadoInativo;
 
 export function cronometro(segundos: number): string {
   const s = Math.max(0, Math.floor(segundos));
@@ -70,7 +70,8 @@ async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   return corpo as T;
 }
 
-function useEvacuacao() {
+/** Estado da evacuação a cada 1 s (ativa) ou 5 s. A tela de Evacuação e a cena do palco leem o MESMO estado. */
+export function useEvacuacao() {
   const [estado, setEstado] = useState<EstadoDaEvacuacao | null>(null);
   const [erro, setErro] = useState<{ msg: string; status?: number } | null>(null);
   const [n, setN] = useState(0);

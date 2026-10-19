@@ -79,7 +79,7 @@ def preparar_ambiente() -> None:
                 arquivo.unlink()
         except PermissionError:
             raise SystemExit("[demo] o banco da demo está em uso: já há uma demo rodando? Feche-a e tente de novo.") from None
-    for sub in ("clips", "snapshots", "rotulos", "trilhas"):
+    for sub in ("clips", "snapshots", "rotulos", "trilhas", "referencias"):
         shutil.rmtree(PASTA / sub, ignore_errors=True)
     os.environ.update({
         "VISIONEPI_DOTENV": "0",
@@ -87,6 +87,9 @@ def preparar_ambiente() -> None:
         "DATABASE_URL": f"sqlite:///{BANCO.as_posix()}",
         "AUTO_CREATE_TABLES": "true",
         "AUTH_REQUIRED": "true",
+        # Só esta máquina enxerga a demo. Sem isto o app escutava em 0.0.0.0 (padrão do Config) com
+        # contas de demo à mão de qualquer um na rede. `run.py --https` reabre para a LAN (celular).
+        "HOST": os.environ.get("HOST", "127.0.0.1"),
         "SECRET_KEY": secrets.token_hex(32),
         "LLM_ENABLED": "false",
         "REPLAY_DIR": str(PASTA / "clips"),
@@ -97,6 +100,7 @@ def preparar_ambiente() -> None:
         "CLEANUP_ON_MONITOR_START": "false",
         "ROTULOS_DIR": str(PASTA / "rotulos"),
         "TRILHAS_DIR": str(PASTA / "trilhas"),
+        "SAUDE_VISUAL_DIR": str(PASTA / "referencias"),
         "RTSP_FIXTURE_FALLBACK": "",
         # M2: a demo mostra a integração industrial offline (OPC UA + broker MQTT embutido).
         "OPCUA_ATIVO": os.environ.get("OPCUA_ATIVO", "true"),

@@ -110,6 +110,12 @@ class Evacuacao:
         with self._lock:
             return self._ponto
 
+    @property
+    def iniciada_por(self) -> str:
+        """Quem acionou a evacuação em andamento ("" se não há): o palco só encerra a que ele mesmo acionou."""
+        with self._lock:
+            return self._por if self._ativa else ""
+
     def iniciar(self, por: str, ponto_de_encontro_camera_id: int | None, agora: float) -> dict[str, Any]:
         with self._lock:
             if self._ativa:

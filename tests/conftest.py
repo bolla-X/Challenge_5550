@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 # Antes de importar `app`: `app.config` le o arquivo de ambiente local no
@@ -10,6 +11,18 @@ import pytest  # noqa: E402
 from app import create_app  # noqa: E402
 from app.config import TestConfig  # noqa: E402
 from app.extensions import db  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _loggers_continuam_ligados():
+    """Teste que roda o Alembic no mesmo processo (`flask_migrate.upgrade`) passa pelo `fileConfig` do
+    `migrations/env.py`, que desliga todo logger já criado (`disable_existing_loggers=True`). Sem isto, os
+    testes seguintes que leem log (`caplog`) ficam vazios conforme a ordem da suíte. Só a suíte é afetada:
+    o app não migra no próprio processo (`flask db upgrade` é outro processo)."""
+    yield
+    for logger in list(logging.Logger.manager.loggerDict.values()):
+        if isinstance(logger, logging.Logger) and logger.disabled:
+            logger.disabled = False
 
 
 class DummySocket:

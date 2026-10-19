@@ -349,6 +349,41 @@ def test_opcua_e_somente_leitura_para_clientes(servidor_opcua):
         assert no.read_value() == "verde"
 
 
+def test_opcua_login_admin_com_qualquer_senha_nao_vira_admin(servidor_opcua):
+    """Auditoria (ALTA): o `PermissiveUserManager` do asyncua faz "admin"/qualquer senha virar Admin
+    (AddNodes/DeleteNodes). O servidor só aceita token anônimo e o ruleset também nega os tipos de admin."""
+    assert servidor_opcua.publicar(_estado_verde(), aguardar_s=5)
+    cliente = Client(servidor_opcua.endpoint, timeout=5)
+    cliente.set_user("admin")
+    cliente.set_password("qualquer-senha")
+    try:
+        cliente.connect()
+    except Exception:  # noqa: BLE001 - token de usuário/senha recusado: é o resultado esperado
+        try:
+            cliente.disconnect()  # solta o thread do cliente síncrono (senão o processo não sai)
+        except Exception:  # noqa: BLE001
+            pass
+        return
+    try:
+        idx = cliente.get_namespace_index("urn:visionepi")
+        with pytest.raises(ua.UaStatusCodeError):
+            cliente.delete_nodes([cliente.get_node(f"ns={idx};s=Planta.PlantaEmAlarme")])
+    finally:
+        cliente.disconnect()
+
+
+def test_opcua_anonimo_nao_altera_o_espaco_de_enderecos_mas_continua_lendo(servidor_opcua):
+    assert servidor_opcua.publicar(_estado_verde(), aguardar_s=5)
+    with Client(servidor_opcua.endpoint, timeout=5) as cliente:
+        idx = cliente.get_namespace_index("urn:visionepi")
+        no = cliente.get_node(f"ns={idx};s=Planta.PlantaEmAlarme")
+        with pytest.raises(ua.UaStatusCodeError):
+            cliente.delete_nodes([no])
+        with pytest.raises(ua.UaStatusCodeError):
+            cliente.nodes.objects.add_object(ua.NodeId("Intruso", idx), ua.QualifiedName("Intruso", idx))
+        assert no.read_value() is False  # leitura anônima segue valendo
+
+
 def test_opcua_publicar_de_varios_threads_nao_corrompe(servidor_opcua):
     def publicador(n):
         for _ in range(5):
@@ -468,6 +503,46 @@ def test_broker_embutido_em_porta_ocupada_falha_com_mensagem_legivel():
     assert status["estado"] == "falhou"
     assert str(porta) in status["erro"]
     assert "Traceback" not in status["erro"]
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.0.10", "::", "broker.exemplo.com"])
+def test_broker_embutido_anonimo_recusa_subir_fora_do_loopback(host):
+    """Auditoria (MÉDIA): o broker embutido aceita conexão anônima, sem TLS e sem ACL; só vale no loopback."""
+    broker = BrokerEmbutido(porta=_porta_livre(), host=host)
+    status = broker.iniciar()
+    try:
+        assert status["estado"] == "falhou"
+        assert "TLS" in status["erro"] and "credencial" in status["erro"]
+        assert "mqtt-broker-embutido" not in _threads_da_integracao()  # nem chegou a abrir a porta
+    finally:
+        broker.parar()
+
+
+def test_gerente_nao_sobe_broker_embutido_fora_do_loopback():
+    gerente = GerenteDeIntegracao({"MQTT_BROKER_EMBUTIDO": "true", "MQTT_HOST": "0.0.0.0", "MQTT_PORTA": _porta_livre()})
+    try:
+        status = gerente.iniciar()
+        assert status["broker"]["estado"] == "falhou"
+        assert "TLS" in status["broker"]["erro"]
+    finally:
+        gerente.parar()
+
+
+def test_webhook_mostra_so_esquema_host_e_porta_no_status():
+    """Auditoria (BAIXA): o caminho pode carregar segredo (estilo Slack); o status não o mostra."""
+    webhook = Webhook("https://93.184.216.34:8443/services/T000/B000/segredoXYZ?token=abc")
+    assert webhook.endpoint == "https://93.184.216.34:8443"
+    assert Webhook("http://93.184.216.34/hook/segredo").endpoint == "http://93.184.216.34:80"
+
+
+def test_gerente_status_do_webhook_nao_vaza_o_caminho():
+    gerente = GerenteDeIntegracao({"WEBHOOK_URL": "https://93.184.216.34/services/T000/B000/segredoXYZ"})
+    try:
+        status = gerente.iniciar()
+        assert status["webhook"]["endpoint"] == "https://93.184.216.34:443"
+        assert "segredoXYZ" not in json.dumps(status)
+    finally:
+        gerente.parar()
 
 
 # -- Webhook ---------------------------------------------------------------------

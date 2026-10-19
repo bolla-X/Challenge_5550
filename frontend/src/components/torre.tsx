@@ -96,13 +96,35 @@ export function Torre({ cor, sirene, escalonado = false, compacta = false }: { c
   );
 }
 
-function motivo(estado: EstadoDaIntegracao["planta"]): string {
+/** Por que a torre está assim: as câmeras fora de "ok", ou a frase de tudo em ordem. */
+export function motivoDaTorre(estado: EstadoDaIntegracao["planta"]): string {
   const problemas = estado.cameras.filter((c) => c.estado !== "ok");
   if (!problemas.length) return "Nenhum incidente ativo e todas as câmeras com imagem.";
   return problemas
     .slice(0, 4)
     .map((c) => `${c.nome}: ${c.saude_visual && c.saude_visual !== "ok" ? `câmera ${c.saude_visual}` : c.estado === "offline" ? "sem sinal" : c.estado === "alarme" ? "alarme" : "atenção"}`)
     .join(" · ");
+}
+
+/** O que a torre diz em palavras: "Tudo em ordem", "Alarme: alerta crítico sem reconhecimento"... */
+export function textoDaTorre(planta: EstadoDaIntegracao["planta"]): string {
+  const escalonado = plantaEscalonada(planta);
+  return `${TEXTO[planta.torre]}${planta.sirene ? ": alerta crítico sem reconhecimento" : ""}${escalonado ? " há muito tempo: supervisão avisada" : ""}`;
+}
+
+/** Uma pílula por integração (OPC UA, MQTT, broker, webhook), com o estado que o servidor informa. */
+export function IntegracoesDaPlanta({ integracoes }: { integracoes: EstadoDaIntegracao["integracoes"] }) {
+  return (
+    <div className="torre-integracoes" aria-label="Integrações industriais">
+      {Object.entries(integracoes).map(([nome, i]) => (
+        <span key={nome} className={`chip ${i.estado === "falhou" ? "miss" : i.estado === "no_ar" || i.estado === "conectado" ? "ok" : ""}`}
+              title={i.erro || i.endpoint || undefined} data-integracao={nome} data-estado={i.estado ?? "desligado"}>
+          {(i.estado === "no_ar" || i.estado === "conectado") && <span className="dot" />}
+          {NOME_DA_INTEGRACAO[nome] ?? nome}: {ESTADO_DA_INTEGRACAO[i.estado ?? "desligado"] ?? i.estado}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export function TorreScreen() {
@@ -115,21 +137,11 @@ export function TorreScreen() {
           <Torre cor={estado.planta.torre} sirene={estado.planta.sirene} escalonado={escalonado} />
           <div>
             <p className="torre-estado" aria-live="polite">
-              {TEXTO[estado.planta.torre]}
-              {estado.planta.sirene ? " — alerta crítico sem reconhecimento" : ""}
-              {escalonado ? " há muito tempo: supervisão avisada" : ""}
+              {textoDaTorre(estado.planta)}
             </p>
-            <p className="torre-detalhe">{motivo(estado.planta)}</p>
+            <p className="torre-detalhe">{motivoDaTorre(estado.planta)}</p>
           </div>
-          <div className="torre-integracoes" aria-label="Integrações industriais">
-            {Object.entries(estado.integracoes).map(([nome, i]) => (
-              <span key={nome} className={`chip ${i.estado === "falhou" ? "miss" : i.estado === "no_ar" || i.estado === "conectado" ? "ok" : ""}`}
-                    title={i.erro || i.endpoint || undefined}>
-                {(i.estado === "no_ar" || i.estado === "conectado") && <span className="dot" />}
-                {NOME_DA_INTEGRACAO[nome] ?? nome}: {ESTADO_DA_INTEGRACAO[i.estado ?? "desligado"] ?? i.estado}
-              </span>
-            ))}
-          </div>
+          <IntegracoesDaPlanta integracoes={estado.integracoes} />
         </>
       ) : (
         <p role={erro ? "alert" : "status"}>{erro ?? "Lendo o estado da planta…"}</p>

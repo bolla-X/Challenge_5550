@@ -64,9 +64,9 @@ function irParaCamera(): void {
   else irPara("grid");
 }
 
-type InfoDoPasso = { titulo: string; porque: string; dica?: string; acao?: { rotulo: string; ir: () => void } };
+export type InfoDoPasso = { titulo: string; porque: string; dica?: string; acao?: { rotulo: string; ir: () => void } };
 
-const INFO: Record<PassoId, InfoDoPasso> = {
+export const INFO: Record<PassoId, InfoDoPasso> = {
   camera: {
     titulo: "Cadastrar uma câmera",
     porque: "Sem câmera cadastrada não há imagem para analisar. Comece pela que cobre a área mais crítica.",
@@ -168,7 +168,7 @@ export function useOnboarding() {
 }
 
 // --------------------------------------------------------- peças da tela --
-function EstadoDoPasso({ passo }: { passo: PassoDoServidor }) {
+export function EstadoDoPasso({ passo }: { passo: PassoDoServidor }) {
   if (passo.estado === "feito") return <Badge tone="ok">{passo.detectado ? "Detectado" : "Feito"}</Badge>;
   if (passo.estado === "pulado") return <Badge>Pulado</Badge>;
   return <Badge>Pendente</Badge>;

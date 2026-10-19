@@ -34,9 +34,9 @@ type Bloco =
 type Grupo = { k: string; op: Operador; itens: No[] };
 type No = Bloco | Grupo;
 
-type Opcoes = { severidades: string[]; epis: Record<string, string>; estados_epi: string[]; posturas: string[] };
-type Limites = { profundidade: number; blocos: number };
-type RegraApi = {
+export type Opcoes = { severidades: string[]; epis: Record<string, string>; estados_epi: string[]; posturas: string[] };
+export type Limites = { profundidade: number; blocos: number };
+export type RegraApi = {
   id: string;
   nome: string;
   ativa: boolean;
@@ -53,7 +53,7 @@ type RegraApi = {
   };
   protegida: boolean;
 };
-type Listagem = { regras: RegraApi[]; limites: Limites; opcoes: Opcoes };
+export type Listagem = { regras: RegraApi[]; limites: Limites; opcoes: Opcoes };
 
 type Rascunho = {
   id: string | null; // null = regra nova (o servidor gera o id)
@@ -71,7 +71,7 @@ type Rascunho = {
 };
 
 type ErroDoServidor = { caminho: string; texto: string };
-type ResultadoTeste = {
+export type ResultadoTeste = {
   camera_id: number;
   janela: [number, number];
   registros?: number;
@@ -653,7 +653,8 @@ function LinhaDoTempo({ resultado }: { resultado: ResultadoTeste }) {
   );
 }
 
-function Resultado({ resultado, obsoleto }: { resultado: ResultadoTeste; obsoleto: boolean }) {
+/** O resultado de "Testar no histórico", igual ao do editor: números reais, ou o motivo real de não poder testar. */
+export function Resultado({ resultado, obsoleto }: { resultado: ResultadoTeste; obsoleto: boolean }) {
   const [inicio, fim] = resultado.janela;
   const janela = `${dataHoraCurta(new Date(inicio * 1000))} a ${dataHoraCurta(new Date(fim * 1000))}`;
   return (
@@ -678,7 +679,7 @@ function Resultado({ resultado, obsoleto }: { resultado: ResultadoTeste; obsolet
             </div>
             <div>
               <dt>Incidentes</dt>
-              <dd>{resultado.incidentes == null ? "—" : inteiro(resultado.incidentes)}</dd>
+              <dd>{resultado.incidentes == null ? "sem dado" : inteiro(resultado.incidentes)}</dd>
             </div>
           </dl>
           <p className="regras-dica">
@@ -689,6 +690,56 @@ function Resultado({ resultado, obsoleto }: { resultado: ResultadoTeste; obsolet
           <LinhaDoTempo resultado={resultado} />
         </>
       )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------- modo leitura ---
+/** A regra no formato do editor, sem o que o servidor acrescenta (id, origem...). Vem do roteiro do palco. */
+export type RegraDeExemplo = Pick<RegraApi, "nome" | "camera_ids" | "condicao" | "acoes">;
+
+function leituraDoBloco(b: Bloco, opcoes: Opcoes): string {
+  const texto = b.tipo === "duracao" ? `por ${duracaoTexto(b.segundos ?? 0)}` : textoDoBloco(b, opcoes);
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function NoEmLeitura({ no, opcoes, raiz }: { no: Grupo; opcoes: Opcoes; raiz: boolean }) {
+  return (
+    <div className={`regras-grupo${raiz ? " raiz" : ""}`} role="group" aria-label={raiz ? "Condições da regra" : "Grupo de condições"}>
+      <p className="regras-op-leitura">{no.op === "E" ? "Todas as condições (E)" : "Qualquer condição (OU)"}</p>
+      <ul className="regras-itens">
+        {no.itens.map((item) =>
+          ehGrupo(item) ? (
+            <li key={item.k} className="regras-item-grupo">
+              <NoEmLeitura no={item} opcoes={opcoes} raiz={false} />
+            </li>
+          ) : (
+            <li key={item.k} className="regras-bloco" data-tipo={item.tipo}>
+              <div className="regras-bloco-topo">
+                <span className="regras-bloco-tipo">{ROTULO_TIPO[item.tipo]}</span>
+              </div>
+              <p className="regras-bloco-leitura">{leituraDoBloco(item, opcoes)}</p>
+            </li>
+          ),
+        )}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * A regra montada em blocos, só para ler (o palco mostra; quem edita é `/regras`). Usa os mesmos
+ * rótulos, a mesma frase ("Como a regra se lê") e o mesmo estilo dos blocos do editor.
+ */
+export function RegraEmBlocos({ regra, opcoes, nomesCameras }: { regra: RegraDeExemplo; opcoes: Opcoes; nomesCameras?: Map<number, string> }) {
+  const rascunho = rascunhoDaRegra({ ...regra, id: "exemplo", ativa: false, origem: "usuario", regra_id: "regra:exemplo", protegida: false });
+  return (
+    <div className="regras-leitura" data-testid="regra-em-blocos">
+      <div className="regras-frase-caixa">
+        <p className="regras-frase-rotulo">Como a regra se lê</p>
+        <p className="regras-frase" data-testid="regras-frase">{fraseDaRegra(rascunho, opcoes, nomesCameras ?? new Map())}</p>
+      </div>
+      <NoEmLeitura no={rascunho.condicao} opcoes={opcoes} raiz />
     </div>
   );
 }
@@ -973,7 +1024,7 @@ export default function RegrasScreen() {
                     <li key={r.id} className={`regras-linha-item${selecionada ? " sel" : ""}`}>
                       <button type="button" className="regras-corpo" aria-current={selecionada ? "true" : undefined} onClick={() => comConfirmacao(() => abrir(rascunhoDaRegra(r)))}>
                         <span className="regras-nome">{r.nome}</span>
-                        <span className="regras-meta">Nativa — já em execução</span>
+                        <span className="regras-meta">Nativa, já em execução</span>
                       </button>
                       <div className="regras-linha-acoes">
                         <button type="button" className="ghost small" aria-label={`Duplicar para editar a regra ${r.nome}`} onClick={() => comConfirmacao(() => abrir(duplicar(rascunhoDaRegra(r))))}>
@@ -1007,7 +1058,7 @@ export default function RegrasScreen() {
               <div className="regras-editor-topo">
                 <div>
                   <h2>{rascunho.id === null ? "Nova regra" : rascunho.nome || "Regra sem nome"}</h2>
-                  {rascunho.protegida && <Badge>Nativa — já em execução</Badge>}
+                  {rascunho.protegida && <Badge>Nativa, já em execução</Badge>}
                   {!rascunho.protegida && rascunho.id !== null && <Badge tone={rascunho.ativa ? "ok" : "neutral"}>{rascunho.ativa ? "Ativa" : "Desativada"}</Badge>}
                   {rascunho.id === null && <Badge>Ainda não salva</Badge>}
                 </div>
