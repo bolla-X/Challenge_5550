@@ -106,7 +106,8 @@
 }
 @media (max-width: 760px) {
   .produto .produto-miolo { padding: 0 var(--s4); }
-  .produto .produto-nav, .produto .produto-cta-topo { display: none; }
+  /* `a.produto-cta-topo`: `a.button.primary` (global.css) é mais específico e mantinha o botão, cortado na borda. */
+  .produto .produto-nav, .produto .produto-topo a.produto-cta-topo { display: none; }
   .produto .produto-hero { padding: var(--s6) 0 var(--s4); }
   .produto .produto-secao { padding: var(--s6) 0 var(--s4); }
   .produto .produto-secao h2 { font-size: var(--t-title-1); line-height: var(--t-title-1-lh); letter-spacing: var(--t-title-1-tr); }

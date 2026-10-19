@@ -177,8 +177,11 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
                                    _foto(pg, pasta, "03-cameras-grade", feitas, 3000)))
     _tentar("04-contas", lambda: (pg.goto(base + "/"), pg.get_by_role("button", name="Contas").first.click(timeout=20_000),
                                   _foto(pg, pasta, "04-supervisor-contas", feitas)))
-    _tentar("05-sobre", lambda: (pg.goto(base + "/"), pg.locator("[data-testid=menu-mais]").click(timeout=20_000),
-                                 pg.get_by_role("button", name="Sobre", exact=True).first.click(timeout=20_000),
+    # "Mais" no desktop; no celular (≤ 760 px) os mesmos itens ficam no "Menu".
+    menu = "[data-testid=menu-mais]" if largura > 760 else ".appbar-menu > summary"
+    _tentar("05-sobre", lambda: (pg.goto(base + "/"), pg.locator(menu).click(timeout=20_000),
+                                 pg.locator(".appbar-menu-painel:visible").get_by_role("button", name="Sobre", exact=True)
+                                 .first.click(timeout=20_000),
                                  _foto(pg, pasta, "05-sobre", feitas)))
     for nome, rota in (("53-primeiro-acesso", "/primeiro-acesso"), ("54-caixa-de-entrada", "/caixa-de-entrada")):
         if _quer(nome):

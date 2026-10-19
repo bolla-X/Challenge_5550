@@ -192,3 +192,17 @@ def test_mais_alinhado_com_os_outros_atalhos_da_barra(pagina, servidor):
     }""")
     diag = medida.pop("diag")
     assert abs(medida["mais"] - medida["buscar"]) <= 1 and medida["fonte_mais"] == medida["fonte_buscar"], (medida, diag)
+
+
+def test_produto_cabe_no_celular(navegador, servidor):
+    """/produto (público) em 390×844: nada passa da largura. Regressão: `a.button.primary` vencia o `display: none`
+    do botão do topo no celular e cortava "Falar com a equipe" na borda."""
+    contexto = navegador.new_context(viewport={"width": 390, "height": 844})
+    try:
+        pagina = contexto.new_page()
+        pagina.goto(servidor.base + "/produto")
+        pagina.get_by_role("heading", level=1).wait_for(timeout=60_000)
+        largura = pagina.evaluate("() => document.documentElement.scrollWidth")
+        assert largura == 390, largura
+    finally:
+        contexto.close()
