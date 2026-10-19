@@ -164,10 +164,15 @@ def test_disco_tem_volumes_e_tamanho_das_pastas(app, tecnico, tmp_path):
     assert disco["pastas"]["clipes"]["existe"] is False
 
 
-def test_politicas_trazem_privacidade_e_retencao_do_config(tecnico):
-    politicas = tecnico.get("/api/status").get_json()["politicas"]
+def test_politicas_trazem_privacidade_e_retencao_do_config(app, tecnico):
+    # Prazo largo: aqui se verifica o CONTEÚDO das políticas. Com o prazo real (2,5 s de relógio), a sonda de
+    # câmeras pode não responder com a suíte inteira rodando e a lista sai vazia; o prazo tem teste próprio
+    # (`test_sonda_que_trava_vira_falha_no_prazo`).
+    app.extensions["status_do_sistema"] = ServicoDeStatus(app, prazo_s=30)
+    resposta = tecnico.get("/api/status").get_json()
+    politicas = resposta["politicas"]
     assert politicas["privacidade"]["padrao_ligada"] is True
-    assert [c["nome"] for c in politicas["privacidade"]["cameras"]] == ["Portaria"]
+    assert [c["nome"] for c in politicas["privacidade"]["cameras"]] == ["Portaria"], resposta["componentes"].get("cameras")
     retencao = politicas["retencao"]
     assert retencao["expira_sozinha"] is False
     assert retencao["replay_antes_s"] == 5.0 and retencao["replay_depois_s"] == 3.0

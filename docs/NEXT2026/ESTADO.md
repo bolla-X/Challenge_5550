@@ -69,6 +69,12 @@ Já na branch desde o PR8: E2E da Fase 4 (`e2e/test_fase4.py`), as 10 jornadas e
 
 - `pre-missao-4` = HEAD da `main` antes da missão. Ou `git revert` do squash de cada PR.
 
+## Bloqueios de ambiente
+
+- 17–19/10: duas rodadas completas do portão do PR9 invalidadas por suspensão da máquina (tampa fechada e espera
+  moderna na bateria; Kernel-Power 506/507 no log do Windows). O portão precisa de ~2 h com a máquina **na tomada e
+  com a tampa aberta**. Detalhe no CHANGELOG ("Portão do PR9").
+
 ## Ações negadas pela permissão (não contornadas)
 
 - (nenhuma até agora)

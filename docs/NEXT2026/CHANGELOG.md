@@ -1596,3 +1596,33 @@ Nenhuma falha entrou em (c): todas reproduzem isoladas e nenhuma depende de infe
 Comportamento de produto observado (não é falha de teste, fica como pendência): apagar uma missão já cumprida a tira
 também da contagem de "Missões cumpridas" da retrospectiva, inclusive de turnos passados, porque a contagem é refeita
 sobre as missões ativas.
+
+**3ª rodada (sobre `0257acd`), invalidada pelo ambiente.** 69 passaram, 2 skips e 2 falhas, ambas no crawler
+(`[technical-light]` e `[supervisor-light]`, na rota `foco-canteiro`: "Câmeras" não apareceu em 30 s). A rodada levou
+20 h 11 min. O log do Windows (Kernel-Power 506/507) mostra a tampa fechada às 15:22:52 de 17/10 e espera moderna
+repetida (tampa, orçamento de bateria) até 11:03 de 18/10. O crawler do técnico caiu às 15:23; o do supervisor ficou
+congelado sem nenhuma requisição de escrita entre 15:31 e 11:03. Não é (a), (b) nem (c): a rodada não vale como
+rodada única. Refeita do zero (4ª rodada, mesmo commit).
+
+**4ª rodada (sobre `0257acd`), invalidada pelo ambiente.** As 3 falhas (`test_liga_missao_cumprida_celebra_e_pontua_o_setor`,
+`test_retrospectiva_exporta_card_em_png`, `test_palco_do_inicio_ao_fim_pelo_teclado_e_pelo_celular`) começaram e
+terminaram exatamente nas janelas de espera moderna do Windows (11:17→12:30, 12:30→18:16 de 18/10, 18:16→09:21 de
+19/10; Kernel-Power 506/507). A máquina estava na bateria e o app só segura a suspensão por inatividade quando está
+na tomada. Rodada parada no crawler e refeita do zero (5ª rodada, mesmo commit) com a máquina na tomada.
+Bloqueio de ambiente registrado no ESTADO: o portão precisa de ~2 h com a máquina na tomada e a tampa aberta.
+
+**5ª rodada (sobre `0257acd`), válida: 71 passaram, 0 falhas, 2 skips, 2 h 23 min**, com a máquina na tomada.
+Crawler: 78 rotas × papéis, 834 elementos, 0 botões sem efeito, 0 erros de console, 0 respostas inesperadas
+(`QA.md`). O "Ajuda sobre esta tela" do técnico em `/regras` deu nova aba e não se repetiu: segue (b) provisório,
+sem evidência de bug de produto.
+
+### Suíte unitária do portão do PR9 — 3201 passaram, 4 falharam
+
+| Falha | Classe | Evidência e correção |
+|---|---|---|
+| `test_credencial_rtsp::test_nenhum_arquivo_versionado_carrega_credencial_em_url` | (b) | O guarda acusou `tests/test_seguranca_missao4.py`: os dados do teste de redação (achado 17) tinham `rtsp://usuario:p@ss@…` literal (senha falsa com `@`, o caso testado). Falha também isolada. Correção: literal concatenado, como em `test_pagina_status.py`; o caso testado é o mesmo |
+| `test_palco::test_preparo_que_estoura_vira_log_e_contingencia_sem_derrubar_o_palco` | (b) | Passa isolado; falha depois de `test_feedback_contatos.py`/`test_onboarding.py` (reproduzido: os 4 arquivos juntos → 2 falhas). Esses testes rodam `flask_migrate.upgrade` no mesmo processo; o `fileConfig` do `migrations/env.py` desliga todo logger já criado (`disable_existing_loggers=True`), e o `caplog` fica vazio. O app não migra no próprio processo, então produção não é afetada. Correção: fixture autouse em `tests/conftest.py` que religa os loggers depois de cada teste |
+| `test_palco::test_saida_que_estoura_vira_log_e_a_troca_de_cena_continua` | (b) | Mesma causa, mesma correção |
+| `test_pagina_status::test_politicas_trazem_privacidade_e_retencao_do_config` | (b) | Passa isolado e passou na ordem acima. Mecanismo lido no código: sonda que não responde no prazo real (2,5 s de relógio) vira `_falha_da_sonda`, sem a chave `cameras`, e `_politicas` devolve `[]`. A ocorrência no full run é **hipótese**: o aviso `status_sonda_sem_resposta` teria ido para um logger desligado pela causa acima. Correção: o teste, que verifica o conteúdo das políticas, usa `prazo_s=30`; o prazo tem teste próprio (`test_sonda_que_trava_vira_falha_no_prazo`). O assert agora mostra o componente de câmeras se falhar |
+
+Verificado: os 6 arquivos envolvidos na ordem que reproduzia: 235 passaram.

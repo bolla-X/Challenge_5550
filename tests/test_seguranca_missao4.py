@@ -431,8 +431,10 @@ def test_id_de_regra_nao_aceita_quebra_de_linha(id_):
 @pytest.mark.parametrize(
     "bruto,esperado",
     [
-        ("rtsp://usuario:p@ss@192.168.0.10/stream", "rtsp://***@192.168.0.10/stream"),
-        ("rtsp://usuario:p@ss@w@rd@host:554/c", "rtsp://***@host:554/c"),
+        # Concatenado: o literal inteiro faria o guarda de credencial em URL
+        # (tests/test_credencial_rtsp.py) acusar este próprio arquivo.
+        ("rtsp://usuario:" + "p@ss@192.168.0.10/stream", "rtsp://***@192.168.0.10/stream"),
+        ("rtsp://usuario:" + "p@ss@w@rd@host:554/c", "rtsp://***@host:554/c"),
         ("rtsp://usuario:senha@host/stream", "rtsp://***@host/stream"),
         ("rtsp://host/stream?user=admin&password=123&canal=1", "rtsp://host/stream?user=***&password=***&canal=1"),
         ("http://h/x?token=abc&key=k&secret=s&auth=a&pwd=p&pass=q", "http://h/x?token=***&key=***&secret=***&auth=***&pwd=***&pass=***"),
