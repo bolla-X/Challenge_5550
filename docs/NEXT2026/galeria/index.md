@@ -104,3 +104,53 @@ Destaques:
 ![Palco](1920x1080-escuro/22-palco.webp)
 ![Palco, cena do Portal com as outras câmeras pausadas](1366x768-escuro/30-palco-portal-pausadas.webp)
 ![Início no celular](390x844-claro/02-supervisor-inicio.webp)
+
+## MISSÃO 4 — telas novas e revisão (rodadas m4r3 a m4r7)
+
+`python e2e/capturas_de_tela.py --rodada m4r3` contra a demo (3 min no ar), as 6 variações; telas corrigidas
+recapturadas em `m4r4`–`m4r7`; a galeria saiu da junção `m4final` (50 telas × 6 variações = 300 capturas).
+Mesma rubrica de 0 a 5 (H A E C S D T B), nota da **pior variação** depois das correções. Nada ficou abaixo de 4.
+
+| tela | final (H A E C S D T B) | achado da revisão e o que mudou |
+|---|---|---|
+| Barra superior, celular (todas as telas) | 4 4 4 5 5 4 4 4 | **bug:** a 390 px a página tinha 700 px de largura e "Sair"/"Parar" ficavam fora da tela (a regra do "Mais" no `missao4.css` anulava o `display: none` do celular); a barra agora quebra em duas linhas com a marca na primeira. E2E `test_barra_superior_cabe_no_celular` |
+| Barra superior, desktop | 5 4 4 5 5 4 4 5 | "Mais" 6 px abaixo dos outros atalhos (margem genérica do `details`). E2E `test_mais_alinhado_com_os_outros_atalhos_da_barra` |
+| 29 Sem sinal | 4 4 4 4 5 4 4 4 | dois selos diziam "reconectando" (um em caixa alta, outro cortado no celular); fica um |
+| 40 Torre de luz | 5 4 4 5 5 4 5 5 | — (no escuro a luz vermelha aparece na fase apagada da piscada da sirene: é o estado real) |
+| 41 Evacuação | 4 4 4 5 5 4 4 4 | estado vazio encostado à esquerda de um cartão de 1760 px; centrado |
+| 42 Editor de regras | 4 4 4 5 5 4 4 4 | — |
+| 43 Permissão de trabalho | 4 4 4 5 5 4 4 4 | — |
+| 44 Central de ajuda | 4 4 4 5 5 4 4 4 | — |
+| 45 Status do sistema | 4 4 4 5 5 4 4 4 | "reduzindo a carga para acompanhar" e "defina … no arquivo" saíam em monoespaçada; só o código fica mono. No celular a tabela de modelos rola na horizontal (padrão `tabela-rolavel`) |
+| 46 Novidades | 4 4 4 5 5 4 4 4 | — |
+| 47 Configurações | 4 4 4 5 5 4 4 4 | nome e tipo de conta em monoespaçada; valores agora na fonte do texto |
+| 48 Busca nas trilhas | 4 4 4 5 5 4 4 4 | — (o "dd/mm/yyyy" do campo de data é o do navegador headless em inglês) |
+| 49 Antes e depois | 4 4 4 5 5 4 4 4 | coluna de 1200 px começava em x = 384 enquanto as outras telas começam em 80; gutter padrão |
+| 50 Relatório mensal (CIPA) | 4 4 4 5 5 4 4 4 | — |
+| 51 Documentação da API | 4 4 4 5 4 4 4 4 | fonte do sistema; agora Geist e Geist Mono, como o resto |
+| 52 Página não encontrada | 5 4 4 5 5 4 4 4 | — |
+| 53 Primeiro acesso | 4 4 4 5 5 4 4 4 | — |
+| 54 Caixa de entrada | 4 4 4 5 5 4 4 4 | "Nada por aqui ainda" é o que o `MARCA.md` manda evitar; "Nenhuma mensagem ainda" |
+| 55 Página do produto | 5 4 4 5 5 4 4 5 | **bug:** no celular o botão do topo ficava cortado na borda (`a.button.primary` vencia o `display: none`). E2E `test_produto_cabe_no_celular` |
+
+Capturas que falhavam e passaram a sair: no celular, 04 (contas), 28 (degradado) e 29 (sem sinal) não eram
+clicáveis por causa da barra estourada; 30 (palco no portal) falhou por tempo em duas variações da m4r3 e saiu
+na recaptura.
+
+### Antes e depois (MISSÃO 4)
+
+Antes = `m4r3`, depois = `m4final`.
+
+![Início no celular: barra que estourava a largura e a barra em duas linhas](antes-depois/02-supervisor-inicio-390x844-claro.webp)
+![Página do produto no celular](antes-depois/55-produto-390x844-claro.webp)
+![Início no desktop, "Mais" alinhado](antes-depois/02-supervisor-inicio-m4.webp)
+![Evacuação, estado vazio centrado](antes-depois/41-evacuacao.webp)
+![Status do sistema](antes-depois/45-status.webp)
+![Antes e depois (intervenções) no gutter padrão](antes-depois/49-intervencoes.webp)
+
+Destaques da MISSÃO 4:
+
+![Torre de luz](1920x1080-claro/40-torre.webp)
+![Status do sistema, escuro](1920x1080-escuro/45-status.webp)
+![Primeiro acesso](1920x1080-claro/53-primeiro-acesso.webp)
+![Página do produto no celular](390x844-claro/55-produto.webp)

@@ -96,7 +96,7 @@ function Lista<T extends { id: number; lido: boolean }>({
   const visiveis = filtro === "nao-lidos" ? itens.filter((i) => !i.lido) : itens;
   if (!visiveis.length) {
     return (
-      <EmptyState ilustracao={<IlustracaoFila />} titulo={filtro === "nao-lidos" && itens.length ? "Tudo lido" : "Nada por aqui ainda"}>
+      <EmptyState ilustracao={<IlustracaoFila />} titulo={filtro === "nao-lidos" && itens.length ? "Tudo lido" : "Nenhuma mensagem ainda"}>
         {filtro === "nao-lidos" && itens.length ? "Não há itens não lidos. Mude o filtro para ver os anteriores." : vazio}
       </EmptyState>
     );

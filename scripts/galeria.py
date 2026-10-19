@@ -43,18 +43,23 @@ def main() -> int:
     ap.add_argument("--rodada", required=True)
     ap.add_argument("--antes", default="", help="rodada de capturas do código anterior ao PR6")
     ap.add_argument("--telas-antes-depois", default="02-supervisor-inicio,07-foco-alerta-critico,16-tv,14-liga,13-auditoria,17-portal")
+    ap.add_argument("--variacao", default="1920x1080-claro",
+                    help="tamanho-tema do antes/depois; fora do padrão, o arquivo leva o sufixo (ex.: 55-produto-390x844-claro)")
+    ap.add_argument("--so-antes-depois", action="store_true", help="não regrava a galeria, só o antes/depois")
     args = ap.parse_args()
     origem = CAPTURAS / args.rodada
     total = 0
-    for pasta in sorted(p for p in origem.iterdir() if p.is_dir() and p.name != "folhas"):
+    pastas = [] if args.so_antes_depois else sorted(p for p in origem.iterdir() if p.is_dir() and p.name != "folhas")
+    for pasta in pastas:
         for png in sorted(pasta.glob("*.png")):
             tamanho = webp_ate_o_teto(Image.open(png), GALERIA / pasta.name / f"{png.stem}.webp")
             total += 1
             print(f"{pasta.name}/{png.stem}.webp {tamanho // 1024} KB")
     if args.antes:
         for tela in [t.strip() for t in args.telas_antes_depois.split(",") if t.strip()]:
-            antes = CAPTURAS / args.antes / "1920x1080-claro" / f"{tela}.png"
-            depois = origem / "1920x1080-claro" / f"{tela}.png"
+            antes = CAPTURAS / args.antes / args.variacao / f"{tela}.png"
+            depois = origem / args.variacao / f"{tela}.png"
+            nome = tela if args.variacao == "1920x1080-claro" else f"{tela}-{args.variacao}"
             if not (antes.exists() and depois.exists()):
                 print(f"antes-depois/{tela}: falta captura")
                 continue
@@ -63,8 +68,8 @@ def main() -> int:
             lado.paste(a, (0, 0))
             lado.paste(d, (a.width + 24, 0))
             lado.thumbnail((2400, 2400))
-            tamanho = webp_ate_o_teto(lado, GALERIA / "antes-depois" / f"{tela}.webp")
-            print(f"antes-depois/{tela}.webp {tamanho // 1024} KB")
+            tamanho = webp_ate_o_teto(lado, GALERIA / "antes-depois" / f"{nome}.webp")
+            print(f"antes-depois/{nome}.webp {tamanho // 1024} KB")
     print(f"{total} capturas na galeria")
     return 0
 
