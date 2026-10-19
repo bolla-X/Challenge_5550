@@ -132,6 +132,8 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
           <>
             <div className="over-video">
               <FeedBadge estado={estado} camera={camera} stream={stream} />
+              {/* Reconectando: o selo acima já diz isso e a tentativa; fps e resolução não existem sem imagem. */}
+              {estado.modo !== "reconectando" && (
               <span className="over-pill">
                 <span className={`dot ${dotDoStream}`} />
                 {textoDeEstado(estado)}
@@ -142,6 +144,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
                   </span>
                 )}
               </span>
+              )}
               {!connected && (
                 <span className="over-pill">
                   <span className="dot off" />

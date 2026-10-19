@@ -146,6 +146,9 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
   .appbar-secundarios { display: none; }
   .appbar-menu { display: block; }
   .appbar .user-menu-info, .appbar kbd, .appbar .brand-wordmark { display: none; }
+  /* Com a barra em duas linhas, a marca acompanha a primeira (centrada no meio das duas ficava solta). */
+  .appbar { align-items: flex-start; }
+  .appbar .brand-lockup { min-height: var(--h-control); }
 }
 .user-menu { display: flex; align-items: center; gap: var(--s2); }
 .user-menu-info { display: flex; flex-direction: column; line-height: 1.25; text-align: right; }
