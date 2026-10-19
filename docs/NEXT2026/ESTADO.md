@@ -11,7 +11,7 @@ Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGEL
   - tag `pre-missao-4` = `75d0de6` (push feito);
   - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-## Pronto e verificado (branch `missao-4`; portão do PR9 rodando sobre `d250824`)
+## Pronto e verificado (PR8 e PR9 na `main`)
 
 | Item | Evidência |
 |---|---|
@@ -38,32 +38,28 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
   da Fase 4 entrar (ressalva no PR).
 - `missao-4` = `main` + merge (sem force push; equivale a recriar a branch).
 
-## Próximo passo exato (PR9 → depois PR10)
+## PR9 mergeado
 
-Já na branch desde o PR8: E2E da Fase 4 (`e2e/test_fase4.py`), as 10 jornadas em arquivos próprios
-(`e2e/test_jornada_01…10_*.py`), injeção de falhas (`e2e/test_falhas.py`), auditoria de segurança (72 testes em
-`tests/test_seguranca_missao4.py`), identidade (`MARCA.md`).
+- PR9 https://github.com/bolla-X/Challenge_5550/pull/20 → squash `2ede29a` na `main` (o `gh pr merge` deu erro
+  transitório de GraphQL duas vezes; merge feito pelo endpoint REST oficial); tag `missao-4-pr9`.
+- Portão: E2E completo numa rodada única em `0257acd`: 71 passed, 0 falhas, 2 skips; crawler 78 rotas×papéis, 834
+  elementos, 0 problemas (`QA.md`). Commits seguintes só de `tests/` e `docs/`: pytest completo em `f443076`
+  **3205 passed**, ruff limpo. Classificação de cada falha no CHANGELOG ("Portão do PR9").
+- `missao-4` = `main` + merge (sem force push).
 
-1. **Portão do PR9.** A 1ª rodada (sobre `9aae8a1`) foi interrompida pelo fim da sessão: o log só tinha o
-   progresso (8 F), sem nome nem traceback, e não dá para classificar falha sem nome. Rodada nova sobre `d250824`
-   (dist gerado do HEAD, texto novo do erro de câmera), com `-rfEs`, junit em `bench/runtime/portao9b.xml` e
-   inferências/s por câmera (`bench/runtime/e2e-inferencia.jsonl`, lido por `scripts/e2e_carga.py`).
-   Cada falha recebe uma classe, registrada no CHANGELOG: (a) bug de produto → squad fix, reproduzir antes, com
-   teste de regressão; (b) premissa errada do teste → corrigir o teste sem afrouxar o que ele verifica;
-   (c) sensível à carga → só se passar isolado **e** a câmera tiver recebido < 1 inferência/s na espera.
-   Se houver mudança de código, roda-se o portão completo de novo, numa rodada única, com build novo do HEAD.
-2. Depois do portão: pytest completo, `QA.md` regenerado, PR9 aberto (com o commit que o portão completo testou
-   e a verificação dirigida dos commits seguintes), squash, tag `missao-4-pr9`, `missao-4` = `main` + merge.
-3. **PR10, item de copy (Fase 5):** unificar os 67 textos "Falha ao…" de `frontend/src` no formato
+## Próximo passo exato (PR10)
+
+1. **Copy (Fase 5):** unificar os 67 textos "Falha ao…" de `frontend/src` no formato
    "Não foi possível <verbo> <objeto>." (`GLOSSARIO.md`/`MARCA.md`) e criar um teste de copy que falha se
-   "Falha ao" aparecer em `frontend/src`.
-   **PR10, pendência de produto:** apagar uma missão já cumprida a tira da contagem da retrospectiva (também de
-   turnos passados; `retrospectiva.py` conta só missões ativas). Avaliar guardar a missão cumprida por turno.
-4. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica + galeria.
-5. Fase 5 item 7: clone limpo seguindo o README até `e2e/fumaca_demo.py` passar. Fase 5 item 1: QA My App
+   "Falha ao" aparecer em `frontend/src`. Depois, build.
+2. **Pendência de produto:** apagar uma missão já cumprida a tira da contagem da retrospectiva (também de turnos
+   passados; `retrospectiva.py` conta só missões ativas). Avaliar guardar a missão cumprida por turno.
+3. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica ≥ 4 + galeria.
+4. Fase 5 item 7: clone limpo seguindo o README até `e2e/fumaca_demo.py` passar. Fase 5 item 1: QA My App
    (run-all), ou o motivo registrado de não ter sido possível.
-6. Fase 6: cenas novas do `/palco`, vídeo (uma vez) + asset da Release `next-2026-demo`, README/DEMO/BANCA,
-   portão final, PR10, tags `missao-4-pr10` e `final-next-2026`, fumaça a partir da `main`.
+5. Fase 6: vídeo do palco (uma vez) + asset da Release `next-2026-demo`, README/DEMO/BANCA/QA/CHANGELOG,
+   portão final (rodada única, **máquina na tomada e tampa aberta**), PR10, tags `missao-4-pr10` e
+   `final-next-2026`, fumaça a partir da `main`, resumo final.
 
 ## Rollback
 
