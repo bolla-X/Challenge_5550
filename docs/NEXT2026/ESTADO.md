@@ -71,6 +71,15 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
   moderna na bateria; Kernel-Power 506/507 no log do Windows). O portão precisa de ~2 h com a máquina **na tomada e
   com a tampa aberta**. Detalhe no CHANGELOG ("Portão do PR9").
 
+## Depende de você (não dá para rodar de forma autônoma)
+
+- **QA My App (Fase 1 item 1 e Fase 5 item 1): nunca rodou.** O `/qa-my-app:init` (e o `run-all`) só aceita
+  invocação explícita do usuário: o skill recusa a chamada do agente ("disable-model-invocation") e pede para não
+  reproduzir o fluxo por outro meio. Não foi contornado. Para fechar: rode `/qa-my-app:init` no Claude Code, depois
+  `/qa-my-app:run-all`. Cobertura que existe hoje na mesma área, sem substituir o catálogo: crawler botão a botão
+  (`e2e/test_todos_os_botoes.py`, 78 rotas × papéis, `QA.md`) e matriz de permissões
+  (`tests/test_matriz_de_permissoes.py`, 1633 casos).
+
 ## Ações negadas pela permissão (não contornadas)
 
 - (nenhuma até agora)
