@@ -1620,9 +1620,31 @@ sem evidência de bug de produto.
 
 | Falha | Classe | Evidência e correção |
 |---|---|---|
-| `test_credencial_rtsp::test_nenhum_arquivo_versionado_carrega_credencial_em_url` | (b) | O guarda acusou `tests/test_seguranca_missao4.py`: os dados do teste de redação (achado 17) tinham `rtsp://usuario:p@ss@…` literal (senha falsa com `@`, o caso testado). Falha também isolada. Correção: literal concatenado, como em `test_pagina_status.py`; o caso testado é o mesmo |
+| `test_credencial_rtsp::test_nenhum_arquivo_versionado_carrega_credencial_em_url` | (b) | O guarda acusou `tests/test_seguranca_missao4.py`: os dados do teste de redação (achado 17) tinham literal uma URL RTSP com usuário e senha falsa contendo `@` (o caso testado). Falha também isolada. Correção: literal concatenado, como em `test_pagina_status.py`; o caso testado é o mesmo |
 | `test_palco::test_preparo_que_estoura_vira_log_e_contingencia_sem_derrubar_o_palco` | (b) | Passa isolado; falha depois de `test_feedback_contatos.py`/`test_onboarding.py` (reproduzido: os 4 arquivos juntos → 2 falhas). Esses testes rodam `flask_migrate.upgrade` no mesmo processo; o `fileConfig` do `migrations/env.py` desliga todo logger já criado (`disable_existing_loggers=True`), e o `caplog` fica vazio. O app não migra no próprio processo, então produção não é afetada. Correção: fixture autouse em `tests/conftest.py` que religa os loggers depois de cada teste |
 | `test_palco::test_saida_que_estoura_vira_log_e_a_troca_de_cena_continua` | (b) | Mesma causa, mesma correção |
 | `test_pagina_status::test_politicas_trazem_privacidade_e_retencao_do_config` | (b) | Passa isolado e passou na ordem acima. Mecanismo lido no código: sonda que não responde no prazo real (2,5 s de relógio) vira `_falha_da_sonda`, sem a chave `cameras`, e `_politicas` devolve `[]`. A ocorrência no full run é **hipótese**: o aviso `status_sonda_sem_resposta` teria ido para um logger desligado pela causa acima. Correção: o teste, que verifica o conteúdo das políticas, usa `prazo_s=30`; o prazo tem teste próprio (`test_sonda_que_trava_vira_falha_no_prazo`). O assert agora mostra o componente de câmeras se falhar |
 
 Verificado: os 6 arquivos envolvidos na ordem que reproduzia: 235 passaram.
+
+### Suíte unitária — a causa das falhas de tempo: loops de captura vazados pela matriz de permissões
+
+Duas rodadas seguidas da suíte completa: uma travou 25 min em `test_matriz_rest[POST /api/cameras/{cam}/start :: sup]`
+com o pytest gastando ~4 núcleos (parada à mão); a outra deu 4 falhas diferentes das da 1ª rodada
+(`test_metricas_do_portao`: "leu 2 em 1 s" quando esperava ≥ 35; `test_pagina_status`: `KeyError 'cameras'`, a
+sonda estourando o prazo de 2,5 s; e o guarda de credencial acusando o próprio CHANGELOG, corrigido no texto).
+Isolada, a matriz passava (1633 em 6 min 48 s). Evidência coletada com um plugin de diagnóstico fora do repo
+(threads vivas e CPU do processo depois de cada teste): a suíte inteira gastou **8327 s de CPU em 1788 s de
+relógio (4,6 núcleos em média)**, e 11 threads `CameraWorker._loop` nasciam nos casos de `start` da matriz e viviam
+até o fim.
+
+Causa (classe b, isolamento do teste): `_clonar_app` cria o app sobre um banco que **já tem câmeras**; o
+`create_app` monta os workers com o socketio real; o teste troca `monitor.socketio` pelo mudo e chama
+`load_cameras_from_db()`, que **reaproveita** os workers existentes (config igual). Então `start` subia o loop de
+captura de verdade e ninguém parava. Em produção o socketio é o real mesmo, então não há bug de produto.
+Correção: o mudo também vai para cada worker já montado. Medido depois: a matriz termina com **0 threads vivas**,
+em 2 min 36 s, com CPU = relógio (1 núcleo).
+
+Fica registrado (não corrigido agora, baixo custo de CPU): `TestSecretKey` em `test_auth_revogacao.py` cria o app
+fora de `TESTING` e deixa vivos o publicador do estado da planta, o controlador adaptativo e o gravador assíncrono;
+os testes de Socket.IO de `test_seguranca_missao4.py` deixam threads de ping do cliente.
