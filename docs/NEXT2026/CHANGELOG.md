@@ -1648,3 +1648,6 @@ em 2 min 36 s, com CPU = relógio (1 núcleo).
 Fica registrado (não corrigido agora, baixo custo de CPU): `TestSecretKey` em `test_auth_revogacao.py` cria o app
 fora de `TESTING` e deixa vivos o publicador do estado da planta, o controlador adaptativo e o gravador assíncrono;
 os testes de Socket.IO de `test_seguranca_missao4.py` deixam threads de ping do cliente.
+
+**Suíte unitária completa em `f443076`: 3205 passaram, 0 falhas, 15 min 39 s** (antes 27–30 min). CPU da suíte
+733 s em 944 s de relógio (antes 8327 s em 1788 s); nenhum loop de captura vivo no fim.
