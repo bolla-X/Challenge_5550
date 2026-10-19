@@ -68,11 +68,12 @@ export function SeloDeEstado({ estado, rotulo }: { estado: EstadoDoComponente; r
   );
 }
 
-function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+/** `texto`: o valor é frase, não número nem código (sai na fonte do texto, não na monoespaçada). */
+function Linha({ rotulo, children, texto = false }: { rotulo: string; children: ReactNode; texto?: boolean }) {
   return (
     <div className="status-row">
       <span className="status-row-label">{rotulo}</span>
-      <span className="status-row-value">{children}</span>
+      <span className={texto ? "status-row-value texto" : "status-row-value"}>{children}</span>
     </div>
   );
 }
@@ -149,7 +150,7 @@ function CartaoDeModelos({ dados }: { dados: StatusDoSistema["componentes"]["mod
         </table>
         </div>
       )}
-      {dados.degradado && <Linha rotulo="Desempenho">reduzindo a carga para acompanhar</Linha>}
+      {dados.degradado && <Linha rotulo="Desempenho" texto>reduzindo a carga para acompanhar</Linha>}
     </Cartao>
   );
 }
@@ -199,13 +200,13 @@ function CartaoDeIntegracao({ id, titulo, dados }: { id: string; titulo: string;
   return (
     <Cartao id={id} titulo={titulo} estado={dados.estado} resumo={dados.resumo}>
       {dados.endpoint && <Linha rotulo="Endereço">{dados.endpoint}</Linha>}
-      {dados.erro && <Linha rotulo="Motivo">{dados.erro}</Linha>}
+      {dados.erro && <Linha rotulo="Motivo" texto>{dados.erro}</Linha>}
       {dados.estatisticas && (
         <Linha rotulo="Envios">
           {inteiro(dados.estatisticas.enviados)} enviados, {pluralizar(dados.estatisticas.falhas, "falha")}, {inteiro(dados.estatisticas.pendentes)} na fila
         </Linha>
       )}
-      {dados.estado === "desligado" && <Linha rotulo="Para ligar">defina {dados.como_ligar} no arquivo .env</Linha>}
+      {dados.estado === "desligado" && <Linha rotulo="Para ligar" texto>defina <code>{dados.como_ligar}</code> no arquivo <code>.env</code></Linha>}
     </Cartao>
   );
 }
@@ -215,11 +216,11 @@ function CartaoDoLlm({ dados }: { dados: StatusDoSistema["componentes"]["llm"] }
   const rotulo = dados.estado === "ok" ? "Ligada" : dados.estado === "desligado" ? "Desligada" : dados.tem_chave === false ? "Sem chave" : undefined;
   return (
     <Cartao id="llm" titulo="Segunda opinião (LLM)" estado={dados.estado} resumo={dados.resumo} rotuloDoSelo={rotulo}>
-      <Linha rotulo="Chave de acesso">{dados.tem_chave ? "configurada" : "não configurada"}</Linha>
+      <Linha rotulo="Chave de acesso" texto>{dados.tem_chave ? "configurada" : "não configurada"}</Linha>
       {dados.versao_do_prompt && <Linha rotulo="Versão do prompt">{dados.versao_do_prompt}</Linha>}
       {typeof dados.intervalo_minimo_s === "number" && <Linha rotulo="Intervalo mínimo por câmera">{decimal(dados.intervalo_minimo_s, 0)} s</Linha>}
       {typeof dados.limite_de_espera_s === "number" && <Linha rotulo="Limite de espera">{decimal(dados.limite_de_espera_s, 0)} s</Linha>}
-      {dados.estado !== "ok" && dados.como_ligar && <Linha rotulo="Para ligar">defina {dados.como_ligar} no arquivo .env</Linha>}
+      {dados.estado !== "ok" && dados.como_ligar && <Linha rotulo="Para ligar" texto>defina <code>{dados.como_ligar}</code> no arquivo <code>.env</code></Linha>}
     </Cartao>
   );
 }

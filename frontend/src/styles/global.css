@@ -135,13 +135,14 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 .brand-mark { display: block; border-radius: var(--r-control); }
 .appbar-note { font-size: 13px; color: var(--text-3); }
 .appbar-secundarios { display: contents; }
-.appbar-menu { display: none; position: relative; }
+.appbar-menu { display: none; position: relative; margin-top: 0; }
 .appbar-menu summary { list-style: none; cursor: pointer; }
 .appbar-menu summary::-webkit-details-marker { display: none; }
 .appbar-menu-painel { position: absolute; right: 0; top: calc(100% + var(--s2)); z-index: 30; display: grid; gap: var(--s1); min-width: 220px; padding: var(--s2); border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-2); }
 .appbar-menu-painel > * { justify-content: flex-start; width: 100%; }
 @media (max-width: 760px) {
-  .appbar-actions { flex-wrap: nowrap; gap: var(--s1); }
+  /* Quebra em duas linhas em vez de estourar a largura: com o sino de notificações (MISSÃO 4) os ícones não cabem em 390 px. */
+  .appbar-actions { flex-wrap: wrap; gap: var(--s1); row-gap: var(--s2); }
   .appbar-secundarios { display: none; }
   .appbar-menu { display: block; }
   .appbar .user-menu-info, .appbar kbd, .appbar .brand-wordmark { display: none; }

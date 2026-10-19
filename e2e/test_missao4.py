@@ -142,3 +142,53 @@ def test_sem_conexao_aparece_e_some(navegador, servidor):
         esperar(lambda: not faixa.inner_text().strip(), 60, 1, msg="faixa de sem conexão não sumiu")
     finally:
         contexto.close()
+
+
+@pytest.mark.parametrize("papel", ["technical", "supervisor"])
+def test_barra_superior_cabe_no_celular(navegador, servidor, papel):
+    """390×844: os atalhos da barra ficam só no "Menu" (nada de "Buscar"/"Mais" soltos), a barra cabe na largura e
+    "Sair" continua visível. Regressão: a regra do "Mais" no missao4.css anulava o `display: none` do celular."""
+    contexto = navegador.new_context(viewport={"width": 390, "height": 844})
+    try:
+        pagina = contexto.new_page()
+        entrar(pagina, servidor, papel)
+        pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
+        medida = pagina.evaluate("""() => {
+          const vis = (el) => !!el && el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== 'none';
+          const sair = [...document.querySelectorAll('.appbar button')].find((b) => b.textContent.trim() === 'Sair');
+          const r = sair.getBoundingClientRect();
+          // Quem passa da borda direita (para o relatório da falha dizer a causa).
+          const estouram = [...document.querySelectorAll('body *')]
+            .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 0.5 && vis(el))
+            .filter((el, _i, todos) => !todos.some((outro) => outro !== el && el.contains(outro)))
+            .slice(0, 6)
+            .map((el) => el.tagName.toLowerCase() + '.' + [...el.classList].join('.') + ' → '
+                         + Math.round(el.getBoundingClientRect().right));
+          return {secundarios: vis(document.querySelector('.appbar-secundarios')),
+                  menu: vis(document.querySelector('.appbar-menu')),
+                  largura: document.documentElement.scrollWidth,
+                  sair_dentro: r.left >= 0 && r.right <= window.innerWidth, estouram};
+        }""")
+        estouram = medida.pop("estouram")
+        assert medida == {"secundarios": False, "menu": True, "largura": 390, "sair_dentro": True}, (medida, estouram)
+    finally:
+        contexto.close()
+
+
+def test_mais_alinhado_com_os_outros_atalhos_da_barra(pagina, servidor):
+    """Desktop: "Mais" (summary de um <details>) fica na mesma linha de "Buscar" e "Relatório do turno"."""
+    entrar(pagina, servidor, "technical")
+    pagina.get_by_role("button", name="Sair").wait_for(timeout=60_000)
+    medida = pagina.evaluate("""() => {
+      const centro = (el) => { const r = el.getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2); };
+      const fonte = (el) => getComputedStyle(el).fontSize + ' ' + getComputedStyle(el).fontWeight;
+      const mais = document.querySelector('[data-testid=menu-mais]');
+      const buscar = [...document.querySelectorAll('.appbar-secundarios > button')].find((b) => b.textContent.includes('Buscar'));
+      const caixa = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+        return [Math.round(r.top), Math.round(r.height), s.display, s.marginTop, s.marginBottom, s.alignSelf].join(' '); };
+      return {mais: centro(mais), buscar: centro(buscar), fonte_mais: fonte(mais), fonte_buscar: fonte(buscar),
+              diag: {details: caixa(mais.parentElement), summary: caixa(mais), buscar: caixa(buscar),
+                     grupo: caixa(mais.parentElement.parentElement)}};
+    }""")
+    diag = medida.pop("diag")
+    assert abs(medida["mais"] - medida["buscar"]) <= 1 and medida["fonte_mais"] == medida["fonte_buscar"], (medida, diag)

@@ -41,6 +41,8 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 .evac-ponto.antes { fill: none; stroke: var(--text-2); stroke-width: .5; }
 .evac-ultima { display: grid; gap: var(--s2); padding: var(--s5); justify-items: start; }
 .evac-ultima p { margin: 0; color: var(--text-2); }
+/* O estado vazio ocupa o cartão inteiro e fica centrado, como nas outras telas (o `start` acima é para o relatório). */
+.evac-ultima > .empty-state.rico { justify-self: stretch; }
 
 /* ---------------------------------------------------------- torre de luz */
 .torre-tela { min-height: 100dvh; display: grid; place-items: center; gap: var(--s5); padding: var(--s5); background: var(--canvas); }
@@ -113,7 +115,12 @@ button.grande, .button.grande { height: 48px; padding: 0 var(--s5); font-size: v
 /* torre: cabe inteira na tela, com o texto abaixo, de 768 px de altura para cima */
 .torre-corpo { width: min(200px, 40vw, 22dvh); }
 .torre-tela { align-content: center; }
-.appbar-secundarios { display: inline-flex; align-items: center; gap: var(--s1); }
-.appbar-mais { vertical-align: middle; }
-.appbar-mais > summary { display: inline-flex; align-items: center; height: var(--h-control); padding: 0 var(--s3); border-radius: var(--r-control); }
+/* Só no desktop: no celular (≤ 760 px, global.css) os atalhos moram no "Menu". Sem a media query esta regra
+   anulava o `display: none` de lá, e a barra estourava a largura (página de 700 px num celular de 390). */
+@media (min-width: 761px) {
+  .appbar-secundarios { display: inline-flex; align-items: center; gap: var(--s1); }
+}
+.appbar-mais { vertical-align: middle; margin-top: 0; }
+/* O `details { margin-top }` genérico (global.css) empurrava o "Mais" 6 px para baixo do resto da barra. */
+.appbar-mais > summary { display: flex; align-items: center; height: var(--h-control); padding: 0 var(--s3); border-radius: var(--r-control); }
 .appbar-mais > summary:hover { background: var(--sunken); color: var(--text); }
