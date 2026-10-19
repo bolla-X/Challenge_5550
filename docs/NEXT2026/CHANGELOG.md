@@ -1651,3 +1651,18 @@ os testes de Socket.IO de `test_seguranca_missao4.py` deixam threads de ping do 
 
 **Suíte unitária completa em `f443076`: 3205 passaram, 0 falhas, 15 min 39 s** (antes 27–30 min). CPU da suíte
 733 s em 944 s de relógio (antes 8327 s em 1788 s); nenhum loop de captura vivo no fim.
+
+## PR10 — copy unificada e retrospectiva que não reescreve o passado (MISSÃO 4)
+
+- **Copy:** os 67 textos "Falha ao…" de `frontend/src` viraram "Não foi possível <verbo> <objeto>." (com artigo e
+  ponto final, regra do `GLOSSARIO.md`/`MARCA.md`). `tests/test_copy_do_frontend.py` falha se "Falha ao" voltar a
+  `frontend/src`; verificado vermelho sem a troca e verde com ela. Fora do escopo: mensagens do backend
+  (`status_do_sistema`: "Falha ao consultar este componente.").
+- **Bug de produto (a), retrospectiva:** a contagem de "Missões cumpridas" usava só as missões ativas **agora**.
+  Dois efeitos: (1) apagar uma missão já cumprida a tirava também dos turnos passados (achado no portão do PR9,
+  jornada 9); (2) uma missão criada hoje contava para turnos de dias atrás. Reproduzido antes da correção por
+  `test_retrospectiva_conta_a_missao_cumprida_mesmo_depois_de_apagada` e
+  `test_retrospectiva_nao_conta_missao_em_turno_anterior_a_criacao` (o 2º deu 1 em vez de 0). Correção: coluna
+  `missoes.desativada_em` (migração `c7d8e9f0a1b2`, anulável, sem backfill), `liga.desativar_missao` (a rota usa) e
+  `liga.missao_valia_no_turno` (criada antes do fim do turno e não apagada antes do início). Missão apagada antes da
+  migração não tem data e continua fora, como antes. `tests/test_liga.py` + cadeia de migrações: 151 passaram.

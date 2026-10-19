@@ -96,16 +96,23 @@ def montar(periodo: str = "turno", agora: datetime | None = None,
         "detalhe": "entradas liberadas com todos os EPIs exigidos confirmados",
     })
 
-    missoes = Missao.query.filter_by(ativa=True).all()
+    # Toda missão que valia em algum turno da janela, inclusive as apagadas depois (`desativada_em`):
+    # apagar hoje não tira o que a equipe cumpriu antes, e missão criada hoje não cumpre turno antigo.
+    todas = Missao.query.all()
+    ativas = [m for m in todas if m.ativa]
     cumpridas = 0
     for t_inicio, t_fim in _turnos_na_janela(inicio, fim, turnos):
         no_turno = [p for p in pontos if t_inicio <= liga._utc(p.criado_em) < t_fim]
-        cumpridas += sum(1 for m in missoes if liga.progresso_da_missao(m, t_inicio, t_fim, no_turno)["cumprida"])
-    cards.append({
-        "chave": "missoes", "titulo": "Missões cumpridas", "valor": cumpridas, "unidade": "",
-        "detalhe": f"de {pluralizar(len(missoes), 'missão ativa', 'missões ativas')} por turno" if missoes
-        else "Nenhuma missão configurada pelo supervisor",
-    })
+        cumpridas += sum(1 for m in todas
+                         if liga.missao_valia_no_turno(m, t_inicio, t_fim)
+                         and liga.progresso_da_missao(m, t_inicio, t_fim, no_turno)["cumprida"])
+    if ativas:
+        detalhe = f"de {pluralizar(len(ativas), 'missão ativa', 'missões ativas')} por turno"
+    elif cumpridas:
+        detalhe = "missões que o supervisor já encerrou"
+    else:
+        detalhe = "Nenhuma missão configurada pelo supervisor"
+    cards.append({"chave": "missoes", "titulo": "Missões cumpridas", "valor": cumpridas, "unidade": "", "detalhe": detalhe})
     xp = db.session.query(db.func.coalesce(db.func.sum(PontoDaLiga.pontos), 0)).scalar() or 0
     n = liga.nivel(int(xp))
     cards.append({

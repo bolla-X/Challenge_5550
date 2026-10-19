@@ -63,6 +63,5 @@ def desativar_missao(missao_id: int):
     missao = db.session.get(Missao, missao_id)
     if missao is None:
         return jsonify({"error": "missão não encontrada"}), 404
-    missao.ativa = False
-    db.session.commit()
+    liga.desativar_missao(missao)
     return jsonify({"missao": missao.to_dict()})
