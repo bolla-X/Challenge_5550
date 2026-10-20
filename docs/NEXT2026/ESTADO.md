@@ -1,4 +1,4 @@
-# ESTADO — MISSÃO 4 (fechamento)
+# ESTADO — MISSÃO 4 (fechada em 20/10/2026)
 
 Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGELOG.md`.
 
@@ -47,23 +47,20 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
   **3205 passed**, ruff limpo. Classificação de cada falha no CHANGELOG ("Portão do PR9").
 - `missao-4` = `main` + merge (sem force push).
 
-## PR10 — pronto para merge (preenchido com o número ao abrir)
+## PR10 mergeado — MISSÃO 4 fechada
 
-Feito e verificado na `missao-4` (detalhe no CHANGELOG, seções "PR10", "Fase 5 item 7", "Fase 6" e "Portão final"):
-- copy "Não foi possível…" em 67 textos + `tests/test_copy_do_frontend.py`;
-- retrospectiva: missão apagada não reescreve o passado (`missoes.desativada_em`, migração `c7d8e9f0a1b2`) + regressão;
-- revisão visual: 300 capturas (50 telas × 2 temas × 3 tamanhos), rubrica ≥ 4, antes/depois (`galeria/index.md`);
-  bugs de celular (barra superior, `/produto`) e de desktop corrigidos com E2E;
-- clone limpo: `pip install` e `preparar.py` exit 0, `fumaca_demo.py` 6/6;
-- vídeo do palco regravado (18 cenas, 202 s) e asset da Release `next-2026-demo` atualizado;
-- portão final em `d14f5c8`: E2E 75 passed / 0 falhas / 2 skips em rodada única; crawler 78 rotas × papéis,
+- PR10 https://github.com/bolla-X/Challenge_5550/pull/21 → squash `4ca2a7e` na `main`; tags `missao-4-pr10` e
+  `final-next-2026` (as duas em `4ca2a7e`). `missao-4` = `main` + merge.
+- Portão final em `d14f5c8` (rodada única, na tomada): E2E 75 passed, 0 falhas, 2 skips; crawler 78 rotas × papéis,
   820 elementos, 0 problemas; pytest 3208 passed; ruff limpo.
+- A partir da `main` (`4ca2a7e`): `e2e/fumaca_demo.py --raiz .` **6/6** (demo no ar em 26 s) e jornada 10 (palco
+  pelo teclado e pelo celular) **1 passed**.
+- Vídeo de backup: https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo (18 cenas, 202 s).
 
 ## Próximo passo exato
 
-1. Squash do PR10, tags `missao-4-pr10` e `final-next-2026`, `missao-4` = `main` + merge.
-2. Fumaça a partir da `main`: `e2e/fumaca_demo.py --raiz .` + jornada 10.
-3. Resumo final (≤ 35 linhas). Depois disso, a MISSÃO 4 está fechada, exceto o QA My App (abaixo).
+Nada pendente da MISSÃO 4 que dê para fazer de forma autônoma. Única pendência: o QA My App (abaixo), que depende de
+você rodar `/qa-my-app:init` e depois `/qa-my-app:run-all`.
 
 ## Rollback
 
