@@ -109,7 +109,8 @@ Detalhe, números e decisões em [`docs/NEXT2026/`](docs/NEXT2026/) — CHANGELO
   busca global (Ctrl+K), `/status`, novidades, páginas de exceção, página pública (`/produto`).
 - **Qualidade:** matriz de permissões (todo endpoint × todo tipo de conta), crawler que aciona todo botão de toda tela,
   jornadas ponta a ponta e auditoria de segurança — ver [`docs/NEXT2026/QA.md`](docs/NEXT2026/QA.md) e
-  [`docs/NEXT2026/PERMISSOES.md`](docs/NEXT2026/PERMISSOES.md).
+  [`docs/NEXT2026/PERMISSOES.md`](docs/NEXT2026/PERMISSOES.md). Revisão visual de 50 telas nos dois temas e em três
+  tamanhos (1920×1080, 1366×768, celular): [`docs/NEXT2026/galeria/`](docs/NEXT2026/galeria/index.md).
 
 ## Stack
 
