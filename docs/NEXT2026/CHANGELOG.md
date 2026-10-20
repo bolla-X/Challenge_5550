@@ -1666,3 +1666,16 @@ os testes de Socket.IO de `test_seguranca_missao4.py` deixam threads de ping do 
   `missoes.desativada_em` (migração `c7d8e9f0a1b2`, anulável, sem backfill), `liga.desativar_missao` (a rota usa) e
   `liga.missao_valia_no_turno` (criada antes do fim do turno e não apagada antes do início). Missão apagada antes da
   migração não tem data e continua fora, como antes. `tests/test_liga.py` + cadeia de migrações: 151 passaram.
+
+## Fase 5 item 7 — clone limpo (MISSÃO 4)
+
+Clone novo de `missao-4` @ `53c82a7` do GitHub em `../ch5550-clone-m4`, README à risca:
+1. `py -3.11 -m venv .venv` + `pip install -r requirements.txt`: exit 0.
+2. `scripts\preparar.py`: exit 0. A 1ª execução foi interrompida no meio da aprovação de runtimes (pausa para a
+   apresentação); a 2ª já encontrou os pesos baixados e conferidos pela 1ª ("já está aqui"). Aprovou OpenVINO
+   dinâmico na iGPU para EPI, pessoa e esqueleto (esqueleto: concordância 1,0, p50 53,5 ms em fp32), e aqueceu o
+   cache do OpenVINO em 29 s. O `torch.onnx` imprime um `RuntimeError` de conversão de opset (`No Adapter To
+   Version $17 for Resize`) e segue com o opset 18: o ONNX é gerado e aprovado (`onnx-dyn`, concordância 1,0). Não
+   é falha; fica registrado porque assusta no terminal.
+3. `e2e\fumaca_demo.py --raiz .` (sobe `run.py --demo` e confere no Playwright): **6/6**. Demo no ar em 19 s, 4
+   câmeras publicando análise, vídeo no canvas, cena do Portal pausando as outras e chegando a "Liberado".
