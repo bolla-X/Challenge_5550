@@ -211,6 +211,22 @@ class Rastro:
         while self.em_voo and time.monotonic() < fim:
             pagina.wait_for_timeout(100)
 
+    def esperar_quietude(self, pagina, quieto_s: float = 1.0, limite_s: float = 20.0) -> None:
+        """Espera a API ficar QUIETA (nenhuma requisição em voo por `quieto_s`) antes de listar os elementos.
+
+        Com espera fixa, numa rodada carregada o crawler listava a tela ainda no esqueleto (`/regras` com 1
+        elemento em vez de 38, portão final da MISSÃO 4) e passava "sem problemas" com menos cobertura."""
+        fim = time.monotonic() + limite_s
+        quieto_desde = None
+        while time.monotonic() < fim:
+            if self.em_voo:
+                quieto_desde = None
+            elif quieto_desde is None:
+                quieto_desde = time.monotonic()
+            elif time.monotonic() - quieto_desde >= quieto_s:
+                return
+            pagina.wait_for_timeout(100)
+
     def _resposta(self, r) -> None:
         url = r.url
         if "/socket.io/" in url or url.endswith((".js", ".css", ".woff2", ".png", ".svg", ".webp")):
@@ -414,7 +430,17 @@ def _varrer_rota(navegador, servidor, papel: str, tema: str, nome: str, url: str
         if papel != "sem_sessao":
             _login(pagina, servidor, papel)
         _abrir(pagina, servidor, url, preparo)
+        rastro.esperar_quietude(pagina)
         base = pagina.evaluate(JS_ENUMERAR, SELETOR)
+        # Evidência do estado inicial de cada rota (a contagem de elementos sozinha não diz por que caiu).
+        try:
+            pagina.screenshot(path=str(SAIDA / f"{papel}-{tema}-{nome}.png"))
+            resultado["camadas_abertas"] = pagina.evaluate(
+                "() => [...document.querySelectorAll('[role=dialog],[role=alertdialog],dialog[open],[inert],[aria-hidden=true]')]"
+                ".filter((e) => e.getBoundingClientRect().width > 200).map((e) => e.tagName.toLowerCase() + '.' + e.className)"
+                ".slice(0, 5)")
+        except Exception:  # noqa: BLE001  (diagnóstico nunca derruba o crawler)
+            pass
         resultado["texto_cortado"] = sorted({e["nome"] for e in base if e["cortado"]})
         for item in base:
             registro = {"chave": item["chave"], "nome": item["nome"], "papel": item["papel"]}
