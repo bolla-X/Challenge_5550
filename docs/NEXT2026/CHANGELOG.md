@@ -1679,3 +1679,11 @@ Clone novo de `missao-4` @ `53c82a7` do GitHub em `../ch5550-clone-m4`, README �
    é falha; fica registrado porque assusta no terminal.
 3. `e2e\fumaca_demo.py --raiz .` (sobe `run.py --demo` e confere no Playwright): **6/6**. Demo no ar em 19 s, 4
    câmeras publicando análise, vídeo no canvas, cena do Portal pausando as outras e chegando a "Liberado".
+
+## Fase 6 — vídeo do palco regravado (MISSÃO 4)
+
+`python e2e/video_do_palco.py` (uma vez, contra `run.py --demo`): 18 cenas, 202 s, 1920×1080 H.264, a queda ao vivo
+em 12,1 s. O script ganhou o tempo de cada cena nova (`tape_camera` 12 s, `evacuacao` 10 s, `regra` 9 s,
+`permissao` 10 s, `fabrica` 9 s, `primeiro_acesso` 9 s). Asset `visionepi-palco-demo.mp4` da Release
+`next-2026-demo` substituído (`gh release upload --clobber`, 24 MB). GIF do README e da `/produto` regravado
+(contador 1/18 no lugar de 1/12).
