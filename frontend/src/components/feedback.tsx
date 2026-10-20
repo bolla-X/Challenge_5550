@@ -80,7 +80,7 @@ export function FeedbackDialog({ aoFechar }: { aoFechar: () => void }) {
     setErro(null);
     enviarFeedback(texto, tela.current)
       .then(() => setEnviado(true))
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao enviar o feedback.")))
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível enviar o feedback.")))
       .finally(() => setEnviando(false));
   };
 

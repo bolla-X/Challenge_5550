@@ -236,12 +236,12 @@ function NovaMissao({ onCriada }: { onCriada: () => void }) {
       body: JSON.stringify({ titulo, tipo, alvo, ate_hora: ateHora || null }),
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Falha ao criar a missão.");
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Não foi possível criar a missão.");
         setTitulo("");
         setErro(null);
         onCriada();
       })
-      .catch((err) => setErro(mensagemDeErro(err, "Falha ao criar a missão.")));
+      .catch((err) => setErro(mensagemDeErro(err, "Não foi possível criar a missão.")));
   };
   return (
     <form className="liga-nova" onSubmit={criar}>

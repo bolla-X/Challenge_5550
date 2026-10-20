@@ -187,8 +187,8 @@ python scripts/bench.py --rapido
 
 ## Vídeo de backup (plano B)
 
-O Modo Apresentação percorrendo as **12 cenas originais**, em 1920×1080 (138 s, H.264;
-gravado antes das 6 cenas da MISSÃO 4, que não aparecem nele):
+O Modo Apresentação percorrendo as **18 cenas** (as 12 originais e as 6 da MISSÃO 4), em 1920×1080
+(202 s, H.264, regravado em 20/10/2026; a queda saiu ao vivo em 12 s nessa gravação):
 **https://github.com/bolla-X/Challenge_5550/releases/tag/next-2026-demo**
 (asset `visionepi-palco-demo.mp4`). Baixe **antes** da apresentação e deixe no
 notebook: a demo é offline, o plano B também tem de ser.

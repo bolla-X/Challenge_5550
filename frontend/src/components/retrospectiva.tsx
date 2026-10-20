@@ -91,7 +91,7 @@ function useRetro(periodo: string) {
       })
       // Cartões com dado do período primeiro; os ainda zerados vão para o fim (continuam lá, sem esconder).
       .then((d) => setRetro({ ...d, cards: [...d.cards].sort((a, b) => Number(zerado(a)) - Number(zerado(b))) }))
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a retrospectiva.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar a retrospectiva.")));
   }, [periodo]);
   useEffect(carregar, [carregar]);
   return { retro, erro, carregar };

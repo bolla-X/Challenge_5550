@@ -281,14 +281,14 @@ export function PalcoScreen() {
   useEffect(() => {
     fetch("/api/palco/roteiro", { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 401 ? "Entre como técnico ou supervisor." : "Falha ao carregar a apresentação.");
+        if (!r.ok) throw new Error(r.status === 401 ? "Entre como técnico ou supervisor." : "Não foi possível carregar a apresentação.");
         return r.json();
       })
       .then((d) => {
         setCenas(d.cenas);
         setEstado(d.estado);
       })
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar a apresentação.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar a apresentação.")));
   }, []);
 
   // O celular muda a cena pelo servidor: a tela acompanha.

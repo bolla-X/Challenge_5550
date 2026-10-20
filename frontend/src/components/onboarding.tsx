@@ -125,7 +125,7 @@ export function useOnboarding() {
         setErro(null);
       })
       .catch((e: unknown) => {
-        if (vivo) setErro({ msg: mensagemDeErro(e, "Falha ao ler o primeiro acesso."), status: e instanceof ApiError ? e.status : undefined });
+        if (vivo) setErro({ msg: mensagemDeErro(e, "Não foi possível ler o primeiro acesso."), status: e instanceof ApiError ? e.status : undefined });
       });
     return () => {
       vivo = false;
@@ -148,7 +148,7 @@ export function useOnboarding() {
       setDados(await apiFetch<EstadoDoOnboarding>(caminho, { method: metodo, body: JSON.stringify(corpo) }));
       return true;
     } catch (e) {
-      setFalha(mensagemDeErro(e, "Falha ao salvar o passo."));
+      setFalha(mensagemDeErro(e, "Não foi possível salvar o passo."));
       return false;
     } finally {
       setOcupado(false);
@@ -235,7 +235,7 @@ function FormularioDeConta({ aoCriar }: { aoCriar: () => void }) {
         setCameraId("");
         aoCriar();
       })
-      .catch((err: unknown) => setErro(mensagemDeErro(err, "Falha ao criar a conta.")))
+      .catch((err: unknown) => setErro(mensagemDeErro(err, "Não foi possível criar a conta.")))
       .finally(() => setSalvando(false));
   };
 

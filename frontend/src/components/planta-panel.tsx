@@ -98,7 +98,7 @@ export function PlantaPanel({ cameraId, podeEditar }: { cameraId: number; podeEd
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(corpo),
     }).then(async (r) => {
-      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao salvar a calibração.");
+      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Não foi possível salvar a calibração.");
       setEditando(false);
       setNoVideo([]);
       setNaPlanta([]);
@@ -140,7 +140,7 @@ export function PlantaPanel({ cameraId, podeEditar }: { cameraId: number; podeEd
               type="button"
               className="primary"
               disabled={noVideo.length < 4 || naPlanta.length < 4}
-              onClick={() => salvar({ pontos_camera: noVideo, pontos_planta: naPlanta }).catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")))}
+              onClick={() => salvar({ pontos_camera: noVideo, pontos_planta: naPlanta }).catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")))}
             >
               Salvar calibração
             </button>
@@ -199,7 +199,7 @@ export function PlantaPanel({ cameraId, podeEditar }: { cameraId: number; podeEd
               <button type="button" className="ghost" onClick={() => setEditando(true)}>
                 Recalibrar
               </button>
-              <button type="button" className="ghost" onClick={() => salvar({ pontos_camera: null }).catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")))}>
+              <button type="button" className="ghost" onClick={() => salvar({ pontos_camera: null }).catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")))}>
                 Apagar calibração
               </button>
             </div>

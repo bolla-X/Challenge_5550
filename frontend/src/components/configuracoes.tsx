@@ -190,7 +190,7 @@ function SecaoConta() {
     setSalvando(true);
     changeOwnPassword(atual, nova)
       .then(() => setTrocou(true))
-      .catch((err) => setErro(mensagemDeErro(err, "Falha ao trocar a senha.")))
+      .catch((err) => setErro(mensagemDeErro(err, "Não foi possível trocar a senha.")))
       .finally(() => setSalvando(false));
   };
 
@@ -370,7 +370,7 @@ function SecaoPrivacidade() {
     setErro(null);
     getStatusDoSistema()
       .then((r) => setDados(r.politicas))
-      .catch((err) => setErro(mensagemDeErro(err, "Falha ao ler a política de privacidade.")));
+      .catch((err) => setErro(mensagemDeErro(err, "Não foi possível ler a política de privacidade.")));
   }, []);
   useEffect(carregar, [carregar]);
 

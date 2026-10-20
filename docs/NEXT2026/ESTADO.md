@@ -1,4 +1,4 @@
-# ESTADO — MISSÃO 4 (em andamento)
+# ESTADO — MISSÃO 4 (fechamento)
 
 Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGELOG.md`.
 
@@ -11,7 +11,7 @@ Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGEL
   - tag `pre-missao-4` = `75d0de6` (push feito);
   - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-## Pronto e verificado (branch `missao-4`; portão do PR9 rodando sobre `d250824`)
+## Pronto e verificado (PR8 e PR9 na `main`; PR10 abaixo)
 
 | Item | Evidência |
 |---|---|
@@ -38,32 +38,32 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
   da Fase 4 entrar (ressalva no PR).
 - `missao-4` = `main` + merge (sem force push; equivale a recriar a branch).
 
-## Próximo passo exato (PR9 → depois PR10)
+## PR9 mergeado
 
-Já na branch desde o PR8: E2E da Fase 4 (`e2e/test_fase4.py`), as 10 jornadas em arquivos próprios
-(`e2e/test_jornada_01…10_*.py`), injeção de falhas (`e2e/test_falhas.py`), auditoria de segurança (72 testes em
-`tests/test_seguranca_missao4.py`), identidade (`MARCA.md`).
+- PR9 https://github.com/bolla-X/Challenge_5550/pull/20 → squash `2ede29a` na `main` (o `gh pr merge` deu erro
+  transitório de GraphQL duas vezes; merge feito pelo endpoint REST oficial); tag `missao-4-pr9`.
+- Portão: E2E completo numa rodada única em `0257acd`: 71 passed, 0 falhas, 2 skips; crawler 78 rotas×papéis, 834
+  elementos, 0 problemas (`QA.md`). Commits seguintes só de `tests/` e `docs/`: pytest completo em `f443076`
+  **3205 passed**, ruff limpo. Classificação de cada falha no CHANGELOG ("Portão do PR9").
+- `missao-4` = `main` + merge (sem force push).
 
-1. **Portão do PR9.** A 1ª rodada (sobre `9aae8a1`) foi interrompida pelo fim da sessão: o log só tinha o
-   progresso (8 F), sem nome nem traceback, e não dá para classificar falha sem nome. Rodada nova sobre `d250824`
-   (dist gerado do HEAD, texto novo do erro de câmera), com `-rfEs`, junit em `bench/runtime/portao9b.xml` e
-   inferências/s por câmera (`bench/runtime/e2e-inferencia.jsonl`, lido por `scripts/e2e_carga.py`).
-   Cada falha recebe uma classe, registrada no CHANGELOG: (a) bug de produto → squad fix, reproduzir antes, com
-   teste de regressão; (b) premissa errada do teste → corrigir o teste sem afrouxar o que ele verifica;
-   (c) sensível à carga → só se passar isolado **e** a câmera tiver recebido < 1 inferência/s na espera.
-   Se houver mudança de código, roda-se o portão completo de novo, numa rodada única, com build novo do HEAD.
-2. Depois do portão: pytest completo, `QA.md` regenerado, PR9 aberto (com o commit que o portão completo testou
-   e a verificação dirigida dos commits seguintes), squash, tag `missao-4-pr9`, `missao-4` = `main` + merge.
-3. **PR10, item de copy (Fase 5):** unificar os 67 textos "Falha ao…" de `frontend/src` no formato
-   "Não foi possível <verbo> <objeto>." (`GLOSSARIO.md`/`MARCA.md`) e criar um teste de copy que falha se
-   "Falha ao" aparecer em `frontend/src`.
-   **PR10, pendência de produto:** apagar uma missão já cumprida a tira da contagem da retrospectiva (também de
-   turnos passados; `retrospectiva.py` conta só missões ativas). Avaliar guardar a missão cumprida por turno.
-4. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica + galeria.
-5. Fase 5 item 7: clone limpo seguindo o README até `e2e/fumaca_demo.py` passar. Fase 5 item 1: QA My App
-   (run-all), ou o motivo registrado de não ter sido possível.
-6. Fase 6: cenas novas do `/palco`, vídeo (uma vez) + asset da Release `next-2026-demo`, README/DEMO/BANCA,
-   portão final, PR10, tags `missao-4-pr10` e `final-next-2026`, fumaça a partir da `main`.
+## PR10 — pronto para merge (preenchido com o número ao abrir)
+
+Feito e verificado na `missao-4` (detalhe no CHANGELOG, seções "PR10", "Fase 5 item 7", "Fase 6" e "Portão final"):
+- copy "Não foi possível…" em 67 textos + `tests/test_copy_do_frontend.py`;
+- retrospectiva: missão apagada não reescreve o passado (`missoes.desativada_em`, migração `c7d8e9f0a1b2`) + regressão;
+- revisão visual: 300 capturas (50 telas × 2 temas × 3 tamanhos), rubrica ≥ 4, antes/depois (`galeria/index.md`);
+  bugs de celular (barra superior, `/produto`) e de desktop corrigidos com E2E;
+- clone limpo: `pip install` e `preparar.py` exit 0, `fumaca_demo.py` 6/6;
+- vídeo do palco regravado (18 cenas, 202 s) e asset da Release `next-2026-demo` atualizado;
+- portão final em `d14f5c8`: E2E 75 passed / 0 falhas / 2 skips em rodada única; crawler 78 rotas × papéis,
+  820 elementos, 0 problemas; pytest 3208 passed; ruff limpo.
+
+## Próximo passo exato
+
+1. Squash do PR10, tags `missao-4-pr10` e `final-next-2026`, `missao-4` = `main` + merge.
+2. Fumaça a partir da `main`: `e2e/fumaca_demo.py --raiz .` + jornada 10.
+3. Resumo final (≤ 35 linhas). Depois disso, a MISSÃO 4 está fechada, exceto o QA My App (abaixo).
 
 ## Rollback
 
@@ -74,6 +74,15 @@ Já na branch desde o PR8: E2E da Fase 4 (`e2e/test_fase4.py`), as 10 jornadas e
 - 17–19/10: duas rodadas completas do portão do PR9 invalidadas por suspensão da máquina (tampa fechada e espera
   moderna na bateria; Kernel-Power 506/507 no log do Windows). O portão precisa de ~2 h com a máquina **na tomada e
   com a tampa aberta**. Detalhe no CHANGELOG ("Portão do PR9").
+
+## Depende de você (não dá para rodar de forma autônoma)
+
+- **QA My App (Fase 1 item 1 e Fase 5 item 1): nunca rodou.** O `/qa-my-app:init` (e o `run-all`) só aceita
+  invocação explícita do usuário: o skill recusa a chamada do agente ("disable-model-invocation") e pede para não
+  reproduzir o fluxo por outro meio. Não foi contornado. Para fechar: rode `/qa-my-app:init` no Claude Code, depois
+  `/qa-my-app:run-all`. Cobertura que existe hoje na mesma área, sem substituir o catálogo: crawler botão a botão
+  (`e2e/test_todos_os_botoes.py`, 78 rotas × papéis, `QA.md`) e matriz de permissões
+  (`tests/test_matriz_de_permissoes.py`, 1633 casos).
 
 ## Ações negadas pela permissão (não contornadas)
 

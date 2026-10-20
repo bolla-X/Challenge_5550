@@ -137,7 +137,7 @@ export function GateConfigPanel({ camera }: { camera: CameraRecord }) {
         showMessage(required ? "Portaria ligada nesta câmera." : "Portaria desligada.", "ok");
         return loadCameras();
       })
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao salvar a portaria."), "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível salvar a portaria."), "error"))
       .finally(() => setSalvando(false));
   };
 

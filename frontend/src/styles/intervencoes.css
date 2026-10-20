@@ -1,6 +1,6 @@
 /* Antes e depois de intervenção, e retorno do investimento (M8). Só tokens de tokens.css.
    Barras: "antes" neutro (--text-3) e "depois" em --accent, nunca cor de estado (DESIGN.md, gráficos). */
-.iv-tela { display: grid; gap: var(--s5); padding: var(--s5); max-width: 1200px; margin-inline: auto; }
+.iv-tela { display: grid; gap: var(--s5); padding: var(--s5) 20px var(--s7); max-width: 1800px; margin-inline: auto; }
 .iv-cabeca { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); flex-wrap: wrap; }
 .iv-cabeca h1 { margin: 0 0 var(--s1); font-size: var(--t-title-1); line-height: var(--t-title-1-lh); letter-spacing: var(--t-title-1-tr); }
 .iv-ajuda { margin: 0; font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-2); }

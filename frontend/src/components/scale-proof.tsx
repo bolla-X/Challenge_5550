@@ -34,7 +34,7 @@ export function ScaleProof({ onClose }: { onClose: () => void }) {
     const atualizar = () =>
       chamar("GET")
         .then((e) => vivo && setEstado(e))
-        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
     atualizar();
     const id = window.setInterval(atualizar, 1500);
     return () => {

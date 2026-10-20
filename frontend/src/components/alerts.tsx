@@ -131,7 +131,7 @@ function IncidenteResumo({ inc, total, podeReconhecer }: { inc: Incidente | null
           "ok",
         ),
       )
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao reconhecer o incidente."), "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível reconhecer o incidente."), "error"))
       .finally(() => setOcupado(false));
   };
   const zona = zonaDoIncidente(inc);
@@ -184,7 +184,7 @@ export function AlertPanel() {
     setOcupado(true);
     acknowledgeAllAlerts(camId)
       .then((r) => showMessage(r.acknowledged ? `Colaborador avisado em ${pluralizar(r.acknowledged, "alerta")}.` : "Nenhum alerta pendente de aviso.", "ok"))
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao registrar o aviso dos alertas."), "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível registrar o aviso dos alertas."), "error"))
       .finally(() => setOcupado(false));
   };
 
@@ -205,7 +205,7 @@ export function AlertPanel() {
           "ok",
         ),
       )
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao resolver alertas."), "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível resolver os alertas."), "error"))
       .finally(() => setOcupado(false));
   };
 
@@ -427,7 +427,7 @@ export function AlertHistoryPanel() {
         showMessage(`${pluralizar(r.deleted, "alerta")} ${r.deleted === 1 ? "resolvido apagado" : "resolvidos apagados"}.`, "ok");
         return carregar();
       })
-      .catch((err) => showMessage(mensagemDeErro(err, "Falha ao apagar alertas."), "error"))
+      .catch((err) => showMessage(mensagemDeErro(err, "Não foi possível apagar os alertas."), "error"))
       .finally(() => setApagando(false));
   };
 

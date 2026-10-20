@@ -53,9 +53,9 @@ export function DesafioScreen() {
 
   useEffect(() => {
     fetch("/api/desafio/rodadas", { credentials: "same-origin" })
-      .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error((await r.json().catch(() => ({})))?.error ?? "Falha ao carregar o desafio."))))
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error((await r.json().catch(() => ({})))?.error ?? "Não foi possível carregar o desafio."))))
       .then((d: { rodadas: Rodada[] }) => setRodadas(d.rodadas))
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
   }, []);
 
   const rodada = rodadas[indice];
@@ -101,7 +101,7 @@ export function DesafioScreen() {
           /* janela privada: o placar fica só na memória */
         }
       })
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
   };
 
   // Relógio da fase de clique.

@@ -321,18 +321,22 @@ def construir_documento(app: Flask) -> dict[str, Any]:
 
 # ---------------------------------------------------------------------- HTML ---
 _CSS = """
+@font-face{font-family:"Geist";src:url("/static/dist/fonts/geist-latin-wght-normal.woff2") format("woff2");
+font-weight:100 900;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url("/static/dist/fonts/geist-mono-latin-wght-normal.woff2") format("woff2");
+font-weight:100 900;font-display:swap}
 :root{color-scheme:light dark;--fundo:#fafafa;--texto:#1c1c1e;--apoio:#555;--linha:#d8d8dc;--cartao:#fff;--codigo:#f0f0f2}
 @media (prefers-color-scheme:dark){:root{--fundo:#161618;--texto:#ececee;--apoio:#a0a0a6;--linha:#34343a;--cartao:#1e1e21;--codigo:#27272b}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 "Geist",system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:60rem;margin:0 auto;padding:1.5rem 1rem 3rem}h1{font-size:1.6rem;margin:0 0 .25rem}h2{font-size:1.2rem;margin:2rem 0 .5rem}
-p{margin:.25rem 0}.apoio{color:var(--apoio)}code,pre{font-family:ui-monospace,Consolas,monospace;font-size:.85rem}
+p{margin:.25rem 0}.apoio{color:var(--apoio)}code,pre{font-family:"Geist Mono",ui-monospace,Consolas,monospace;font-size:.85rem}
 pre{background:var(--codigo);padding:.75rem;border-radius:8px;overflow-x:auto;margin:.5rem 0 0}
 article{background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:.75rem 1rem;margin:.5rem 0}
 .rota{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap}.metodo{font-weight:700;min-width:3.6rem}.caminho{overflow-wrap:anywhere}
 .conta{font-size:.8rem;color:var(--apoio)}summary{cursor:pointer;color:var(--apoio);margin-top:.4rem}
 dl{margin:.4rem 0 0;font-size:.85rem}
-dt{font-family:ui-monospace,Consolas,monospace;float:left;clear:left;min-width:11rem}dd{margin:0 0 .15rem 11.5rem}
+dt{font-family:"Geist Mono",ui-monospace,Consolas,monospace;float:left;clear:left;min-width:11rem}dd{margin:0 0 .15rem 11.5rem}
 a{color:inherit}
 """
 

@@ -152,7 +152,7 @@ export function TvScreen({ embutido = false }: { embutido?: boolean }) {
           setEstado(e);
           setErro(null);
         })
-        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
     };
     tick();
     const id = window.setInterval(tick, 5000);

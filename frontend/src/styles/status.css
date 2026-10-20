@@ -31,6 +31,9 @@
 /* Valores longos (endereço, nome de arquivo) quebram em vez de empurrar o cartão. */
 .pagina-status .status-row { align-items: flex-start; }
 .pagina-status .status-row-value { overflow-wrap: anywhere; min-width: 0; }
+/* Frase ("reduzindo a carga…", motivo do erro) na fonte do texto; só o código fica monoespaçado. */
+.pagina-status .status-row-value.texto { font-family: inherit; }
+.pagina-status .status-row-value.texto code { font-family: var(--font-mono); }
 
 /* Tabela de modelos */
 .status-tabela th[scope="row"] { font-weight: 600; white-space: nowrap; }

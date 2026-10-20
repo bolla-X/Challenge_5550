@@ -28,8 +28,9 @@ from conftest import entrar  # noqa: E402
 DESTINO = RAIZ / "bench" / "runtime" / "video-palco"
 # Segundos em cada cena (chave do roteiro em app/services/palco.py). A queda
 # espera o alerta ao vivo (até 60 s) e mais um pouco para o replay entrar.
-TEMPO_DA_CENA = {"abertura": 7, "portal": 14, "enganar": 9, "raiox": 9, "gemeo": 12, "queda": 8, "incidente": 10,
-                 "custodia": 9, "simulador": 9, "liga": 8, "retrospectiva": 12, "encerramento": 6}
+TEMPO_DA_CENA = {"abertura": 7, "portal": 14, "enganar": 9, "raiox": 9, "tape_camera": 12, "gemeo": 12, "queda": 8,
+                 "evacuacao": 10, "incidente": 10, "custodia": 9, "simulador": 9, "regra": 9, "permissao": 10,
+                 "fabrica": 9, "primeiro_acesso": 9, "liga": 8, "retrospectiva": 12, "encerramento": 6}
 
 
 def gravar(servidor: ServidorDemo, pasta: Path) -> tuple[Path, float]:

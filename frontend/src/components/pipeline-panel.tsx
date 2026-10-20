@@ -79,9 +79,9 @@ export function PipelinePanel({ cameraId }: { cameraId: number }) {
     let vivo = true;
     const atualizar = () => {
       fetch("/api/diagnostics/pipeline?janela_s=10", { credentials: "same-origin" })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Falha ao carregar o diagnóstico."))))
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Não foi possível carregar o diagnóstico."))))
         .then((d: Diag) => vivo && (setDiag(d), setErro(null)))
-        .catch((e) => vivo && setErro(mensagemDeErro(e, "Falha ao carregar os dados.")));
+        .catch((e) => vivo && setErro(mensagemDeErro(e, "Não foi possível carregar os dados.")));
       setVideo(estatisticasDoVideo(cameraId));
     };
     atualizar();

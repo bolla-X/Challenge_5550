@@ -195,6 +195,8 @@ class Missao(db.Model):
     setor = db.Column(db.String(160), nullable=True)  # None = planta inteira
     ativa = db.Column(db.Boolean, nullable=False, default=True)
     criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    # Quando o supervisor apagou (exclusão lógica): a retrospectiva ainda conta os turnos em que ela valia.
+    desativada_em = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def to_dict(self) -> dict:
         return {"id": self.id, "titulo": self.titulo, "tipo": self.tipo, "alvo": self.alvo, "ate_hora": self.ate_hora,

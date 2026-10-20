@@ -179,7 +179,7 @@ export function SimuladorScreen() {
     setResultado(null);
     fetch(`/api/simulador/contexto?camera_id=${camId}`, { credentials: "same-origin" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 403 ? "Só técnico ou supervisor usa o simulador." : "Falha ao carregar o simulador.");
+        if (!r.ok) throw new Error(r.status === 403 ? "Só técnico ou supervisor usa o simulador." : "Não foi possível carregar o simulador.");
         return (await r.json()) as Contexto;
       })
       .then((c) => {
@@ -190,7 +190,7 @@ export function SimuladorScreen() {
         setHisterese(c.atual.criar_apos_s ?? 2);
         setErro(null);
       })
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao carregar o simulador.")));
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível carregar o simulador.")));
   }, [camId]);
 
   useEffect(carregarContexto, [carregarContexto]);
@@ -207,11 +207,11 @@ export function SimuladorScreen() {
     })
       .then(async (r) => {
         const corpo = await r.json();
-        if (!r.ok) throw new Error(corpo.error ?? "Falha ao reprocessar.");
+        if (!r.ok) throw new Error(corpo.error ?? "Não foi possível reprocessar.");
         return corpo as Resultado;
       })
       .then(setResultado)
-      .catch((e) => setErro(mensagemDeErro(e, "Falha ao reprocessar.")))
+      .catch((e) => setErro(mensagemDeErro(e, "Não foi possível reprocessar.")))
       .finally(() => setRodando(false));
   };
 

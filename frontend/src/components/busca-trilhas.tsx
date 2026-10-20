@@ -71,7 +71,7 @@ async function pedir<T>(url: string): Promise<T> {
   avisarSeSessaoExpirou(url, r.status);
   const corpo = await r.json().catch(() => null);
   if (!r.ok) {
-    const msg = corpo && typeof corpo === "object" && "error" in corpo ? String((corpo as { error: unknown }).error) : "Falha ao buscar nas trilhas.";
+    const msg = corpo && typeof corpo === "object" && "error" in corpo ? String((corpo as { error: unknown }).error) : "Não foi possível buscar nas trilhas.";
     throw Object.assign(new Error(msg), { status: r.status });
   }
   return corpo as T;
@@ -243,7 +243,7 @@ export default function BuscaTrilhasScreen() {
       if (meu === pedido.current) setEstado({ fase: "pronto", dados });
     } catch (e) {
       if (meu === pedido.current) {
-        setEstado({ fase: "erro", msg: mensagemDeErro(e, "Falha ao buscar nas trilhas."), status: (e as { status?: number }).status });
+        setEstado({ fase: "erro", msg: mensagemDeErro(e, "Não foi possível buscar nas trilhas."), status: (e as { status?: number }).status });
       }
     }
   }, []);

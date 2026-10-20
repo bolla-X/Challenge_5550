@@ -131,7 +131,7 @@ function FormularioDeContato() {
           setErros(apontado);
           focarNoPrimeiro(apontado);
         } else {
-          setFalha(mensagemDeErro(e, "Falha ao enviar a mensagem."));
+          setFalha(mensagemDeErro(e, "Não foi possível enviar a mensagem."));
         }
       })
       .finally(() => setEnviando(false));

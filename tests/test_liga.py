@@ -120,3 +120,32 @@ def test_api_liga_e_missoes(app, client):
     assert estado["missoes"][0]["titulo"] == "Revisar 20 rótulos"
     assert {s["setor"] for s in estado["setores"]} == {"Expedição", "Obra"}
     assert client.get("/api/retrospectiva?periodo=semana").status_code == 200
+
+
+def test_retrospectiva_conta_a_missao_cumprida_mesmo_depois_de_apagada(app):
+    """Apagar uma missão hoje não reescreve o passado: o turno em que ela foi cumprida continua contando."""
+    with app.app_context():
+        _cameras()
+        t = liga.turno(AGORA, "06:00-14:00,14:00-22:00,22:00-06:00")
+        m = Missao(titulo="1 check-in", tipo="checkin_portal", alvo=1, criado_em=t["inicio"] - timedelta(hours=1))
+        db.session.add(m)
+        db.session.commit()
+        liga.registrar("checkin_portal", ref="a", camera_id=1, quando=t["inicio"] + timedelta(minutes=10))
+        antes = {c["chave"]: c for c in retrospectiva.montar("turno", AGORA)["cards"]}["missoes"]
+        assert antes["valor"] == 1, antes
+        liga.desativar_missao(m)
+        depois = {c["chave"]: c for c in retrospectiva.montar("turno", AGORA)["cards"]}["missoes"]
+        assert depois["valor"] == 1, depois
+        assert depois["detalhe"] != "Nenhuma missão configurada pelo supervisor", depois
+
+
+def test_retrospectiva_nao_conta_missao_em_turno_anterior_a_criacao(app):
+    """Missão criada hoje não vale para os turnos de dias atrás, mesmo que os pontos daquele turno a cumprissem."""
+    with app.app_context():
+        _cameras()
+        dois_dias = AGORA - timedelta(days=2)
+        liga.registrar("checkin_portal", ref="velho", camera_id=1, quando=dois_dias)
+        db.session.add(Missao(titulo="1 check-in", tipo="checkin_portal", alvo=1, criado_em=AGORA - timedelta(minutes=1)))
+        db.session.commit()
+        cartao = {c["chave"]: c for c in retrospectiva.montar("semana", AGORA)["cards"]}["missoes"]
+        assert cartao["valor"] == 0, cartao

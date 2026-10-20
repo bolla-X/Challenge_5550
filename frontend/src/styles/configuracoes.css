@@ -37,7 +37,8 @@ button.config-nav-item[aria-disabled="true"] > span { color: var(--text-3); }
 .config-bloco > * { max-width: 100%; }
 .config-bloco h3 { margin: 0; font-size: var(--t-title-3); line-height: var(--t-title-3-lh); letter-spacing: var(--t-title-3-tr); font-weight: 600; }
 .config-bloco .status-list { width: 100%; }
-.config-bloco .status-row-value { overflow-wrap: anywhere; min-width: 0; }
+/* Aqui os valores são frase ("gravada quando o alerta nasce"), não código: fonte do texto, números tabulares. */
+.config-bloco .status-row-value { overflow-wrap: anywhere; min-width: 0; font-family: inherit; }
 .config-texto { margin: 0; max-width: 62ch; font-size: var(--t-body); line-height: var(--t-body-lh); color: var(--text); }
 .config-dica { margin: 0; max-width: 62ch; font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-3); letter-spacing: 0; }
 .config-dica:empty { display: none; }

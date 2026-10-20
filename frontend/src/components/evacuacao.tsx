@@ -85,7 +85,7 @@ export function useEvacuacao() {
           setEstado(d);
           setErro(null);
         })
-        .catch((e: Error & { status?: number }) => vivo && setErro({ msg: mensagemDeErro(e, "Falha ao ler a evacuação."), status: e.status }));
+        .catch((e: Error & { status?: number }) => vivo && setErro({ msg: mensagemDeErro(e, "Não foi possível ler a evacuação."), status: e.status }));
     tick();
     const id = window.setInterval(tick, ativa ? 1000 : 5000);
     return () => {

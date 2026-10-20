@@ -1651,3 +1651,50 @@ os testes de Socket.IO de `test_seguranca_missao4.py` deixam threads de ping do 
 
 **Suíte unitária completa em `f443076`: 3205 passaram, 0 falhas, 15 min 39 s** (antes 27–30 min). CPU da suíte
 733 s em 944 s de relógio (antes 8327 s em 1788 s); nenhum loop de captura vivo no fim.
+
+## PR10 — copy unificada e retrospectiva que não reescreve o passado (MISSÃO 4)
+
+- **Copy:** os 67 textos "Falha ao…" de `frontend/src` viraram "Não foi possível <verbo> <objeto>." (com artigo e
+  ponto final, regra do `GLOSSARIO.md`/`MARCA.md`). `tests/test_copy_do_frontend.py` falha se "Falha ao" voltar a
+  `frontend/src`; verificado vermelho sem a troca e verde com ela. Fora do escopo: mensagens do backend
+  (`status_do_sistema`: "Falha ao consultar este componente.").
+- **Bug de produto (a), retrospectiva:** a contagem de "Missões cumpridas" usava só as missões ativas **agora**.
+  Dois efeitos: (1) apagar uma missão já cumprida a tirava também dos turnos passados (achado no portão do PR9,
+  jornada 9); (2) uma missão criada hoje contava para turnos de dias atrás. Reproduzido antes da correção por
+  `test_retrospectiva_conta_a_missao_cumprida_mesmo_depois_de_apagada` e
+  `test_retrospectiva_nao_conta_missao_em_turno_anterior_a_criacao` (o 2º deu 1 em vez de 0). Correção: coluna
+  `missoes.desativada_em` (migração `c7d8e9f0a1b2`, anulável, sem backfill), `liga.desativar_missao` (a rota usa) e
+  `liga.missao_valia_no_turno` (criada antes do fim do turno e não apagada antes do início). Missão apagada antes da
+  migração não tem data e continua fora, como antes. `tests/test_liga.py` + cadeia de migrações: 151 passaram.
+
+## Fase 5 item 7 — clone limpo (MISSÃO 4)
+
+Clone novo de `missao-4` @ `53c82a7` do GitHub em `../ch5550-clone-m4`, README à risca:
+1. `py -3.11 -m venv .venv` + `pip install -r requirements.txt`: exit 0.
+2. `scripts\preparar.py`: exit 0. A 1ª execução foi interrompida no meio da aprovação de runtimes (pausa para a
+   apresentação); a 2ª já encontrou os pesos baixados e conferidos pela 1ª ("já está aqui"). Aprovou OpenVINO
+   dinâmico na iGPU para EPI, pessoa e esqueleto (esqueleto: concordância 1,0, p50 53,5 ms em fp32), e aqueceu o
+   cache do OpenVINO em 29 s. O `torch.onnx` imprime um `RuntimeError` de conversão de opset (`No Adapter To
+   Version $17 for Resize`) e segue com o opset 18: o ONNX é gerado e aprovado (`onnx-dyn`, concordância 1,0). Não
+   é falha; fica registrado porque assusta no terminal.
+3. `e2e\fumaca_demo.py --raiz .` (sobe `run.py --demo` e confere no Playwright): **6/6**. Demo no ar em 19 s, 4
+   câmeras publicando análise, vídeo no canvas, cena do Portal pausando as outras e chegando a "Liberado".
+
+## Fase 6 — vídeo do palco regravado (MISSÃO 4)
+
+`python e2e/video_do_palco.py` (uma vez, contra `run.py --demo`): 18 cenas, 202 s, 1920×1080 H.264, a queda ao vivo
+em 12,1 s. O script ganhou o tempo de cada cena nova (`tape_camera` 12 s, `evacuacao` 10 s, `regra` 9 s,
+`permissao` 10 s, `fabrica` 9 s, `primeiro_acesso` 9 s). Asset `visionepi-palco-demo.mp4` da Release
+`next-2026-demo` substituído (`gh release upload --clobber`, 24 MB). GIF do README e da `/produto` regravado
+(contador 1/18 no lugar de 1/12).
+
+## Portão final (PR10, MISSÃO 4)
+
+- 1ª rodada em `29dc649`: E2E 75 passed, 0 falhas, 2 skips; pytest 3208 passed (7 min 04 s); ruff limpo. Mas o
+  crawler cobriu 563 elementos contra 834 do portão do PR9. Evidência: `/regras` do técnico com 1 elemento — o log
+  mostra `GET /api/regras` respondendo 5 s depois da navegação, e o crawler listava 2,5 s depois (tela no esqueleto).
+  Reproduzido isolado com a tela salva: 38 elementos. Classe (b), premissa do teste: espera fixa. Correção em
+  `d14f5c8`: o crawler lista só com a API quieta (1 s sem requisição em voo, teto de 20 s) e salva a tela inicial de
+  cada rota. Não afrouxa: cobre mais.
+- **2ª rodada, válida, em `d14f5c8`** (só o crawler mudou desde `29dc649`): E2E **75 passed, 0 falhas, 2 skips**
+  (2 h 14 min, máquina na tomada); crawler **78 rotas × papéis, 820 elementos, 0 sem efeito, 0 problemas**.

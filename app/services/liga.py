@@ -151,6 +151,27 @@ def placar(inicio: datetime, fim: datetime) -> list[dict[str, Any]]:
     return sorted(linhas, key=lambda x: (-x["pontos"], x["setor"]))
 
 
+def desativar_missao(missao: Missao, agora: datetime | None = None) -> None:
+    """Exclusão lógica: some da Liga e do turno atual, mas guarda QUANDO, para a retrospectiva
+    continuar contando os turnos em que a missão valia (apagar hoje não reescreve o passado)."""
+    missao.ativa = False
+    missao.desativada_em = missao.desativada_em or agora or datetime.now(timezone.utc)
+    db.session.commit()
+
+
+def missao_valia_no_turno(missao: Missao, inicio: datetime, fim: datetime) -> bool:
+    """A missão existia em algum momento do turno [inicio, fim).
+
+    Criada depois do fim do turno: não vale (missão nova não cumpre turno antigo).
+    Apagada antes do início: não vale. Apagada sem data (antes da coluna existir): fica de fora, como antes.
+    """
+    if _utc(missao.criado_em) >= fim:
+        return False
+    if missao.ativa:
+        return True
+    return missao.desativada_em is not None and _utc(missao.desativada_em) > inicio
+
+
 def progresso_da_missao(missao: Missao, inicio: datetime, fim: datetime, pontos: list[PontoDaLiga]) -> dict[str, Any]:
     limite = fim
     if missao.ate_hora:

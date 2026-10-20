@@ -241,7 +241,7 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setDiscoverError(null);
     discoverCameras(5)
       .then((res) => setDiscovered(res.items))
-      .catch((err) => setDiscoverError(mensagemDeErro(err, "Falha ao detectar câmeras")))
+      .catch((err) => setDiscoverError(mensagemDeErro(err, "Não foi possível detectar as câmeras.")))
       .finally(() => setDiscovering(false));
   };
 
@@ -263,7 +263,7 @@ function AddCameraModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setSubmitError(null);
     createCamera({ name: name.trim(), location: location.trim() || null, source_type: sourceType, source: sourceType === "Celular" ? "celular" : source.trim(), fps, width, height })
       .then(() => onCreated())
-      .catch((err) => setSubmitError(mensagemDeErro(err, "Falha ao cadastrar câmera")))
+      .catch((err) => setSubmitError(mensagemDeErro(err, "Não foi possível cadastrar a câmera.")))
       .finally(() => setSubmitting(false));
   };
 
