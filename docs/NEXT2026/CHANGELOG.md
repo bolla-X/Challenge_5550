@@ -1687,3 +1687,14 @@ em 12,1 s. O script ganhou o tempo de cada cena nova (`tape_camera` 12 s, `evacu
 `permissao` 10 s, `fabrica` 9 s, `primeiro_acesso` 9 s). Asset `visionepi-palco-demo.mp4` da Release
 `next-2026-demo` substituído (`gh release upload --clobber`, 24 MB). GIF do README e da `/produto` regravado
 (contador 1/18 no lugar de 1/12).
+
+## Portão final (PR10, MISSÃO 4)
+
+- 1ª rodada em `29dc649`: E2E 75 passed, 0 falhas, 2 skips; pytest 3208 passed (7 min 04 s); ruff limpo. Mas o
+  crawler cobriu 563 elementos contra 834 do portão do PR9. Evidência: `/regras` do técnico com 1 elemento — o log
+  mostra `GET /api/regras` respondendo 5 s depois da navegação, e o crawler listava 2,5 s depois (tela no esqueleto).
+  Reproduzido isolado com a tela salva: 38 elementos. Classe (b), premissa do teste: espera fixa. Correção em
+  `d14f5c8`: o crawler lista só com a API quieta (1 s sem requisição em voo, teto de 20 s) e salva a tela inicial de
+  cada rota. Não afrouxa: cobre mais.
+- **2ª rodada, válida, em `d14f5c8`** (só o crawler mudou desde `29dc649`): E2E **75 passed, 0 falhas, 2 skips**
+  (2 h 14 min, máquina na tomada); crawler **78 rotas × papéis, 820 elementos, 0 sem efeito, 0 problemas**.

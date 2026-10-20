@@ -1,4 +1,4 @@
-# ESTADO — MISSÃO 4 (em andamento)
+# ESTADO — MISSÃO 4 (fechamento)
 
 Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGELOG.md`.
 
@@ -11,7 +11,7 @@ Retomar lendo **só** `MISSAO-4.md` + este arquivo. Detalhe técnico em `CHANGEL
   - tag `pre-missao-4` = `75d0de6` (push feito);
   - `docs/NEXT2026/MISSAO-4.md` salvo sem alterações.
 
-## Pronto e verificado (PR8 e PR9 na `main`)
+## Pronto e verificado (PR8 e PR9 na `main`; PR10 abaixo)
 
 | Item | Evidência |
 |---|---|
@@ -47,19 +47,23 @@ Também prontos (sem E2E próprio ainda, salvo onde indicado): Fase 3 itens 2 (p
   **3205 passed**, ruff limpo. Classificação de cada falha no CHANGELOG ("Portão do PR9").
 - `missao-4` = `main` + merge (sem force push).
 
-## Próximo passo exato (PR10)
+## PR10 — pronto para merge (preenchido com o número ao abrir)
 
-1. **Copy (Fase 5):** unificar os 67 textos "Falha ao…" de `frontend/src` no formato
-   "Não foi possível <verbo> <objeto>." (`GLOSSARIO.md`/`MARCA.md`) e criar um teste de copy que falha se
-   "Falha ao" aparecer em `frontend/src`. Depois, build.
-2. **Pendência de produto:** apagar uma missão já cumprida a tira da contagem da retrospectiva (também de turnos
-   passados; `retrospectiva.py` conta só missões ativas). Avaliar guardar a missão cumprida por turno.
-3. Fase 3 item 12 / Fase 5 item 6: capturas nos dois temas e 3 resoluções + rubrica ≥ 4 + galeria.
-4. Fase 5 item 7: clone limpo seguindo o README até `e2e/fumaca_demo.py` passar. Fase 5 item 1: QA My App
-   (run-all), ou o motivo registrado de não ter sido possível.
-5. Fase 6: vídeo do palco (uma vez) + asset da Release `next-2026-demo`, README/DEMO/BANCA/QA/CHANGELOG,
-   portão final (rodada única, **máquina na tomada e tampa aberta**), PR10, tags `missao-4-pr10` e
-   `final-next-2026`, fumaça a partir da `main`, resumo final.
+Feito e verificado na `missao-4` (detalhe no CHANGELOG, seções "PR10", "Fase 5 item 7", "Fase 6" e "Portão final"):
+- copy "Não foi possível…" em 67 textos + `tests/test_copy_do_frontend.py`;
+- retrospectiva: missão apagada não reescreve o passado (`missoes.desativada_em`, migração `c7d8e9f0a1b2`) + regressão;
+- revisão visual: 300 capturas (50 telas × 2 temas × 3 tamanhos), rubrica ≥ 4, antes/depois (`galeria/index.md`);
+  bugs de celular (barra superior, `/produto`) e de desktop corrigidos com E2E;
+- clone limpo: `pip install` e `preparar.py` exit 0, `fumaca_demo.py` 6/6;
+- vídeo do palco regravado (18 cenas, 202 s) e asset da Release `next-2026-demo` atualizado;
+- portão final em `d14f5c8`: E2E 75 passed / 0 falhas / 2 skips em rodada única; crawler 78 rotas × papéis,
+  820 elementos, 0 problemas; pytest 3208 passed; ruff limpo.
+
+## Próximo passo exato
+
+1. Squash do PR10, tags `missao-4-pr10` e `final-next-2026`, `missao-4` = `main` + merge.
+2. Fumaça a partir da `main`: `e2e/fumaca_demo.py --raiz .` + jornada 10.
+3. Resumo final (≤ 35 linhas). Depois disso, a MISSÃO 4 está fechada, exceto o QA My App (abaixo).
 
 ## Rollback
 
