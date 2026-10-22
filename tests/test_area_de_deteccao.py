@@ -296,6 +296,35 @@ def test_trocar_a_area_vale_na_proxima_inferencia_e_remover_volta_ao_quadro_inte
     assert worker.detector.recebidos[-1] is QUADRO
 
 
+def test_analise_que_comecou_com_outra_area_e_refiltrada(app_teste):
+    """Troca de área no meio da inferência: a análise que chega (ou a já publicada) vale pela área NOVA.
+
+    Visto nas capturas: logo depois de salvar, a tela ainda mostrava pessoas fora da área nova (B7 da auditoria).
+    """
+    from app.vision.schemas import FrameAnalysis
+
+    worker = _worker(app_teste)
+    worker._detectar(QUADRO, lambda _etapa: None)  # registra a forma do quadro inferido (540×960)
+    dentro = caixa(150, 200, 250, 400, track_id=1)       # pés (200, 400) = (0,21; 0,74)
+    fora = caixa(600, 200, 700, 400, track_id=2)         # pés (650, 400) = (0,68; 0,74)
+    capacete_fora = capacete(620, 200, 680, 240)
+    pose_fora = PoseResult(landmarks=[PoseLandmark("nose", 0.68, 0.4, 0, 1)], person_id="person_2", track_id=2)
+    pose_dentro = PoseResult(landmarks=[PoseLandmark("nose", 0.2, 0.4, 0, 1)], person_id="person_1", track_id=1)
+    antiga = FrameAnalysis(detections=[dentro, fora, capacete_fora], pose=pose_dentro, risk_events=[],
+                           poses=[pose_dentro, pose_fora])
+    worker._analise_recente = antiga
+    worker._cached_analysis = antiga
+    worker.definir_area_deteccao(AreaDeDeteccao(RETANGULO))
+    assert worker._analise_recente.detections == [dentro] and worker._analise_recente.poses == [pose_dentro]
+    assert worker._cached_analysis.detections == [dentro]
+    worker._receber_analise(antiga, 0.0)  # a inferência em voo chega depois da troca
+    assert worker._analise_recente.detections == [dentro]
+    # Sem área, nada muda: o mesmo objeto.
+    worker.definir_area_deteccao(SEM_AREA)
+    worker._receber_analise(antiga, 0.0)
+    assert worker._analise_recente is antiga
+
+
 def test_lote_recorta_e_devolve_por_camera():
     """No lote, as câmeras SEM área vão juntas, como antes; cada recorte vai na sua chamada e volta ao seu quadro.
 

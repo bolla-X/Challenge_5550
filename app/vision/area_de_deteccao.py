@@ -274,6 +274,20 @@ class AreaDeDeteccao:
         esqueletos = None if esqueletos is None else [deslocar(e, dx, dy) for e in esqueletos]
         return self.filtrar(deteccoes, pessoas, esqueletos, largura, altura, sobreposicao_min)
 
+    def refiltrar(self, analise, largura: int, altura: int, sobreposicao_min: float):
+        """Uma análise pronta → só o que esta área mantém (pessoas pelos pés, EPI de pessoa mantida, pose de
+        pessoa mantida). É a defesa para a análise que começou com OUTRA área (troca no meio da inferência):
+        sem área, ou já filtrada por esta mesma área, sai igual."""
+        if not self.poligono or analise is None:
+            return analise
+        deteccoes, _, _ = self.filtrar(list(analise.detections), [], None, largura, altura, sobreposicao_min)
+        if len(deteccoes) == len(analise.detections):
+            return analise
+        ids = {d.track_id for d in deteccoes if _e_pessoa(d) and d.track_id is not None}
+        poses = [p for p in analise.poses or []
+                 if (p.track_id in ids if p.track_id is not None else self.mantem_pose(p))]
+        return replace(analise, detections=deteccoes, poses=poses, pose=poses[0] if poses else None)
+
     def para_lote(self, frame: np.ndarray, sobreposicao_min: float) -> tuple[np.ndarray, Callable[[tuple], tuple] | None]:
         """Para o agendador em lote: (entrada do modelo, função que devolve o bruto ao quadro inteiro).
 

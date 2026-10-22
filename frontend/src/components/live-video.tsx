@@ -177,13 +177,18 @@ function desenharAreaDeDeteccao(
   ctx.stroke();
   ctx.setLineDash([]);
   if (rotulos) {
-    const [tx, ty] = pontos.reduce((a, b) => (b[1] < a[1] || (b[1] === a[1] && b[0] < a[0]) ? b : a));
+    // No meio da borda esquerda, por dentro: o topo do vídeo é das pílulas de estado e alerta, e a base, do
+    // aviso de degradado — ali o rótulo ficaria escondido.
+    const xs = pontos.map(([x]) => x);
+    const ys = pontos.map(([, y]) => y);
+    const tx = Math.min(...xs) + 6;
+    const ty = (Math.min(...ys) + Math.max(...ys)) / 2;
     const texto = "Área de detecção";
     ctx.textBaseline = "middle";
     const largura = ctx.measureText(texto).width + 12;
     const altura = 22;
     const lx = Math.max(dx, Math.min(tx, dx + ov.w * escala - largura));
-    const ly = ty - altura >= dy ? ty - altura : ty;
+    const ly = ty - altura / 2;
     ctx.fillStyle = FUNDO_ROTULO;
     retangulo(ctx, lx, ly, largura, altura, 9);
     ctx.fill();

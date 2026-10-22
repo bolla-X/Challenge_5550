@@ -1491,7 +1491,8 @@ class CameraWorker:
             self._emitir("clip_pronto", {"camera_id": self.camera_id, "alert_id": alert_id, "total": clipe["total"]})
 
     def _receber_analise(self, analise: FrameAnalysis, ts_ms: float) -> None:
-        """Callback do agendador (thread dele): guarda a análise pronta."""
+        """Callback do agendador (thread dele): guarda a análise pronta (já na área de detecção vigente)."""
+        analise = self._na_area_vigente(analise)
         # Sinal de emergência: a próxima análise desta câmera vem logo, para a
         # regra de 2 análises seguidas caber na janela curta do evento.
         if self.agendador is not None and self.camera_id is not None and any(
@@ -2145,7 +2146,7 @@ class CameraWorker:
         self._perf_marca("espera_do_lock_pre")
         with self.inference_lock:
             self._perf_marca("espera_do_lock")
-            analise = self._inferir(frame, self._perf_marca)
+            analise = self._na_area_vigente(self._inferir(frame, self._perf_marca))
         self._cached_analysis = analise
         return analise
 
@@ -2177,7 +2178,15 @@ class CameraWorker:
             esqueletos = self.pose_detector.detect(entrada)
             marcar("inferencia_pose")
         altura, largura = frame.shape[:2]
+        self._forma_inferida = (altura, largura)
         return area.devolver((ppe_detections, pessoas, esqueletos), deslocamento, largura, altura, self._sobreposicao_min)
+
+    def _na_area_vigente(self, analise):
+        """A análise filtrada pela área de AGORA (a inferência pode ter começado com a anterior)."""
+        forma = getattr(self, "_forma_inferida", None)
+        if forma is None or analise is None:
+            return analise
+        return self.area_deteccao.refiltrar(analise, forma[1], forma[0], self._sobreposicao_min)
 
     def _recortar_para_lote(self, frame):
         """Agendador em lote: (entrada do modelo, devolve o bruto ao quadro inteiro) com a área DESTE worker."""
@@ -2506,6 +2515,11 @@ class CameraWorker:
         # levaria para a custódia um pré-replay com a plateia nítida (ou o palco borrado).
         if self.replay is not None:
             self.replay.limpar()
+        # A análise já publicada (e a reaproveitada entre inferências) passa a valer pela área nova AGORA, e não
+        # só na próxima inferência: sem isto a tela mostrava, por alguns segundos, gente fora da área nova.
+        with self._thread_lock:
+            self._analise_recente = self._na_area_vigente(self._analise_recente)
+        self._cached_analysis = self._na_area_vigente(self._cached_analysis)
         estado = self.area_deteccao_estado()
         self._emitir("area_deteccao_atualizada", estado)
         return estado
