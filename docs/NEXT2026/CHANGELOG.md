@@ -1733,8 +1733,23 @@ inteiros e trocavam o letterbox de quem não tem área (M3: agora os quadros int
 recorte vai na sua chamada); troca sem usuário e fora da custódia (M4); buffer do replay com quadros da máscara
 anterior (M5); LLM recebia a plateia só escurecida (M6); inteiro gigante dava 500 e texto numérico era aceito (B9);
 PUT/DELETE sem `camera_permitida` (B10); aviso "risco fora" sumia com a câmera parada (B11); área inválida no banco
-sem log (B12). Ficaram registrados, sem correção: análise em voo publicada depois da troca usa a máscara nova (B7,
-baixo) e, no lote, as flags de pose/pessoa são as do primeiro slot (defeito anterior à MISSÃO 7).
+sem log (B12); análise que começou com a área anterior era publicada com gente fora da área nova (B7: visto nas
+capturas no celular; agora toda análise é refiltrada pela área vigente ao chegar, e a troca refiltra na hora a já
+publicada). Ficou registrado, sem correção: no lote (`INFERENCIA_LOTE`, desligado por padrão), as flags de
+pose/pessoa são as do primeiro slot (defeito anterior à MISSÃO 7).
+
+**Revisões de UX e CX aplicadas.** Carga e falha de carga não afirmam mais "quadro inteiro" nem deixam salvar por
+cima do que não se leu ("Tentar de novo"); rascunho não salvo marcado e descartado ao encerrar; clique solto no modo
+retângulo não apaga a forma; polígono aproveita o retângulo salvo; confirmação ao remover; "Removendo…"/"Salvando…"
+separados; sucesso anunciado (`role=status`); halo escuro sob o contorno tracejado; o overlay salvo some enquanto se
+desenha; o seletor abre em "Área de detecção". CX: com o desfoque de rosto ligado, a plateia (que não é detectada,
+então o desfoque de rosto não a alcança) sai desfocada no vídeo ao vivo; textos dizem "nenhuma pessoa é detectada"
+(a saúde da câmera continua no quadro inteiro); mensagens de validação dizem o que fazer. Não aplicado: unificar os
+rótulos do editor de risco ("Salvar zona", "Limpar pontos") — fora do escopo; teclado no canvas — padrão anterior.
+
+**Capturas.** `python e2e/capturas_de_tela.py --rodada m7b --telas 60-,61- --so 1366x768-claro,1366x768-escuro,390x844-claro,390x844-escuro`
+(demo, câmera Pátio): rubrica 4 nos dois temas. Ressalva: no celular, o aviso "DEGRADADO" (CPU carregada) cobre o
+rótulo "Área de detecção".
 
 **Fontes.** `Boxes.xyxy` no tamanho da imagem de entrada: a doc (https://docs.ultralytics.com/modes/predict/#boxes)
 não diz o tamanho por escrito; a fonte é o código da 8.3.40, `ultralytics/models/yolo/detect/predict.py:39`

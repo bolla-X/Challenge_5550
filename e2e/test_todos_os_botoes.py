@@ -157,6 +157,8 @@ def _rotas_por_papel(servidor) -> dict[str, list[tuple[str, str, str | None]]]:
         ("grade", "/", None),
         ("foco-canteiro", "/", "Configurar Canteiro"),
         ("foco-multidao", "/", "Configurar Multidão"),
+        # MISSÃO 7: o editor de áreas só aparece com a aba aberta ("botão|aba").
+        ("foco-multidao-areas", "/", "Configurar Multidão|Áreas"),
     ]
     return {
         "sem_sessao": [("login", "/", None), ("palco-controle-sem-token", "/palco/controle", None), ("produto", "/produto", None)],
@@ -262,6 +264,7 @@ def _abrir(pagina, servidor, url: str, preparo: str | None) -> None:
             botao.first.click()
             pagina.wait_for_timeout(1500)
     elif preparo:
+        preparo, _, aba = preparo.partition("|")
         alvo = pagina.get_by_role("button", name=preparo)
         try:
             alvo.wait_for(timeout=20_000)
@@ -273,6 +276,15 @@ def _abrir(pagina, servidor, url: str, preparo: str | None) -> None:
             pagina.wait_for_timeout(1500)
         alvo.click(timeout=30_000)
         pagina.wait_for_timeout(2500)
+        if aba:
+            pagina.locator("[role=tablist]").first.wait_for(timeout=30_000)
+            na_faixa = pagina.get_by_role("tab", name=aba)
+            if na_faixa.count():
+                na_faixa.click()
+            else:
+                pagina.locator(".tabs-more > button").click()
+                pagina.get_by_role("menuitem", name=aba).click()
+            pagina.wait_for_timeout(1500)
 
 
 def _localizar(pagina, chave: str):

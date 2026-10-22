@@ -75,6 +75,15 @@ def test_axe_sem_violacao_seria_ou_critica(navegador, servidor, tema):
         pagina.get_by_role("button", name="Configurar Canteiro").click(timeout=30_000)
         pagina.wait_for_timeout(3500)
         relatorio["foco"] = _axe(pagina)
+        # MISSÃO 7: editor de áreas (seletor detecção/risco, forma, botões e avisos).
+        if pagina.get_by_role("tab", name="Áreas").count():
+            pagina.get_by_role("tab", name="Áreas").click(timeout=30_000)
+        else:
+            pagina.locator(".tabs-more > button").click(timeout=30_000)
+            pagina.get_by_role("menuitem", name="Áreas").click(timeout=30_000)
+        pagina.get_by_test_id("areas-tipo-deteccao").wait_for(timeout=30_000)
+        pagina.wait_for_timeout(1500)
+        relatorio["foco-areas"] = _axe(pagina)
         # Controle do palco no celular (sem login, token do QR).
         pagina.goto(servidor.base + "/palco")
         url = pagina.locator("[data-testid=palco-qr]").get_attribute("data-url", timeout=30_000)

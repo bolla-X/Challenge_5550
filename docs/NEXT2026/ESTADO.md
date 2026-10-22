@@ -9,10 +9,23 @@ em `CHANGELOG.md`. A MISSÃO 4 está fechada (PR10 #21, tags `missao-4-pr10` e `
 - Branch `missao-7` criada da `main`; um único PR no fim.
 - Prompt salvo em `MISSAO-7.md`; spec estruturada em `MISSAO-7-SPEC.md`.
 
+## Pronto e verificado (branch `missao-7`, último commit em `origin/missao-7`)
+
+| Critério | Evidência |
+|---|---|
+| M7.1 dados e API | `tests/test_area_de_deteccao.py` (API, validação, migração, reinício); matriz de permissões com as 3 rotas |
+| M7.2 pipeline | mesmo arquivo: recorte, letterbox, pés convexo/côncavo, borda, identidade sem área, lote, análise em voo |
+| M7.3 interface | `e2e/test_missao7.py` 2 passed; capturas `bench/runtime/capturas/m7b/` nota 4 nos dois temas |
+| M7.4 medição | `bench/results/20261022-124821-area-de-deteccao.json`; tabela no CHANGELOG |
+| M7.5 docs | DEMO.md item 6 (ordem da arena), GLOSSARIO, artigo de ajuda; COLA-TIME.md não existe |
+| Revisões | auditor (S1, A2, M3–M6, B7, B9–B12 corrigidos), fontes, UX, CX — ver CHANGELOG "MISSÃO 7" |
+
+Desvio registrado da spec: margem de cima do recorte 30 % (5 % nos lados e embaixo). Motivo no CHANGELOG.
+
 ## Próximo passo exato
 
-M7.1 (coluna `area_deteccao` + migração + API) → M7.2 (recorte e filtro no worker) → M7.3 (editor e escurecimento)
-→ M7.4 (medição) → M7.5 (E2E, crawler, capturas, DEMO.md) → M7.6 (portão, PR, merge, tag `final-next-2026-r3`).
+Portão completo (pytest, ruff, build/typecheck, E2E completo + crawler + axe) → PR único → `gh pr merge --squash
+--delete-branch` → tag `final-next-2026-r3` → fumaça a partir da `main`.
 
 ## Rollback
 
