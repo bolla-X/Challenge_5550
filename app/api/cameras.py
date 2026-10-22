@@ -667,3 +667,46 @@ def put_camera_risk_area(camera_id: int):
         return _validation_error(str(exc))
     except LookupError:
         return jsonify({"error": "câmera sem worker ativo: verifique se está habilitada"}), 409
+
+
+@cameras_bp.get("/api/cameras/<int:camera_id>/area-deteccao")
+@login_required
+def get_camera_area_deteccao(camera_id: int):
+    """Área de detecção (MISSÃO 7): `ativa` false e `polygon` vazio = quadro inteiro."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
+    try:
+        return jsonify({"area_deteccao": current_app.extensions["monitor_service"].area_deteccao_estado(camera_id)})
+    except LookupError:
+        return jsonify({"error": "câmera não encontrada"}), 404
+
+
+@cameras_bp.put("/api/cameras/<int:camera_id>/area-deteccao")
+@require_role(ROLE_TECHNICAL)
+def put_camera_area_deteccao(camera_id: int):
+    """Body: {"polygon": [{x, y}, ...]} (0–1, ≥ 3 pontos, sem cruzar, ≥ 1 % do quadro). Vale também com a câmera parada."""
+    from app.vision.area_de_deteccao import validar_poligono
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or "polygon" not in payload:
+        return _validation_error('Envie {"polygon": [...]}. Para voltar ao quadro inteiro, remova a área.')
+    try:
+        poligono = validar_poligono(payload["polygon"])
+    except ValueError as exc:
+        return _validation_error(str(exc))
+    try:
+        estado = current_app.extensions["monitor_service"].definir_area_deteccao(camera_id, poligono)
+    except LookupError:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    return jsonify({"area_deteccao": estado})
+
+
+@cameras_bp.delete("/api/cameras/<int:camera_id>/area-deteccao")
+@require_role(ROLE_TECHNICAL)
+def delete_camera_area_deteccao(camera_id: int):
+    """Remove a área: a câmera volta a analisar o quadro inteiro."""
+    try:
+        estado = current_app.extensions["monitor_service"].definir_area_deteccao(camera_id, None)
+    except LookupError:
+        return jsonify({"error": "câmera não encontrada"}), 404
+    return jsonify({"area_deteccao": estado})

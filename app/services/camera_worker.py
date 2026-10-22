@@ -40,6 +40,7 @@ from app.services.storage_cleanup_service import StorageCleanupService
 from app.services.trilhas import GravadorDeTrilhas
 from app.utils.salas import emitir_para_camera, emitir_para_foco
 from app.vision.annotator import FrameAnnotator
+from app.vision.area_de_deteccao import AreaDeDeteccao, do_banco, fora_da_area, remapear_pose
 from app.vision.captura_continua import CapturaContinua
 from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
@@ -126,6 +127,7 @@ class CameraWorker:
         height: int = 540,
         rotation: int = 0,
         risk_polygon: list | None = None,
+        area_deteccao: list | None = None,
         gate_required: list | None = None,
         detector: YoloPPEDetector,
         person_detector: YoloPPEDetector,
@@ -178,6 +180,8 @@ class CameraWorker:
             app.config.get("RISK_AREA_POLYGON", Config.RISK_AREA_POLYGON)
         )
         self.risk_area_name = str(app.config.get("RISK_AREA_NAME", "Área de risco"))
+        # Área de detecção (MISSÃO 7): None no banco = quadro inteiro, como antes.
+        self.area_deteccao: AreaDeDeteccao = do_banco(area_deteccao)
         # Celular como câmera (F6): o navegador do celular empurra quadros.
         self.video_stream = FonteDeCelular(source, width, height) if e_celular(source) else VideoStream(
             source=source,
@@ -446,6 +450,7 @@ class CameraWorker:
             },
         }
         self.annotator = FrameAnnotator(risk_polygon=risk_polygon)
+        self.annotator.area_deteccao = self.area_deteccao.poligono
         self._ler_config()
         self.gate_required: list[str] | None = list(gate_required) if gate_required else None
         self._gate = GateState()
@@ -534,6 +539,7 @@ class CameraWorker:
                     detectar_lote=self._detectar_lote,
                     pos_lote=self._pos_inferencia,
                     preparar=self._preparar_quadro,
+                    recortar=self._recortar_para_lote,
                 )
             self._geracao += 1
             self._running.set()
@@ -745,14 +751,25 @@ class CameraWorker:
         return publico
 
     def _quadro_para_recorte(self, frame, analysis):
-        """G9: rosto (olhos e nariz) desfocado, capacete visível. None = não recorta."""
-        if not self.privacidade_ativa:
-            return frame
-        regioes = regioes_de_olhos_e_nariz(analysis.detections, frame.shape)
-        return None if regioes is None else desfocar(frame, regioes)
+        """G9: rosto (olhos e nariz) desfocado, capacete visível; fora da área de detecção, escurecido e
+        desfocado (MISSÃO 7). None = não recorta."""
+        if self.privacidade_ativa:
+            regioes = regioes_de_olhos_e_nariz(analysis.detections, frame.shape)
+            if regioes is None:
+                return None
+            frame = desfocar(frame, regioes)
+        return self.area_deteccao.aplicar(frame, desfocar=True)
 
     def quadro_publico(self):
         return self._sob_demanda("publico", self._quadro_publico)
+
+    def quadro_escurecido(self):
+        """Quadro público com o lado de fora da área de detecção escurecido (miniaturas e vídeo anotado)."""
+        return self._sob_demanda("escurecido", lambda: self.area_deteccao.aplicar(self.quadro_publico(), desfocar=False))
+
+    def quadro_de_evidencia(self):
+        """Quadro público com o lado de fora da área de detecção escurecido E desfocado (snapshot e replay)."""
+        return self._sob_demanda("evidencia", lambda: self.area_deteccao.aplicar(self.quadro_publico(), desfocar=True))
 
     def definir_privacidade(self, ativa: bool) -> None:
         self.privacidade_ativa = bool(ativa)
@@ -764,8 +781,8 @@ class CameraWorker:
         # privacidade: força refazê-la no próximo quadro.
         self._cache_publicacao = None
 
-    def _quadro_anotado(self):
-        quadro, estado = self.quadro_publico(), self._quadro_estado
+    def _quadro_anotado(self, quadro=None):
+        quadro, estado = self.quadro_escurecido() if quadro is None else quadro, self._quadro_estado
         if quadro is None or estado is None:
             return None
         analysis, compliance_state, enabled_map = estado
@@ -793,6 +810,10 @@ class CameraWorker:
     def quadro_anotado(self):
         """O último quadro com overlay desenhado (ndarray), calculado uma vez por versão."""
         return self._sob_demanda("anotado", self._quadro_anotado)
+
+    def evidencia_anotada(self):
+        """O snapshot do alerta: overlay sobre o quadro de evidência (fora da área escurecido e desfocado)."""
+        return self._sob_demanda("evidencia_anotada", lambda: self._quadro_anotado(self.quadro_de_evidencia()))
 
     def jpeg_do_quadro(self, *, anotado: bool) -> bytes | None:
         if anotado:
@@ -852,6 +873,8 @@ class CameraWorker:
             "raiox": self._dados_do_raiox(analysis, compliance_state, enabled_map),
             "zona": [[round(x, 4), round(y, 4)] for x, y in self.rule_engine.risk_polygon],
             "zona_ativa": bool(enabled_map.get("risk_area", False)),
+            # Área de detecção (MISSÃO 7): o navegador escurece o que fica fora dela. [] = quadro inteiro.
+            "area": [[round(x, 4), round(y, 4)] for x, y in self.area_deteccao.poligono or []],
             "opcoes": self.overlay_options,
         }
         return corpo
@@ -1414,7 +1437,7 @@ class CameraWorker:
             return
         inicio = time.perf_counter()
         if self.replay.deve_gravar(ts_captura_ms):
-            self.replay.gravar(self.quadro_publico(), ts_captura_ms, self.overlay_dict())
+            self.replay.gravar(self.quadro_de_evidencia(), ts_captura_ms, self.overlay_dict())
         criados = [c for c in (alert_state.get("created", []) or []) if c.get("id")]
         if criados:
             # Um replay para todos os alertas da análise (mesma janela, mesmos quadros).
@@ -1610,7 +1633,7 @@ class CameraWorker:
         self._alimentar_replay(ts_captura_ms, alert_state)
         # Snapshot só quando um alerta NASCE (raro): é o único consumidor do
         # quadro anotado que existe sem ninguém assistindo.
-        anotado = self.quadro_anotado() if alert_state.get("created") else None
+        anotado = self.evidencia_anotada() if alert_state.get("created") else None
         self._attach_snapshots_and_log_events(alert_state, anotado)
         alert_state["active"] = self.alert_state_service.active_alerts()
         if not recalculado and self._latest_analysis is not None and self._opiniao_publicada is self._segunda_opiniao:
@@ -2120,20 +2143,31 @@ class CameraWorker:
         return self.pose_a_cada_k <= 1 or self._contador_pose % self.pose_a_cada_k == 1
 
     def _detectar(self, frame, marcar) -> tuple[list, list, list | None]:
-        """As chamadas de modelo de UM frame: EPI, pessoa e (opcional) pose."""
+        """As chamadas de modelo de UM frame: EPI, pessoa e (opcional) pose.
+
+        Com área de detecção, o modelo vê só o recorte dela e o resultado volta ao quadro inteiro já filtrado
+        (pés dentro do polígono; EPI só de pessoa mantida). Sem área, `entrada` é o próprio quadro.
+        """
         if not self._needs_yolo_detection():
             return [], [], None
-        ppe_detections = self.detector.detect(frame)
+        area = self.area_deteccao
+        entrada, deslocamento = area.recortar(frame)
+        ppe_detections = self.detector.detect(entrada)
         marcar("inferencia_epi")
         pessoas: list = []
         if self._multi_pessoa:
-            pessoas = self.person_detector.detect(frame)
+            pessoas = self.person_detector.detect(entrada)
             marcar("inferencia_pessoa")
         esqueletos = None
         if self._pose_devida():
-            esqueletos = self.pose_detector.detect(frame)
+            esqueletos = self.pose_detector.detect(entrada)
             marcar("inferencia_pose")
-        return ppe_detections, pessoas, esqueletos
+        altura, largura = frame.shape[:2]
+        return area.devolver((ppe_detections, pessoas, esqueletos), deslocamento, largura, altura, self._sobreposicao_min)
+
+    def _recortar_para_lote(self, frame):
+        """Agendador em lote: (entrada do modelo, devolve o bruto ao quadro inteiro) com a área DESTE worker."""
+        return self.area_deteccao.para_lote(frame, self._sobreposicao_min)
 
     def _detectar_lote(self, frames: list) -> list[tuple[list, list, list | None]]:
         """Como `_detectar`, para vários frames numa chamada de modelo só."""
@@ -2228,8 +2262,7 @@ class CameraWorker:
             return poses
 
         if not self._pose_por_pessoa:
-            global_pose = self.pose_estimator.estimate(frame)
-            return [global_pose] if global_pose.found else []
+            return self._pose_global(frame)
 
         pessoas = [item for item in detections if item.label == "person" or item.category == "person"]
         pessoas.sort(key=lambda item: item.track_id if item.track_id is not None else 0)
@@ -2250,8 +2283,19 @@ class CameraWorker:
             if poses:
                 return poses
 
-        global_pose = self.pose_estimator.estimate(frame)
-        return [global_pose] if global_pose.found else []
+        return self._pose_global(frame)
+
+    def _pose_global(self, frame) -> list[PoseResult]:
+        """Pose do quadro sem caixa de pessoa; com área de detecção, só no recorte e só com os pés dentro dela."""
+        area = self.area_deteccao
+        entrada, deslocamento = area.recortar(frame)
+        global_pose = self.pose_estimator.estimate(entrada)
+        if not global_pose.found:
+            return []
+        if deslocamento is None:
+            return [global_pose]
+        global_pose = remapear_pose(global_pose, deslocamento, entrada.shape, frame.shape)
+        return [global_pose] if area.mantem_pose(global_pose) else []
 
     def _features_desligadas(self) -> set[str]:
         """Features cujos alertas devem acabar: as desligadas, mais as que
@@ -2423,6 +2467,29 @@ class CameraWorker:
         self._emit_timeline_event("risk_area_updated", "Área de risco atualizada", "info", metadata=state)
         self._emitir("risk_area_updated", state)
         return state
+
+    def area_deteccao_estado(self) -> dict[str, Any]:
+        """Área de detecção (MISSÃO 7) e se a área de risco tem parte fora dela (aviso do editor)."""
+        area = self.area_deteccao
+        return {
+            "camera_id": self.camera_id,
+            "ativa": area.ativa,
+            "polygon": area.para_api() or [],
+            "risco_fora": fora_da_area(list(self.rule_engine.risk_polygon or []), area),
+        }
+
+    def definir_area_deteccao(self, area: AreaDeDeteccao) -> dict[str, Any]:
+        """Troca a área (objeto imutável: a inferência em voo devolve com a área com que recortou)."""
+        self.area_deteccao = area
+        self.annotator.area_deteccao = area.poligono
+        # A versão do quadro não muda com o clique: sem isto miniatura e evidência sairiam com a máscara antiga.
+        with self._cache_lock:
+            self._cache_saidas.clear()
+        estado = self.area_deteccao_estado()
+        titulo = "Área de detecção atualizada" if area.ativa else "Área de detecção removida: quadro inteiro"
+        self._emit_timeline_event("area_deteccao_atualizada", titulo, "info", metadata=estado)
+        self._emitir("area_deteccao_atualizada", estado)
+        return estado
 
     def gate_state(self) -> dict[str, Any]:
         base = {"camera_id": self.camera_id, "enabled": bool(self.gate_required), "required": self.gate_required or []}

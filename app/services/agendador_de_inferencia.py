@@ -66,6 +66,9 @@ class _Slot:
     # worker submete a cada quadro que chega, e a maioria é sobrescrita no slot
     # sem nunca ser analisada — preparar todos era trabalho jogado fora.
     preparar: Callable[[Any], Any] | None = None
+    # Área de detecção (MISSÃO 7): quadro → (entrada do modelo, devolve o bruto ao quadro inteiro). No lote,
+    # quem chama o modelo é o 1º slot com os quadros de TODAS as câmeras; cada câmera recorta e devolve o seu.
+    recortar: Callable[[Any], tuple[Any, Callable[[Any], Any]]] | None = None
     frame: Any = None
     ts_ms: float = 0.0
     pendente: bool = False
@@ -138,9 +141,9 @@ class AgendadorDeInferencia:
 
     # ----------------------------------------------------------- registro
     def registrar(self, camera_id: int, analisar, entregar, *, stats=None, detectar_lote=None, pos_lote=None,
-                  preparar=None) -> None:
+                  preparar=None, recortar=None) -> None:
         with self._cond:
-            slot = _Slot(camera_id, analisar, entregar, stats, detectar_lote, pos_lote, preparar)
+            slot = _Slot(camera_id, analisar, entregar, stats, detectar_lote, pos_lote, preparar, recortar)
             slot.ultimo_servico = self._relogio()
             self._slots[camera_id] = slot
             if camera_id not in self._ordem:
@@ -321,10 +324,12 @@ class AgendadorDeInferencia:
 
     def _servir_lote(self, trabalho: list[tuple[_Slot, Any, float]]) -> None:
         inicio = time.perf_counter()
-        frames = [frame for _, frame, _ in trabalho]
-        brutos = trabalho[0][0].detectar_lote(frames)
+        entradas = [slot.recortar(frame) if slot.recortar else (frame, None) for slot, frame, _ in trabalho]
+        brutos = trabalho[0][0].detectar_lote([entrada for entrada, _ in entradas])
         custo_lote = (time.perf_counter() - inicio) * 1000.0
-        for (slot, frame, ts_ms), bruto in zip(trabalho, brutos, strict=True):
+        for (slot, frame, ts_ms), bruto, (_, devolver) in zip(trabalho, brutos, entradas, strict=True):
+            if devolver is not None:
+                bruto = devolver(bruto)
             if slot.stats is not None:
                 slot.stats.duracao("inferencia_lote", custo_lote)
             t0 = time.perf_counter()

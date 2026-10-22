@@ -23,6 +23,7 @@ from app.services.integracao.planta_viva import PublicadorDaPlanta
 from app.services.llm_risk_service import ServicoDeRiscoLLM
 from app.utils.limites_de_cpu import manter_afinidade
 from app.utils.salas import SALA_PARQUE, sala_da_camera
+from app.vision.area_de_deteccao import SEM_AREA, AreaDeDeteccao, do_banco
 from app.vision.ensemble_ppe_detector import EnsemblePPEDetector
 from app.vision.pose_estimator import MediaPipePoseEstimator
 from app.vision.runtime_do_modelo import aquecer_modelos, garantir_runtime, resolver
@@ -398,6 +399,7 @@ class MonitorService:
             height=camera.height,
             rotation=int(camera.rotation or 0),
             risk_polygon=camera.risk_polygon,
+            area_deteccao=camera.area_deteccao,
             gate_required=camera.gate_required,
             detector=self.detector,
             person_detector=self.person_detector,
@@ -689,6 +691,30 @@ class MonitorService:
             camera.risk_polygon = [[p["x"], p["y"]] for p in state["polygon"]]
             db.session.commit()
         return state
+
+    def area_deteccao_estado(self, camera_id: int) -> dict[str, Any]:
+        """Do worker, se a câmera estiver carregada; senão, do banco (câmera desligada também se configura)."""
+        try:
+            return self._get_worker(camera_id).area_deteccao_estado()
+        except LookupError:
+            camera = db.session.get(Camera, camera_id)
+            if camera is None:
+                raise
+            area = do_banco(camera.area_deteccao)
+            return {"camera_id": camera_id, "ativa": area.ativa, "polygon": area.para_api() or [], "risco_fora": False}
+
+    def definir_area_deteccao(self, camera_id: int, poligono: list | None) -> dict[str, Any]:
+        """Grava no banco (sobrevive a reinício) e aplica no worker em execução, se houver. None = quadro inteiro."""
+        camera = db.session.get(Camera, camera_id)
+        if camera is None:
+            raise LookupError("câmera não encontrada")
+        area = AreaDeDeteccao(poligono) if poligono else SEM_AREA
+        camera.area_deteccao = area.para_banco()
+        db.session.commit()
+        try:
+            return self._get_worker(camera_id).definir_area_deteccao(area)
+        except LookupError:
+            return self.area_deteccao_estado(camera_id)
 
     def gate_state(self, camera_id: int) -> dict[str, Any]:
         return self._get_worker(camera_id).gate_state()
