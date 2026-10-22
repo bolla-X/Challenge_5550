@@ -1698,3 +1698,8 @@ em 12,1 s. O script ganhou o tempo de cada cena nova (`tape_camera` 12 s, `evacu
   cada rota. Não afrouxa: cobre mais.
 - **2ª rodada, válida, em `d14f5c8`** (só o crawler mudou desde `29dc649`): E2E **75 passed, 0 falhas, 2 skips**
   (2 h 14 min, máquina na tomada); crawler **78 rotas × papéis, 820 elementos, 0 sem efeito, 0 problemas**.
+
+## Entrega (MISSÃO 4)
+
+PR10 (#21) → squash `4ca2a7e`; tags `missao-4-pr10` e `final-next-2026`. Fumaça a partir da `main`:
+`e2e/fumaca_demo.py --raiz .` 6/6 (demo no ar em 26 s) e `e2e/test_jornada_10_apresentacao.py` 1 passed (2 min 36 s).
