@@ -691,7 +691,7 @@ def put_camera_area_deteccao(camera_id: int):
         return erro_fora_do_escopo()
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict) or "polygon" not in payload:
-        return _validation_error('Envie {"polygon": [...]}. Para voltar ao quadro inteiro, remova a área.')
+        return _validation_error("Envie os pontos da área de detecção. Para voltar ao quadro inteiro, remova a área.")
     try:
         poligono = validar_poligono(payload["polygon"])
     except ValueError as exc:

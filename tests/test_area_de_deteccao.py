@@ -61,9 +61,9 @@ def test_poligono_valido_vira_pontos_normalizados():
     ([{"x": True, "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
     ([{"x": "0.5", "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
     ([{"x": 10 ** 400, "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
-    ([{"x": 0.1, "y": 0.1}, {"x": 0.1, "y": 0.1}, {"x": 0.5, "y": 0.9}], "repetidos"),
+    ([{"x": 0.1, "y": 0.1}, {"x": 0.1, "y": 0.1}, {"x": 0.5, "y": 0.9}], "mesmo lugar"),
     # gravata-borboleta: as arestas 0–1 e 2–3 se cruzam
-    ([[0.1, 0.1], [0.9, 0.9], [0.9, 0.1], [0.1, 0.9]], "cruzar"),
+    ([[0.1, 0.1], [0.9, 0.9], [0.9, 0.1], [0.1, 0.9]], "se cruzam"),
     # colinear: área zero
     ([[0.1, 0.1], [0.5, 0.5], [0.9, 0.9]], "pequena demais"),
     ([[0.1, 0.1], [0.15, 0.1], [0.15, 0.15]], "pequena demais"),
@@ -358,6 +358,24 @@ def test_pessoa_mantida_fica_nitida_inteira_mesmo_com_a_cabeca_fora_do_poligono(
     evidencia = area.aplicar(quadro, desfocar=True, caixas=[pessoa])
     assert (evidencia[130:260, 160:240] == quadro[130:260, 160:240]).all()
     assert evidencia[130:260, 600:700].std() < 5  # fora da área e de qualquer pessoa: borrado
+
+
+def test_com_privacidade_ligada_o_video_ao_vivo_sai_desfocado_fora_da_area(app_teste):
+    """A plateia não é detectada, então o desfoque de rosto (que segue as pessoas detectadas) não a alcança:
+    o quadro público já sai desfocado fora da área — sem escurecer, que o navegador escurece por cima."""
+    from app.vision.schemas import FrameAnalysis
+
+    xadrez = (np.indices((540, 960)).sum(axis=0) % 2 * 200).astype(np.uint8)
+    worker = _worker(app_teste, area=[list(p) for p in RETANGULO])
+    worker._quadro_bruto = np.dstack([xadrez] * 3)
+    worker._quadro_estado = (FrameAnalysis(detections=[], pose=None, risk_events=[]), {}, {})
+    worker.privacidade_ativa = False
+    assert worker._quadro_publico() is worker._quadro_bruto  # privacidade desligada: como antes
+    worker.privacidade_ativa = True
+    publico = worker._quadro_publico()
+    fora = publico[250:350, 650:750]
+    assert fora.std() < 5 and abs(float(fora.mean()) - 100.0) < 10  # borrado, mas no brilho original
+    assert (publico[300, 200] == worker._quadro_bruto[300, 200]).all()  # dentro: intacto
 
 
 def test_aviso_de_risco_fora_da_area():

@@ -26,19 +26,23 @@ as colunas "E2E" abaixo dizem "ensaiar" onde isso vale.
    câmeras, OPC UA e MQTT "no ar"; LLM "desligado" é o esperado).
 6. **Preparação da arena, câmera por câmera, nesta ordem** (tela da câmera, aba "Áreas", em "Mais"):
    1. **Área de detecção**: "Área de detecção" → "Retângulo" → "Desenhar no vídeo" → arraste sobre o palco →
-      "Salvar área". Fora dela (a plateia) nada é detectado, rastreado ou alertado, e o vídeo fica escurecido.
-      Vale o ponto dos pés: desenhe cobrindo o **chão e o corpo** de quem fica no palco; quem tem os pés na
-      borda de cima continua analisado (o recorte do modelo sobe 30 % do quadro acima da área).
+      "Salvar área". Fora dela (a plateia) nenhuma pessoa é detectada, rastreada ou gera alerta, e o vídeo fica
+      escurecido (e desfocado, com o desfoque de rosto ligado). A saúde da câmera (obstruída, escura) continua
+      olhando o quadro inteiro. Vale o ponto dos pés: desenhe sobre o **chão do palco**, onde ficam os pés; não
+      precisa cobrir o corpo (o modelo vê até 30 % do quadro acima da área). Deixe telão e painel de fundo fora.
    2. **Áreas de risco**: "Área de risco" → "Editar no vídeo" → pontos → "Salvar zona". Desenhe **dentro** da
       área de detecção; se sobrar parte fora, o editor avisa "Parte desta área de risco está fora da área de
       detecção e não será vigiada."
-   3. **Calibração do 3D** (aba "Planta"): por último, porque o gêmeo e a evacuação só recebem as pessoas
-      mantidas pela área de detecção.
+   3. **Calibração do 3D** (aba "Planta"), por último: marque os pontos do chão normalmente, mesmo fora da área
+      de detecção. O gêmeo e a evacuação mostram só quem está dentro dela.
    Uma câmera sem área de detecção continua analisando o quadro inteiro, como antes.
    **Atenção:** `python run.py --demo` recria o banco da demo a cada subida (`app/demo.py`): **reiniciou o
    servidor, refaça a preparação** (as áreas somem). O `demo reset` entre apresentações não apaga as áreas.
+   Salvar uma área de formato novo faz o OpenVINO compilar o modelo para essa forma: a primeira análise levou
+   ~21 s nesta máquina (iGPU), com **todas** as câmeras sem análise nesse intervalo (CHANGELOG, MISSÃO 7). Faça
+   isso na preparação, nunca na frente da banca.
 7. Ensaie uma vez as 6 cenas novas do palco (lista abaixo), com a webcam ligada para "Tape a câmera".
-8. Entre apresentações: `flask --app wsgi demo reset` (< 10 s). As áreas (detecção e risco) ficam.
+8. Entre apresentações: `flask --app wsgi demo reset` (< 10 s). As áreas (detecção e risco) ficam; o registro de quem as alterou some com o histórico.
 9. Plano B: o vídeo da Release `next-2026-demo` (baixe antes) e a tabela "Plano B por falha" abaixo.
 
 ## Antes da banca (uma vez, com internet)

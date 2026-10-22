@@ -19,7 +19,9 @@ existe, continua como está).
 
 ### M7.2 Pipeline
 - M7.2.1 Retângulo envolvente do polígono com 5 % de margem; inferência (EPI, pessoas e pose) só nesse recorte; caixas
-  mapeadas de volta para o quadro inteiro.
+  mapeadas de volta para o quadro inteiro. **Desvio registrado (22/10):** 5 % nos lados e embaixo, 30 % em cima
+  (`MARGEM_TOPO`): com 5 %, quem tem os pés na borda de cima chega ao modelo sem cabeça e gera "sem capacete" falso
+  (auditoria, A2). Custo: recorte maior. A medição do CHANGELOG foi feita com essa margem.
 - M7.2.2 Pessoa mantida só se o ponto dos pés (centro da base da caixa) estiver dentro do polígono.
 - M7.2.3 EPI mantido só se associado a uma pessoa mantida.
 - M7.2.4 Tracker, regras, incidentes, aproximação (F3), mapa de calor, planta e 3D recebem só o que foi mantido.

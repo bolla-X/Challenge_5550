@@ -1,0 +1,53 @@
+{
+  "fixture": "next_multidao.mp4",
+  "carga_da_cpu_antes_pct": 93,
+  "quadros": 125,
+  "area": [
+    [
+      0.33,
+      0.0
+    ],
+    [
+      0.67,
+      0.0
+    ],
+    [
+      0.67,
+      1.0
+    ],
+    [
+      0.33,
+      1.0
+    ]
+  ],
+  "fracao_do_quadro": 0.34,
+  "runtime": {
+    "epi": "openvino",
+    "pessoa": "openvino",
+    "pose": "openvino"
+  },
+  "inferencia_ms_sem_area": {
+    "p50": 961.1,
+    "p95": 2985.9,
+    "aquecimento": [
+      25708
+    ]
+  },
+  "inferencia_ms_com_area": {
+    "p50": 1013.8,
+    "p95": 2478.4,
+    "aquecimento": [
+      20924
+    ]
+  },
+  "pessoas_fora_da_area_com_area": 0,
+  "pessoas_dentro_com_area": 363,
+  "pessoas_dentro_no_quadro_inteiro_filtrado": 292,
+  "pessoas_no_quadro_inteiro": 949,
+  "diferenca_dentro": 71,
+  "quadros_com_diferenca": 78,
+  "diferenca_por_quadro_min_max": [
+    -2,
+    3
+  ]
+}

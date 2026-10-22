@@ -738,7 +738,11 @@ class CameraWorker:
             return valor
 
     def _quadro_publico(self):
-        """O quadro como pode SAIR do worker: com rosto desfocado se o modo estiver ligado."""
+        """O quadro como pode SAIR do worker: com rosto desfocado se o modo estiver ligado.
+
+        Com área de detecção, a plateia não é detectada e o desfoque de rosto (que segue as pessoas detectadas) não
+        a alcança: com a privacidade ligada, o lado de fora da área sai desfocado aqui mesmo, no vídeo ao vivo.
+        """
         quadro, estado = self._quadro_bruto, self._quadro_estado
         if quadro is None or estado is None or not self.privacidade_ativa:
             return quadro
@@ -747,6 +751,8 @@ class CameraWorker:
             capturado, analisado = self._latest_capture_ts_ms, self._ts_analise_ms
         idade_s = max(0.0, (capturado - analisado) / 1000.0) if capturado and analisado else 0.0
         publico = desfocar(quadro, regioes_de_rosto(estado[0], quadro.shape, idade_s=idade_s))
+        publico = self.area_deteccao.aplicar(publico, desfocar=True, escurecer=False,
+                                             caixas=caixas_de_pessoas(estado[0].detections))
         self.stats.duracao("privacidade", (time.perf_counter() - inicio) * 1000.0)
         return publico
 

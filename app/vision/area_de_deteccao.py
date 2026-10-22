@@ -99,9 +99,9 @@ def validar_poligono(raw: Any) -> list[Ponto]:
     sistema deixa de ver, então salvar outra coisa que não a desenhada seria pior que recusar.
     """
     if not isinstance(raw, list) or len(raw) < 3:
-        raise ValueError("A área de detecção precisa de pelo menos 3 pontos.")
+        raise ValueError("A área de detecção precisa de pelo menos 3 pontos. Marque mais pontos no vídeo ou use \"Retângulo\".")
     if len(raw) > MAX_PONTOS:
-        raise ValueError(f"A área de detecção aceita no máximo {MAX_PONTOS} pontos.")
+        raise ValueError(f"A área de detecção aceita no máximo {MAX_PONTOS} pontos. Clique em \"Refazer\" e desenhe com menos pontos.")
     poligono: list[Ponto] = []
     for ponto in raw:
         if isinstance(ponto, dict):
@@ -115,7 +115,7 @@ def validar_poligono(raw: Any) -> list[Ponto]:
             raise ValueError("Os pontos da área de detecção precisam ficar dentro do quadro (de 0 a 1).")
         poligono.append((round(xf, 4), round(yf, 4)))
     if len(set(poligono)) != len(poligono):
-        raise ValueError("A área de detecção tem pontos repetidos.")
+        raise ValueError("Dois pontos da área de detecção ficaram no mesmo lugar. Arraste um deles ou clique em \"Refazer\".")
     n = len(poligono)
     for i in range(n):
         for j in range(i + 1, n):
@@ -123,9 +123,11 @@ def validar_poligono(raw: Any) -> list[Ponto]:
             if j == i + 1 or (i == 0 and j == n - 1):
                 continue
             if _segmentos_cruzam(poligono[i], poligono[(i + 1) % n], poligono[j], poligono[(j + 1) % n]):
-                raise ValueError("A área de detecção não pode cruzar a si mesma.")
+                raise ValueError("As linhas da área de detecção se cruzam. Arraste um ponto para desfazer o cruzamento ou "
+                                 "clique em \"Refazer\" e marque os pontos em ordem, em volta do palco.")
     if area_do_poligono(poligono) < AREA_MINIMA:
-        raise ValueError("A área de detecção é pequena demais: desenhe ao menos 1 % do quadro.")
+        raise ValueError("A área de detecção ficou pequena demais (menos de 1 % da imagem) para caber uma pessoa. "
+                         "Desenhe uma área maior.")
     return poligono
 
 
@@ -296,10 +298,12 @@ class AreaDeDeteccao:
             self._mascaras[chave] = mascara
         return mascara
 
-    def aplicar(self, frame: np.ndarray | None, *, desfocar: bool, caixas: list[BoundingBox] | tuple = ()) -> np.ndarray | None:
+    def aplicar(self, frame: np.ndarray | None, *, desfocar: bool, caixas: list[BoundingBox] | tuple = (),
+                escurecer: bool = True) -> np.ndarray | None:
         """Cópia com o lado de fora escurecido (e desfocado, para evidência). Sem área: o próprio quadro.
 
         `caixas`: pessoas mantidas, que ficam nítidas inteiras (com folga) mesmo saindo do polígono.
+        `escurecer=False`: só desfoca (quadro público com privacidade ligada; o navegador escurece por cima).
         """
         if frame is None or not self.poligono:
             return frame
@@ -316,7 +320,7 @@ class AreaDeDeteccao:
             pequeno = cv2.resize(frame, (max(1, largura // REDUCAO_DO_DESFOQUE), max(1, altura // REDUCAO_DO_DESFOQUE)),
                                  interpolation=cv2.INTER_AREA)
             fora = cv2.resize(pequeno, (largura, altura), interpolation=cv2.INTER_LINEAR)
-        saida = cv2.convertScaleAbs(fora, alpha=ESCURECIMENTO, beta=0)
+        saida = cv2.convertScaleAbs(fora, alpha=ESCURECIMENTO, beta=0) if escurecer else fora.copy()
         cv2.copyTo(frame, mascara, saida)
         return saida
 

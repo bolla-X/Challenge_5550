@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
-import { useAreaDeteccao, type ModoDeDesenho, type TipoDeArea } from "../store/areaDeteccaoStore";
+import { temAlteracao, useAreaDeteccao, type ModoDeDesenho, type TipoDeArea } from "../store/areaDeteccaoStore";
 import { Panel } from "./common";
 import { pluralizar } from "../utils/formato";
 import { retanguloEntre, riscoForaDaArea, type Ponto } from "../utils/poligono";
@@ -32,7 +32,8 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
   const pontosDeteccao = useAreaDeteccao((s) => s.pontos);
   const setPontos = useAreaDeteccao((s) => s.setPontos);
   const arrastando = useRef<number | null>(null);
-  const cantoInicial = useRef<Ponto | null>(null);
+  const cantoInicial = useRef<{ p: Ponto; px: number; py: number } | null>(null);
+  const ARRASTE_MINIMO_PX = 8;
 
   const deteccao = tipo === "deteccao";
   const ativo = deteccao ? editandoDeteccao : riskEditorActive;
@@ -74,9 +75,6 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
     ctx.lineWidth = 2;
     ctx.strokeStyle = cor;
     ctx.fillStyle = deteccao ? "rgba(245,245,247,.10)" : "rgba(245, 158, 11, .12)";
-    ctx.setLineDash(deteccao ? [8, 6] : []);
-    ctx.shadowColor = deteccao ? "rgba(0,0,0,.6)" : "transparent";
-    ctx.shadowBlur = deteccao ? 3 : 0;
     ctx.beginPath();
     pontos.forEach((p, i) => {
       const [x, y] = px(p);
@@ -84,6 +82,15 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
       else ctx.lineTo(x, y);
     });
     if (pontos.length >= 3) ctx.closePath();
+    if (deteccao) {
+      // Halo contínuo escuro por baixo: o tracejado claro continua legível sobre palco iluminado.
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0,0,0,.55)";
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = cor;
+    }
+    ctx.setLineDash(deteccao ? [8, 6] : []);
     ctx.stroke();
     ctx.setLineDash([]);
     if (pontos.length >= 3) ctx.fill();
@@ -150,8 +157,8 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
     if (!pos) return;
     if (deteccao && modo === "retangulo") {
       if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) return; // faixa preta
-      cantoInicial.current = noVideo(pos);
-      setPontos([]);
+      // Só guarda o canto: um clique solto não apaga a forma anterior (ver o pointermove).
+      cantoInicial.current = { p: noVideo(pos), px: pos.px, py: pos.py };
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
@@ -170,7 +177,8 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
     const pos = posicao(event);
     if (!pos) return;
     if (cantoInicial.current) {
-      setPontos(retanguloEntre(cantoInicial.current, noVideo(pos)));
+      const inicio = cantoInicial.current;
+      if (Math.hypot(pos.px - inicio.px, pos.py - inicio.py) >= ARRASTE_MINIMO_PX) setPontos(retanguloEntre(inicio.p, noVideo(pos)));
       return;
     }
     if (arrastando.current !== null) {
@@ -183,7 +191,10 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (cantoInicial.current) {
       const pos = posicao(event);
-      if (pos) setPontos(retanguloEntre(cantoInicial.current, noVideo(pos)));
+      const inicio = cantoInicial.current;
+      if (pos && Math.hypot(pos.px - inicio.px, pos.py - inicio.py) >= ARRASTE_MINIMO_PX) {
+        setPontos(retanguloEntre(inicio.p, noVideo(pos)));
+      }
       cantoInicial.current = null;
       event.currentTarget.releasePointerCapture(event.pointerId);
       return;
@@ -260,7 +271,7 @@ export function RiskAreaEditorPanel() {
       title="Editor de áreas"
       description={
         tipo === "deteccao"
-          ? "Onde a câmera procura pessoas. Fora da área de detecção nada é detectado, rastreado ou alertado; sem área, vale o quadro inteiro."
+          ? "Onde a câmera procura pessoas. Fora da área de detecção nenhuma pessoa é detectada, rastreada ou gera alerta; sem área, vale o quadro inteiro. A saúde da câmera (obstruída, movida, escura) continua olhando o quadro inteiro."
           : "Onde a presença de pessoas gera alerta. Clique no vídeo para criar um ponto; arraste um ponto existente para movê-lo."
       }
     >
@@ -341,26 +352,42 @@ function EditorDaAreaDeRisco() {
 }
 
 function EditorDaAreaDeDeteccao() {
+  const camId = useAreaDeteccao((s) => s.camId);
   const salva = useAreaDeteccao((s) => s.salva);
   const pontos = useAreaDeteccao((s) => s.pontos);
   const modo = useAreaDeteccao((s) => s.modo);
   const editando = useAreaDeteccao((s) => s.editando);
+  const carregando = useAreaDeteccao((s) => s.carregando);
+  const falhaCarga = useAreaDeteccao((s) => s.falhaCarga);
   const pendente = useAreaDeteccao((s) => s.pendente);
   const erro = useAreaDeteccao((s) => s.erro);
   const aviso = useAreaDeteccao((s) => s.aviso);
+  const sucesso = useAreaDeteccao((s) => s.sucesso);
   const setModo = useAreaDeteccao((s) => s.setModo);
   const alternarEdicao = useAreaDeteccao((s) => s.alternarEdicao);
   const refazer = useAreaDeteccao((s) => s.refazer);
   const salvar = useAreaDeteccao((s) => s.salvar);
   const remover = useAreaDeteccao((s) => s.remover);
+  const carregar = useAreaDeteccao((s) => s.carregar);
 
-  const status = salva?.ativa
-    ? `Área de detecção salva, ${pluralizar(salva.polygon.length, "ponto")}.`
-    : "Sem área de detecção: a câmera analisa o quadro inteiro.";
+  // Enquanto não se sabe o que está salvo, nada se grava por cima (e a tela não afirma "quadro inteiro").
+  const bloqueado = carregando || falhaCarga || pendente !== null;
+  const alterado = editando && temAlteracao(pontos, salva);
+  const status = carregando
+    ? "Carregando a área de detecção…"
+    : falhaCarga
+      ? "Não foi possível carregar a área de detecção. A câmera pode ter uma área salva."
+      : salva?.ativa
+        ? `Área de detecção salva, ${pluralizar(salva.polygon.length, "ponto")}. A câmera analisa só dentro dela; fora, o vídeo fica escurecido.`
+        : "Sem área de detecção: a câmera analisa o quadro inteiro.";
   const instrucao =
     modo === "retangulo"
-      ? "Aperte e arraste no vídeo, de um canto ao outro."
-      : "Clique no vídeo para criar cada ponto; arraste um ponto para movê-lo.";
+      ? "Aperte e arraste no vídeo, de um canto ao outro. Depois clique em Salvar área."
+      : `Clique no vídeo para criar cada ponto (mínimo 3) e arraste um ponto para movê-lo. ${pluralizar(pontos.length, "ponto")} no desenho.`;
+  const confirmarRemocao = () => {
+    if (!window.confirm("Remover a área de detecção? A câmera volta a analisar o quadro inteiro, incluindo a plateia. A troca fica registrada com o seu usuário.")) return;
+    remover().catch(console.error);
+  };
 
   return (
     <>
@@ -380,40 +407,46 @@ function EditorDaAreaDeDeteccao() {
         ))}
       </div>
       <div className="actions">
-        <button className="small" type="button" onClick={alternarEdicao} data-testid="deteccao-desenhar">
+        <button className="small" type="button" onClick={alternarEdicao} disabled={carregando || falhaCarga} data-testid="deteccao-desenhar">
           {editando ? "Encerrar desenho" : "Desenhar no vídeo"}
         </button>
-        <button className="ghost small" type="button" onClick={refazer} data-testid="deteccao-refazer">
+        <button className="ghost small" type="button" onClick={refazer} disabled={carregando || falhaCarga} data-testid="deteccao-refazer">
           Refazer
         </button>
         <button
-          className="ghost small"
+          className={`ghost small ${pendente === "remover" ? "is-pending" : ""}`.trim()}
           type="button"
-          onClick={() => remover().catch(console.error)}
-          disabled={pendente || !salva?.ativa}
+          onClick={confirmarRemocao}
+          disabled={bloqueado || !salva?.ativa}
           title={salva?.ativa ? "Volta a analisar o quadro inteiro" : "Não há área salva: a câmera já analisa o quadro inteiro"}
+          aria-describedby="deteccao-status"
           data-testid="deteccao-remover"
         >
-          Remover área
+          {pendente === "remover" ? "Removendo…" : "Remover área"}
         </button>
         <button
-          className={`primary small ${pendente ? "is-pending" : ""}`.trim()}
+          className={`primary small ${pendente === "salvar" ? "is-pending" : ""}`.trim()}
           type="button"
-          disabled={pendente}
+          disabled={bloqueado}
           onClick={() => salvar().catch(console.error)}
           data-testid="deteccao-salvar"
         >
-          {pendente ? "Salvando…" : "Salvar área"}
+          {pendente === "salvar" ? "Salvando…" : "Salvar área"}
         </button>
+        {falhaCarga && camId != null && (
+          <button className="ghost small" type="button" onClick={() => carregar(camId).catch(console.error)}>
+            Tentar de novo
+          </button>
+        )}
       </div>
-      <p className="status-text t-data" data-testid="deteccao-status">
-        {editando ? `${instrucao} ${pluralizar(pontos.length, "ponto")} no desenho.` : status}
+      <p className="status-text t-data" id="deteccao-status" data-testid="deteccao-status">
+        {editando ? instrucao : status}
+        {alterado && <span className="t-data"> Alterações não salvas.</span>}
       </p>
-      {aviso && (
-        <p className="aviso-area" role="status">
-          {aviso}
-        </p>
-      )}
+      {aviso && <p className="status-text">{aviso}</p>}
+      <p className="status-text" role="status" aria-live="polite" data-testid="deteccao-sucesso">
+        {sucesso || ""}
+      </p>
       {erro && (
         <p className="erro-area" role="alert">
           {erro}

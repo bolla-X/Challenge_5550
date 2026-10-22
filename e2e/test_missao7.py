@@ -127,6 +127,7 @@ def test_area_de_deteccao_pela_tela_ate_remover(pagina, servidor):
     assert novos[0]["message"], novos[0]
 
     # 4. Remover área → volta ao quadro inteiro (e volta a ver gente fora do terço do meio).
+    pagina.once("dialog", lambda d: d.accept())  # "Remover a área de detecção? ..."
     pagina.get_by_test_id("deteccao-remover").click()
     pagina.get_by_test_id("deteccao-status").filter(has_text="Sem área de detecção").wait_for(timeout=20_000)
     assert tecnico.get(f"{base}/area-deteccao", timeout=20).json()["area_deteccao"]["ativa"] is False

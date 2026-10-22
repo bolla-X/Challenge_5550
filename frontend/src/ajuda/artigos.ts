@@ -308,7 +308,7 @@ export const ARTIGOS: Artigo[] = [
   {
     id: "area-de-deteccao",
     titulo: "Limitar a área de detecção",
-    resumo: "Diga onde a câmera procura pessoas: fora da área de detecção nada é detectado, rastreado ou alertado.",
+    resumo: "Diga onde a câmera procura pessoas: fora da área de detecção nenhuma pessoa é detectada, rastreada ou gera alerta.",
     paraQuem: TECNICO_E_SUPERVISOR,
     passos: [
       "Abra a câmera, ligue o monitoramento com \"Iniciar\", vá à aba \"Áreas\" (em \"Mais\") e escolha \"Área de detecção\".",
@@ -318,10 +318,10 @@ export const ARTIGOS: Artigo[] = [
     ],
     ondeFica: "Câmeras, abrir a câmera, aba \"Áreas\" (em Mais), \"Área de detecção\".",
     notas: [
-      "Fora da área, o vídeo fica escurecido. Nas imagens de evidência e no replay, fica escurecido e desfocado.",
-      "Vale o ponto dos pés: quem tem os pés dentro da área é analisado, mesmo com a cabeça para fora.",
+      "Fora da área, o vídeo fica escurecido (e desfocado, com o desfoque de rosto ligado). Nas imagens de evidência e no replay, fica escurecido e desfocado.",
+      "Vale o ponto dos pés: desenhe sobre o chão onde as pessoas ficam. Quem tem os pés dentro é analisado mesmo com a cabeça para fora, desde que o corpo caiba até 30 % da imagem acima da área; pessoa muito perto da câmera pode sair cortada e gerar alerta falso.",
       "A saúde da câmera (obstruída, movida, escura) continua olhando o quadro inteiro.",
-      "Ordem para preparar uma câmera: área de detecção, depois área de risco, depois a calibração da planta.",
+      "Ordem para preparar uma câmera: área de detecção, depois área de risco, depois a calibração da planta. A planta e o gêmeo mostram só quem está dentro da área de detecção.",
     ],
     tela: { href: "/", rotulo: "Abrir as câmeras" },
     termos: ["área de detecção", "recorte", "palco", "plateia", "quadro inteiro", "escurecido"],

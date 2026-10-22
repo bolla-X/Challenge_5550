@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LeitorMultipart } from "../socket/multipart";
 import { useDashboardStore } from "../store/dashboardStore";
+import { useAreaDeteccao } from "../store/areaDeteccaoStore";
 import { desenharRaioX, HistoricoDePes, type RaioX } from "./raiox";
 import { decimal } from "../utils/formato";
 
@@ -166,6 +167,10 @@ function desenharAreaDeDeteccao(
   ctx.beginPath();
   contorno();
   ctx.closePath();
+  // Halo contínuo escuro por baixo do tracejado claro: legível sobre palco iluminado e sobre fundo escuro.
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.stroke();
   ctx.setLineDash([8, 6]);
   ctx.lineWidth = 2;
   ctx.strokeStyle = COR_AREA_DETECCAO;
@@ -328,7 +333,10 @@ export function LiveVideo({
       ctx.clearRect(0, 0, largura, altura);
       ctx.drawImage(item.bmp, dx, dy, w, h);
       if (item.ov && item.ov.w) {
-        desenharOverlay(ctx, item.ov, dx, dy, w / item.ov.w);
+        // Desenhando a área de detecção desta câmera: só o rascunho do editor aparece, sem a área salva por cima.
+        const ed = useAreaDeteccao.getState();
+        const redesenhando = ed.editando && ed.tipo === "deteccao" && ed.camId === cameraId;
+        desenharOverlay(ctx, redesenhando ? { ...item.ov, area: [] } : item.ov, dx, dy, w / item.ov.w);
         // Raio-X: o histórico dos pés anda sempre (as trilhas já existem ao ligar).
         historico.registrar(item.ov.v, item.ov.caixas, item.ov.w, item.ov.h);
         const raio = useDashboardStore.getState().raioX;
