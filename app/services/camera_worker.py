@@ -40,7 +40,7 @@ from app.services.storage_cleanup_service import StorageCleanupService
 from app.services.trilhas import GravadorDeTrilhas
 from app.utils.salas import emitir_para_camera, emitir_para_foco
 from app.vision.annotator import FrameAnnotator
-from app.vision.area_de_deteccao import AreaDeDeteccao, do_banco, fora_da_area, remapear_pose
+from app.vision.area_de_deteccao import AreaDeDeteccao, caixas_de_pessoas, do_banco, fora_da_area, remapear_pose
 from app.vision.captura_continua import CapturaContinua
 from app.vision.fonte_celular import FonteDeCelular, e_celular
 from app.vision.person_compliance_matcher import PPE_KEYS
@@ -758,18 +758,24 @@ class CameraWorker:
             if regioes is None:
                 return None
             frame = desfocar(frame, regioes)
-        return self.area_deteccao.aplicar(frame, desfocar=True)
+        return self.area_deteccao.aplicar(frame, desfocar=True, caixas=caixas_de_pessoas(analysis.detections))
 
     def quadro_publico(self):
         return self._sob_demanda("publico", self._quadro_publico)
 
+    def _pessoas_do_quadro(self) -> list:
+        estado = self._quadro_estado
+        return caixas_de_pessoas(estado[0].detections) if estado is not None else []
+
     def quadro_escurecido(self):
         """Quadro público com o lado de fora da área de detecção escurecido (miniaturas e vídeo anotado)."""
-        return self._sob_demanda("escurecido", lambda: self.area_deteccao.aplicar(self.quadro_publico(), desfocar=False))
+        return self._sob_demanda("escurecido", lambda: self.area_deteccao.aplicar(
+            self.quadro_publico(), desfocar=False, caixas=self._pessoas_do_quadro()))
 
     def quadro_de_evidencia(self):
         """Quadro público com o lado de fora da área de detecção escurecido E desfocado (snapshot e replay)."""
-        return self._sob_demanda("evidencia", lambda: self.area_deteccao.aplicar(self.quadro_publico(), desfocar=True))
+        return self._sob_demanda("evidencia", lambda: self.area_deteccao.aplicar(
+            self.quadro_publico(), desfocar=True, caixas=self._pessoas_do_quadro()))
 
     def definir_privacidade(self, ativa: bool) -> None:
         self.privacidade_ativa = bool(ativa)
@@ -1432,7 +1438,7 @@ class CameraWorker:
         self._alertas_temporais = [RuleAlert(**a) for a in brutos]
 
     def _alimentar_replay(self, ts_captura_ms: float, alert_state: dict[str, Any]) -> None:
-        """Grava o quadro público (desfocado) no buffer e fecha clipes vencidos."""
+        """Grava o quadro de evidência (rosto e fora da área de detecção desfocados) no buffer e fecha clipes vencidos."""
         if self.replay is None:
             return
         inicio = time.perf_counter()
@@ -1664,7 +1670,9 @@ class CameraWorker:
         # O LLM recebe o MESMO JPEG anotado que o stream usaria (cache por
         # versão): nunca há um segundo encode do mesmo quadro.
         precisa = alert_state.get("created") or nao_verificado
-        jpeg = self.jpeg_do_quadro(anotado=True) if self.servico_llm is not None and precisa else None
+        # A mesma imagem da evidência (fora da área de detecção desfocado): a plateia não sai para o LLM.
+        jpeg = (self._sob_demanda("jpeg_evidencia", lambda: self._codificar(self.evidencia_anotada()))
+                if self.servico_llm is not None and precisa else None)
         self._submeter_ao_llm(alert_state, jpeg)
         # Segundo gatilho (Sprint 4): "não verificado" confirmado. Se o mesmo
         # quadro já criou alerta, a chamada acima já leva esta imagem.
@@ -2479,15 +2487,20 @@ class CameraWorker:
         }
 
     def definir_area_deteccao(self, area: AreaDeDeteccao) -> dict[str, Any]:
-        """Troca a área (objeto imutável: a inferência em voo devolve com a área com que recortou)."""
+        """Troca a área (objeto imutável: a inferência em voo devolve com a área com que recortou).
+
+        A linha do tempo (com quem trocou) é gravada pelo MonitorService, que conhece o usuário.
+        """
         self.area_deteccao = area
         self.annotator.area_deteccao = area.poligono
         # A versão do quadro não muda com o clique: sem isto miniatura e evidência sairiam com a máscara antiga.
         with self._cache_lock:
             self._cache_saidas.clear()
+        # O buffer do replay guarda quadros já mascarados com a área ANTERIOR: um alerta nos próximos segundos
+        # levaria para a custódia um pré-replay com a plateia nítida (ou o palco borrado).
+        if self.replay is not None:
+            self.replay.limpar()
         estado = self.area_deteccao_estado()
-        titulo = "Área de detecção atualizada" if area.ativa else "Área de detecção removida: quadro inteiro"
-        self._emit_timeline_event("area_deteccao_atualizada", titulo, "info", metadata=estado)
         self._emitir("area_deteccao_atualizada", estado)
         return estado
 

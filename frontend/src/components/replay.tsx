@@ -132,7 +132,7 @@ export function IncidentReplay({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, dx, dy, w, h);
       const ov = clipe.quadros[indice].overlay;
-      if (ov && ov.w) desenharOverlay(ctx, ov, dx, dy, w / ov.w);
+      if (ov && ov.w) desenharOverlay(ctx, ov, dx, dy, w / ov.w, { escurecerFora: false });
     };
     if (img.complete) desenhar();
     else img.onload = desenhar;

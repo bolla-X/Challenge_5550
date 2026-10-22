@@ -24,9 +24,22 @@ as colunas "E2E" abaixo dizem "ensaiar" onde isso vale.
 4. Anote as três senhas que o terminal imprime (não aparecem de novo).
 5. Abra `https://127.0.0.1:5000`, entre como **supervisor**, confira em `/status` que tudo está "OK" (modelos, 4
    câmeras, OPC UA e MQTT "no ar"; LLM "desligado" é o esperado).
-6. Ensaie uma vez as 6 cenas novas do palco (lista abaixo), com a webcam ligada para "Tape a câmera".
-7. Entre apresentações: `flask --app wsgi demo reset` (< 10 s).
-8. Plano B: o vídeo da Release `next-2026-demo` (baixe antes) e a tabela "Plano B por falha" abaixo.
+6. **Preparação da arena, câmera por câmera, nesta ordem** (tela da câmera, aba "Áreas", em "Mais"):
+   1. **Área de detecção**: "Área de detecção" → "Retângulo" → "Desenhar no vídeo" → arraste sobre o palco →
+      "Salvar área". Fora dela (a plateia) nada é detectado, rastreado ou alertado, e o vídeo fica escurecido.
+      Vale o ponto dos pés: desenhe cobrindo o **chão e o corpo** de quem fica no palco; quem tem os pés na
+      borda de cima continua analisado (o recorte do modelo sobe 30 % do quadro acima da área).
+   2. **Áreas de risco**: "Área de risco" → "Editar no vídeo" → pontos → "Salvar zona". Desenhe **dentro** da
+      área de detecção; se sobrar parte fora, o editor avisa "Parte desta área de risco está fora da área de
+      detecção e não será vigiada."
+   3. **Calibração do 3D** (aba "Planta"): por último, porque o gêmeo e a evacuação só recebem as pessoas
+      mantidas pela área de detecção.
+   Uma câmera sem área de detecção continua analisando o quadro inteiro, como antes.
+   **Atenção:** `python run.py --demo` recria o banco da demo a cada subida (`app/demo.py`): **reiniciou o
+   servidor, refaça a preparação** (as áreas somem). O `demo reset` entre apresentações não apaga as áreas.
+7. Ensaie uma vez as 6 cenas novas do palco (lista abaixo), com a webcam ligada para "Tape a câmera".
+8. Entre apresentações: `flask --app wsgi demo reset` (< 10 s). As áreas (detecção e risco) ficam.
+9. Plano B: o vídeo da Release `next-2026-demo` (baixe antes) e a tabela "Plano B por falha" abaixo.
 
 ## Antes da banca (uma vez, com internet)
 

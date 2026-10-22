@@ -687,6 +687,8 @@ def put_camera_area_deteccao(camera_id: int):
     """Body: {"polygon": [{x, y}, ...]} (0–1, ≥ 3 pontos, sem cruzar, ≥ 1 % do quadro). Vale também com a câmera parada."""
     from app.vision.area_de_deteccao import validar_poligono
 
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict) or "polygon" not in payload:
         return _validation_error('Envie {"polygon": [...]}. Para voltar ao quadro inteiro, remova a área.')
@@ -695,7 +697,7 @@ def put_camera_area_deteccao(camera_id: int):
     except ValueError as exc:
         return _validation_error(str(exc))
     try:
-        estado = current_app.extensions["monitor_service"].definir_area_deteccao(camera_id, poligono)
+        estado = current_app.extensions["monitor_service"].definir_area_deteccao(camera_id, poligono, usuario=current_user())
     except LookupError:
         return jsonify({"error": "câmera não encontrada"}), 404
     return jsonify({"area_deteccao": estado})
@@ -705,8 +707,10 @@ def put_camera_area_deteccao(camera_id: int):
 @require_role(ROLE_TECHNICAL)
 def delete_camera_area_deteccao(camera_id: int):
     """Remove a área: a câmera volta a analisar o quadro inteiro."""
+    if not camera_permitida(camera_id):
+        return erro_fora_do_escopo()
     try:
-        estado = current_app.extensions["monitor_service"].definir_area_deteccao(camera_id, None)
+        estado = current_app.extensions["monitor_service"].definir_area_deteccao(camera_id, None, usuario=current_user())
     except LookupError:
         return jsonify({"error": "câmera não encontrada"}), 404
     return jsonify({"area_deteccao": estado})

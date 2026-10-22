@@ -30,8 +30,8 @@ from app.vision.schemas import BoundingBox, Detection, PoseLandmark, PoseResult
 
 RAIZ = Path(__file__).resolve().parent.parent
 
-# Retângulo à esquerda: x 0,1–0,4; y 0,2–0,9. Num quadro 960×540, o recorte (com 5 % de margem) é
-# x 48–432, y 81–513.
+# Retângulo à esquerda: x 0,1–0,4; y 0,2–0,9. Num quadro 960×540, o recorte (5 % de margem nos lados e
+# embaixo, 30 % em cima) é x 48–432, y 0–513.
 RETANGULO = [(0.1, 0.2), (0.4, 0.2), (0.4, 0.9), (0.1, 0.9)]
 # "U": o entalhe do meio (x 0,4–0,6, y 0,4–0,9) fica FORA.
 U = [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.6, 0.9), (0.6, 0.4), (0.4, 0.4), (0.4, 0.9), (0.1, 0.9)]
@@ -59,6 +59,8 @@ def test_poligono_valido_vira_pontos_normalizados():
     ([{"x": "a", "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
     ([{"x": float("nan"), "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
     ([{"x": True, "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
+    ([{"x": "0.5", "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
+    ([{"x": 10 ** 400, "y": 0.1}, {"x": 0.5, "y": 0.5}, {"x": 0.1, "y": 0.9}], "numéricos"),
     ([{"x": 0.1, "y": 0.1}, {"x": 0.1, "y": 0.1}, {"x": 0.5, "y": 0.9}], "repetidos"),
     # gravata-borboleta: as arestas 0–1 e 2–3 se cruzam
     ([[0.1, 0.1], [0.9, 0.9], [0.9, 0.1], [0.1, 0.9]], "cruzar"),
@@ -79,15 +81,17 @@ def test_valor_invalido_no_banco_vira_quadro_inteiro_sem_derrubar():
 
 
 # ------------------------------------------------------------ recorte e mapeamento --
-def test_retangulo_envolvente_com_5_por_cento_de_margem_e_dentro_do_quadro():
-    assert AreaDeDeteccao(RETANGULO).retangulo(960, 540) == (48, 81, 432, 513)
+def test_retangulo_envolvente_com_margem_e_dentro_do_quadro():
+    """5 % nos lados e embaixo; 30 % em cima, onde fica o corpo de quem tem os pés perto da borda de cima."""
+    assert AreaDeDeteccao(RETANGULO).retangulo(960, 540) == (48, 0, 432, 513)
+    assert AreaDeDeteccao([(0.1, 0.5), (0.4, 0.5), (0.4, 0.9), (0.1, 0.9)]).retangulo(960, 540) == (48, 108, 432, 513)
     # encostada na borda: a margem não sai do quadro
     assert AreaDeDeteccao([(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)]).retangulo(960, 540) == (0, 0, 528, 540)
 
 
 def test_recorte_e_uma_vista_do_quadro_com_o_deslocamento():
     entrada, deslocamento = AreaDeDeteccao(RETANGULO).recortar(QUADRO)
-    assert entrada.shape == (432, 384, 3) and deslocamento == (48, 81)
+    assert entrada.shape == (513, 384, 3) and deslocamento == (48, 0)
     assert np.shares_memory(entrada, QUADRO)
 
 
@@ -96,6 +100,20 @@ def test_deslocar_leva_caixa_e_esqueleto_ao_quadro_inteiro():
     movida = deslocar(det, 48, 81)
     assert movida.box == BoundingBox(58, 101, 78, 121)
     assert movida.keypoints == ((63.0, 106.0, 0.9), (68.0, 119.0, 0.8))
+
+
+def test_ponto_nao_visto_continua_nao_visto_depois_de_deslocar():
+    """(0, 0) é o "não visto" do ultralytics: deslocá-lo virava junta falsa no canto do recorte (e "Pessoa caída")."""
+    from app.vision.yolo_pose_detector import pose_da_deteccao
+
+    pontos = tuple([(150.0, 300.0, 0.9)] + [(0.0, 0.0, 0.45)] * 16)
+    det = caixa(100, 100, 200, 380, keypoints=pontos)
+    movida = deslocar(det, 100, 60)
+    assert movida.keypoints[0] == (250.0, 360.0, 0.9)
+    assert all(k == (0.0, 0.0, 0.45) for k in movida.keypoints[1:])
+    antes = pose_da_deteccao(det, (540, 960, 3), person_id="person_1")
+    depois = pose_da_deteccao(movida, (540, 960, 3), person_id="person_1")
+    assert len(depois.landmarks) == len(antes.landmarks) == 1
 
 
 def test_mapeamento_recorte_quadro_com_o_letterbox_do_ultralytics():
@@ -216,9 +234,9 @@ class PoseNula:
         return []
 
 
-# Nas coordenadas do RECORTE do RETANGULO (deslocamento 48, 81):
-PESSOA_A = caixa(100, 100, 200, 380)   # no quadro: 148,181–248,461 → pés (198, 461) = (0,21; 0,85) dentro
-PESSOA_B = caixa(300, 50, 383, 150)    # no quadro: 348,131–431,231 → pés (389,5; 231) = (0,41; 0,43) fora
+# Nas coordenadas do RECORTE do RETANGULO (deslocamento 48, 0):
+PESSOA_A = caixa(100, 100, 200, 380)   # no quadro: 148,100–248,380 → pés (198, 380) = (0,21; 0,70) dentro
+PESSOA_B = caixa(300, 50, 383, 150)    # no quadro: 348,50–431,150 → pés (389,5; 150) = (0,41; 0,28) fora
 CAPACETE_A = capacete(120, 100, 180, 140)
 CAPACETE_B = capacete(320, 50, 360, 80)
 
@@ -256,14 +274,14 @@ def test_sem_area_o_modelo_ve_o_quadro_inteiro_e_o_resultado_e_o_de_hoje(app_tes
 def test_com_area_o_modelo_ve_so_o_recorte_e_so_o_mantido_segue(app_teste):
     worker = _worker(app_teste, area=[list(p) for p in RETANGULO])
     ppe, pessoas, _ = worker._detectar(QUADRO, lambda _etapa: None)
-    assert worker.detector.recebidos[0].shape == (432, 384, 3)
-    assert worker.person_detector.recebidos[0].shape == (432, 384, 3)
-    assert [p.box for p in pessoas] == [BoundingBox(148, 181, 248, 461)]
-    assert [d.box for d in ppe] == [BoundingBox(168, 181, 228, 221)]
+    assert worker.detector.recebidos[0].shape == (513, 384, 3)
+    assert worker.person_detector.recebidos[0].shape == (513, 384, 3)
+    assert [p.box for p in pessoas] == [BoundingBox(148, 100, 248, 380)]
+    assert [d.box for d in ppe] == [BoundingBox(168, 100, 228, 140)]
     # E daí para o tracker: a análise só tem a pessoa A (com ID) e o capacete dela.
     analise = worker._inferir(QUADRO, lambda _etapa: None)
     pessoas_na_analise = [d for d in analise.detections if d.category == "person"]
-    assert len(pessoas_na_analise) == 1 and pessoas_na_analise[0].box == BoundingBox(148, 181, 248, 461)
+    assert len(pessoas_na_analise) == 1 and pessoas_na_analise[0].box == BoundingBox(148, 100, 248, 380)
     assert [d.label for d in analise.detections if d.category != "person"] == ["helmet"]
 
 
@@ -271,7 +289,7 @@ def test_trocar_a_area_vale_na_proxima_inferencia_e_remover_volta_ao_quadro_inte
     worker = _worker(app_teste)
     worker.definir_area_deteccao(AreaDeDeteccao(RETANGULO))
     worker._detectar(QUADRO, lambda _etapa: None)
-    assert worker.detector.recebidos[-1].shape == (432, 384, 3)
+    assert worker.detector.recebidos[-1].shape == (513, 384, 3)
     estado = worker.definir_area_deteccao(SEM_AREA)
     assert estado["ativa"] is False and estado["polygon"] == []
     worker._detectar(QUADRO, lambda _etapa: None)
@@ -279,7 +297,11 @@ def test_trocar_a_area_vale_na_proxima_inferencia_e_remover_volta_ao_quadro_inte
 
 
 def test_lote_recorta_e_devolve_por_camera():
-    """No lote, o modelo é chamado UMA vez com os quadros de todas; cada câmera recorta e devolve o seu."""
+    """No lote, as câmeras SEM área vão juntas, como antes; cada recorte vai na sua chamada e volta ao seu quadro.
+
+    Misturar formas no mesmo lote troca o letterbox retangular pelo quadrado e mudaria o resultado de quem não
+    tem área (achado da auditoria, M3).
+    """
     chamado: list[list[tuple]] = []
     entregues: dict[int, tuple] = {}
 
@@ -294,9 +316,11 @@ def test_lote_recorta_e_devolve_por_camera():
         ag.registrar(cid, analisar=None, entregar=lambda r, ts, cid=cid: entregues.__setitem__(cid, r),
                      detectar_lote=detectar_lote, pos_lote=lambda frame, bruto, cron: bruto,
                      recortar=lambda f, area=area: area.para_lote(f, 0.35))
-    ag._servir_lote([(ag._slots[1], QUADRO, 0.0), (ag._slots[2], QUADRO, 0.0)])
-    assert chamado == [[(432, 384, 3), (540, 960, 3)]]
-    assert entregues[1][1][0].box == BoundingBox(148, 181, 248, 461)   # câmera 1: deslocada e mantida
+    ag.registrar(3, analisar=None, entregar=lambda r, ts: entregues.__setitem__(3, r),
+                 detectar_lote=detectar_lote, pos_lote=lambda frame, bruto, cron: bruto)
+    ag._servir_lote([(ag._slots[1], QUADRO, 0.0), (ag._slots[2], QUADRO, 0.0), (ag._slots[3], QUADRO, 0.0)])
+    assert chamado == [[(540, 960, 3), (540, 960, 3)], [(513, 384, 3)]]
+    assert entregues[1][1][0].box == BoundingBox(148, 100, 248, 380)   # câmera 1: deslocada e mantida
     assert entregues[2][1][0].box == BoundingBox(100, 100, 200, 380)   # câmera 2: como veio
 
 
@@ -323,6 +347,17 @@ def test_fora_da_area_escurece_e_na_evidencia_tambem_desfoca():
     # desfocado: o xadrez de 1 px vira um cinza quase uniforme
     assert evidencia[250:350, 650:750].std() < 5 < escuro[250:350, 650:750].std()
     assert SEM_AREA.aplicar(quadro, desfocar=True) is quadro
+
+
+def test_pessoa_mantida_fica_nitida_inteira_mesmo_com_a_cabeca_fora_do_poligono():
+    """A evidência de uma violação não pode sair borrada justamente na cabeça (achado A2 da auditoria)."""
+    xadrez = (np.indices((540, 960)).sum(axis=0) % 2 * 200).astype(np.uint8)
+    quadro = np.dstack([xadrez] * 3)
+    area = AreaDeDeteccao([(0.1, 0.5), (0.4, 0.5), (0.4, 0.9), (0.1, 0.9)])  # em px: y 270–486
+    pessoa = BoundingBox(150, 120, 250, 400)  # pés dentro, cabeça (y 120–270) acima do polígono
+    evidencia = area.aplicar(quadro, desfocar=True, caixas=[pessoa])
+    assert (evidencia[130:260, 160:240] == quadro[130:260, 160:240]).all()
+    assert evidencia[130:260, 600:700].std() < 5  # fora da área e de qualquer pessoa: borrado
 
 
 def test_aviso_de_risco_fora_da_area():
@@ -391,6 +426,31 @@ def test_area_sobrevive_a_reconstruir_o_worker(real_monitor_app, real_monitor_cl
     novo = monitor._build_worker(db.session.get(Camera, cid), is_default=False)
     assert novo.area_deteccao.para_api() == AREA_API
     assert novo.annotator.area_deteccao == [(0.1, 0.2), (0.4, 0.2), (0.4, 0.9), (0.1, 0.9)]
+
+
+def test_troca_de_area_e_auditada_com_o_usuario(real_monitor_app, real_monitor_client):
+    """A área decide o que a câmera deixa de ver: a troca vai para a linha do tempo (e a custódia)."""
+    from app.models import EventLog
+
+    cid = _criar(real_monitor_client)
+    real_monitor_client.put(f"/api/cameras/{cid}/area-deteccao", json={"polygon": AREA_API})
+    real_monitor_client.delete(f"/api/cameras/{cid}/area-deteccao")
+    eventos = EventLog.query.filter_by(camera_id=cid, event_type="area_deteccao_atualizada").order_by(EventLog.id).all()
+    assert [e.message.split(" por ")[0] for e in eventos] == [
+        "Área de detecção atualizada", "Área de detecção removida: quadro inteiro"]
+    meta = eventos[0].to_dict()["metadata"]
+    assert meta["anterior"] is None and meta["nova"] == [[0.1, 0.2], [0.4, 0.2], [0.4, 0.9], [0.1, 0.9]]
+
+
+def test_trocar_a_area_esvazia_o_buffer_do_replay(app_teste):
+    """Quadros mascarados com a área anterior não entram no clipe de um alerta que nasça logo depois."""
+    worker = _worker(app_teste)
+    if worker.replay is None:
+        pytest.skip("replay desligado nesta configuração")
+    worker.replay.gravar(QUADRO, 1000.0, None)
+    assert worker.replay.entre(0, 2000)
+    worker.definir_area_deteccao(AreaDeDeteccao(RETANGULO))
+    assert worker.replay.entre(0, 2000) == []
 
 
 def test_api_avisa_risco_fora_da_area(real_monitor_client):

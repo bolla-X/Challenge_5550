@@ -227,6 +227,12 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margi
 /* Player em canvas (components/live-video.tsx): o letterbox é calculado no desenho. */
 .video-frame canvas.live-video { width: 100%; height: 100%; display: block; position: relative; z-index: 1; }
 .video-frame.editing-risk { outline: 2px solid var(--danger); outline-offset: -2px; }
+/* Área de detecção (MISSÃO 7): contorno neutro — a cor de perigo é só da área de risco. */
+.video-frame.editing-deteccao { outline: 2px dashed var(--text-2); outline-offset: -2px; }
+.areas-tipo, .areas-modo { margin-bottom: var(--s3); }
+.areas-modo { margin-left: var(--s2); }
+.aviso-area { margin: var(--s2) 0 0; padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--tint-danger); color: var(--danger); font-size: 13px; }
+.erro-area { margin: var(--s2) 0 0; color: var(--danger); font-size: 13px; }
 .video-empty {
   position: absolute; inset: 0; z-index: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3);

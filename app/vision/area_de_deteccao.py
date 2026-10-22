@@ -3,10 +3,15 @@
 A câmera do NEXT mostra a plateia, mas só o palco interessa. Com a área configurada:
 
 1. a inferência (EPI, pessoa e pose) roda só no retângulo envolvente do polígono, com 5 % do quadro de margem
-   em cada lado — o modelo vê o corpo de quem está na borda, mas não a plateia inteira;
+   nos lados e embaixo e 30 % em cima (`MARGEM_TOPO`): quem tem os pés logo abaixo da borda de cima tem o corpo
+   ACIMA dela, e com só 5 % o modelo veria a pessoa sem cabeça (alerta falso de "sem capacete");
 2. as caixas voltam para as coordenadas do quadro inteiro (somar o canto do recorte); o letterbox do modelo já
-   é desfeito pelo ultralytics, que devolve `Boxes.xyxy` no tamanho da imagem que recebeu
-   (https://docs.ultralytics.com/modes/predict/#boxes) — aqui, o recorte;
+   é desfeito pelo ultralytics, que devolve `Boxes.xyxy` no tamanho da imagem que recebeu — aqui, o recorte.
+   A doc oficial (https://docs.ultralytics.com/modes/predict/#boxes) não diz o tamanho de `xyxy` por escrito;
+   a fonte é o código da 8.3.40: `ultralytics/models/yolo/detect/predict.py:39`
+   (`ops.scale_boxes(img.shape[2:], pred[:, :4], orig_img.shape)`), coberto por teste com `ops.scale_boxes`.
+   Lote com recortes de formas diferentes usa letterbox quadrado (mesma página, seção "Fixed shape vs minimum
+   rectangle"; na 8.3.40, `engine/predictor.py:155-158`) — muda o preenchimento, não o mapeamento de volta;
 3. pessoa (e queda, que vira pessoa antes do rastreador) só fica se o ponto dos pés — centro da base da caixa —
    cair dentro do polígono; EPI só fica se estiver associado a uma pessoa mantida (mesma fração de contenção do
    filtro EPI↔pessoa do worker, `PPE_PERSON_OVERLAP_MIN`).
@@ -17,11 +22,14 @@ comportamento de antes da MISSÃO 7, coberto por teste de identidade.
 A saúde visual (M1) não passa por aqui: obstrução e câmera movida olham o quadro inteiro.
 
 Evidências (snapshot, clipe, recorte de rótulo) saem com a parte de fora escurecida e desfocada
-(`aplicar_em_evidencia`); o vídeo ao vivo escurece no navegador, a partir do polígono no overlay.
+(`aplicar(..., desfocar=True)`); miniaturas e vídeo anotado, só escurecida; o vídeo ao vivo escurece no navegador,
+a partir do polígono no overlay. Nos três, a caixa de quem foi MANTIDO fica nítida mesmo com a cabeça fora do
+polígono: a evidência de uma violação não pode sair borrada justamente na cabeça.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import replace
 from typing import Any, Callable
@@ -32,6 +40,11 @@ import numpy as np
 from app.vision.schemas import BoundingBox, Detection, PoseResult
 
 MARGEM = 0.05
+# Acima do polígono: o corpo de quem tem os pés perto da borda de cima. 30 % do quadro cobre uma pessoa em pé
+# de até ~30 % da altura do quadro (as câmeras da demo: 15–35 %). Desvio registrado da spec (que pede 5 %).
+MARGEM_TOPO = 0.30
+# Caixa de pessoa mantida, nítida na imagem: 10 % maior em cada lado (capacete e mãos na borda da caixa).
+FOLGA_DA_CAIXA = 0.10
 # Menor área aceita, em fração do quadro: abaixo de 1 % o recorte não cabe uma pessoa inteira em nenhuma das
 # câmeras da demo (960×540: 1 % ≈ 72×72 px).
 AREA_MINIMA = 0.01
@@ -43,13 +56,16 @@ REDUCAO_DO_DESFOQUE = 16
 
 Ponto = tuple[float, float]
 
+logger = logging.getLogger(__name__)
+
 
 def _numero(valor: Any) -> float:
-    if isinstance(valor, bool):
+    # Só número de JSON: texto ("0.5") e booleano não; inteiro gigante dá OverflowError no float().
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
         raise ValueError("Cada ponto da área de detecção precisa de x e y numéricos.")
     try:
         numero = float(valor)
-    except (TypeError, ValueError) as exc:
+    except (OverflowError, ValueError) as exc:
         raise ValueError("Cada ponto da área de detecção precisa de x e y numéricos.") from exc
     if not math.isfinite(numero):
         raise ValueError("Cada ponto da área de detecção precisa de x e y numéricos.")
@@ -144,7 +160,9 @@ def deslocar(det: Detection, dx: int, dy: int) -> Detection:
     caixa = BoundingBox(det.box.x1 + dx, det.box.y1 + dy, det.box.x2 + dx, det.box.y2 + dy)
     pontos = det.keypoints
     if pontos is not None:
-        pontos = tuple((x + dx, y + dy, c) for x, y, c in pontos)
+        # (0, 0) é o "não visto" do ultralytics (ponto com confiança < 0,5) e de quem lê o esqueleto
+        # (pose_da_deteccao, privacidade, sinais_por_id): deslocá-lo criaria uma junta falsa no canto do recorte.
+        pontos = tuple((x + dx, y + dy, c) if (x or y) else (x, y, c) for x, y, c in pontos)
     return replace(det, box=caixa, keypoints=pontos)
 
 
@@ -195,7 +213,7 @@ class AreaDeDeteccao:
         xs = [x for x, _ in self.poligono]
         ys = [y for _, y in self.poligono]
         x0 = max(0, int(math.floor((min(xs) - MARGEM) * largura)))
-        y0 = max(0, int(math.floor((min(ys) - MARGEM) * altura)))
+        y0 = max(0, int(math.floor((min(ys) - MARGEM_TOPO) * altura)))
         x1 = min(largura, int(math.ceil((max(xs) + MARGEM) * largura)))
         y1 = min(altura, int(math.ceil((max(ys) + MARGEM) * altura)))
         return x0, y0, max(x0 + 1, x1), max(y0 + 1, y1)
@@ -254,8 +272,13 @@ class AreaDeDeteccao:
         esqueletos = None if esqueletos is None else [deslocar(e, dx, dy) for e in esqueletos]
         return self.filtrar(deteccoes, pessoas, esqueletos, largura, altura, sobreposicao_min)
 
-    def para_lote(self, frame: np.ndarray, sobreposicao_min: float) -> tuple[np.ndarray, Callable[[tuple], tuple]]:
-        """Para o agendador em lote: (entrada do modelo, função que devolve o bruto ao quadro inteiro)."""
+    def para_lote(self, frame: np.ndarray, sobreposicao_min: float) -> tuple[np.ndarray, Callable[[tuple], tuple] | None]:
+        """Para o agendador em lote: (entrada do modelo, função que devolve o bruto ao quadro inteiro).
+
+        Sem área: (o próprio quadro, None) — o agendador junta esses no mesmo lote, exatamente como antes.
+        """
+        if not self.poligono:
+            return frame, None
         entrada, deslocamento = self.recortar(frame)
         altura, largura = frame.shape[:2]
         return entrada, lambda bruto: self.devolver(bruto, deslocamento, largura, altura, sobreposicao_min)
@@ -273,19 +296,28 @@ class AreaDeDeteccao:
             self._mascaras[chave] = mascara
         return mascara
 
-    def aplicar(self, frame: np.ndarray | None, *, desfocar: bool) -> np.ndarray | None:
-        """Cópia com o lado de fora escurecido (e desfocado, para evidência). Sem área: o próprio quadro."""
+    def aplicar(self, frame: np.ndarray | None, *, desfocar: bool, caixas: list[BoundingBox] | tuple = ()) -> np.ndarray | None:
+        """Cópia com o lado de fora escurecido (e desfocado, para evidência). Sem área: o próprio quadro.
+
+        `caixas`: pessoas mantidas, que ficam nítidas inteiras (com folga) mesmo saindo do polígono.
+        """
         if frame is None or not self.poligono:
             return frame
         altura, largura = frame.shape[:2]
+        mascara = self.mascara(altura, largura)
+        if caixas:
+            mascara = mascara.copy()
+            for c in caixas:
+                fx, fy = (c.x2 - c.x1) * FOLGA_DA_CAIXA, (c.y2 - c.y1) * FOLGA_DA_CAIXA
+                cv2.rectangle(mascara, (max(0, int(c.x1 - fx)), max(0, int(c.y1 - fy))),
+                              (min(largura - 1, int(c.x2 + fx)), min(altura - 1, int(c.y2 + fy))), 255, -1)
         fora = frame
         if desfocar:
             pequeno = cv2.resize(frame, (max(1, largura // REDUCAO_DO_DESFOQUE), max(1, altura // REDUCAO_DO_DESFOQUE)),
                                  interpolation=cv2.INTER_AREA)
             fora = cv2.resize(pequeno, (largura, altura), interpolation=cv2.INTER_LINEAR)
         saida = cv2.convertScaleAbs(fora, alpha=ESCURECIMENTO, beta=0)
-        dentro = self.mascara(altura, largura) > 0
-        saida[dentro] = frame[dentro]
+        cv2.copyTo(frame, mascara, saida)
         return saida
 
 
@@ -298,8 +330,14 @@ def do_banco(valor: Any) -> AreaDeDeteccao:
         return SEM_AREA
     try:
         return AreaDeDeteccao(validar_poligono(valor))
-    except ValueError:
+    except ValueError as exc:
+        logger.warning("area_deteccao_invalida_no_banco", extra={"motivo": str(exc)})
         return SEM_AREA
+
+
+def caixas_de_pessoas(deteccoes) -> list[BoundingBox]:
+    """As caixas que ficam nítidas na imagem: pessoas (e quedas) mantidas pela análise."""
+    return [d.box for d in deteccoes or [] if _e_pessoa(d)]
 
 
 def fora_da_area(poligono_de_risco: list[Ponto], area: AreaDeDeteccao, passos: int = 8) -> bool:

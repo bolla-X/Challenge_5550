@@ -325,7 +325,18 @@ class AgendadorDeInferencia:
     def _servir_lote(self, trabalho: list[tuple[_Slot, Any, float]]) -> None:
         inicio = time.perf_counter()
         entradas = [slot.recortar(frame) if slot.recortar else (frame, None) for slot, frame, _ in trabalho]
-        brutos = trabalho[0][0].detectar_lote([entrada for entrada, _ in entradas])
+        # Quadros inteiros (câmera sem área) vão juntos numa chamada, como antes da MISSÃO 7; cada recorte vai
+        # na sua: misturar formas diferentes no lote troca o letterbox retangular pelo quadrado
+        # (ultralytics 8.3.40, engine/predictor.py:155-158) — e mudaria o resultado de quem não tem área.
+        detectar = trabalho[0][0].detectar_lote
+        inteiros = [i for i, (_, devolver) in enumerate(entradas) if devolver is None]
+        brutos: list[Any] = [None] * len(entradas)
+        if inteiros:
+            for i, bruto in zip(inteiros, detectar([entradas[i][0] for i in inteiros]), strict=True):
+                brutos[i] = bruto
+        for i, (entrada, devolver) in enumerate(entradas):
+            if devolver is not None:
+                brutos[i] = detectar([entrada])[0]
         custo_lote = (time.perf_counter() - inicio) * 1000.0
         for (slot, frame, ts_ms), bruto, (_, devolver) in zip(trabalho, brutos, entradas, strict=True):
             if devolver is not None:
