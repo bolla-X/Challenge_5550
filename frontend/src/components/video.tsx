@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { useDashboardStore } from "../store/dashboardStore";
+import { temAlteracao, useAreaDeteccao, type ModoDeDesenho, type TipoDeArea } from "../store/areaDeteccaoStore";
 import { Panel } from "./common";
 import { pluralizar } from "../utils/formato";
+import { retanguloEntre, riscoForaDaArea, type Ponto } from "../utils/poligono";
 
+const COR_RISCO = "#f59e0b";
+// Área de detecção: neutra (branco gelo, tracejado), nunca a cor de perigo.
+const COR_DETECCAO = "rgba(245,245,247,0.95)";
 
 /**
- * Camada do editor de área de risco: desenha o polígono em edição e captura os
- * cliques. Fica por cima do <img> do feed, dentro de um contêiner `position:
- * relative` (o `.video-frame`).
+ * Camada do editor de áreas: desenha o polígono em edição e captura os cliques.
+ * Fica por cima do vídeo, dentro de um contêiner `position: relative` (o
+ * `.video-frame`). Edita a área de RISCO (cliques de polígono) ou a área de
+ * DETECÇÃO (retângulo arrastado ou cliques de polígono), conforme o seletor do
+ * painel "Áreas".
  *
- * As coordenadas são normalizadas em relação ao VÍDEO, não ao contêiner: o <img>
+ * As coordenadas são normalizadas em relação ao VÍDEO, não ao contêiner: o vídeo
  * usa `object-fit: contain`, então quando a fonte não é 16:9 (ex.: câmera girada
- * em pé) sobram faixas pretas, e normalizar pelo contêiner deslocaria a zona.
+ * em pé) sobram faixas pretas, e normalizar pelo contêiner deslocaria a área.
  */
 export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDivElement | null> }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,7 +26,18 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
   const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
   const addRiskEditorPoint = useDashboardStore((s) => s.addRiskEditorPoint);
   const moveRiskEditorPoint = useDashboardStore((s) => s.moveRiskEditorPoint);
+  const tipo = useAreaDeteccao((s) => s.tipo);
+  const modo = useAreaDeteccao((s) => s.modo);
+  const editandoDeteccao = useAreaDeteccao((s) => s.editando);
+  const pontosDeteccao = useAreaDeteccao((s) => s.pontos);
+  const setPontos = useAreaDeteccao((s) => s.setPontos);
   const arrastando = useRef<number | null>(null);
+  const cantoInicial = useRef<{ p: Ponto; px: number; py: number } | null>(null);
+  const ARRASTE_MINIMO_PX = 8;
+
+  const deteccao = tipo === "deteccao";
+  const ativo = deteccao ? editandoDeteccao : riskEditorActive;
+  const pontos = deteccao ? pontosDeteccao : riskEditorPoints;
 
   // Retângulo (em px do contêiner) que o vídeo realmente ocupa.
   const areaDoVideo = () => {
@@ -51,25 +69,36 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, box.width, box.height);
-    if (!riskEditorPoints.length) return;
+    if (!pontos.length) return;
+    const cor = deteccao ? COR_DETECCAO : COR_RISCO;
     const px = (p: { x: number; y: number }) => [area.x + p.x * area.w, area.y + p.y * area.h] as const;
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "#f59e0b";
-    ctx.fillStyle = "rgba(245, 158, 11, .12)";
+    ctx.strokeStyle = cor;
+    ctx.fillStyle = deteccao ? "rgba(245,245,247,.10)" : "rgba(245, 158, 11, .12)";
     ctx.beginPath();
-    riskEditorPoints.forEach((p, i) => {
+    pontos.forEach((p, i) => {
       const [x, y] = px(p);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
-    if (riskEditorPoints.length >= 3) ctx.closePath();
+    if (pontos.length >= 3) ctx.closePath();
+    if (deteccao) {
+      // Halo contínuo escuro por baixo: o tracejado claro continua legível sobre palco iluminado.
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0,0,0,.55)";
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = cor;
+    }
+    ctx.setLineDash(deteccao ? [8, 6] : []);
     ctx.stroke();
-    if (riskEditorPoints.length >= 3) ctx.fill();
-    riskEditorPoints.forEach((p, i) => {
+    ctx.setLineDash([]);
+    if (pontos.length >= 3) ctx.fill();
+    pontos.forEach((p, i) => {
       const [x, y] = px(p);
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "#f59e0b";
+      ctx.fillStyle = cor;
       ctx.fill();
       ctx.fillStyle = "#f8fafc";
       ctx.font = "bold 11px system-ui";
@@ -87,7 +116,7 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
       img?.removeEventListener("load", draw);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [riskEditorPoints, riskEditorActive]);
+  }, [pontos, ativo, deteccao]);
 
   // Posição do ponteiro em coordenadas do vídeo (0..1) e em px do canvas.
   const posicao = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -103,7 +132,7 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
   const pontoPerto = (pos: NonNullable<ReturnType<typeof posicao>>) => {
     let melhor = -1;
     let menor = 12;
-    riskEditorPoints.forEach((p, i) => {
+    pontos.forEach((p, i) => {
       const d = Math.hypot(pos.area.x + p.x * pos.area.w - pos.px, pos.area.y + p.y * pos.area.h - pos.py);
       if (d <= menor) {
         menor = d;
@@ -114,13 +143,25 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
   };
 
   const arredondar = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 10000) / 10000;
+  const noVideo = (pos: { x: number; y: number }) => ({ x: arredondar(pos.x), y: arredondar(pos.y) });
+  const adicionar = (p: Ponto) => (deteccao ? setPontos([...pontosDeteccao, p]) : addRiskEditorPoint(p));
+  const mover = (i: number, p: Ponto) =>
+    deteccao ? setPontos(pontosDeteccao.map((q, k) => (k === i ? p : q))) : moveRiskEditorPoint(i, p);
 
-  // Duas ações no mesmo canvas: apertar EM CIMA de um ponto e arrastar o move;
-  // apertar em espaço vazio cria um ponto novo.
+  // Polígono: apertar EM CIMA de um ponto e arrastar o move; apertar em espaço
+  // vazio cria um ponto novo. Retângulo (só na área de detecção): apertar e
+  // arrastar desenha de um canto ao outro.
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!riskEditorActive) return;
+    if (!ativo) return;
     const pos = posicao(event);
     if (!pos) return;
+    if (deteccao && modo === "retangulo") {
+      if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) return; // faixa preta
+      // Só guarda o canto: um clique solto não apaga a forma anterior (ver o pointermove).
+      cantoInicial.current = { p: noVideo(pos), px: pos.px, py: pos.py };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     const perto = pontoPerto(pos);
     if (perto >= 0) {
       arrastando.current = perto;
@@ -128,21 +169,36 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
       return;
     }
     if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) return; // faixa preta
-    addRiskEditorPoint({ x: arredondar(pos.x), y: arredondar(pos.y) });
+    adicionar(noVideo(pos));
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!riskEditorActive) return;
+    if (!ativo) return;
     const pos = posicao(event);
     if (!pos) return;
-    if (arrastando.current !== null) {
-      moveRiskEditorPoint(arrastando.current, { x: arredondar(pos.x), y: arredondar(pos.y) });
+    if (cantoInicial.current) {
+      const inicio = cantoInicial.current;
+      if (Math.hypot(pos.px - inicio.px, pos.py - inicio.py) >= ARRASTE_MINIMO_PX) setPontos(retanguloEntre(inicio.p, noVideo(pos)));
       return;
     }
-    event.currentTarget.style.cursor = pontoPerto(pos) >= 0 ? "grab" : "crosshair";
+    if (arrastando.current !== null) {
+      mover(arrastando.current, noVideo(pos));
+      return;
+    }
+    event.currentTarget.style.cursor = deteccao && modo === "retangulo" ? "crosshair" : pontoPerto(pos) >= 0 ? "grab" : "crosshair";
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (cantoInicial.current) {
+      const pos = posicao(event);
+      const inicio = cantoInicial.current;
+      if (pos && Math.hypot(pos.px - inicio.px, pos.py - inicio.py) >= ARRASTE_MINIMO_PX) {
+        setPontos(retanguloEntre(inicio.p, noVideo(pos)));
+      }
+      cantoInicial.current = null;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      return;
+    }
     if (arrastando.current === null) return;
     arrastando.current = null;
     event.currentTarget.releasePointerCapture(event.pointerId);
@@ -151,8 +207,10 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
   return (
     <canvas
       ref={canvasRef}
-      className={`risk-editor-canvas ${riskEditorActive ? "" : "hidden"}`.trim()}
-      aria-label="Editor visual de área de risco"
+      className={`risk-editor-canvas ${ativo ? "" : "hidden"}`.trim()}
+      aria-label={deteccao ? "Editor visual da área de detecção" : "Editor visual de área de risco"}
+      data-testid="editor-de-area"
+      data-tipo={tipo}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -163,7 +221,86 @@ export function RiskEditorCanvas({ wrapRef }: { wrapRef: React.RefObject<HTMLDiv
 
 // O antigo <VideoCard/> (câmera padrão legada) saiu como código morto no rebrand.
 
+const TIPOS: { valor: TipoDeArea; rotulo: string }[] = [
+  { valor: "deteccao", rotulo: "Área de detecção" },
+  { valor: "risco", rotulo: "Área de risco" },
+];
+const MODOS: { valor: ModoDeDesenho; rotulo: string }[] = [
+  { valor: "retangulo", rotulo: "Retângulo" },
+  { valor: "poligono", rotulo: "Polígono" },
+];
+
+/**
+ * Aba "Áreas" da tela de foco: um seletor entre a área de detecção (onde a
+ * câmera procura pessoas) e a área de risco (onde a presença vira alerta).
+ */
 export function RiskAreaEditorPanel() {
+  const camId = useDashboardStore((s) => s.camId);
+  const riskArea = useDashboardStore((s) => s.riskArea);
+  const riskEditorActive = useDashboardStore((s) => s.riskEditorActive);
+  const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
+  const toggleRiskEditor = useDashboardStore((s) => s.toggleRiskEditor);
+  const tipo = useAreaDeteccao((s) => s.tipo);
+  const setTipo = useAreaDeteccao((s) => s.setTipo);
+  const carregar = useAreaDeteccao((s) => s.carregar);
+  const salva = useAreaDeteccao((s) => s.salva);
+  const pontosDeteccao = useAreaDeteccao((s) => s.pontos);
+  const editandoDeteccao = useAreaDeteccao((s) => s.editando);
+
+  useEffect(() => {
+    if (camId != null) carregar(camId).catch(console.error);
+  }, [camId, carregar]);
+
+  // Sair da aba encerra o desenho: o canvas não pode ficar capturando cliques no vídeo.
+  useEffect(() => () => useAreaDeteccao.setState({ editando: false }), []);
+
+  const trocarTipo = (novo: TipoDeArea) => {
+    if (novo === tipo) return;
+    if (novo === "deteccao" && riskEditorActive) toggleRiskEditor();
+    setTipo(novo);
+  };
+
+  // Aviso: com o desenho em curso vale o rascunho; fora dele, o que está salvo.
+  const areaVigente = editandoDeteccao && pontosDeteccao.length >= 3 ? pontosDeteccao : salva?.polygon || [];
+  const riscoVigente = riskEditorActive && riskEditorPoints.length >= 3 ? riskEditorPoints : riskArea?.polygon || [];
+  const riscoFora = riskArea?.enabled !== false && riscoForaDaArea(riscoVigente, areaVigente);
+
+  return (
+    <Panel
+      id="panel-risk-area"
+      title="Editor de áreas"
+      description={
+        tipo === "deteccao"
+          ? "Onde a câmera procura pessoas. Fora da área de detecção nenhuma pessoa é detectada, rastreada ou gera alerta; sem área, vale o quadro inteiro. A saúde da câmera (obstruída, movida, escura) continua olhando o quadro inteiro."
+          : "Onde a presença de pessoas gera alerta. Clique no vídeo para criar um ponto; arraste um ponto existente para movê-lo."
+      }
+    >
+      <div className="segmented areas-tipo" role="radiogroup" aria-label="Tipo de área">
+        {TIPOS.map((t) => (
+          <button
+            key={t.valor}
+            type="button"
+            role="radio"
+            aria-checked={tipo === t.valor}
+            className={tipo === t.valor ? "active" : ""}
+            onClick={() => trocarTipo(t.valor)}
+            data-testid={`areas-tipo-${t.valor}`}
+          >
+            {t.rotulo}
+          </button>
+        ))}
+      </div>
+      {tipo === "deteccao" ? <EditorDaAreaDeDeteccao /> : <EditorDaAreaDeRisco />}
+      {riscoFora && (
+        <p className="aviso-area" role="status" data-testid="aviso-risco-fora">
+          Parte desta área de risco está fora da área de detecção e não será vigiada.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+function EditorDaAreaDeRisco() {
   const riskArea = useDashboardStore((s) => s.riskArea);
   const riskEditorActive = useDashboardStore((s) => s.riskEditorActive);
   const riskEditorPoints = useDashboardStore((s) => s.riskEditorPoints);
@@ -194,7 +331,7 @@ export function RiskAreaEditorPanel() {
     : "Área atual não carregada.";
 
   return (
-    <Panel id="panel-risk-area" title="Editor de área de risco" description="Clique no vídeo para criar um ponto. Arraste um ponto existente para movê-lo.">
+    <>
       <div className="actions">
         <button className="small" type="button" onClick={toggleRiskEditor}>
           {riskEditorActive ? "Encerrar edição" : "Editar no vídeo"}
@@ -210,6 +347,111 @@ export function RiskAreaEditorPanel() {
         </button>
       </div>
       <p className="status-text t-data">{statusText}</p>
-    </Panel>
+    </>
+  );
+}
+
+function EditorDaAreaDeDeteccao() {
+  const camId = useAreaDeteccao((s) => s.camId);
+  const salva = useAreaDeteccao((s) => s.salva);
+  const pontos = useAreaDeteccao((s) => s.pontos);
+  const modo = useAreaDeteccao((s) => s.modo);
+  const editando = useAreaDeteccao((s) => s.editando);
+  const carregando = useAreaDeteccao((s) => s.carregando);
+  const falhaCarga = useAreaDeteccao((s) => s.falhaCarga);
+  const pendente = useAreaDeteccao((s) => s.pendente);
+  const erro = useAreaDeteccao((s) => s.erro);
+  const aviso = useAreaDeteccao((s) => s.aviso);
+  const sucesso = useAreaDeteccao((s) => s.sucesso);
+  const setModo = useAreaDeteccao((s) => s.setModo);
+  const alternarEdicao = useAreaDeteccao((s) => s.alternarEdicao);
+  const refazer = useAreaDeteccao((s) => s.refazer);
+  const salvar = useAreaDeteccao((s) => s.salvar);
+  const remover = useAreaDeteccao((s) => s.remover);
+  const carregar = useAreaDeteccao((s) => s.carregar);
+
+  // Enquanto não se sabe o que está salvo, nada se grava por cima (e a tela não afirma "quadro inteiro").
+  const bloqueado = carregando || falhaCarga || pendente !== null;
+  const alterado = editando && temAlteracao(pontos, salva);
+  const status = carregando
+    ? "Carregando a área de detecção…"
+    : falhaCarga
+      ? "Não foi possível carregar a área de detecção. A câmera pode ter uma área salva."
+      : salva?.ativa
+        ? `Área de detecção salva, ${pluralizar(salva.polygon.length, "ponto")}. A câmera analisa só dentro dela; fora, o vídeo fica escurecido.`
+        : "Sem área de detecção: a câmera analisa o quadro inteiro.";
+  const instrucao =
+    modo === "retangulo"
+      ? "Aperte e arraste no vídeo, de um canto ao outro. Depois clique em Salvar área."
+      : `Clique no vídeo para criar cada ponto (mínimo 3) e arraste um ponto para movê-lo. ${pluralizar(pontos.length, "ponto")} no desenho.`;
+  const confirmarRemocao = () => {
+    if (!window.confirm("Remover a área de detecção? A câmera volta a analisar o quadro inteiro, incluindo a plateia. A troca fica registrada com o seu usuário.")) return;
+    remover().catch(console.error);
+  };
+
+  return (
+    <>
+      <div className="segmented areas-modo" role="radiogroup" aria-label="Forma de desenhar">
+        {MODOS.map((m) => (
+          <button
+            key={m.valor}
+            type="button"
+            role="radio"
+            aria-checked={modo === m.valor}
+            className={modo === m.valor ? "active" : ""}
+            onClick={() => setModo(m.valor)}
+            data-testid={`areas-modo-${m.valor}`}
+          >
+            {m.rotulo}
+          </button>
+        ))}
+      </div>
+      <div className="actions">
+        <button className="small" type="button" onClick={alternarEdicao} disabled={carregando || falhaCarga} data-testid="deteccao-desenhar">
+          {editando ? "Encerrar desenho" : "Desenhar no vídeo"}
+        </button>
+        <button className="ghost small" type="button" onClick={refazer} disabled={carregando || falhaCarga} data-testid="deteccao-refazer">
+          Refazer
+        </button>
+        <button
+          className={`ghost small ${pendente === "remover" ? "is-pending" : ""}`.trim()}
+          type="button"
+          onClick={confirmarRemocao}
+          disabled={bloqueado || !salva?.ativa}
+          title={salva?.ativa ? "Volta a analisar o quadro inteiro" : "Não há área salva: a câmera já analisa o quadro inteiro"}
+          aria-describedby="deteccao-status"
+          data-testid="deteccao-remover"
+        >
+          {pendente === "remover" ? "Removendo…" : "Remover área"}
+        </button>
+        <button
+          className={`primary small ${pendente === "salvar" ? "is-pending" : ""}`.trim()}
+          type="button"
+          disabled={bloqueado}
+          onClick={() => salvar().catch(console.error)}
+          data-testid="deteccao-salvar"
+        >
+          {pendente === "salvar" ? "Salvando…" : "Salvar área"}
+        </button>
+        {falhaCarga && camId != null && (
+          <button className="ghost small" type="button" onClick={() => carregar(camId).catch(console.error)}>
+            Tentar de novo
+          </button>
+        )}
+      </div>
+      <p className="status-text t-data" id="deteccao-status" data-testid="deteccao-status">
+        {editando ? instrucao : status}
+        {alterado && <span className="t-data"> Alterações não salvas.</span>}
+      </p>
+      {aviso && <p className="status-text">{aviso}</p>}
+      <p className="status-text" role="status" aria-live="polite" data-testid="deteccao-sucesso">
+        {sucesso || ""}
+      </p>
+      {erro && (
+        <p className="erro-area" role="alert">
+          {erro}
+        </p>
+      )}
+    </>
   );
 }

@@ -19,6 +19,8 @@ def _sem_acento(texto: str) -> str:
 COR_PESSOA = (255, 255, 255)
 COR_OK = (138, 209, 72)
 COR_PERIGO = (94, 158, 255)
+# Área de detecção (MISSÃO 7): cinza neutro — o laranja é da área de RISCO e não pode ser confundido com ela.
+COR_AREA_DETECCAO = (214, 210, 206)
 COR_ROTULO_FUNDO = (22, 19, 18)
 COR_ROTULO_TEXTO = (247, 245, 245)
 
@@ -77,6 +79,9 @@ def _com_opacidade(frame: np.ndarray, alpha: float, desenhar: Callable[[np.ndarr
 class FrameAnnotator:
     def __init__(self, risk_polygon: list[tuple[float, float]]) -> None:
         self.risk_polygon = risk_polygon
+        # Polígono da área de detecção (normalizado) ou None = quadro inteiro. O escurecimento de fora vem no
+        # quadro (CameraWorker.quadro_escurecido); aqui só o contorno e o rótulo.
+        self.area_deteccao: list[tuple[float, float]] | None = None
 
     def annotate(
         self,
@@ -89,6 +94,8 @@ class FrameAnnotator:
     ) -> np.ndarray:
         output = frame.copy()
         options = overlay_options or {}
+        if self.area_deteccao:
+            self._draw_area_deteccao(output, options)
         if options.get("risk_area", True):
             self._draw_risk_area(output, enabled_features, options)
         self._draw_detections(output, detections, options, compliance_state)
@@ -229,6 +236,16 @@ class FrameAnnotator:
             if landmark.visibility < 0.45:
                 continue
             cv2.circle(frame, (int(landmark.x * w), int(landmark.y * h)), 2, COR_PESSOA, -1, cv2.LINE_AA)
+
+    def _draw_area_deteccao(self, frame: np.ndarray, options: dict[str, bool]) -> None:
+        h, w = frame.shape[:2]
+        points = np.array([[int(x * w), int(y * h)] for x, y in self.area_deteccao or []], dtype=np.int32)
+        if len(points) < 3:
+            return
+        cv2.polylines(frame, [points], isClosed=True, color=COR_AREA_DETECCAO, thickness=TRACO_AREA, lineType=cv2.LINE_AA)
+        if options.get("labels", True):
+            topo = min(points, key=lambda p: (p[1], p[0]))
+            self._draw_labels(frame, [("area de deteccao", int(topo[0]), int(topo[1]), False)])
 
     def _draw_risk_area(self, frame: np.ndarray, enabled_features: dict[str, bool], options: dict[str, bool]) -> None:
         if not enabled_features.get("risk_area", False):

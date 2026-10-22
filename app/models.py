@@ -531,6 +531,9 @@ class Camera(db.Model):
     # (0..1). None = usa RISK_AREA_POLYGON do .env. Cada câmera enxerga um
     # trecho diferente da planta, então a zona não pode ser uma só pra todas.
     risk_polygon = db.Column(db.JSON, nullable=True)
+    # Área de detecção (MISSÃO 7): o único trecho do quadro onde o sistema procura pessoas, lista de [x, y]
+    # normalizados. None = quadro inteiro (o comportamento de antes). Ver app/vision/area_de_deteccao.py.
+    area_deteccao = db.Column(db.JSON, nullable=True)
     # Modo portaria: EPIs obrigatórios. NULL = câmera fora do modo portaria.
     gate_required = db.Column(db.JSON, nullable=True)
     # Planta baixa (G5): {pontos_camera: 4x[x,y], pontos_planta: 4x[x,y]}, normalizados.
@@ -552,6 +555,7 @@ class Camera(db.Model):
             "height": self.height,
             "rotation": self.rotation,
             "risk_polygon": self.risk_polygon,
+            "area_deteccao": self.area_deteccao,
             "gate_required": self.gate_required,
             "planta": self.planta,
             "enabled": self.enabled,

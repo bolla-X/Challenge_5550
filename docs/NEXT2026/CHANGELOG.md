@@ -1698,3 +1698,98 @@ em 12,1 s. O script ganhou o tempo de cada cena nova (`tape_camera` 12 s, `evacu
   cada rota. Não afrouxa: cobre mais.
 - **2ª rodada, válida, em `d14f5c8`** (só o crawler mudou desde `29dc649`): E2E **75 passed, 0 falhas, 2 skips**
   (2 h 14 min, máquina na tomada); crawler **78 rotas × papéis, 820 elementos, 0 sem efeito, 0 problemas**.
+
+## Entrega (MISSÃO 4)
+
+PR10 (#21) → squash `4ca2a7e`; tags `missao-4-pr10` e `final-next-2026`. Fumaça a partir da `main`:
+`e2e/fumaca_demo.py --raiz .` 6/6 (demo no ar em 26 s) e `e2e/test_jornada_10_apresentacao.py` 1 passed (2 min 36 s).
+
+## MISSÃO 7 — área de detecção por câmera
+
+**O que mudou.** Cada câmera ganhou uma área de detecção (coluna `cameras.area_deteccao`, migração
+`d3e4f5a6b7c8`, nula = quadro inteiro): `GET/PUT/DELETE /api/cameras/<id>/area-deteccao` (salvar e remover:
+técnico ou acima; a troca vai para a linha do tempo com o usuário e para a cadeia de custódia, como o desfoque de
+rosto). Com área, `CameraWorker._detectar` manda ao modelo só o recorte (`app/vision/area_de_deteccao.py`), soma
+o canto do recorte às caixas e aos keypoints e mantém só pessoa (e queda) com o ponto dos pés no polígono e EPI
+contido numa pessoa mantida. Tracker, regras, incidentes, aproximação, mapa de calor, planta e gêmeo leem a análise
+já filtrada; a saúde visual (M1) continua no quadro inteiro. Fora da área, o vídeo ao vivo (navegador), as
+miniaturas e o vídeo anotado saem escurecidos; snapshot, replay, recorte de rótulo e a imagem do LLM saem
+escurecidos e desfocados. Editor: aba "Áreas" da câmera (antes "Zona") com o seletor "Área de detecção / Área de
+risco", retângulo arrastado ou polígono, e o aviso de área de risco fora da área de detecção.
+
+**Por quê.** Pedido da organização do NEXT: a câmera mostra a plateia, mas só o palco deve ser analisado.
+
+**Desvios da spec, registrados.**
+- Margem do recorte: 5 % do quadro nos lados e embaixo (como pedido), **30 % em cima** (`MARGEM_TOPO`). Com 5 %,
+  quem tem os pés logo abaixo da borda de cima tem a cabeça fora do recorte: o modelo vê a pessoa sem cabeça e
+  sai "sem capacete" falso (achado A2 da auditoria). Pela regra da MISSÃO 7 (spec incompleta → opção mais
+  conservadora), vale o critério dos pés, que é o que decide quem é analisado.
+- Pessoa mantida fica **nítida inteira** (caixa + 10 %) na evidência e no vídeo, mesmo com a cabeça fora do
+  polígono: a evidência de uma violação não pode sair borrada justamente na cabeça.
+
+**Achados da auditoria corrigidos (com teste).** Keypoint "não visto" (0, 0) do ultralytics era deslocado e virava
+junta falsa no canto do recorte → "Pessoa caída" crítica falsa (S1); no lote, recortes iam junto dos quadros
+inteiros e trocavam o letterbox de quem não tem área (M3: agora os quadros inteiros seguem juntos como antes e cada
+recorte vai na sua chamada); troca sem usuário e fora da custódia (M4); buffer do replay com quadros da máscara
+anterior (M5); LLM recebia a plateia só escurecida (M6); inteiro gigante dava 500 e texto numérico era aceito (B9);
+PUT/DELETE sem `camera_permitida` (B10); aviso "risco fora" sumia com a câmera parada (B11); área inválida no banco
+sem log (B12); análise que começou com a área anterior era publicada com gente fora da área nova (B7: visto nas
+capturas no celular; agora toda análise é refiltrada pela área vigente ao chegar, e a troca refiltra na hora a já
+publicada). Ficou registrado, sem correção: no lote (`INFERENCIA_LOTE`, desligado por padrão), as flags de
+pose/pessoa são as do primeiro slot (defeito anterior à MISSÃO 7).
+
+**Revisões de UX e CX aplicadas.** Carga e falha de carga não afirmam mais "quadro inteiro" nem deixam salvar por
+cima do que não se leu ("Tentar de novo"); rascunho não salvo marcado e descartado ao encerrar; clique solto no modo
+retângulo não apaga a forma; polígono aproveita o retângulo salvo; confirmação ao remover; "Removendo…"/"Salvando…"
+separados; sucesso anunciado (`role=status`); halo escuro sob o contorno tracejado; o overlay salvo some enquanto se
+desenha; o seletor abre em "Área de detecção". CX: com o desfoque de rosto ligado, a plateia (que não é detectada,
+então o desfoque de rosto não a alcança) sai desfocada no vídeo ao vivo; textos dizem "nenhuma pessoa é detectada"
+(a saúde da câmera continua no quadro inteiro); mensagens de validação dizem o que fazer. Não aplicado: unificar os
+rótulos do editor de risco ("Salvar zona", "Limpar pontos") — fora do escopo; teclado no canvas — padrão anterior.
+
+**Capturas.** `python e2e/capturas_de_tela.py --rodada m7b --telas 60-,61- --so 1366x768-claro,1366x768-escuro,390x844-claro,390x844-escuro`
+(demo, câmera Pátio): rubrica 4 nos dois temas. Ressalva: no celular, o aviso "DEGRADADO" (CPU carregada) cobre o
+rótulo "Área de detecção".
+
+**Fontes.** `Boxes.xyxy` no tamanho da imagem de entrada: a doc (https://docs.ultralytics.com/modes/predict/#boxes)
+não diz o tamanho por escrito; a fonte é o código da 8.3.40, `ultralytics/models/yolo/detect/predict.py:39`
+(`ops.scale_boxes(..., orig_img.shape)`), coberto por `test_mapeamento_recorte_quadro_com_o_letterbox_do_ultralytics`.
+Lote de formas diferentes → letterbox quadrado: https://docs.ultralytics.com/modes/predict/ (seção "Fixed shape vs
+minimum rectangle", versão atual) e, na 8.3.40, `ultralytics/engine/predictor.py:155-158`.
+
+**Medição (item 4).** `python scripts/medir_area_de_deteccao.py --passo 3` → `bench/results/20261022-124821-area-de-deteccao.json`:
+`next_multidao.mp4`, 125 quadros (1 de cada 3), área = terço do meio na altura inteira (x 0,33–0,67, 34 % do
+quadro), OpenVINO na iGPU para EPI, pessoa e pose (pose em toda análise), **com e sem área intercalados quadro a
+quadro**. CPU da máquina a **97 %** antes de medir (Docker Desktop, Teams, Slack abertos — não foram fechados).
+
+| | sem área | com área |
+|---|---|---|
+| inferência por análise, p50 | 961 ms | 1.014 ms |
+| inferência por análise, p95 | 2.986 ms | 2.478 ms |
+| 1ª inferência numa forma nova (compila no OpenVINO) | 25,7 s | 20,9 s |
+| pessoas com os pés fora da área | — | **0** |
+| pessoas dentro da área (soma nos 125 quadros) | 292 (quadro inteiro filtrado pelo polígono) | 363 |
+
+- **Sem ganho de tempo**, e é o esperado com este modelo: o letterbox leva o lado maior da entrada a 640 px
+  (`imgsz`), então o recorte em pé (~420×540 px) entra no modelo como ~512×640 — mais pixels que o quadro inteiro
+  (960×540 → 640×384). A diferença p50 (+5 %) está dentro do ruído de uma máquina a 97 %.
+- **Dentro da área, +71 pessoas (+24 %)**, de −2 a +3 por quadro (78 de 125 quadros diferem): o recorte chega ao
+  modelo ampliado (~1,6×), e gente pequena no fundo passa a ser detectada. Não há anotação de referência na
+  gravação para dizer quantas dessas são acertos; é a diferença medida, não uma taxa de acerto.
+- **Risco para a arena:** a primeira análise depois de salvar uma área de formato novo compila o modelo para essa
+  forma (~21 s nesta máquina, iGPU) e, nesse tempo, o agendador único não analisa nenhuma câmera. Desenhe as
+  áreas na preparação, antes do público.
+
+## Portão da MISSÃO 7
+
+- `ruff check .` limpo; `npm --prefix frontend run build` (`tsc -b` + Vite) ok.
+- `pytest` completo: **3288 passed** (13 min 48 s).
+- E2E completo numa rodada única (`python -m pytest e2e -q`, na tomada, 3 h 00 min): **76 passed, 1 falha, 2 skips**.
+  Inclui `e2e/test_missao7.py` (2 passed), axe nos dois temas (com a aba "Áreas") e o crawler com a rota nova
+  `foco-multidao-areas`.
+- A falha: `test_todos_os_botoes[technical-light]`, três links "sem efeito" — "Ajuda sobre esta tela" em
+  `/simulador` e `/permissoes` (a aba nova abriu aos 2,5 s, logo depois da janela de 2,5 s do crawler) e
+  "Relatório do turno" na tela de foco com a aba Áreas (nenhuma aba abriu; o vídeo estava a 1,9 fps). O mesmo
+  "Relatório do turno" teve efeito nas outras 7 rotas da rodada, inclusive `supervisor-light-foco-multidao-areas`.
+  Reexecutado isolado: **1 passed, 26 rotas, 474 elementos, 0 problemas** (48 min). Classificação: sensível à
+  carga — validar na máquina da apresentação. Nenhum assert foi afrouxado.

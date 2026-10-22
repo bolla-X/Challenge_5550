@@ -202,6 +202,25 @@ def capturar(servidor, navegador, pasta: Path, largura: int, altura: int, tema: 
         pg.keyboard.press("x")
         _foto(pg, pasta, "09-foco-raio-x", feitas, 2500)
         pg.keyboard.press("x")
+        if _quer("60-"):
+            _tentar("60-area-de-deteccao", area_de_deteccao)
+
+    def area_de_deteccao():
+        """MISSÃO 7: aba Áreas com a área de detecção salva (terço do meio) e o vídeo escurecido fora dela."""
+        sessao = servidor.sessao("technical")
+        url = f"{base}/api/cameras/{multidao}/area-deteccao"
+        sessao.put(url, json={"polygon": [{"x": 0.34, "y": 0.0}, {"x": 0.66, "y": 0.0},
+                                          {"x": 0.66, "y": 1.0}, {"x": 0.34, "y": 1.0}]}, timeout=20)
+        try:
+            _abrir_aba(pg, "Áreas")
+            pg.get_by_test_id("areas-tipo-deteccao").click(timeout=20_000)
+            pg.locator("canvas.live-video[data-area^='[']").first.wait_for(timeout=60_000)
+            _foto(pg, pasta, "60-foco-area-de-deteccao", feitas, 3000)
+            pg.get_by_test_id("deteccao-desenhar").click(timeout=20_000)
+            _foto(pg, pasta, "61-foco-area-de-deteccao-desenhando", feitas, 1500)
+            pg.get_by_test_id("deteccao-desenhar").click(timeout=20_000)
+        finally:
+            sessao.delete(url, timeout=20)
 
     _tentar("foco", foco)
     ctx.close()
@@ -359,7 +378,7 @@ def main() -> int:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--rodada", default="r1")
-    ap.add_argument("--so", default="", help="ex.: 1366x768-claro")
+    ap.add_argument("--so", default="", help="ex.: 1366x768-claro (vírgula para mais de um)")
     ap.add_argument("--folhas", action="store_true")
     ap.add_argument("--e2e", action="store_true", help="servidor do E2E em vez da demo")
     ap.add_argument("--aquecer", type=float, default=180.0, help="segundos de demo no ar antes de capturar")
@@ -379,7 +398,7 @@ def main() -> int:
             for nome_tam, (w, h) in TAMANHOS.items():
                 for nome_tema, tema in TEMAS.items():
                     chave = f"{nome_tam}-{nome_tema}"
-                    if args.so and args.so != chave:
+                    if args.so and chave not in args.so.split(","):
                         continue
                     feitas = capturar(servidor, navegador, rodada / chave, w, h, tema)
                     print(f"{chave}: {len(feitas)} capturas", flush=True)

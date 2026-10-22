@@ -19,6 +19,7 @@ import type {
   OverlayOptions,
   PreflightResponse,
   RiskAreaState,
+  AreaDeteccaoEstado,
   RiskScore,
   RiskTrendResponse,
   RuntimeSettings,
@@ -165,6 +166,17 @@ export const patchRiskArea = (payload: { name?: string; polygon: { x: number; y:
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+
+// Área de detecção (MISSÃO 7): onde a câmera procura pessoas. DELETE volta ao quadro inteiro.
+export const getAreaDeteccao = (camId: number) =>
+  apiFetch<{ area_deteccao: AreaDeteccaoEstado }>(`/api/cameras/${camId}/area-deteccao`);
+export const salvarAreaDeteccao = (camId: number, polygon: { x: number; y: number }[]) =>
+  apiFetch<{ area_deteccao: AreaDeteccaoEstado }>(`/api/cameras/${camId}/area-deteccao`, {
+    method: "PUT",
+    body: JSON.stringify({ polygon }),
+  });
+export const removerAreaDeteccao = (camId: number) =>
+  apiFetch<{ area_deteccao: AreaDeteccaoEstado }>(`/api/cameras/${camId}/area-deteccao`, { method: "DELETE" });
 
 export const listEvents = (params: { limit?: number; eventType?: string; severity?: string } = {}) => {
   const query = new URLSearchParams();

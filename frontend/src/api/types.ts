@@ -272,6 +272,15 @@ export interface RiskAreaState extends CameraScoped {
   enabled: boolean;
 }
 
+// ---- app/services/camera_worker.py: area_deteccao_estado() (MISSÃO 7) -----
+// `ativa` false e `polygon` vazio = quadro inteiro. `risco_fora`: a área de risco
+// tem parte fora da área de detecção (essa parte não é vigiada).
+export interface AreaDeteccaoEstado extends CameraScoped {
+  ativa: boolean;
+  polygon: RiskAreaPoint[];
+  risco_fora: boolean;
+}
+
 // ---- app/services/snapshot_service.py: info() (shape read via /status) --
 export interface SnapshotInfo {
   enabled: boolean;

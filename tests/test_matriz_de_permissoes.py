@@ -478,6 +478,10 @@ LINHAS: list[Linha] = [
       corpo={"name": "Zona", "polygon": POLIGONO}),
     L("PATCH", "/api/cameras/<int:camera_id>/risk-area", TEC_OU_MAIS, "/api/cameras/{cam}/risk-area",
       corpo={"name": "Zona", "polygon": POLIGONO}),
+    L("GET", "/api/cameras/<int:camera_id>/area-deteccao", DA_CAMERA, "/api/cameras/{cam}/area-deteccao"),
+    L("PUT", "/api/cameras/<int:camera_id>/area-deteccao", TEC_OU_MAIS, "/api/cameras/{cam}/area-deteccao",
+      corpo={"polygon": POLIGONO}),
+    L("DELETE", "/api/cameras/<int:camera_id>/area-deteccao", TEC_OU_MAIS, "/api/cameras/{cam}/area-deteccao"),
     # ----------------------------------------------------------- celular-câmera --
     L("POST", "/api/celular/<token>/quadro", PUBLICA, "/api/celular/token-inexistente/quadro", ok=(404,),
       publica_por=TOKEN_CELULAR),

@@ -27,6 +27,7 @@ termo da coluna 1 aparece muito mais vezes que os da coluna 3.
 | **EPI** | Equipamento de proteção individual. Rótulos: Capacete, Colete, Luvas, Óculos, Máscara, Calçado, Protetor auricular. | PPE, helmet, vest, gloves (chaves de API nunca aparecem) |
 | **Sem capacete** (ausência) | Classe negativa do modelo: a pessoa foi vista sem o EPI. Escrita "Sem capacete", "Sem colete"… | no_helmet, ausente (isolado), faltando (só no Portal) |
 | **Recurso** | Cada detecção que se liga ou desliga numa câmera (Capacete, Pose, Quedas…). A barra lateral se chama "Recursos". Perfil = conjunto de recursos (Básico, EPI, Risco, Completo). | feature, função, módulo |
+| **Área de detecção** | O polígono da câmera onde o sistema procura pessoas; fora dele nenhuma pessoa é detectada, rastreada ou gera alerta (a saúde da câmera continua olhando o quadro inteiro). Sem área, vale o quadro inteiro. Na tela, fora dela o vídeo fica escurecido. "Remover área" volta ao quadro inteiro (exceção a "remover", ver Apagar). | área de interesse, ROI, região de análise, máscara |
 | **Área de risco** | O polígono desenhado na câmera onde a presença gera alerta. | região de risco, zona de perigo |
 | **Zona** | O nome dessa região num incidente ("Zona A", "Fora da zona"). | usar como sinônimo de câmera |
 | **Quadro** | Uma imagem do vídeo. | frame |

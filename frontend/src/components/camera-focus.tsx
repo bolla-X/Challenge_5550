@@ -33,6 +33,7 @@ import {
 } from "../api/endpoints";
 import type { CameraRecord, MonitorStatus } from "../api/types";
 import { ROLE_ACCESS, useDashboardStore, type ViewMode } from "../store/dashboardStore";
+import { useAreaDeteccao } from "../store/areaDeteccaoStore";
 import { paraDate } from "../utils/datas";
 import { decimal } from "../utils/formato";
 
@@ -99,6 +100,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
   const [starting, setStarting] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const riskEditorActive = useDashboardStore((st) => st.riskEditorActive);
+  const desenhandoDeteccao = useAreaDeteccao((st) => st.editando && st.tipo === "deteccao");
   const [agora, setAgora] = useState(() => Date.now());
   const [stream, setStream] = useState<EstadoDoStream>("conectando");
   const critico = temAlertaCritico(estado);
@@ -127,7 +129,7 @@ function MainCameraVideo({ camera }: { camera: CameraRecord }) {
 
   return (
     <section className="card video-card">
-      <div className={`video-frame ${riskEditorActive ? "editing-risk" : ""}`.trim()} ref={wrapRef}>
+      <div className={`video-frame ${desenhandoDeteccao ? "editing-deteccao" : riskEditorActive ? "editing-risk" : ""}`.trim()} ref={wrapRef}>
         {estado.running ? (
           <>
             <div className="over-video">
@@ -490,7 +492,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "people", label: "Pessoas", content: <PersonCard /> },
     { key: "timeline", label: "Linha do tempo", content: <TimelineCard /> },
     { key: "overlay", label: "Camadas do vídeo", content: <OverlayControls /> },
-    { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
+    { key: "zone", label: "Áreas", content: <RiskAreaEditorPanel /> },
     { key: "gate", label: "Portaria", content: <></> },
     { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },
@@ -511,7 +513,7 @@ const TABS_BY_MODE: Record<Exclude<ViewMode, "operator">, TabItem[]> = {
     { key: "people", label: "Pessoas", content: <PersonCard /> },
     { key: "timeline", label: "Linha do tempo", content: <TimelineCard /> },
     { key: "overlay", label: "Camadas do vídeo", content: <OverlayControls /> },
-    { key: "zone", label: "Zona", content: <RiskAreaEditorPanel /> },
+    { key: "zone", label: "Áreas", content: <RiskAreaEditorPanel /> },
     { key: "gate", label: "Portaria", content: <></> },
     { key: "llm", label: "Segunda opinião", content: <></> },
     { key: "camconfig", label: "Config. câmera", content: <></> },

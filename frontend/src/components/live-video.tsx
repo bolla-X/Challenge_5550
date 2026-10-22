@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LeitorMultipart } from "../socket/multipart";
 import { useDashboardStore } from "../store/dashboardStore";
+import { useAreaDeteccao } from "../store/areaDeteccaoStore";
 import { desenharRaioX, HistoricoDePes, type RaioX } from "./raiox";
 import { decimal } from "../utils/formato";
 
@@ -41,6 +42,8 @@ export type Overlay = {
   poses: [number, number][][];
   zona: [number, number][];
   zona_ativa: boolean;
+  /** Área de detecção (MISSÃO 7), normalizada; vazia ou ausente = quadro inteiro. */
+  area?: [number, number][];
   opcoes: Record<string, boolean>;
   /** Dados do Modo Raio-X (X5); servidor anterior não manda. */
   raiox?: RaioX;
@@ -108,13 +111,112 @@ function retangulo(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.roundRect(x, y, w, h, rr);
 }
 
-export function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: number, dy: number, escala: number) {
+// Área de detecção: contorno NEUTRO e tracejado — o laranja contínuo é da área de risco.
+const COR_AREA_DETECCAO = "rgba(245,245,247,0.95)";
+// Fora da área, o quadro fica com 35 % do brilho (o mesmo fator do servidor nas miniaturas e evidências).
+const ESCURECER_FORA = "rgba(0,0,0,0.65)";
+// Caixa de pessoa mantida, nítida: 10 % maior em cada lado (FOLGA_DA_CAIXA em area_de_deteccao.py).
+const FOLGA_DA_CAIXA = 0.1;
+const CAMADA = document.createElement("canvas");
+
+function desenharAreaDeDeteccao(
+  ctx: CanvasRenderingContext2D,
+  ov: Overlay,
+  dx: number,
+  dy: number,
+  escala: number,
+  escurecer: boolean,
+  rotulos: boolean,
+) {
+  const area = ov.area || [];
+  if (area.length < 3) return;
+  const pontos = area.map(([x, y]) => [dx + x * ov.w * escala, dy + y * ov.h * escala] as const);
+  const contorno = () => pontos.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.save();
+  if (escurecer) {
+    // Camada escura num canvas à parte, com o polígono E as pessoas mantidas recortados dela: quem tem os pés
+    // na área fica nítido inteiro, mesmo com a cabeça para fora (a mesma regra das miniaturas e evidências).
+    const larg = Math.max(1, Math.round(ov.w * escala));
+    const alt = Math.max(1, Math.round(ov.h * escala));
+    if (CAMADA.width !== larg || CAMADA.height !== alt) {
+      CAMADA.width = larg;
+      CAMADA.height = alt;
+    }
+    const c = CAMADA.getContext("2d");
+    if (c) {
+      c.globalCompositeOperation = "source-over";
+      c.clearRect(0, 0, larg, alt);
+      c.fillStyle = ESCURECER_FORA;
+      c.fillRect(0, 0, larg, alt);
+      c.globalCompositeOperation = "destination-out";
+      c.beginPath();
+      area.forEach(([x, y], i) => (i ? c.lineTo(x * larg, y * alt) : c.moveTo(x * larg, y * alt)));
+      c.closePath();
+      c.fill();
+      for (const cx of ov.caixas) {
+        if (cx.k !== "pessoa" && cx.k !== "queda") continue;
+        const [x1, y1, x2, y2] = cx.b;
+        const fx = (x2 - x1) * FOLGA_DA_CAIXA;
+        const fy = (y2 - y1) * FOLGA_DA_CAIXA;
+        c.fillRect((x1 - fx) * escala, (y1 - fy) * escala, (x2 - x1 + 2 * fx) * escala, (y2 - y1 + 2 * fy) * escala);
+      }
+      c.globalCompositeOperation = "source-over";
+      ctx.drawImage(CAMADA, dx, dy);
+    }
+  }
+  ctx.beginPath();
+  contorno();
+  ctx.closePath();
+  // Halo contínuo escuro por baixo do tracejado claro: legível sobre palco iluminado e sobre fundo escuro.
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.stroke();
+  ctx.setLineDash([8, 6]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = COR_AREA_DETECCAO;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (rotulos) {
+    // No meio da borda esquerda, por dentro: o topo do vídeo é das pílulas de estado e alerta, e a base, do
+    // aviso de degradado — ali o rótulo ficaria escondido.
+    const xs = pontos.map(([x]) => x);
+    const ys = pontos.map(([, y]) => y);
+    const tx = Math.min(...xs) + 6;
+    const ty = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const texto = "Área de detecção";
+    ctx.textBaseline = "middle";
+    const largura = ctx.measureText(texto).width + 12;
+    const altura = 22;
+    const lx = Math.max(dx, Math.min(tx, dx + ov.w * escala - largura));
+    const ly = ty - altura / 2;
+    ctx.fillStyle = FUNDO_ROTULO;
+    retangulo(ctx, lx, ly, largura, altura, 9);
+    ctx.fill();
+    ctx.fillStyle = TEXTO_ROTULO;
+    ctx.fillText(texto, lx + 6, ly + altura / 2);
+  }
+  ctx.restore();
+}
+
+export function desenharOverlay(
+  ctx: CanvasRenderingContext2D,
+  ov: Overlay,
+  dx: number,
+  dy: number,
+  escala: number,
+  /** O replay já grava o quadro escurecido (evidência): lá só o contorno. */
+  { escurecerFora = true }: { escurecerFora?: boolean } = {},
+) {
   const opc = ov.opcoes || {};
   const mostrarCaixas = opc.boxes !== false;
   const mostrarRotulos = opc.labels !== false;
   const mostrarConf = opc.confidence !== false;
   const px = (x: number) => dx + x * escala;
   const py = (y: number) => dy + y * escala;
+
+  const fonte = Math.max(12, Math.round(13 * Math.min(1.6, Math.max(0.8, escala * 1.3))));
+  ctx.font = `600 ${fonte}px "Geist Variable", system-ui, sans-serif`;
+  desenharAreaDeDeteccao(ctx, ov, dx, dy, escala, escurecerFora, mostrarRotulos);
 
   if (ov.zona_ativa && opc.risk_area !== false && ov.zona.length >= 3) {
     ctx.beginPath();
@@ -127,7 +229,6 @@ export function desenharOverlay(ctx: CanvasRenderingContext2D, ov: Overlay, dx: 
     ctx.stroke();
   }
 
-  const fonte = Math.max(12, Math.round(13 * Math.min(1.6, Math.max(0.8, escala * 1.3))));
   ctx.font = `600 ${fonte}px "Geist Variable", system-ui, sans-serif`;
   ctx.textBaseline = "middle";
   for (const cx of ov.caixas) {
@@ -237,13 +338,18 @@ export function LiveVideo({
       ctx.clearRect(0, 0, largura, altura);
       ctx.drawImage(item.bmp, dx, dy, w, h);
       if (item.ov && item.ov.w) {
-        desenharOverlay(ctx, item.ov, dx, dy, w / item.ov.w);
+        // Desenhando a área de detecção desta câmera: só o rascunho do editor aparece, sem a área salva por cima.
+        const ed = useAreaDeteccao.getState();
+        const redesenhando = ed.editando && ed.tipo === "deteccao" && ed.camId === cameraId;
+        desenharOverlay(ctx, redesenhando ? { ...item.ov, area: [] } : item.ov, dx, dy, w / item.ov.w);
         // Raio-X: o histórico dos pés anda sempre (as trilhas já existem ao ligar).
         historico.registrar(item.ov.v, item.ov.caixas, item.ov.w, item.ov.h);
         const raio = useDashboardStore.getState().raioX;
         if (raio && item.ov.raiox) desenharRaioX(ctx, item.ov.raiox, item.ov.caixas, item.ov.w, item.ov.h, dx, dy, w / item.ov.w, historico);
         canvas.dataset.raiox = raio && item.ov.raiox ? "1" : "0";
       }
+      // Para o E2E e o editor: a área que está sendo aplicada neste quadro ("" = quadro inteiro).
+      canvas.dataset.area = item.ov?.area && item.ov.area.length >= 3 ? JSON.stringify(item.ov.area) : "";
       canvas.dataset.w = String(item.bmp.width);
       canvas.dataset.h = String(item.bmp.height);
       item.bmp.close();
