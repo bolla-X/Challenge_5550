@@ -22,10 +22,15 @@ em `CHANGELOG.md`. A MISSÃO 4 está fechada (PR10 #21, tags `missao-4-pr10` e `
 
 Desvio registrado da spec: margem de cima do recorte 30 % (5 % nos lados e embaixo). Motivo no CHANGELOG.
 
+## Portão (22/10)
+
+pytest 3288 passed; ruff limpo; build ok; E2E completo 76 passed, 1 falha sensível à carga (crawler
+`technical-light`, passou isolado: 26 rotas, 474 elementos, 0 problemas), 2 skips; axe ok. Detalhe no CHANGELOG.
+
 ## Próximo passo exato
 
-Portão completo (pytest, ruff, build/typecheck, E2E completo + crawler + axe) → PR único → `gh pr merge --squash
---delete-branch` → tag `final-next-2026-r3` → fumaça a partir da `main`.
+PR único da `missao-7` → `gh pr merge --squash --delete-branch` → tag `final-next-2026-r3` → fumaça a partir da
+`main` (`e2e/fumaca_demo.py --raiz .`).
 
 ## Rollback
 

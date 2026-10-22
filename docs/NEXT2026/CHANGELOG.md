@@ -1779,3 +1779,17 @@ quadro**. CPU da máquina a **97 %** antes de medir (Docker Desktop, Teams, Slac
 - **Risco para a arena:** a primeira análise depois de salvar uma área de formato novo compila o modelo para essa
   forma (~21 s nesta máquina, iGPU) e, nesse tempo, o agendador único não analisa nenhuma câmera. Desenhe as
   áreas na preparação, antes do público.
+
+## Portão da MISSÃO 7
+
+- `ruff check .` limpo; `npm --prefix frontend run build` (`tsc -b` + Vite) ok.
+- `pytest` completo: **3288 passed** (13 min 48 s).
+- E2E completo numa rodada única (`python -m pytest e2e -q`, na tomada, 3 h 00 min): **76 passed, 1 falha, 2 skips**.
+  Inclui `e2e/test_missao7.py` (2 passed), axe nos dois temas (com a aba "Áreas") e o crawler com a rota nova
+  `foco-multidao-areas`.
+- A falha: `test_todos_os_botoes[technical-light]`, três links "sem efeito" — "Ajuda sobre esta tela" em
+  `/simulador` e `/permissoes` (a aba nova abriu aos 2,5 s, logo depois da janela de 2,5 s do crawler) e
+  "Relatório do turno" na tela de foco com a aba Áreas (nenhuma aba abriu; o vídeo estava a 1,9 fps). O mesmo
+  "Relatório do turno" teve efeito nas outras 7 rotas da rodada, inclusive `supervisor-light-foco-multidao-areas`.
+  Reexecutado isolado: **1 passed, 26 rotas, 474 elementos, 0 problemas** (48 min). Classificação: sensível à
+  carga — validar na máquina da apresentação. Nenhum assert foi afrouxado.
