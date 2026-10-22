@@ -1,4 +1,4 @@
-# ESTADO — MISSÃO 7 (área de detecção por câmera)
+# ESTADO — MISSÃO 7 (área de detecção por câmera) — fechada em 22/10/2026
 
 Retomar lendo **só** `MISSAO-7.md` (prompt), `MISSAO-7-SPEC.md` (critérios M7.x) + este arquivo. Detalhe técnico
 em `CHANGELOG.md`. A MISSÃO 4 está fechada (PR10 #21, tags `missao-4-pr10` e `final-next-2026`).
@@ -27,10 +27,21 @@ Desvio registrado da spec: margem de cima do recorte 30 % (5 % nos lados e embai
 pytest 3288 passed; ruff limpo; build ok; E2E completo 76 passed, 1 falha sensível à carga (crawler
 `technical-light`, passou isolado: 26 rotas, 474 elementos, 0 problemas), 2 skips; axe ok. Detalhe no CHANGELOG.
 
+## Entrega
+
+- PR https://github.com/bolla-X/Challenge_5550/pull/22 → `gh pr merge --squash --delete-branch` → `a4df215` na
+  `main`; tag `final-next-2026-r3` (push feito).
+- Fumaça a partir da `main` (`a4df215`): **6/6** (demo no ar em 103 s), rodada com o tour guiado marcado como
+  visto. A 1ª tentativa, com `e2e/fumaca_demo.py` puro, parou no 5º passo: o tour do primeiro acesso cobria o botão
+  "Câmeras". O script nunca marcou o tour como visto (o `e2e/conftest.py` marca); passava antes por timing. Não é da
+  MISSÃO 7 (`tour.tsx` e a fumaça sem mudança desde `d76941b`).
+- `docs/NEXT2026/QA.md` regenerado pelo crawler do portão (80 rotas × papéis, 809 elementos, 3 "sem efeito" na
+  rodada com carga — os três passaram na reexecução isolada; ver CHANGELOG "Portão da MISSÃO 7").
+
 ## Próximo passo exato
 
-PR único da `missao-7` → `gh pr merge --squash --delete-branch` → tag `final-next-2026-r3` → fumaça a partir da
-`main` (`e2e/fumaca_demo.py --raiz .`).
+Pendência pequena, fora do PR único da missão: `e2e/fumaca_demo.py` marcar o tour como visto antes de entrar (o
+mesmo `add_init_script` de `e2e/conftest.py`). Depois disso, só a preparação da arena (DEMO.md, item 6).
 
 ## Rollback
 
