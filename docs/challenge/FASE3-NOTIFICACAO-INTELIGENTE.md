@@ -5,7 +5,7 @@ Engenharia da Computação, 3º ano. Entrega: 24/08/2026.
 
 ## Equipe
 
-Lucas Baraldi Rodrigues · Lucas Zolla Assis · Pedro Costa Belisário · Vitor Pantarotto de Brito  
+Lucas Baraldi Rodrigues · Lucas Zolla Assis · Pedro Gonçalves · Vitor Pantarotto de Brito  
 Professor: Fabio Henrique Pimentel · Mentores SPI: Fernando Marcolina, Wendel de Almeida Passos
 
 ---

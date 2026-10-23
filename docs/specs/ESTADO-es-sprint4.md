@@ -6,7 +6,7 @@ Retomar lendo `es-sprint4.md` (critérios) + este arquivo.
 
 | Item | Achado | Como foi visto |
 |---|---|---|
-| G.1 rebrand | `git merge-base --is-ancestor origin/feat/completo-com-rebrand origin/main` → **exit 1**: o rebrand não está na main. Não mesclado. O dono confirmou: "A main já tem tudo, baseie-se nela". | comando no terminal |
+| G.1 rebrand | `git merge-base --is-ancestor origin/feat/completo-com-rebrand origin/main` → **exit 1** (commits da branch não são ancestrais, porque a main recebe squash). **Correção no fechamento:** o conteúdo do rebrand está na main pelo squash do PR7 `a6d303b` (11 commits `rebrand(n)` no corpo; `tokens.css` igual ao do rebrand mais `--sinal-amarelo`). Não mesclado. O dono confirmou: "A main já tem tudo, baseie-se nela". | comando no terminal |
 | G.2 branch | `es-sprint4-entrega` criada de `main` = `origin/main` = `a4df215` (MISSÃO 7, #22) | `git switch -c es-sprint4-entrega main` |
 | Workflows | não há `.github/` no repositório | `git ls-files` |
 | Stack | Flask + Flask-SQLAlchemy + Alembic + Flask-SocketIO; YOLOv8 (Vyra) + YOLOv8n pessoa + YOLO11n-pose; OpenVINO/ONNX; MediaPipe; Gemini opcional; React 18 + TS + Vite + Zustand; `app/static/dist` é versionado | README, `requirements.txt`, `frontend/package.json`, `git ls-files` |
@@ -23,7 +23,7 @@ Retomar lendo `es-sprint4.md` (critérios) + este arquivo.
 | Scrum | não há backlog, review, retro nem DoD versionados | `rg` em `docs/` |
 | Cronograma | `docs/challenge/CONSOLIDADO.md`: início 16/04/2026; Sprint 1 04/05; Sprint 2 22/06; Sprint 3 24/08; Sprint 4 e banca 23/09 | leitura |
 | git log | 1º commit da main em 19/07/2026; Sprints 1 e 2 não têm commits na main | `git log --reverse --date=short main` |
-| Equipe | `CONSOLIDADO.md` lista "Pedro Costa Belisário"; o prompt da entrega diz "Pedro Gonçalves — RM 557936". Vale o prompt (é do grupo); a divergência fica registrada, o documento antigo não é reescrito | leitura |
+| Equipe | `CONSOLIDADO.md` trazia outro sobrenome para o integrante do RM 557936; o prompt da entrega diz "Pedro Gonçalves — RM 557936". Vale o prompt (é do grupo). No fechamento (23/10) o dono confirmou o nome e os documentos antigos foram corrigidos | leitura |
 
 ## Decisões tomadas pela sessão (o prompt não decidia; opção mais conservadora)
 

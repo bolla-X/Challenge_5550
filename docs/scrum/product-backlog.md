@@ -105,5 +105,5 @@ vem depois (ver `ata-review-final-sprint4.md`).
 
 ## Fora do backlog por decisão
 
-- Mesclar `feat/completo-com-rebrand` na entrega (a branch não está na `main`; `git merge-base --is-ancestor` devolveu 1; ver `docs/specs/ESTADO-es-sprint4.md`).
+- Mesclar `feat/completo-com-rebrand` na entrega (desnecessário: o conteúdo já entrou na `main` pelo squash do PR7, `a6d303b`; ver `docs/specs/ESTADO-es-sprint4.md`).
 - Reconhecimento facial e qualquer vínculo entre colaborador e ID de rastreio (ADR 0005 e 0008).

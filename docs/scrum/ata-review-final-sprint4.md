@@ -11,6 +11,8 @@ no Trello, para não exigir um segundo PR. Esta ata não registra falas nem pres
 
 Equipe (conforme informado pelo grupo): Pedro Gonçalves (RM 557936), Lucas Baraldi (RM 555407), Lucas Zolla (RM 557952), Vitor Pantarotto (RM 554961).
 
+Correção (23/10/2026, fechamento): nos documentos antigos (`docs/challenge/`), o sobrenome do integrante do RM 557936 foi trocado para "Pedro Gonçalves", nome confirmado pelo grupo; a identificação como a mesma pessoa vem da composição da equipe (mesmos 4 integrantes).
+
 Presenças e formato da reunião de review: **não informados ao redator**. Esta ata é a review do incremento a partir das evidências, não o registro de uma
 reunião.
 
@@ -46,7 +48,7 @@ Tabela por critério de `docs/specs/es-sprint4.md`.
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| G.1 | `fetch --all`, base `origin/main`, `merge-base --is-ancestor` registrado, rebrand não mesclado | Atendido | `git merge-base --is-ancestor origin/feat/completo-com-rebrand origin/main` saiu com **código 1**: o rebrand não está na `main` e não foi mesclado |
+| G.1 | `fetch --all`, base `origin/main`, `merge-base --is-ancestor` registrado, rebrand não mesclado | Atendido | `git merge-base --is-ancestor` saiu com código 1, mas isso só diz que os commits da branch não são ancestrais (a `main` recebe squash). Medição correta no fechamento: o **conteúdo** do rebrand já está na `main` pelo squash do PR7 (`a6d303b`, 14/10, 11 commits `rebrand(n)` no corpo); `git diff origin/feat/completo-com-rebrand origin/main -- frontend/src/styles/tokens.css` difere só pelo token `--sinal-amarelo` da MISSÃO 4. Nada foi mesclado |
 | G.2 | Branch `es-sprint4-entrega` a partir da main | Atendido | `git switch -c es-sprint4-entrega main` (`main` = `origin/main` = `a4df215`) |
 | G.3 | `[skip ci]` em todo commit e no título do squash; nenhum workflow | Atendido | os 4 commits da branch terminam em `[skip ci]` (seção 5.3); não há `.github/` no repositório nem no diff |
 | G.4 | Só aditivo; regressão do fluxo câmera → YOLO → alerta antes do merge | Atendido | `git status` vazio em `camera_worker.py`, `app/vision/`, `risk_rules.py`, `alert_state_service.py`, `monitor_service.py` (auditor); fumaça `e2e/fumaca_demo.py --raiz .` **6/6** (2ª rodada; a 1ª deu 5/6 por tempo na troca de cena do palco, reproduzida à mão: o Portal chega a "Liberado"); `e2e/test_fluxos.py` **17 passed in 208.53s**; `e2e/test_missao4.py e2e/test_missao7.py` **18 passed in 130.78s** |
@@ -91,7 +93,7 @@ Tabela por critério de `docs/specs/es-sprint4.md`.
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F3.1 | `README.md` âncora | Atendido | problema, proposta, funcionalidades, links (protótipo, Trello, vídeo `LINK_DO_VIDEO_YOUTUBE`), instalação, uso, demo, teste do avaliador, sprints, equipe, estrutura, prints |
+| F3.1 | `README.md` âncora | Atendido | problema, proposta, funcionalidades, links (protótipo, Trello, vídeo https://youtu.be/jqkfFecsIiw), instalação, uso, demo, teste do avaliador, sprints, equipe, estrutura, prints |
 | F3.2 | `docs/arquitetura.md` e ADRs | Atendido | 2 diagramas de componentes e 2 de sequência; 10 ADRs e índice |
 | F3.3 | `docs/requisitos.md` com matriz | Atendido | 53 RF e 14 RNF; RF → card Trello → código → teste → sprint |
 | F3.4 | `docs/scrum/` completo | Atendido | backlog, sprints 1 a 4 (com review e retro), DoD, esta ata |
@@ -187,4 +189,5 @@ Marcos anteriores, com data e hash: [../evolucao-sprints.md](../evolucao-sprints
 - Os pesos dos modelos continuam sendo baixados por `scripts/preparar.py`; "roda sem internet num clone recém-feito" não é afirmado.
 - "Hoje" da Gestão é a data local do servidor (limitação S8).
 - A fumaça teve uma falha intermitente de tempo na troca de cena do palco (1 em 2 rodadas no checkout; 1 em 1 verde no clone limpo).
-- Pendência humana: subir o vídeo no YouTube como não listado e colar o link no `.txt` e no README.
+- Vídeo publicado pelo grupo no YouTube como não listado: https://youtu.be/jqkfFecsIiw (link no README e no `.txt` da entrega).
+- Os PDFs de `docs/pitch/` exportados dos documentos de fase podem ainda trazer o sobrenome antigo do RM 557936: o texto deles é comprimido e não foi verificável com a stdlib nem é editável sem regenerar o PDF. O `.pptx` do pitch foi corrigido.

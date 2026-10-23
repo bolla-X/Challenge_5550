@@ -10,7 +10,7 @@ Projeto do Challenge 2026 Metaindústria (FIAP × SPI Integração), apresentado
 |---|---|
 | Protótipo | primeira versão versionada: [commit `e1e483a` (19/07/2026)](https://github.com/bolla-X/Challenge_5550/tree/e1e483a) · deck do pitch: [docs/pitch/VisionEPI-pitch-v3.pdf](docs/pitch/VisionEPI-pitch-v3.pdf) |
 | Trello (público) | https://trello.com/b/zVZW2n1p/visionepi-challenge-3ecr |
-| Vídeo (até 5 min) | LINK_DO_VIDEO_YOUTUBE |
+| Vídeo (até 5 min) | https://youtu.be/jqkfFecsIiw |
 | Manual de uso | [docs/manual-de-uso.md](docs/manual-de-uso.md) |
 | Arquitetura | [docs/arquitetura.md](docs/arquitetura.md) · ADRs em [docs/adr/](docs/adr/README.md) |
 | Requisitos e rastreabilidade | [docs/requisitos.md](docs/requisitos.md) |

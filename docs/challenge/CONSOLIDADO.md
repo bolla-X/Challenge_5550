@@ -9,7 +9,7 @@ Engenharia da Computação, 3º ano.
 |---|---|
 | Aluno | Lucas Baraldi Rodrigues |
 | Aluno | Lucas Zolla Assis |
-| Aluno | Pedro Costa Belisário |
+| Aluno | Pedro Gonçalves |
 | Aluno | Vitor Pantarotto de Brito |
 | Professor | Fabio Henrique Pimentel |
 | Mentor SPI | Fernando Marcolina |

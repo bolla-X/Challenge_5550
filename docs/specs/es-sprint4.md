@@ -72,7 +72,7 @@ inventados (datas, falas, métricas, participantes); artefatos Scrum das Sprints
 ### F3 — Documentação
 
 - **F3.1** `README.md` (âncora): problema da Metaindústria, proposta, funcionalidades, links (protótipo, Trello,
-  vídeo `LINK_DO_VIDEO_YOUTUBE`), instalação, uso, modo demonstração, resumo das entregas por sprint, equipe com
+  vídeo https://youtu.be/jqkfFecsIiw), instalação, uso, modo demonstração, resumo das entregas por sprint, equipe com
   RMs, estrutura do repo, screenshots geradas com Playwright em `docs/img/`.
 - **F3.2** `docs/arquitetura.md`: visão geral, Mermaid de componentes e de fluxo de dados, stack com justificativa,
   decisões técnicas por sprint, limitações conhecidas; ADRs curtos em `docs/adr/`.
@@ -112,7 +112,7 @@ inventados (datas, falas, métricas, participantes); artefatos Scrum das Sprints
 ### F6 — Entregável zipado (`~/Downloads/ES_Sprint4_VisionEPI/`)
 
 - **F6.1** `ES_Sprint4_3ECR.txt` UTF-8: integrantes e RMs; repositório https://github.com/bolla-X/Challenge_5550;
-  link do Trello; `Vídeo: COLE_AQUI_O_LINK_DO_YOUTUBE_NAO_LISTADO`; conferido não vazio e legível.
+  link do Trello; `Vídeo: https://youtu.be/jqkfFecsIiw`; conferido não vazio e legível.
 - **F6.2** `VisionEPI_pitch_demo.mp4`.
 - **F6.3** `ES_Sprint4_VisionEPI.zip` com o .txt, o MP4, `storyboard.md`, `README.md` e `docs/` inteiros; validado
   com `unzip -t`, conteúdo listado e tamanho registrado.
