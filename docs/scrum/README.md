@@ -54,8 +54,8 @@ Quem vale é o que o grupo informou para esta entrega:
 
 ## Divergências registradas (os documentos antigos não foram reescritos)
 
-1. **Nome de integrante.** `docs/challenge/CONSOLIDADO.md` e os relatórios de fase listam "Pedro Costa Belisário"; o grupo informou "Pedro Gonçalves
-   (RM 557936)". Vale o que o grupo informou.
+1. **Nome de integrante.** `docs/challenge/CONSOLIDADO.md` e os relatórios de fase traziam outro sobrenome para o integrante do RM 557936; o
+   grupo informou "Pedro Gonçalves". Em 23/10/2026 os documentos antigos foram corrigidos para "Pedro Gonçalves" (registro na ata da review final).
 2. **Numeração das sprints de IA.** Os documentos da disciplina de IA chamam de "Sprint 3" (camada LLM) o trabalho com commits de 09/09 e de
    "Sprint 4" o de 28/09 (`docs/SPRINT3.md`, `docs/SPRINT4.md`). Pelas datas desta disciplina (Sprint 3 termina em 24/08), os dois caem na
    **Sprint 4**. Os arquivos mantêm os nomes originais; a [Sprint 4](sprint-4.md) os trata como "relatório de IA, camada LLM" e "relatório de
