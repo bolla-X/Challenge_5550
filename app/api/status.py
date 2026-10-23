@@ -89,6 +89,7 @@ def nao_encontrado(erro: NotFound):
 @status_bp.get("/caixa-de-entrada")
 @status_bp.get("/novidades")
 @status_bp.get("/configuracoes")
+@status_bp.get("/gestao")
 def index():
     # Serve o shell do build React (frontend/vite.config.ts emite aqui).
     # O caminho Jinja antigo (app/templates/ + app/static/app.js|styles.css)

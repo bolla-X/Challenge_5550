@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy.ext.mutable import MutableDict
 
@@ -637,4 +637,210 @@ class User(db.Model):
             "camera_id": self.camera_id,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# Gestão de EPIs (ES Sprint 4): cadastro ADMINISTRATIVO (NR-6), separado da visão. Nenhuma
+# coluna daqui liga colaborador a ID de rastreio, câmera ou imagem. Regras: app/services/gestao_epi.py.
+# Mesmas chaves de `PPE_KEYS` (app/vision/person_compliance_matcher.py) mais "outro"; tests/test_gestao_epi.py trava a igualdade.
+CATEGORIAS_DE_EPI = ("helmet", "vest", "gloves", "glasses", "mask", "safety_shoe", "ear_protection", "outro")
+CA_VALIDO = "valido"
+CA_A_VENCER = "a_vencer"
+CA_VENCIDO = "vencido"
+CA_DIAS_A_VENCER = 30
+ENTREGA_VIGENTE = "vigente"
+ENTREGA_TROCA_VENCIDA = "troca_vencida"
+ENTREGA_DEVOLVIDO = "devolvido"
+ENTREGA_MOTIVOS = ("admissao", "substituicao", "perda", "dano")
+OCORRENCIA_TIPOS = ("acidente", "quase_acidente", "condicao_insegura", "ato_inseguro")
+OCORRENCIA_GRAVIDADES = ("baixa", "media", "alta", "critica")
+OCORRENCIA_ABERTA = "aberta"
+OCORRENCIA_EM_TRATAMENTO = "em_tratamento"
+OCORRENCIA_ENCERRADA = "encerrada"
+OCORRENCIA_STATUS = (OCORRENCIA_ABERTA, OCORRENCIA_EM_TRATAMENTO, OCORRENCIA_ENCERRADA)
+
+
+class Colaborador(db.Model):
+    """Pessoa do cadastro administrativo. SEM CPF, foto ou qualquer dado sensível.
+
+    `ativo=False` é desligamento, não exclusão: o histórico de entregas e ocorrências continua legível,
+    mas o servidor recusa NOVA entrega (ver `garantir_colaborador_operacional`).
+    `ficticio` marca o que veio do seed (dados simulados).
+    """
+
+    __tablename__ = "colaboradores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    matricula = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    nome = db.Column(db.String(160), nullable=False)
+    setor = db.Column(db.String(120), nullable=False, index=True)
+    funcao = db.Column(db.String(120), nullable=False)
+    admissao = db.Column(db.Date, nullable=False)
+    ativo = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    ficticio = db.Column(db.Boolean, nullable=False, default=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "matricula": self.matricula,
+            "nome": self.nome,
+            "setor": self.setor,
+            "funcao": self.funcao,
+            "admissao": self.admissao.isoformat() if self.admissao else None,
+            "ativo": bool(self.ativo),
+            "ficticio": bool(self.ficticio),
+            "criado_em": _aware(self.criado_em).isoformat() if self.criado_em else None,
+        }
+
+
+class EpiCatalogo(db.Model):
+    """Item do catálogo de EPIs, com o Certificado de Aprovação (CA) e a validade dele.
+
+    A situação do CA (`valido`, `a_vencer`, `vencido`) é CALCULADA contra a data de hoje a cada leitura, nunca gravada.
+    """
+
+    __tablename__ = "epis_catalogo"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(160), nullable=False)
+    categoria = db.Column(db.String(30), nullable=False, index=True)
+    ca = db.Column(db.String(20), nullable=False, unique=True, index=True)
+    validade_ca = db.Column(db.Date, nullable=False, index=True)
+    fabricante = db.Column(db.String(160), nullable=False)
+    vida_util_dias = db.Column(db.Integer, nullable=False)
+    ficticio = db.Column(db.Boolean, nullable=False, default=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    def dias_para_vencer(self, hoje: date) -> int:
+        """Negativo quando o CA já venceu."""
+        return (self.validade_ca - hoje).days
+
+    def situacao_ca(self, hoje: date) -> str:
+        dias = self.dias_para_vencer(hoje)
+        if dias < 0:
+            return CA_VENCIDO
+        return CA_A_VENCER if dias <= CA_DIAS_A_VENCER else CA_VALIDO
+
+    def to_dict(self, hoje: date) -> dict:
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "categoria": self.categoria,
+            "ca": self.ca,
+            "validade_ca": self.validade_ca.isoformat() if self.validade_ca else None,
+            "fabricante": self.fabricante,
+            "vida_util_dias": self.vida_util_dias,
+            "situacao_ca": self.situacao_ca(hoje),
+            "dias_para_vencer": self.dias_para_vencer(hoje),
+            "ficticio": bool(self.ficticio),
+            "criado_em": _aware(self.criado_em).isoformat() if self.criado_em else None,
+        }
+
+
+class EntregaEpi(db.Model):
+    """Entrega de um EPI a um colaborador. `troca_prevista_em = entregue_em + vida_util_dias` (gravada na entrega).
+
+    A situação (`vigente`, `troca_vencida`, `devolvido`) é calculada contra a data de hoje. Devolver não apaga
+    nada: a entrega continua no histórico do colaborador.
+    """
+
+    __tablename__ = "entregas_epi"
+
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    colaborador_id = db.Column(db.Integer, db.ForeignKey("colaboradores.id"), nullable=False, index=True)
+    epi_id = db.Column(db.Integer, db.ForeignKey("epis_catalogo.id"), nullable=False, index=True)
+    # Registro legal CONGELADO: o CA e o nome que valiam no dia da entrega. Editar o catálogo depois (CA renovado,
+    # nome corrigido) não reescreve o que foi entregue.
+    ca_na_entrega = db.Column(db.String(20), nullable=False)
+    epi_nome_na_entrega = db.Column(db.String(160), nullable=False)
+    quantidade = db.Column(db.Integer, nullable=False, default=1)
+    entregue_em = db.Column(db.Date, nullable=False, index=True)
+    troca_prevista_em = db.Column(db.Date, nullable=False)
+    devolvido_em = db.Column(db.Date, nullable=True)
+    motivo = db.Column(db.String(20), nullable=False)
+    observacao = db.Column(db.String(500), nullable=False, default="")
+    registrado_por = db.Column(db.String(180), nullable=False)
+    ficticio = db.Column(db.Boolean, nullable=False, default=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    colaborador = db.relationship("Colaborador", lazy="joined")
+    epi = db.relationship("EpiCatalogo", lazy="joined")
+
+    def situacao(self, hoje: date) -> str:
+        if self.devolvido_em is not None:
+            return ENTREGA_DEVOLVIDO
+        return ENTREGA_TROCA_VENCIDA if self.troca_prevista_em < hoje else ENTREGA_VIGENTE
+
+    def to_dict(self, hoje: date) -> dict:
+        colaborador, epi = self.colaborador, self.epi
+        return {
+            "id": self.id,
+            "codigo": self.codigo,
+            "colaborador": {"id": colaborador.id, "matricula": colaborador.matricula, "nome": colaborador.nome,
+                            "setor": colaborador.setor},
+            # nome e CA vêm do registro congelado; `situacao_ca` é a situação ATUAL do item (selo "CA vencido")
+            "epi": {"id": epi.id, "nome": self.epi_nome_na_entrega, "categoria": epi.categoria, "ca": self.ca_na_entrega,
+                    "situacao_ca": epi.situacao_ca(hoje)},
+            "quantidade": self.quantidade,
+            "entregue_em": self.entregue_em.isoformat() if self.entregue_em else None,
+            "troca_prevista_em": self.troca_prevista_em.isoformat() if self.troca_prevista_em else None,
+            "devolvido_em": self.devolvido_em.isoformat() if self.devolvido_em else None,
+            "motivo": self.motivo,
+            "observacao": self.observacao,
+            "registrado_por": self.registrado_por,
+            "situacao": self.situacao(hoje),
+            "ficticio": bool(self.ficticio),
+        }
+
+
+class Ocorrencia(db.Model):
+    """Ocorrência de segurança registrada À MÃO (acidente, quase acidente, condição ou ato inseguro).
+
+    `alerta_id` é só uma referência ao alerta da visão, sem ForeignKey (como `Alert.camera_id`): o registro não some
+    com o alerta. `colaborador_id` é opcional e é cadastro administrativo, não rastreio.
+    """
+
+    __tablename__ = "ocorrencias"
+
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    tipo = db.Column(db.String(30), nullable=False, index=True)
+    gravidade = db.Column(db.String(20), nullable=False)
+    setor = db.Column(db.String(160), nullable=False, index=True)
+    descricao = db.Column(db.String(2000), nullable=False)
+    ocorrida_em = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default=OCORRENCIA_ABERTA, index=True)
+    colaborador_id = db.Column(db.Integer, db.ForeignKey("colaboradores.id"), nullable=True, index=True)
+    acao_corretiva = db.Column(db.String(2000), nullable=False, default="")
+    alerta_id = db.Column(db.Integer, nullable=True)
+    registrada_por = db.Column(db.String(180), nullable=False)
+    encerrada_em = db.Column(db.DateTime(timezone=True), nullable=True)
+    ficticio = db.Column(db.Boolean, nullable=False, default=False)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+
+    colaborador = db.relationship("Colaborador", lazy="joined")
+
+    def to_dict(self) -> dict:
+        colaborador = self.colaborador
+        return {
+            "id": self.id,
+            "codigo": self.codigo,
+            "tipo": self.tipo,
+            "gravidade": self.gravidade,
+            "setor": self.setor,
+            "descricao": self.descricao,
+            "ocorrida_em": _aware(self.ocorrida_em).isoformat() if self.ocorrida_em else None,
+            "status": self.status,
+            "colaborador": (
+                {"id": colaborador.id, "nome": colaborador.nome, "matricula": colaborador.matricula}
+                if colaborador is not None else None
+            ),
+            "acao_corretiva": self.acao_corretiva,
+            "alerta_id": self.alerta_id,
+            "registrada_por": self.registrada_por,
+            "encerrada_em": _aware(self.encerrada_em).isoformat() if self.encerrada_em else None,
+            "ficticio": bool(self.ficticio),
+            "criado_em": _aware(self.criado_em).isoformat() if self.criado_em else None,
         }

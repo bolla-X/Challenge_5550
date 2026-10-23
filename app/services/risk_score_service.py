@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.models import Alert
+from app.services.alertas_simulados import sem_simulados
 
 # Estatística simples sobre janela deslizante — não é ML, não prevê nada.
 # Teto de normalização: quantos "pontos" (severidade acumulada) numa feature
@@ -50,7 +51,8 @@ def _score_from_points(points: float) -> float:
 
 
 def _window_query(window_start: datetime, camera_id: int | None):
-    query = Alert.query.filter(Alert.last_seen_at >= window_start)
+    # Alerta simulado (histórico de demonstração da Gestão de EPIs) nunca entra no risco ao vivo.
+    query = sem_simulados(Alert.query).filter(Alert.last_seen_at >= window_start)
     if camera_id is not None:
         query = query.filter(Alert.camera_id == camera_id)
     return query

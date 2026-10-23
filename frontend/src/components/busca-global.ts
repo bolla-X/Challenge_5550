@@ -73,6 +73,7 @@ const TELAS: TelaBuscavel[] = [
   { rotulo: "Modo Evacuação", detalhe: "Contagem por câmera", palavras: ["evacuação", "emergência", "ponto de encontro"], minimo: "technical", destino: { href: "/evacuacao" } },
   { rotulo: "Rotular recortes", detalhe: "Aprendizado ativo", palavras: ["rotular", "rótulos", "yolo", "dataset"], minimo: "technical", destino: { href: "/rotular" } },
   { rotulo: "Apresentação", detalhe: "Roteiro da demonstração", palavras: ["palco", "demo", "slides"], minimo: "technical", destino: { href: "/palco" } },
+  { rotulo: "Gestão de EPIs", detalhe: "Colaboradores, entregas e ocorrências", palavras: ["epi", "colaboradores", "catálogo", "certificado de aprovação", "entregas", "devolução", "ocorrências", "exportar", "csv", "ca vencido", "troca vencida", "pendência", "ficha de epi", "nr-6"], minimo: "technical", destino: { href: "/gestao" } },
   { rotulo: "Relatório do turno", detalhe: "Imprimir ou salvar em PDF", palavras: ["pdf", "imprimir", "turno", "nr-6"], minimo: "technical", destino: { href: "/relatorio/turno", novaAba: true } },
   { rotulo: "Primeiro acesso", detalhe: "Configurar a planta", palavras: ["onboarding", "assistente", "pronto para operar"], minimo: "supervisor", destino: { href: "/primeiro-acesso" } },
 ];

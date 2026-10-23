@@ -20,6 +20,7 @@ from app.api.evacuacao import evacuacao_bp
 from app.api.features import features_bp
 from app.api.feedback import feedback_bp
 from app.api.gemeo import gemeo_bp
+from app.api.gestao import gestao_bp
 from app.api.incidentes import incidentes_bp
 from app.api.integracao import integracao_bp
 from app.api.intervencoes import intervencoes_bp
@@ -143,6 +144,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(onboarding_bp)
     app.register_blueprint(feedback_bp)
     app.register_blueprint(intervencoes_bp)
+    app.register_blueprint(gestao_bp)
     app.register_blueprint(busca_bp)
     app.register_blueprint(openapi_bp)
     app.register_blueprint(liga_bp)

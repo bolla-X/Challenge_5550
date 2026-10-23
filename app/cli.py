@@ -177,7 +177,39 @@ def demo_reset() -> None:
     click.echo(f"[demo] reset em {resultado['segundos']} s ({resultado.get('via', 'servidor')}).")
 
 
+gestao_cli = AppGroup("gestao", help="Módulo Gestão de EPIs (cadastro administrativo, separado da visão).")
+
+
+@gestao_cli.command("semear")
+@click.option("--dados-ficticios", is_flag=True, default=False,
+              help="Confirma que é para gravar dados FICTÍCIOS no banco configurado (obrigatório fora do modo demo).")
+def gestao_semear(dados_ficticios: bool) -> None:
+    """Carrega os dados SIMULADOS da Metaindústria (colaboradores, catálogo com CA, entregas, ocorrências e alertas históricos).
+
+    Idempotente: rodar de novo não duplica nada. Tudo é marcado como fictício. Fora do modo demo (`DEMO_MODE`) o comando
+    recusa, a menos que receba `--dados-ficticios`: ele grava 24 colaboradores, 10 itens de catálogo, 60 entregas,
+    15 ocorrências e 40 alertas inventados no banco que estiver configurado.
+    """
+    from app.services.gestao_seed import semear
+
+    if not current_app.config.get("DEMO_MODE") and not dados_ficticios:
+        raise click.ClickException(
+            "Este comando grava dados FICTÍCIOS (24 colaboradores, 10 itens de catálogo, 60 entregas, 15 ocorrências e "
+            "40 alertas históricos) no banco configurado, e esta instância não está em modo demonstração. "
+            "Se é isso mesmo que você quer, rode de novo com --dados-ficticios."
+        )
+    resultado = semear()
+    for categoria, contagem in resultado.items():
+        click.echo(
+            f"  {categoria:13s} criados: {contagem['criados']:3d}   já existiam: {contagem['existentes']:3d}"
+            f"   ignorados (registro real): {contagem['ignorados']:3d}"
+        )
+    total = sum(c["criados"] for c in resultado.values())
+    click.echo(f"Gestão de EPIs (dados simulados): {total} registro(s) criado(s).")
+
+
 def register_cli(app: Flask) -> None:
     app.cli.add_command(users_cli)
     app.cli.add_command(cameras_cli)
     app.cli.add_command(demo_cli)
+    app.cli.add_command(gestao_cli)
