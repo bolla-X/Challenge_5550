@@ -204,7 +204,27 @@ fica em `e2e/` (detalhe em [docs/NEXT2026/QA.md](docs/NEXT2026/QA.md)).
 
 ## Teste do avaliador
 
-<!-- EVIDENCIA: preenchido com a medição do clone limpo -->
+Feito em 23/10/2026: clone limpo num diretório temporário, seguindo **só** os comandos da seção
+[Instalação — Windows](#windows-powershell), num notebook Windows 11 com Python 3.11.9 e Node 24.19.0, com internet.
+
+| Passo | Tempo medido |
+|---|---|
+| `git clone` | 6,5 s |
+| `py -3.11 -m venv .venv` | 25,2 s |
+| `pip install -r requirements.txt` | 619,3 s |
+| `npm --prefix frontend ci` | 67,6 s |
+| `npm --prefix frontend run build` | 28,0 s |
+| `scripts\preparar.py` (pesos, gravações, runtimes, cache) | 546,4 s |
+| **Total da instalação** | **1293 s ≈ 21 min 33 s** |
+
+Depois, `run.py --demo` desse clone subiu em 19 s até imprimir as contas, e o Playwright desta entrega
+(`e2e/test_es_sprint4.py`, 26 testes) passou inteiro contra ele (**26 passed**), assim como a fumaça do NEXT
+(`e2e/fumaca_demo.py`, **6/6**). Uma parte do `pip install` rodou com outra suíte de testes ocupando a mesma
+máquina, então o tempo é um teto, não uma média. macOS e Linux: **não testado** nesta entrega.
+
+Durante o `preparar.py` aparecem tracebacks do ONNX (`version_converter ... adapter_lookup`). Não interrompe a
+instalação: é a exportação de um runtime candidato que falha nesta máquina; o `scripts/concordancia.py` registra o
+erro desse candidato, segue com os outros e o `preparar.py` termina em `[preparar] pronto` (exit 0).
 
 ## Resumo das entregas por sprint
 

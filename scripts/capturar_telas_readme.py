@@ -68,7 +68,7 @@ def capturar(demo: DemoEm) -> None:
             _entrar(p, demo)
             _foto(p, "02-inicio-supervisor.png")
             p.get_by_role("button", name=re.compile(r"^Câmeras")).first.click()
-            p.locator("canvas.live-video").first.wait_for(timeout=30_000)
+            p.get_by_role("button", name=re.compile("Configurar Pátio")).wait_for(timeout=30_000)
             time.sleep(4)
             _foto(p, "03-grade-cameras.png")
             p.get_by_role("button", name=re.compile("Configurar Pátio")).click()

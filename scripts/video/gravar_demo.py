@@ -119,7 +119,9 @@ class Roteiro:
 def _aquecer(demo: DemoEm) -> None:
     """Antes de gravar: câmeras analisando, alerta ativo no Pátio e uma segunda opinião pronta."""
     s = demo.sessao("supervisor")
-    cameras = {c["name"]: c["id"] for c in s.get(demo.base + "/api/cameras", timeout=10).json()}
+    corpo = s.get(demo.base + "/api/cameras", timeout=10).json()
+    lista = corpo if isinstance(corpo, list) else corpo.get("items") or corpo.get("cameras") or []
+    cameras = {c["name"]: c["id"] for c in lista}
     fim = time.monotonic() + 300
     while time.monotonic() < fim:
         estado = s.get(f"{demo.base}/api/cameras/{cameras['Pátio']}/status", timeout=20).json()
@@ -181,7 +183,7 @@ def _roteiro(r: Roteiro, demo: DemoEm) -> None:
     # 4b — grade de câmeras (20 s)
     r.cena("4b", "Monitoramento em tempo real: quatro câmeras da demo, cada uma analisada ao vivo.")
     r.ir(p.get_by_role("button", name=re.compile(r"^Câmeras")).first)
-    p.locator("canvas.live-video").first.wait_for(timeout=30_000)
+    p.get_by_role("button", name=re.compile("Configurar Pátio")).wait_for(timeout=30_000)
     time.sleep(3)
     r.apontar(p.get_by_role("button", name=re.compile("Configurar Pátio")), 3)
     r.esperar_ate(35)

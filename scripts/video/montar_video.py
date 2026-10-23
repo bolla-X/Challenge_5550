@@ -35,10 +35,14 @@ def _ff(*args: str) -> None:
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
 
 
-def _trecho(origem: Path, destino: Path, inicio: float, duracao: float) -> None:
-    _ff("-ss", f"{inicio:.2f}", "-i", str(origem), "-t", f"{duracao:.2f}",
-        "-vf", "fps=30,scale=1920:1080:flags=lanczos,format=yuv420p",
+def _trecho(origem: Path, destino: Path, inicio: float, duracao: float, velocidade: float = 1.0) -> None:
+    _ff("-ss", f"{inicio:.2f}", "-i", str(origem), "-t", f"{duracao * velocidade:.2f}",
+        "-vf", f"setpts=PTS/{velocidade:.5f},fps=30,scale=1920:1080:flags=lanczos,format=yuv420p",
         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-an", str(destino))
+
+
+def _duracao(arquivo: Path) -> float:
+    return float(_sonda(arquivo)["format"]["duration"])
 
 
 def _sonda(arquivo: Path) -> dict:
@@ -58,7 +62,11 @@ def montar(saida: Path, destino: Path) -> int:
     for ordem in range(1, 8):
         alvo = trechos / f"{ordem}.mp4"
         if ordem == 4:
-            _trecho(saida / "demo" / "4-demonstracao.webm", alvo, 0.3, DEMO_S)
+            # A gravação do Playwright estica sob carga (medido: 161 s de vídeo para 150 s de roteiro, com atraso
+            # que cresce ao longo da cena). Cortar num ponto fixo perdia o fim; o WebM inteiro é comprimido para
+            # DEMO_S. A legenda está no próprio DOM, então tela e legenda continuam juntas.
+            demo = saida / "demo" / "4-demonstracao.webm"
+            _trecho(demo, alvo, 0.0, DEMO_S, velocidade=_duracao(demo) / DEMO_S)
         else:
             _trecho(saida / "cartelas" / f"{ordem}-{nomes[ordem]}.webm", alvo, CORTE_INICIAL_CARTELA_S, duracao[ordem])
         lista.append(alvo)
@@ -85,8 +93,9 @@ def montar(saida: Path, destino: Path) -> int:
     frames = saida / "frames"
     shutil.rmtree(frames, ignore_errors=True)
     frames.mkdir()
-    instantes = {"1-abertura": 8, "3-solucao": 58, "4c-incidente": 70 + 40, "4d-historico": 70 + 75,
-                 "4f-ca-vencido": 70 + 112, "6-evolucao": 70 + 150 + 20 + 20}
+    # Na demo, o instante t do roteiro cai perto de 73 + 0,98·t no vídeo final (atraso inicial ~3 s, depois a compressão).
+    instantes = {"1-abertura": 8, "3-solucao": 58, "4c-incidente": 117, "4d-historico": 151,
+                 "4f-ca-vencido": 185, "6-evolucao": 70 + 150 + 20 + 20}
     for nome, t in instantes.items():
         _ff("-ss", str(t), "-i", str(destino), "-frames:v", "1", str(frames / f"{nome}.png"))
     print(f"[montagem] frames-chave em {frames}")

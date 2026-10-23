@@ -3,14 +3,16 @@
 Data da entrega: 23/10/2026. Disciplina: Engenharia de Software, FIAP 3ECR. Repositório: https://github.com/bolla-X/Challenge_5550.
 Board: https://trello.com/b/zVZW2n1p/visionepi-challenge-3ecr (card "Ata da Review Final — Sprint 4", lista Reviews/Atas).
 
-As células `<!-- EVIDENCIA: ... -->` dependem do fim da sprint (números, hashes, prints, saídas de comando) e são preenchidas pela sessão principal.
-Esta ata não registra falas nem presenças que não tenham sido informadas.
+Esta ata registra o incremento, os critérios e as evidências medidas na preparação da entrega (23/10/2026), com o comando e o
+número de cada uma. O que só existe depois do merge do PR (hash do squash, clone limpo da `main`, pacote zipado) está no card da ata
+no Trello, para não exigir um segundo PR. Esta ata não registra falas nem presenças que não tenham sido informadas.
 
 ## 1. Participantes
 
 Equipe (conforme informado pelo grupo): Pedro Gonçalves (RM 557936), Lucas Baraldi (RM 555407), Lucas Zolla (RM 557952), Vitor Pantarotto (RM 554961).
 
-Presenças e formato da review: <!-- EVIDENCIA: quem participou da review e como foi conduzida; sem registro até a redação -->
+Presenças e formato da reunião de review: **não informados ao redator**. Esta ata é a review do incremento a partir das evidências, não o registro de uma
+reunião.
 
 ## 2. Incremento entregue
 
@@ -28,112 +30,112 @@ demonstração offline com banco isolado e a segunda opinião de um LLM, que nun
 |---|---|---|
 | Módulo Gestão de EPIs: colaboradores com histórico, catálogo com CA e validade, entregas e devoluções, ocorrências, exportação CSV | RF41 a RF45, RF47 | `app/api/gestao.py`, `app/services/gestao_epi.py`, `frontend/src/components/gestao.tsx` e `gestao/`; migração `a8b9c0d1e2f3`; ADR 0008 |
 | Seed idempotente de dados simulados (comando `flask --app wsgi gestao semear` e automático na demo) | RF46 | `app/services/gestao_seed.py`, `app/cli.py`, `app/demo.py` |
-| Fallback determinístico do LLM, rotulado "modo demonstração" | RF40 | `app/llm/__init__.py`, ADR 0009 |
+| Fallback determinístico do LLM, rotulado "modo demonstração", só com `DEMO_MODE` | RF40 | `app/llm/__init__.py`, `app/services/llm_risk_service.py`, ADR 0009 |
 | Amostra de vídeo versionada (CC BY-SA 4.0) | RF39 | `amostras/`, ADR 0010 |
-| Documentação: arquitetura, 10 ADRs, requisitos com matriz, Scrum, manual de uso, evolução | F3.2 a F3.6 | `docs/` |
-| Trello, vídeo sem narração e pacote zipado | F4 a F6 | ver seção 3 |
+| Correções da revisão: vínculo colaborador–alerta proibido, CA e nome congelados na entrega, trilha de auditoria das edições, datas limitadas, 409 em duplicidade, alertas simulados fora do risco ao vivo e declarados no relatório mensal | — | auditoria da squad (seção 5.4) |
+| Documentação: README âncora, arquitetura, 10 ADRs, requisitos com matriz, Scrum, manual de uso com 14 prints, evolução | F3.1 a F3.6 | `README.md`, `docs/` |
+| Trello, vídeo sem narração e pacote zipado | F4 a F6 | seção 3 |
 
-Estado de RF39 e RF41 a RF47 na redação: código, telas e testes existem no disco (`tests/test_gestao_epi.py`, `tests/test_gestao_seed.py`, `e2e/test_es_sprint4.py`); a execução
-verde ainda não foi confirmada por quem escreveu esta ata. <!-- EVIDENCIA: estado final de cada um depois dos testes (tests/test_gestao_epi.py, tests/test_gestao_seed.py, e2e/test_es_sprint4.py) -->
-
-PR único e commit do squash: <!-- EVIDENCIA: número do PR, hash do squash e título com [skip ci] -->
+PR único e squash: aberto e mesclado na sequência desta ata; número, hash e saída do merge no card da ata no Trello.
 
 ## 3. Critérios atendidos
 
-Tabela por critério de `docs/specs/es-sprint4.md`. "Status" aceita Atendido, Parcial ou Não atendido, sempre com a evidência ao lado.
+Tabela por critério de `docs/specs/es-sprint4.md`.
 
 ### G: Git
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| G.1 | `fetch --all`, base `origin/main`, `merge-base --is-ancestor` registrado, rebrand não mesclado | Atendido | `git merge-base --is-ancestor origin/feat/completo-com-rebrand origin/main` saiu com **código 1**: o rebrand não está na `main` e não foi mesclado (`docs/specs/ESTADO-es-sprint4.md`) |
-| G.2 | Branch `es-sprint4-entrega` a partir da main | Atendido | criada de `main` = `origin/main` = `a4df215` (mesmo arquivo) |
-| G.3 | `[skip ci]` em todo commit e no título do squash; nenhum workflow criado ou alterado | <!-- EVIDENCIA: git log da branch mostrando [skip ci]; git diff --stat sem .github/ --> | o inventário de 23/10 registrou que não há `.github/` no repositório |
-| G.4 | Mudanças só aditivas; regressão do fluxo câmera, YOLO e alerta rodada antes do merge | <!-- EVIDENCIA: comando da regressão e saída --> | |
-| G.5 | Um único PR, squash com `gh pr merge --squash --delete-branch` | <!-- EVIDENCIA: link do PR e saída do merge --> | |
+| G.1 | `fetch --all`, base `origin/main`, `merge-base --is-ancestor` registrado, rebrand não mesclado | Atendido | `git merge-base --is-ancestor origin/feat/completo-com-rebrand origin/main` saiu com **código 1**: o rebrand não está na `main` e não foi mesclado |
+| G.2 | Branch `es-sprint4-entrega` a partir da main | Atendido | `git switch -c es-sprint4-entrega main` (`main` = `origin/main` = `a4df215`) |
+| G.3 | `[skip ci]` em todo commit e no título do squash; nenhum workflow | Atendido | os 4 commits da branch terminam em `[skip ci]` (seção 5.3); não há `.github/` no repositório nem no diff |
+| G.4 | Só aditivo; regressão do fluxo câmera → YOLO → alerta antes do merge | Atendido | `git status` vazio em `camera_worker.py`, `app/vision/`, `risk_rules.py`, `alert_state_service.py`, `monitor_service.py` (auditor); fumaça `e2e/fumaca_demo.py --raiz .` **6/6** (2ª rodada; a 1ª deu 5/6 por tempo na troca de cena do palco, reproduzida à mão: o Portal chega a "Liberado"); `e2e/test_fluxos.py` **17 passed in 208.53s**; `e2e/test_missao4.py e2e/test_missao7.py` **18 passed in 130.78s** |
+| G.5 | Um único PR, squash com `gh pr merge --squash --delete-branch` | ver card no Trello | executado depois desta ata |
 
 ### F0: Inventário
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F0.1 | Stack real mapeada | Atendido | tabela "Fase 0" em `docs/specs/ESTADO-es-sprint4.md` (Flask, SQLAlchemy, Alembic, Socket.IO, YOLOv8, OpenVINO e ONNX, MediaPipe, Gemini, React 18, Vite, Zustand) |
-| F0.2 | Telas, banco e docs das Sprints 1 a 3 mapeados | Atendido | mesmo arquivo: 25 rotas de tela cheia, SQLite e PostgreSQL, 19 migrações antes desta entrega, 18 tabelas antes da Gestão |
-| F0.3 | Links existentes procurados (protótipo, Trello, vídeo) | Atendido | nenhum link de Trello, Figma ou vídeo no repositório (`rg trello.com\|figma.com\|youtu`); board novo criado |
+| F0.1 | Stack real mapeada | Atendido | tabela "Fase 0" em `docs/specs/ESTADO-es-sprint4.md` |
+| F0.2 | Telas, banco e docs das Sprints 1 a 3 mapeados | Atendido | mesmo arquivo: 25 rotas de tela cheia, SQLite e PostgreSQL, 19 migrações e 18 tabelas antes da Gestão |
+| F0.3 | Links existentes procurados | Atendido | nenhum link de Trello, Figma ou vídeo no repositório; board novo criado |
 | F0.4 | `git log` com datas lido | Atendido | `docs/specs/gitlog-main.txt`; 1º commit em 19/07/2026 |
-| F0.5 | `.agents/skills/` lidos antes de mudança visual | <!-- EVIDENCIA: registro de leitura de apple-design e design-taste-frontend --> | |
+| F0.5 | `.agents/skills/` lidos antes de mudança visual | Atendido | `apple-design` e `design-taste-frontend` lidos pela sessão principal e pelo agente de frontend antes da tela nova; a revisão de UI-design usou `apple-design` |
 
 ### F1: Aplicação
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F1.1 | Demo reprodutível sem câmera IP e sem `GEMINI_API_KEY` | <!-- EVIDENCIA: comando e saída da subida sem a chave --> | |
-| F1.2 | Amostra de vídeo versionada, leve, webcam opcional | <!-- EVIDENCIA: tamanho do arquivo e prova de que a demo toca a amostra num clone sem fetch_fixtures --> | `amostras/canteiro_amostra.mp4` existe e `app/demo.py` chama `fonte_da_gravacao` (conferido na redação); não há teste dedicado da amostra |
-| F1.3 | LLM com fallback determinístico sinalizado na UI; com chave, real | <!-- EVIDENCIA: pytest tests/test_llm_demo_fallback.py e print 13-status-llm-demo.png --> | 4 testes no arquivo |
-| F1.4 | Seed idempotente com dados simulados da Metaindústria | <!-- EVIDENCIA: pytest tests/test_gestao_seed.py (duas execuções, contagens iguais) --> | |
-| F1.5 | Seed no primeiro start ou por comando único | <!-- EVIDENCIA: saída de flask --app wsgi gestao semear e da demo --> | |
-| F1.6 | Fluxos principais existem e funcionam, tema claro e escuro | <!-- EVIDENCIA: lista dos fluxos e do E2E que os cobre --> | |
-| F1.7 | Lint no back e no front, código morto removido, `.env.example` | <!-- EVIDENCIA: ruff check . e npm --prefix frontend run build --> | |
-| F1.8 | Varredura de segredos | <!-- EVIDENCIA: comando da varredura e resultado --> | |
-| F1.9 | `pytest` verde | <!-- EVIDENCIA: contagem de testes aprovados e tempo --> | último número registrado antes da entrega: 3.288 aprovados (22/10) |
-| F1.10 | Playwright cobrindo cada fluxo principal, verde | <!-- EVIDENCIA: python -m pytest e2e -q, contagem --> | último número registrado antes da entrega: 76 aprovados, 1 falha sensível a carga, 2 ignorados (22/10) |
+| F1.1 | Demo reprodutível sem câmera IP e sem `GEMINI_API_KEY` | Atendido | `python run.py --demo` com `DEMO_WEBCAM=0` e sem a chave, num clone limpo: no ar em 19 s, 4 câmeras publicando análise (fumaça 6/6) |
+| F1.2 | Amostra de vídeo versionada, leve, webcam opcional | Atendido | `amostras/canteiro_amostra.mp4`: h264 640x360, 7,0 s, 469.317 bytes; `tests/test_demo_amostra.py` **3 testes** (versionada e < 2 MB; gravação baixada vence; sem gravação a demo toca a amostra e avisa) |
+| F1.3 | LLM com fallback determinístico sinalizado na UI; com chave, real | Atendido | `tests/test_llm_demo_fallback.py` **7 passed**; UI: `docs/img/13-status-llm-demo.png`; E2E `test_segunda_opiniao_*` e `test_pagina_status_rotula_o_llm_como_demonstracao` |
+| F1.4 | Seed idempotente com dados simulados | Atendido | `tests/test_gestao_seed.py` **21 passed** (duas execuções sem duplicar; 24 colaboradores, 10 EPIs, 60 entregas, 15 ocorrências, 40 alertas) |
+| F1.5 | Seed no primeiro start ou por comando único | Atendido | automático em `run.py --demo` (`app/demo.py`); `flask --app wsgi gestao semear` fora da demo só com `--dados-ficticios` |
+| F1.6 | Fluxos principais existem e funcionam, tema claro e escuro | Atendido | dashboard, monitoramento, alertas, ocorrências, colaboradores com histórico, relatório/exportação, tema escuro: `e2e/test_es_sprint4.py` **26 passed** (lista no README, seção "Funcionalidades") |
+| F1.7 | Lint, código morto, `.env.example` | Atendido | `ruff check .` → All checks passed!; `npm --prefix frontend run build` (tsc -b + vite) ✓; `.env.example` ganhou `LLM_DEMO_FALLBACK`; código morto: nenhum encontrado no diff |
+| F1.8 | Varredura de segredos | Atendido | `git grep` de padrões de chave no HEAD → nada; histórico inteiro: só 2 literais falsos de teste (`"…CHAVE-FALSA…"`, `"FALSA" * 6`); nada removido |
+| F1.9 | `pytest` verde | Atendido | **3528 passed, 8 warnings in 701.68s** (código final) |
+| F1.10 | Playwright cobrindo cada fluxo principal, verde | Atendido | `e2e/test_es_sprint4.py` **26 passed in 85.24s** |
 
 ### F2: Teste "avaliador"
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F2.1 | Clone limpo seguindo só o README | <!-- EVIDENCIA: diretório, comandos e saídas --> | |
-| F2.2 | Playwright contra essa instância | <!-- EVIDENCIA: resultado --> | |
-| F2.3 | Falha corrigida e repetida do zero | <!-- EVIDENCIA: rodadas e correções --> | |
-| F2.4 | Tempo total da instalação limpa | <!-- EVIDENCIA: tempo em minutos e segundos --> | |
-| F2.5 | Comandos para PowerShell e macOS/Linux; "não testado em ..." onde couber | <!-- EVIDENCIA: trecho do README e plataformas testadas --> | |
+| F2.1 | Clone limpo seguindo só o README | Atendido | `%TEMP%\visionepi-avaliador-1`, comandos da seção "Instalação — Windows (PowerShell)" do README, um por um (branch `es-sprint4-entrega` antes do merge) |
+| F2.2 | Playwright contra essa instância | Atendido | `VISIONEPI_RAIZ=<clone> pytest e2e/test_es_sprint4.py` → **26 passed in 102.80s**; fumaça no clone **6/6** |
+| F2.3 | Falha corrigida e repetida do zero | Atendido | passou na 1ª rodada; nenhuma correção de README foi necessária. O README ganhou a nota sobre os tracebacks do ONNX durante o `preparar.py` |
+| F2.4 | Tempo total da instalação limpa | Atendido | **1293 s ≈ 21 min 33 s** (clone 6,5 s; venv 25,2 s; pip 619,3 s; npm ci 67,6 s; build 28,0 s; preparar 546,4 s) |
+| F2.5 | PowerShell e macOS/Linux; "não testado em …" | Atendido | blocos separados no README; testado só em Windows 11; macOS/Linux marcados "não testado" |
 
 ### F3: Documentação
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F3.1 | `README.md` âncora | <!-- EVIDENCIA: reescrita da sessão principal --> | |
-| F3.2 | `docs/arquitetura.md` e ADRs | Escrito em 23/10 | `docs/arquitetura.md` (2 diagramas de componentes e 2 de sequência), `docs/adr/` (10 ADRs e índice). <!-- EVIDENCIA: conferência final dos links e do Mermaid renderizado --> |
-| F3.3 | `docs/requisitos.md` com matriz | Escrito em 23/10 | 53 RF e 14 RNF; caminhos conferidos no disco, inclusive os testes da Gestão, que surgiram durante a redação. <!-- EVIDENCIA: conferência final dos caminhos de teste da Gestão --> |
-| F3.4 | `docs/scrum/` completo | Escrito em 23/10 | este diretório. <!-- EVIDENCIA: preenchimento desta ata --> |
-| F3.5 | `docs/manual-de-uso.md` com prints | Escrito em 23/10, prints pendentes | <!-- EVIDENCIA: os 14 prints de docs/img/ gerados com Playwright --> |
-| F3.6 | `docs/evolucao-sprints.md` | Escrito em 23/10 | métricas com fonte; hashes de `docs/specs/gitlog-main.txt` |
+| F3.1 | `README.md` âncora | Atendido | problema, proposta, funcionalidades, links (protótipo, Trello, vídeo `LINK_DO_VIDEO_YOUTUBE`), instalação, uso, demo, teste do avaliador, sprints, equipe, estrutura, prints |
+| F3.2 | `docs/arquitetura.md` e ADRs | Atendido | 2 diagramas de componentes e 2 de sequência; 10 ADRs e índice |
+| F3.3 | `docs/requisitos.md` com matriz | Atendido | 53 RF e 14 RNF; RF → card Trello → código → teste → sprint |
+| F3.4 | `docs/scrum/` completo | Atendido | backlog, sprints 1 a 4 (com review e retro), DoD, esta ata |
+| F3.5 | `docs/manual-de-uso.md` com prints | Atendido | 14 prints em `docs/img/` gerados por `scripts/capturar_telas_readme.py` (Playwright, demo) |
+| F3.6 | `docs/evolucao-sprints.md` | Atendido | métricas com fonte e hashes |
 
 ### F4: Trello
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F4.1 | Ordem de acesso (MCP, REST, plano C) | Atendido | acesso pelo MCP do Trello; board novo e público |
-| F4.2 | Board atualizado ou criado "VisionEPI — Challenge 3ECR" | Atendido | https://trello.com/b/zVZW2n1p/visionepi-challenge-3ecr |
+| F4.1 | Ordem de acesso | Atendido | MCP do Trello (plano A) |
+| F4.2 | Board criado | Atendido | https://trello.com/b/zVZW2n1p/visionepi-challenge-3ecr |
 | F4.3 | Listas | Atendido | Product Backlog, Sprint 1 a 4, Concluído, Reviews/Atas |
-| F4.4 | Um card por requisito, labels por sprint, checklists de DoD, Sprint 4 em Concluído | <!-- EVIDENCIA: contagem de cards criados e print do board --> | títulos `RFnn — nome` conforme `docs/requisitos.md` |
-| F4.5 | Card "Ata da Review Final — Sprint 4" | <!-- EVIDENCIA: card criado com o conteúdo desta ata --> | |
-| F4.6 | Board público e link no README | <!-- EVIDENCIA: link no README e acesso sem login --> | |
+| F4.4 | Um card por requisito, labels, DoD, Sprint 4 em Concluído | Atendido | 67 cards de requisito (61 em Concluído com o checklist DoD de 9 itens marcado; 6 planejados no backlog), 4 cards-resumo de sprint, 4 de review/ata, 1 legenda. Limitação: o conector não nomeia etiquetas, então a cor = sprint, com legenda |
+| F4.5 | Card "Ata da Review Final — Sprint 4" | Atendido | https://trello.com/c/OGh7n79Y |
+| F4.6 | Board público e link no README | Atendido | criado com visibilidade pública; link no README |
 
 ### F5 e F6: Vídeo e pacote
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| F5.1 a F5.7 | Vídeo sem narração de 4:00 a 4:45, storyboard, cartelas, demo gravada, montagem, 6 frames, vídeo fora do repositório | <!-- EVIDENCIA: ffprobe (duração, resolução, codec), 6 frames conferidos, `docs/pitch/storyboard.md` --> | `scripts/video/` existe; o vídeo não é versionado |
-| F6.1 | `ES_Sprint4_3ECR.txt` | <!-- EVIDENCIA: conteúdo conferido, link do YouTube pendente --> | |
-| F6.2 | `VisionEPI_pitch_demo.mp4` | <!-- EVIDENCIA: tamanho e caminho --> | |
-| F6.3 | `.zip` validado | <!-- EVIDENCIA: saída de unzip -t, lista e tamanho --> | |
+| F5.1 | 4:00 a 4:45, 1920x1080, H.264, sem áudio | Atendido | ffprobe: **275,0 s**, h264, 1920x1080, yuv420p, 30 fps, sem stream de áudio, 22.160.690 bytes |
+| F5.2 | Storyboard | Atendido | `docs/pitch/storyboard.md` (7 cenas, tempos e legendas) |
+| F5.3 | Cartelas HTML gravadas | Atendido | `scripts/video/cartelas.html` + `gravar_cartelas.py` |
+| F5.4 | Demo gravada com legenda e cursor | Atendido | `scripts/video/gravar_demo.py` (barra de legenda e cursor injetados no DOM) |
+| F5.5 | Montagem com ffmpeg + ffprobe | Atendido | `scripts/video/montar_video.py`; a gravação da demo esticou (161 s para 150 s de roteiro) e foi comprimida para 150 s em vez de cortada |
+| F5.6 | 6 frames-chave conferidos | Atendido | abertura, solução, incidente, histórico, CA vencido, evolução: legendas legíveis; onde cobrem algo, são linhas finais de tabela. Uma montagem anterior mostrou o frame do CA vencido fora de sincronia e foi refeita |
+| F5.7 | Vídeo fora do repositório | Atendido | saída em `bench/runtime/video/` (ignorado); no repo só storyboard e scripts |
+| F6.1 a F6.3 | `.txt`, MP4 e `.zip` | ver card no Trello | gerados depois do merge, com `docs/` da `main` |
 
 ### FC: Fechamento
 
 | Critério | O que pede | Status | Evidência |
 |---|---|---|---|
-| FC.1 | Squash do PR único | <!-- EVIDENCIA: hash do squash na main --> | |
-| FC.2 | Fase 2 repetida a partir da `main`, só então "pronto" | <!-- EVIDENCIA: clone limpo da main e Playwright --> | |
-| FC.3 | Relatório final com cobertura 40/30/30 e pendências humanas | <!-- EVIDENCIA: relatório no chat --> | pendência humana conhecida: subir o MP4 no YouTube como não listado e colar o link no `.txt` |
+| FC.1 a FC.3 | Squash, clone limpo da `main` + Playwright, relatório | ver card no Trello | executados depois desta ata |
 
 ## 4. Cobertura dos critérios de avaliação do enunciado
 
 | Peso | Critério | Onde está coberto |
 |---|---|---|
-| 40 pts | Aplicação funcionando: fluxos principais e aderência ao problema | F1 e F2; `docs/manual-de-uso.md`. <!-- EVIDENCIA: resumo dos fluxos testados --> |
-| 30 pts | Documentação: README, arquitetura, Scrum | F3 e F4; `docs/arquitetura.md`, `docs/adr/`, `docs/requisitos.md`, `docs/scrum/` |
+| 40 pts | Aplicação funcionando: fluxos principais e aderência ao problema | F1 e F2: 7 fluxos com E2E (26 testes) num clone limpo; Gestão de EPIs responde à ficha de EPI e ao CA; visão ao vivo responde à segurança reativa |
+| 30 pts | Documentação: README, arquitetura, Scrum | F3 e F4 |
 | 30 pts | Vídeo e evolução | F5, F6 e `docs/evolucao-sprints.md` |
-| Diferencial | Rastreabilidade de requisitos e consistência entre as sprints | matriz em `docs/requisitos.md`; `docs/scrum/sprint-1.md` a `sprint-4.md` |
+| Diferencial | Rastreabilidade e consistência entre sprints | matriz em `docs/requisitos.md` e os mesmos IDs nos cards do Trello |
 
 ## 5. Evidências
 
@@ -141,33 +143,48 @@ Tabela por critério de `docs/specs/es-sprint4.md`. "Status" aceita Atendido, Pa
 
 | Medida | Valor | Comando |
 |---|---|---|
-| `pytest` completo | <!-- EVIDENCIA: N aprovados, N falhas, tempo --> | `pytest` |
-| `ruff` | <!-- EVIDENCIA: saída --> | `ruff check .` |
-| Build e tipos do frontend | <!-- EVIDENCIA: saída --> | `npm --prefix frontend run build` |
-| E2E | <!-- EVIDENCIA: N aprovados, falhas, ignorados --> | `python -m pytest e2e -q` |
-| Testes novos da Gestão e do fallback | <!-- EVIDENCIA: contagem por arquivo --> | `tests/test_gestao_epi.py`, `tests/test_gestao_seed.py`, `tests/test_llm_demo_fallback.py`, `e2e/test_es_sprint4.py` |
-| Fumaça do clone limpo | <!-- EVIDENCIA: 6 de 6 verificações, tempo --> | `python e2e/fumaca_demo.py --raiz .` |
+| `pytest` completo | **3528 passed, 8 warnings in 701.68s** | `pytest -q` |
+| `ruff` | All checks passed! | `ruff check .` |
+| Build e tipos do frontend | ✓ built (tsc -b + vite) | `npm --prefix frontend run build` |
+| E2E da entrega | **26 passed in 85.24s** (no checkout) e **26 passed in 102.80s** (no clone limpo) | `python -m pytest e2e/test_es_sprint4.py -q` |
+| E2E de regressão do NEXT | `test_fluxos.py` 17 passed; `test_missao4.py` + `test_missao7.py` 18 passed | `python -m pytest e2e/<arquivo> -q` |
+| Testes novos | `test_gestao_epi.py` 84, `test_gestao_seed.py` 21, `test_llm_demo_fallback.py` 7, `test_demo_amostra.py` 3 | `pytest <arquivo>` |
+| Fumaça | 6/6 no checkout e 6/6 no clone limpo | `python e2e/fumaca_demo.py --raiz <pasta>` |
 
-### 5.2 Prints (`docs/img/`, gerados com Playwright)
+A suíte E2E completa do NEXT (`python -m pytest e2e -q`, 76+ testes) **não foi rodada inteira** nesta entrega; rodaram os arquivos acima.
+
+### 5.2 Prints (`docs/img/`)
 
 `01-login.png`, `02-inicio-supervisor.png`, `03-grade-cameras.png`, `04-foco-camera.png`, `05-incidentes.png`, `06-gestao-colaboradores.png`,
 `07-gestao-historico.png`, `08-gestao-catalogo.png`, `09-gestao-entregas.png`, `10-gestao-ocorrencias.png`, `11-gestao-exportar.png`,
-`12-relatorio-mensal.png`, `13-status-llm-demo.png`, `14-tema-escuro.png`. <!-- EVIDENCIA: conferir que os 14 existem e mostram o que o manual descreve -->
+`12-relatorio-mensal.png`, `13-status-llm-demo.png` (painel da segunda opinião em modo demonstração), `14-tema-escuro.png`.
 
 ### 5.3 Commits
 
 | Marco | Commit | Data |
 |---|---|---|
 | Base da entrega (MISSÃO 7, PR #22) | `a4df215` | 22/10/2026 |
-| Commits da branch `es-sprint4-entrega` | <!-- EVIDENCIA: git log --oneline da branch --> | 23/10/2026 |
-| Squash do PR único | <!-- EVIDENCIA: hash --> | <!-- EVIDENCIA: data --> |
+| Gestão de EPIs | `1402f9c` | 23/10/2026 |
+| Modo demonstração reprodutível | `bb20370` | 23/10/2026 |
+| Documentação e scripts do vídeo | `55606a5` | 23/10/2026 |
+| Prints, ata e ajustes finais | último commit da branch (no PR) | 23/10/2026 |
+| Squash do PR único | card no Trello | 23/10/2026 |
 
 Marcos anteriores, com data e hash: [../evolucao-sprints.md](../evolucao-sprints.md).
 
-## 6. Pendências e riscos conhecidos na redação
+### 5.4 Portão da squad
 
-- RF39: a amostra versionada está ligada em `app/demo.py` (`fonte_da_gravacao`), mas não há teste dedicado nem prova de subida num clone sem as gravações (ADR 0010). O Portal só
-  usa a gravação `portal.mp4` ou, sem ela, o Canteiro; a amostra não entra nele.
-- `docs/NEXT2026/DEMO.md` diz que o LLM fica "desligado" na demo; desde o ADR 0009 a demo mostra "modo demonstração" (inconsistência de documento antigo).
+- **Auditor** (segurança e arquitetura): sem STOP. Achado alto S1 (uma ocorrência podia ligar colaborador a alerta com ID de rastreio e imagem) corrigido
+  com 400 `vinculo_proibido`; médios S2 a S7 corrigidos; S8 (fuso via `zoneinfo`) adiado como limitação, porque exige o pacote `tzdata` no Windows.
+- **UX**: 1 bloqueador (formulário abria fora da vista, sem mover o foco) e 6 importantes, corrigidos.
+- **CX**: senhas sumindo do terminal, LLM de demonstração parecendo análise, relatório mensal sem avisar dos simulados, porta ocupada; corrigidos.
+- **UI-design**: o CSS da tela nova perdia o desempate para o global (selos cinza) e a página rolava a 390 px; corrigidos.
+- **Tester**: ampliou o E2E de 11 para 26 testes e achou uma regressão real (a 390 px a página estourava a largura por um rótulo absoluto); corrigida.
+
+## 6. Pendências e riscos conhecidos
+
+- O Portal da demo usa a gravação `portal.mp4` ou, sem ela, o Canteiro; a amostra versionada não entra nele.
 - Os pesos dos modelos continuam sendo baixados por `scripts/preparar.py`; "roda sem internet num clone recém-feito" não é afirmado.
-- Pendências humanas: subir o vídeo no YouTube como não listado e colar o link no `.txt`.
+- "Hoje" da Gestão é a data local do servidor (limitação S8).
+- A fumaça teve uma falha intermitente de tempo na troca de cena do palco (1 em 2 rodadas no checkout; 1 em 1 verde no clone limpo).
+- Pendência humana: subir o vídeo no YouTube como não listado e colar o link no `.txt` e no README.

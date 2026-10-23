@@ -57,15 +57,15 @@ Board: https://trello.com/b/zVZW2n1p/visionepi-challenge-3ecr. Cada requisito te
 | RF36 | Celular como câmera, via QR e HTTPS local | S4 | Concluído | CHANGELOG, F6 |
 | RF37 | Página de status do sistema e API documentada (`/api/docs`) | S4 | Concluído | README, MISSÃO 4 |
 | RF38 | Modo demonstração reprodutível, offline, com banco isolado e contas geradas | S4 | Concluído | ADR 0007; `e2e/fumaca_demo.py` 6/6 (CHANGELOG, Entrega MISSÃO 4) |
-| RF39 | Amostra de vídeo versionada para a demo subir sem baixar gravações | S4 | Em implementação | ADR 0010; `app/demo.py` já chama `fonte_da_gravacao`; sem teste dedicado e sem prova de subida num clone sem as gravações |
+| RF39 | Amostra de vídeo versionada para a demo subir sem baixar gravações | S4 | Concluído | ADR 0010; `tests/test_demo_amostra.py` (3 testes: versionada e < 2 MB, gravação baixada vence, sem gravação a demo toca a amostra e avisa) |
 | RF40 | Fallback determinístico do LLM na demo, sinalizado como "modo demonstração" | S4 | Concluído | ADR 0009; `tests/test_llm_demo_fallback.py` |
-| RF41 | Colaboradores com histórico de EPIs (busca, filtro por setor, detalhe, cadastro e edição) | S4 | Em implementação | contrato `docs/specs/es-sprint4-contrato-gestao.md` |
-| RF42 | Catálogo de EPIs com CA, validade do CA, fabricante e vida útil; situação do CA | S4 | Em implementação | idem |
-| RF43 | Entregas e devoluções de EPI; bloqueio de entrega com CA vencido ou para colaborador desligado; troca prevista | S4 | Em implementação | idem |
-| RF44 | Ocorrências de segurança (tipo, gravidade, status, ação corretiva) | S4 | Em implementação | idem |
-| RF45 | Exportação CSV de colaboradores, EPIs, entregas, ocorrências e alertas | S4 | Em implementação | idem |
-| RF46 | Seed idempotente de dados simulados da Metaindústria, automático na demo ou por comando | S4 | Em implementação | idem (`flask --app wsgi gestao semear`) |
-| RF47 | Permissões da Gestão: técnico lê e registra, supervisor cadastra, operador recebe 403 | S4 | Em implementação | idem |
+| RF41 | Colaboradores com histórico de EPIs (busca, filtro por setor, detalhe, cadastro e edição) | S4 | Concluído | contrato `docs/specs/es-sprint4-contrato-gestao.md`; `tests/test_gestao_epi.py` 84 passed, `e2e/test_es_sprint4.py` 26 passed (23/10) |
+| RF42 | Catálogo de EPIs com CA, validade do CA, fabricante e vida útil; situação do CA | S4 | Concluído | idem |
+| RF43 | Entregas e devoluções de EPI; bloqueio de entrega com CA vencido ou para colaborador desligado; troca prevista | S4 | Concluído | idem |
+| RF44 | Ocorrências de segurança (tipo, gravidade, status, ação corretiva) | S4 | Concluído | idem |
+| RF45 | Exportação CSV de colaboradores, EPIs, entregas, ocorrências e alertas | S4 | Concluído | idem |
+| RF46 | Seed idempotente de dados simulados da Metaindústria, automático na demo ou por comando | S4 | Concluído | idem (`flask --app wsgi gestao semear`) |
+| RF47 | Permissões da Gestão: técnico lê e registra, supervisor cadastra, operador recebe 403 | S4 | Concluído | idem |
 | RF48 | Notificação por Telegram (terceiro canal) | S3 | Planejado | FASE3 §2.2: "planejado, não implementado" |
 | RF49 | Medir o LLM no conjunto anotado (`scripts/avaliar_llm_dataset.py`, pronto) | S4 | Planejado | `docs/SPRINT4.md` §8: falta rodar com chave |
 | RF50 | Dataset anotado das câmeras da planta, por duas pessoas | S4 | Planejado | README, Roadmap; SPRINT4 §8 |
@@ -88,7 +88,7 @@ Board: https://trello.com/b/zVZW2n1p/visionepi-challenge-3ecr. Cada requisito te
 | RNF09 | Degradação explícita sob falha de fonte, de modelo ou de chave | S4 | Concluído | README, Roadmap (retry com teto, modo fixture, LLM sem chave) |
 | RNF10 | Instalação reproduzível: pesos conferidos por SHA-256 e clone limpo verificado | S4 | Concluído | `scripts/preparar.py`; CHANGELOG, "Teste de clone limpo" |
 | RNF11 | Licenças e atribuições registradas | S4 | Concluído | `docs/NEXT2026/ATRIBUICOES.md`, `docs/FIXTURES.md`, `amostras/LICENCA.md` |
-| RNF12 | Dado simulado sempre rotulado como simulado | S4 | Em implementação | ADR 0008; contrato |
+| RNF12 | Dado simulado sempre rotulado como simulado | S4 | Concluído | ADR 0008; contrato; selo "Dados simulados" provado em `e2e/test_es_sprint4.py::test_supervisor_ve_o_aviso_de_dados_simulados` |
 | RNF13 | Textos em pt-BR com um termo por conceito | S4 | Concluído | `docs/NEXT2026/GLOSSARIO.md`; CHANGELOG, PR10 |
 | RNF14 | Qualidade medida por portão (pytest, ruff, build, E2E, crawler, axe) antes de cada merge | S4 | Concluído | `docs/scrum/definition-of-done.md` |
 

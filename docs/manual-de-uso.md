@@ -44,7 +44,7 @@ O que cada passo faz:
    sobe o servidor.
 
 Espere cerca de **1 minuto** até a primeira análise aparecer: a mediana medida foi 53 s com o cache aquecido e 68 s a frio (`docs/NEXT2026/DEMO.md`).
-Se a porta 5000 estiver ocupada, defina `PORT=5050` nos dois comandos que sobem o servidor.
+Se a porta 5000 estiver ocupada, o `run.py --demo` avisa antes de subir. Use outra: no PowerShell, `$env:PORT="5050"` e rode de novo no mesmo terminal; no macOS/Linux, `PORT=5050 .venv/bin/python run.py --demo`. No modo demonstração o arquivo `.env` não é lido.
 
 Se uma gravação de demonstração não foi baixada, `python scripts/fetch_fixtures.py` a baixa. Enquanto ela faltar, a câmera correspondente toca a amostra versionada
 `amostras/canteiro_amostra.mp4` (7 s, CC BY-SA 4.0) e o terminal avisa quais câmeras estão nessa condição (`app/demo_ambiente.py`, ADR 0010). **Os pesos dos modelos
@@ -184,7 +184,7 @@ Na aba Relatórios e exportação, **Abrir o relatório mensal** (ou o atalho **
 
 Sem `GEMINI_API_KEY`, a demonstração mostra uma resposta **fixa**, que não olha a imagem e diz isso. Dois lugares sinalizam:
 
-- na tela de foco, o chip **"Modo demonstração · resposta fixa, sem chave do Gemini"**;
+- na tela de foco da câmera, em **Mais → Segunda opinião**, o chip **"Modo demonstração · resposta fixa, sem chave do Gemini"** (a resposta aparece depois que um alerta novo nasce naquela câmera);
 - em **Status do sistema** (`/status`, técnico ou mais), o componente da segunda opinião diz "Modo demonstração: sem chave, a segunda opinião é uma resposta fixa, sem análise da imagem."
 
 ![Status e modo demonstração](img/13-status-llm-demo.png)
@@ -214,11 +214,11 @@ O botão de **tema** na barra superior troca entre claro e escuro. O claro é o 
 
 | Situação | O que fazer |
 |---|---|
-| Quer voltar ao estado inicial sem reiniciar o servidor | `flask --app wsgi demo reset` (menos de 10 s). Limpa alertas, incidentes, eventos e custódia; **mantém as contas** |
+| Quer voltar ao estado inicial sem reiniciar o servidor | Em **outro** terminal: `.venv\Scripts\python -m flask --app wsgi demo reset` (menos de 10 s). Limpa alertas, incidentes, eventos e custódia e recria os 40 alertas simulados; **mantém as contas** |
 | "o banco da demo está em uso" ao subir | já há uma demo rodando; feche-a |
 | "gravações ausentes em tests/fixtures" | só aparece se a amostra `amostras/canteiro_amostra.mp4` também faltar; rode `python scripts/fetch_fixtures.py` (uma vez, com internet) |
 | "gravações não baixadas ... tocam a amostra versionada" | aviso, não erro: as câmeras listadas tocam a amostra de 7 s; para as gravações completas, `python scripts/fetch_fixtures.py` |
-| Porta 5000 ocupada | `PORT=5050` e abra a porta nova |
+| Porta 5000 ocupada | PowerShell: `$env:PORT="5050"`; macOS/Linux: `PORT=5050 .venv/bin/python run.py --demo`; abra a porta nova |
 | Esqueci a senha impressa | reinicie a demo: o banco é recriado e as senhas mudam |
 | Câmeras sem análise por alguns segundos | a primeira análise e a troca de formato compilam o modelo; espere. Em máquina sem GPU Intel, o runtime cai para ONNX e fica mais lento |
 | Webcam não abre | o Portal toca a gravação `portal.mp4`; siga |
