@@ -53,8 +53,21 @@ if __name__ == "__main__":
                         help="modo demonstração: banco isolado, contas e câmeras de demo, offline (ver docs/NEXT2026/DEMO.md)")
     args = parser.parse_args()
     if args.demo:
+        import logging
+        import socket
+
         from app.demo import imprimir_acessos, semear
 
+        # Porta ocupada: avisar ANTES do seed e do aquecimento (antes, o erro só vinha no socketio.run).
+        with socket.socket() as teste:
+            try:
+                teste.bind((Config.HOST if Config.HOST not in ("0.0.0.0", "") else "127.0.0.1", Config.PORT))
+            except OSError:
+                raise SystemExit(f"[demo] A porta {Config.PORT} já está em uso por outro programa. Use outra: "
+                                 '(PowerShell) $env:PORT="5050"; depois rode de novo  ·  (macOS/Linux) '
+                                 "PORT=5050 .venv/bin/python run.py --demo") from None
+        # Uma linha por requisição empurrava as senhas para fora do terminal.
+        logging.getLogger("werkzeug").setLevel(logging.WARNING)
         info = semear(app)
         with app.app_context():
             app.extensions["monitor_service"].load_cameras_from_db()
@@ -65,6 +78,7 @@ if __name__ == "__main__":
     if args.demo:
         with app.app_context():
             app.extensions["monitor_service"].start_all()
+        imprimir_acessos(info, Config.PORT, pronto=True)
     host, ssl_context = Config.HOST, None
     if args.https:
         from pathlib import Path

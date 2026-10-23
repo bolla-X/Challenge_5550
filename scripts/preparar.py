@@ -125,7 +125,10 @@ def main() -> int:
                            cwd=RAIZ, check=True, env=ambiente)
     # Em processo separado: o app lê a configuração do ambiente no import.
     subprocess.run([sys.executable, "scripts/preparar.py", "--so-cache"], cwd=RAIZ, check=True)
-    print("[preparar] pronto. Agora: python run.py --demo", flush=True)
+    # O Python que rodou este script (o do venv), não um `python` solto que seria o global.
+    python = Path(sys.executable)
+    python = python.relative_to(RAIZ) if python.is_relative_to(RAIZ) else python
+    print(f"[preparar] pronto. Agora: {python} run.py --demo", flush=True)
     return 0
 
 

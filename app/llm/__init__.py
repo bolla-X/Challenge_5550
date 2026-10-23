@@ -112,6 +112,17 @@ class AnaliseRisco(BaseModel):
         return limpo
 
 
+class AnaliseDeDemonstracao(AnaliseRisco):
+    """A mesma análise, marcada como resposta fixa do modo demonstração.
+
+    Subclasse, e não campo opcional em `AnaliseRisco`: o Gemini continua sem
+    poder devolver `modo` (o schema dele segue `extra="forbid"`). Quem consome o
+    payload (painel, socket) sabe pela marca que ninguém analisou a imagem.
+    """
+
+    modo: Literal["demonstracao"] = "demonstracao"
+
+
 # ------------------------------------------------------------ provedores ----
 def redigir_segredos(mensagem: str) -> str:
     """Remove o que parece chave de API antes de a mensagem virar log."""
@@ -144,6 +155,28 @@ class ProvedorFake:
     def analisar(self, imagem_jpeg: bytes, prompt: str) -> str:
         self.chamadas.append((len(imagem_jpeg), prompt))
         return self.resposta
+
+
+class ProvedorDemonstracao:
+    """Segunda opinião FIXA do modo demonstração (sem `GEMINI_API_KEY`).
+
+    Determinística de propósito: não olha a imagem e diz isso na própria
+    justificativa, com confiança 0. Serve para a tela mostrar o caminho inteiro
+    (alerta → segunda opinião) numa máquina sem chave, sem fingir que houve
+    análise. Passa pelo mesmo `validar()` que a resposta do Gemini.
+    """
+
+    demonstracao = True
+    RESPOSTA = json.dumps({
+        "nivel_risco": "medio",
+        "epis_ausentes": [],
+        "justificativa": "Modo demonstração: resposta fixa, sem GEMINI_API_KEY. A imagem não foi analisada por um LLM.",
+        "confianca": 0.0,
+        "acao_recomendada": "Confira o alerta do modelo de visão. Para a análise real, configure GEMINI_API_KEY.",
+    }, ensure_ascii=False)
+
+    def analisar(self, imagem_jpeg: bytes, prompt: str) -> str:
+        return self.RESPOSTA
 
 
 class ProvedorGemini:
@@ -308,7 +341,9 @@ __all__ = [
     "MODELO_PADRAO",
     "NIVEIS_DE_RISCO",
     "AnaliseRisco",
+    "AnaliseDeDemonstracao",
     "AnalisadorDeRisco",
+    "ProvedorDemonstracao",
     "ProvedorFake",
     "ProvedorGemini",
     "ProvedorIndisponivel",

@@ -8,8 +8,10 @@ O que a demo é, e o que não é:
   impressa SÓ no terminal — não vai para arquivo nem para log;
 - câmeras das gravações de demonstração (`tests/fixtures/`, rotuladas
   "GRAVAÇÃO" na tela) e, se a webcam abrir, uma câmera "AO VIVO" no Portal;
-- offline: LLM desligado, nenhum download (as gravações precisam estar
-  baixadas: `python scripts/fetch_fixtures.py`);
+- offline: nenhum download; sem `GEMINI_API_KEY`, a segunda opinião é a
+  resposta fixa do "modo demonstração" (app/llm); gravação não baixada vira a
+  amostra versionada `amostras/canteiro_amostra.mp4`;
+- dados simulados da Gestão de EPIs (app/services/gestao_seed.py);
 - tema claro por padrão (quem já escolheu um tema no navegador mantém o seu).
 
 `flask demo reset` (< 10 s): com o servidor da demo no ar, pede o reset a ele
@@ -40,6 +42,7 @@ from app.demo_ambiente import (  # noqa: F401  (reexportados para quem importa a
     PLANTAS,
     TOKEN,
     ZONA_PATIO,
+    fonte_da_gravacao,
     preparar_ambiente,
 )
 
@@ -65,12 +68,14 @@ def semear(app) -> dict[str, Any]:
     from app.extensions import db
     from app.models import Camera, MetaDoSetor, Missao
     from app.services.auth_service import AuthService
+    from app.services.gestao_seed import semear as semear_gestao
     from app.services.onboarding import marcar_tudo_concluido
 
     with app.app_context():
         cameras: dict[str, Camera] = {}
         for nome, setor, arquivo in GRAVACOES:
-            cam = Camera(name=nome, location=setor, source_type="Arquivo", source=str(FIXTURES / arquivo),
+            # Gravação baixada, ou a amostra versionada se ela faltar (app/demo_ambiente.py).
+            cam = Camera(name=nome, location=setor, source_type="Arquivo", source=str(fonte_da_gravacao(arquivo)),
                          fps=12, width=960, height=540, features_json=_features_da_demo())
             db.session.add(cam)
             cameras[nome] = cam
@@ -107,6 +112,9 @@ def semear(app) -> dict[str, Any]:
         alvo = cameras.get("Portal") or cameras["Canteiro"]
         servico.create_user(email="operador@demo.local", name="Operador da demo", password=senhas["operator"],
                             role="operator", camera_id=alvo.id)
+        # Gestão de EPIs: dados simulados (colaboradores, catálogo, entregas, ocorrências e alertas históricos já
+        # resolvidos). Depois das câmeras: os alertas históricos usam os ids delas.
+        semear_gestao()
         # A demo abre direto no Início: o primeiro acesso já vem concluído (o
         # supervisor ainda pode refazê-lo em /primeiro-acesso).
         marcar_tudo_concluido(por="demo")
@@ -114,18 +122,29 @@ def semear(app) -> dict[str, Any]:
                 "cameras": {n: c.id for n, c in cameras.items()}}
 
 
-def imprimir_acessos(info: dict[str, Any], porta: int) -> None:
+def _python_do_venv() -> str:
+    return r".venv\Scripts\python" if os.name == "nt" else ".venv/bin/python"
+
+
+def imprimir_acessos(info: dict[str, Any], porta: int, *, pronto: bool = False) -> None:
+    """As contas no terminal. `pronto=True` repete o bloco quando o servidor já vai escutar,
+    para ele ficar por último na tela (os logs do aquecimento empurravam as senhas para cima)."""
     s = info["senhas"]
-    print("\n[demo] VisionEPI em modo demonstração (banco isolado, offline).", flush=True)
-    print(f"[demo] Abra http://127.0.0.1:{porta}", flush=True)
+    if pronto:
+        print(f"\n[demo] Pronto. Abra http://127.0.0.1:{porta} no navegador e entre primeiro como supervisor (vê tudo):",
+              flush=True)
+    else:
+        print("\n[demo] VisionEPI em modo demonstração (banco isolado, offline).", flush=True)
+        print(f"[demo] Abra http://127.0.0.1:{porta}", flush=True)
     print(f"[demo]   supervisor@demo.local  {s['supervisor']}", flush=True)
     print(f"[demo]   tecnico@demo.local     {s['technical']}", flush=True)
     print(f"[demo]   operador@demo.local    {s['operator']}", flush=True)
-    portal = {"webcam": "ligada como câmera AO VIVO \"Portal\".",
+    portal = {"webcam": "ligada como câmera AO VIVO \"Portal\" (para não usar: feche e rode com DEMO_WEBCAM=0).",
               "gravacao": "não encontrada; o Portal toca a gravação portal.mp4.",
               "canteiro": "não encontrada e sem portal.mp4; o Portal usa a gravação do Canteiro."}
     print("[demo] Webcam: " + portal[info.get("portal", "webcam" if info["ao_vivo"] else "canteiro")], flush=True)
-    print("[demo] Senhas valem só para esta execução. Reset: flask --app wsgi demo reset\n", flush=True)
+    print("[demo] Senhas valem só para esta execução e não ficam salvas em arquivo. Para parar: Ctrl+C.", flush=True)
+    print(f"[demo] Reset (em OUTRO terminal): {_python_do_venv()} -m flask --app wsgi demo reset\n", flush=True)
 
 
 def resetar_no_servidor(app) -> dict[str, Any]:
@@ -157,6 +176,11 @@ def resetar_no_servidor(app) -> dict[str, Any]:
         # A cadeia de custódia acompanha as evidências que a demo apaga.
         ElodeCustodia.query.delete()
         db.session.commit()
+        # Os 40 alertas históricos simulados da Gestão de EPIs saíram junto com os
+        # reais: o seed (idempotente) devolve só eles, nada mais é duplicado.
+        from app.services.gestao_seed import semear as semear_gestao
+
+        semear_gestao()
         for sub in ("clips", "snapshots", "trilhas"):
             shutil.rmtree(PASTA / sub, ignore_errors=True)
         fila = getattr(monitor, "fila_de_rotulos", None)
