@@ -49,6 +49,7 @@ from app.models import (
     PontoDaLiga,
     _aware,
 )
+from app.services.alertas_simulados import e_simulado
 from app.services.evacuacao import AVISO_DUPLA_CONTAGEM, listar_relatorios
 from app.services.incidentes import titulo_do_alerta
 from app.services.liga import setor_da_camera
@@ -139,6 +140,8 @@ def _alertas(inicio, fim, camera_id, nomes) -> dict[str, Any]:
     validos = [a for a in todos if not (a.metadata_json or {}).get("false_positive")]
     return {
         "total": len(todos),
+        # Quantos dos alertas do mês são histórico simulado da demonstração (já contados no total).
+        "simulados": sum(1 for a in todos if e_simulado(a)),
         "validos": len(validos),
         "falsos_positivos": len(todos) - len(validos),
         "criticos": sum(1 for a in validos if a.severity == "critical"),
@@ -329,6 +332,7 @@ def montar_relatorio_mensal(
         "camera_id": camera_id,
         "indicadores": indicadores,
         "alertas": alertas,
+        "alertas_simulados": alertas["simulados"],
         "incidentes": incidentes,
         "intervencoes": intervencoes,
         "permissoes": permissoes,
@@ -478,6 +482,10 @@ def renderizar_html(r: dict[str, Any]) -> str:
         ("Permissões de Trabalho", r["fontes"]["permissoes"]), ("Evacuações", r["fontes"]["evacuacoes"]),
         ("Cadeia de custódia", r["fontes"]["cadeia_de_custodia"])))
     gerado = _e(_data_hora(r["gerado_em"]))
+    simulados = (
+        f'<p class="vazio">Este relatório inclui {_e(pluralizar(r["alertas_simulados"], "alerta simulado", "alertas simulados"))} '
+        "(histórico de demonstração, sem vídeo).</p>"
+    ) if r["alertas_simulados"] else ""
     avisados = pluralizar(a["colaboradores_avisados"], "colaborador avisado", "colaboradores avisados")
     return f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <title>Relatório mensal para a CIPA · VisionEPI</title>
@@ -485,7 +493,7 @@ def renderizar_html(r: dict[str, Any]) -> str:
 <h1>Relatório mensal para a CIPA</h1>
 <div class="sub">{_e(r['rotulo'].capitalize())} ({inicio} a {fim}), {_e(escopo)}</div>
 <p class="nao-imprimir"><button onclick="window.print()">Imprimir / salvar PDF</button></p>
-{vazio}
+{vazio}{simulados}
 <div class="kpis">
  <div class="kpi"><b>{_numero(a['validos'])}</b>alertas</div>
  <div class="kpi"><b>{_numero(i['total'])}</b>incidentes</div>

@@ -415,7 +415,7 @@ LINHAS: list[Linha] = [
             "/", "/dashboard", "/dashboard/", "/portal", "/tv", "/rotular", "/desafio", "/gemeo", "/simulador",
             "/auditoria", "/palco", "/palco/controle", "/retrospectiva", "/liga", "/evacuacao", "/torre", "/regras", "/produto",
             "/caixa-de-entrada", "/ajuda", "/intervencoes", "/busca",
-            "/permissoes", "/primeiro-acesso", "/novidades", "/configuracoes",
+            "/permissoes", "/primeiro-acesso", "/novidades", "/configuracoes", "/gestao",
         )
     ],
     L("GET", "/sw.js", PUBLICA, publica_por=PWA),
@@ -569,6 +569,24 @@ LINHAS: list[Linha] = [
     L("PUT", "/api/onboarding/<passo>", SO_SUPERVISOR, "/api/onboarding/camera", corpo={"estado": "pendente"}),
     L("POST", "/api/onboarding/refazer", SO_SUPERVISOR),
     L("POST", "/api/onboarding/concluir", SO_SUPERVISOR),
+    # ------------------------------------------------------- gestão de EPIs --
+    # Operador: 403 em tudo (o kiosk não usa o módulo). Técnico lê, registra entrega/devolução/ocorrência e exporta;
+    # só o supervisor cadastra colaborador e item do catálogo. Rota sem recurso por câmera: `op` e `op_fora` iguais.
+    L("GET", "/api/gestao/resumo", TEC_OU_MAIS),
+    L("GET", "/api/gestao/colaboradores", TEC_OU_MAIS),
+    L("POST", "/api/gestao/colaboradores", SO_SUPERVISOR, corpo={}, ok=(400,)),
+    L("GET", "/api/gestao/colaboradores/<int:colaborador_id>", TEC_OU_MAIS, "/api/gestao/colaboradores/9999", ok=(404,)),
+    L("PUT", "/api/gestao/colaboradores/<int:colaborador_id>", SO_SUPERVISOR, "/api/gestao/colaboradores/9999", corpo={}, ok=(404,)),
+    L("GET", "/api/gestao/epis", TEC_OU_MAIS),
+    L("POST", "/api/gestao/epis", SO_SUPERVISOR, corpo={}, ok=(400,)),
+    L("PUT", "/api/gestao/epis/<int:epi_id>", SO_SUPERVISOR, "/api/gestao/epis/9999", corpo={}, ok=(404,)),
+    L("GET", "/api/gestao/entregas", TEC_OU_MAIS),
+    L("POST", "/api/gestao/entregas", TEC_OU_MAIS, corpo={}, ok=(400,)),
+    L("POST", "/api/gestao/entregas/<int:entrega_id>/devolucao", TEC_OU_MAIS, "/api/gestao/entregas/9999/devolucao", ok=(404,)),
+    L("GET", "/api/gestao/ocorrencias", TEC_OU_MAIS),
+    L("POST", "/api/gestao/ocorrencias", TEC_OU_MAIS, corpo={}, ok=(400,)),
+    L("PUT", "/api/gestao/ocorrencias/<int:ocorrencia_id>", TEC_OU_MAIS, "/api/gestao/ocorrencias/9999", corpo={}, ok=(404,)),
+    L("GET", "/api/gestao/exportar/<recurso>.csv", TEC_OU_MAIS, "/api/gestao/exportar/colaboradores.csv"),
     # ------------------------------------------------------- integração (torre) --
     L("GET", "/api/integracao/estado", LEGADA),
     # ------------------------------------------------- permissão de trabalho --

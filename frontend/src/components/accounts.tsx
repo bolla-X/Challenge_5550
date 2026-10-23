@@ -5,6 +5,7 @@ import { useDashboardStore } from "../store/dashboardStore";
 import { Numero, Panel } from "./common";
 import { Miniatura } from "./camera-grid";
 import { useLiga } from "./liga";
+import { CartaoGestaoInicio } from "./gestao/cartao-inicio";
 import {
   IconeApresentacao,
   IconeContas,
@@ -145,6 +146,7 @@ export function SupervisorHome() {
           <strong>Contas</strong>
           <span>Acesso de operadores e técnicos.</span>
         </button>
+        <CartaoGestaoInicio />
       </div>
     </div>
   );

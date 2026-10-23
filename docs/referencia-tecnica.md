@@ -1,0 +1,423 @@
+# Referência técnica do VisionEPI
+
+Conteúdo técnico que estava no README até a final do FIAP NEXT 2026 (main `a4df215`), movido para cá sem alteração
+quando o README virou o documento-âncora da entrega de Engenharia de Software (Sprint 4, 23/10/2026).
+Os links foram ajustados para a pasta `docs/`; caminhos citados em código (`app/...`, `tests/...`) partem da raiz.
+
+## Sobre o projeto
+
+Sistema de monitoramento de segurança industrial em tempo real, desenvolvido para o **Challenge 2026 — Metaindústria** (FIAP × SPI Integração). Usa visão computacional para detectar uso de EPIs, analisar postura e comportamento, e sinalizar risco antes que o incidente aconteça — não apenas registrar a infração depois do fato.
+
+> **Sprint 4 (entrega final de IA):** relatório técnico em [docs/SPRINT4.md](SPRINT4.md) e em PDF ([docs/entrega/](entrega/)), diagrama em [docs/arquitetura_sprint4.png](arquitetura_sprint4.png), tabelas geradas em [docs/avaliacao/RESUMO.md](avaliacao/RESUMO.md), evidências em [docs/evidencias/](evidencias/).
+
+## O problema
+
+O modelo tradicional de segurança industrial é reativo: inspeções periódicas, checklists manuais, punição depois do incidente. O VisionEPI propõe o oposto — monitoramento contínuo por IA, alertas em tempo real, e uma camada de tendência que aponta onde o risco está se acumulando antes de virar acidente.
+
+## Funcionalidades
+
+- **Detecção de EPIs em tempo real** — capacete, colete, luvas, óculos, máscara e calçado de segurança, via modelo YOLOv8 dedicado (Vyra, 14 classes). O segundo modelo para detecção de pessoa continua disponível para pesos que não trazem a classe `Person` (arquitetura dual-model opcional). Alternativa configurável: o peso da Sprint 4 (`models/visionepi_cppe_n416.pt`, YOLOv8n treinado no Construction-PPE, com classes *negativas*; [docs/SPRINT4.md](SPRINT4.md)).
+- **Ausente não é não visto** — cada EPI sai como *detectado*, *visto sem* ou *não detectado*; a política (`PPE_MISSING_POLICY`) decide o que vira alerta, e o alerta diz ao operador se a pessoa foi vista sem o EPI.
+- **Multi-pessoa com identidade estável** — múltiplas pessoas detectadas e avaliadas no mesmo frame, cada uma com id que persiste entre frames (tracking por IoU). O EPI é associado à pessoa por geometria e de forma exclusiva: um capacete pertence a uma pessoa só, mesmo com as caixas se sobrepondo.
+- **Multi-câmera de verdade** — um worker por câmera, modelos YOLO carregados uma única vez e compartilhados. Todo alerta, evento e mensagem de WebSocket carrega `camera_id`.
+- **Análise de postura e quedas** — via MediaPipe Pose, sinalizando posturas suspeitas e pessoas caídas.
+- **Área de risco configurável** — editor visual de zona de risco; alerta quando uma pessoa entra na área.
+- **Ciclo de vida de alertas com histerese** — alertas são criados/resolvidos após N frames consecutivos (não a cada frame instável), evitando ruído de falso positivo.
+- **Tendência de risco** — score agregado por categoria (os seis EPIs + quedas/postura/área de risco), opcionalmente filtrado por câmera, calculado sobre o histórico real de alertas em janela deslizante, com sparkline de 24h. Estatística honesta sobre o histórico — não é predição de IA, é isso que os dados sustentam hoje.
+- **Command palette (Ctrl/Cmd+K)** — navegação rápida entre painéis, troca de modo, iniciar/parar monitoramento, sem precisar do mouse.
+- **Alertas sonoros** — som curto para alertas críticos e para o retorno a "tudo certo", com mute persistente e sempre visível.
+- **Autenticação real com papéis** — login por e-mail e senha (hash scrypt), sessão em cookie HttpOnly, e três papéis hierárquicos que decidem o que cada pessoa pode fazer. Sem cadastro público: quem cria acesso é quem já tem acesso.
+- **Modo Operador / Técnico / Supervisor** — visão essencial para o campo (com ações reais de "avisei o colaborador" e "marcar falso positivo"), e um painel de diagnóstico completo (FPS, classes do modelo, diagnósticos de detecção) para quem precisa investigar.
+- **Dashboard em tempo real** via WebSocket (Socket.IO) — feed de vídeo, conformidade por pessoa, linha do tempo de eventos, tudo atualizado ao vivo.
+
+### NEXT 2026 (FIAP)
+
+Detalhe, números e decisões em [`docs/NEXT2026/`](NEXT2026/) — CHANGELOG, BENCHMARKS, DEMO, BANCA.
+
+- **Desempenho medido, não estimado:** captura "último quadro vence", um agendador de inferência para todas as câmeras e OpenVINO na iGPU Intel por padrão (com fallback para ONNX e PyTorch). Toda troca de runtime passa por um guarda de concordância ≥ 97 % por classe. No perfil "batata" (2 núcleos de eficiência), o 1º alerta chega em ~2 s (antes, 38 s).
+- **Diferenciais:** replay do incidente com rosto desfocado, queda atribuída a um ID de rastreio, pré-alerta de aproximação da zona, modo privacidade (só o supervisor desliga), diagnóstico do pipeline, celular como câmera via QR, mapa de calor, relatório de turno, prova de escala.
+- **Funções criativas:**
+  - Portal de Entrada (`/portal`) e Você vs. a IA (`/desafio`);
+  - SOS por gesto, pessoa imóvel e ergonomia (estimativa);
+  - planta baixa ao vivo e alerta falado em pt-BR;
+  - Modo TV por setor (`/tv`), com metas e conquistas só positivas;
+  - aprendizado ativo (`/rotular`, exporta dataset YOLO);
+  - relatório ligado aos itens literais da NR-6.
+- **Modo demonstração:** `python run.py --demo` (banco isolado, offline) e `flask --app wsgi demo reset` em menos de 10 s.
+
+### MISSÃO 4 — pronto de empresa
+
+- **Fábrica conectada:** OPC UA, MQTT (broker embutido na demo) e webhook com proteção SSRF; torre de luz virtual
+  (`/torre` e Modo TV) com o mesmo estado que o CLP lê — ver [`docs/NEXT2026/INTEGRACAO.md`](NEXT2026/INTEGRACAO.md).
+- **Câmera tampada ou movida:** saúde visual por câmera (obstruída, movida, escura, ofuscada, desfocada) com alerta e
+  "redefinir referência".
+- **Evacuação:** contagem por câmera, última posição na planta, ponto de encontro, cronômetro; relatório na cadeia de custódia.
+- **Regras sem código:** editor em blocos que compila para o mesmo motor, com "testar no histórico".
+- **Permissão de trabalho:** vigia (NR-33), janela, EPIs com verificação automática x manual.
+- **Operação:** busca nas trilhas, escalonamento de alerta crítico, antes/depois de intervenção com ROI das suas
+  premissas, relatório mensal para a CIPA, API documentada (`/api/docs`).
+- **Experiência:** primeiro acesso guiado, tour por tipo de conta, central de ajuda (`/ajuda`), notificações,
+  busca global (Ctrl+K), `/status`, novidades, páginas de exceção, página pública (`/produto`).
+- **Qualidade:** matriz de permissões (todo endpoint × todo tipo de conta), crawler que aciona todo botão de toda tela,
+  jornadas ponta a ponta e auditoria de segurança — ver [`docs/NEXT2026/QA.md`](NEXT2026/QA.md) e
+  [`docs/NEXT2026/PERMISSOES.md`](NEXT2026/PERMISSOES.md). Revisão visual de 50 telas nos dois temas e em três
+  tamanhos (1920×1080, 1366×768, celular): [`docs/NEXT2026/galeria/`](NEXT2026/galeria/index.md).
+
+## Stack
+
+**Backend**
+- Python 3.11–3.12 · Flask · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-SocketIO
+- gunicorn em produção (o servidor de desenvolvimento do Werkzeug nunca é usado fora de dev)
+- Ultralytics YOLOv8 (detecção de EPI e de pessoa, dual-model) e YOLO11n-pose
+- OpenVINO (iGPU Intel) e ONNX Runtime, escolhidos por `PPE_RUNTIME=auto` só entre exports aprovados no guarda
+- Peso da Sprint 4 `models/visionepi_cppe_n416.pt` (YOLOv8n, 6,2 MB, versionado) como alternativa configurável (ver "Configuração do modelo de EPI")
+- Google Gemini 3.6 Flash (segunda opinião multimodal, opcional)
+- MediaPipe Pose (postura e quedas)
+- SQLite (dev) / PostgreSQL (produção, via Docker)
+
+**Frontend**
+- React 18 + TypeScript + Vite
+- Zustand (estado global, assinando os eventos WebSocket)
+- Socket.IO client
+- `motion` (animação declarativa), `@number-flow/react` (transição de números), `cmdk` (command palette)
+- CSS global com design tokens próprios. Direção visual calma: superfície neutra clara (escuro suportado), hierarquia por espaço e tipografia Geist, cor guardada para o estado que importa (laranja de perigo pela ABNT NBR 7195, vermelho só no botão Parar, verde só em ponto e rótulo), Geist Mono apenas em número que alinha em coluna
+
+## Arquitetura
+
+```mermaid
+flowchart TB
+    subgraph thread["Thread de captura — uma por câmera"]
+        direction TB
+        FONTE["<b>VideoStream</b><br/>RTSP · USB · arquivo<br/>retry com backoff e teto"]
+        LOOP["<b>_loop</b> — um frame por vez"]
+        YOLO["YOLO EPI + YOLO pessoa<br/><i>inference_lock compartilhado</i>"]
+        POSE["MediaPipe Pose<br/>por pessoa rastreada"]
+        REGRAS["RuleEngine + PersonComplianceMatcher<br/><i>detectado · visto sem · não detectado</i>"]
+        ALERTA["AlertStateService<br/><i>histerese conta DETECÇÃO</i>"]
+        ENCODE["cv2.imencode<br/><i>uma vez por frame, 2,5 ms</i>"]
+        FONTE --> LOOP --> YOLO --> POSE --> REGRAS --> ALERTA --> ENCODE
+    end
+
+    FIXTURE["<b>Modo fixture</b><br/>bench.mp4 em loop<br/><i>após N tentativas</i>"]
+    FONTE -. "fonte morta" .-> FIXTURE
+    FIXTURE -. "assume a fonte" .-> LOOP
+
+    subgraph llm["Camada LLM — FORA da thread do frame"]
+        direction TB
+        SUBMETER["<b>submeter()</b><br/><i>9–13 µs · nunca bloqueia</i>"]
+        PORTAO{"debounce 15 s<br/>+ uma em voo<br/>por câmera?"}
+        DESCARTE["descarta<br/><i>78 de 79 eventos</i>"]
+        EXECUTOR["thread daemon<br/>ProvedorGemini"]
+        SCHEMA{"cabe no<br/>schema?"}
+        NADA["None + log<br/><i>nunca vira alerta</i>"]
+        OPINIAO["<b>segunda_opiniao</b><br/><i>campo separado</i>"]
+        SUBMETER --> PORTAO
+        PORTAO -- "não" --> DESCARTE
+        PORTAO -- "sim" --> EXECUTOR --> SCHEMA
+        SCHEMA -- "não" --> NADA
+        SCHEMA -- "sim" --> OPINIAO
+    end
+
+    ALERTA == "alerta CRIADO ou<br/>'não verificado' confirmado<br/>+ o JPEG já codificado" ==> SUBMETER
+
+    BANCO[("SQLite / PostgreSQL<br/>alertas · eventos · câmeras · usuários")]
+    FLASK["<b>Flask</b><br/>API REST + Socket.IO<br/><i>escopo por câmera em rooms</i>"]
+    SPA["<b>React SPA</b> (Vite)<br/>vídeo MJPEG + telemetria"]
+
+    ALERTA --> BANCO
+    ENCODE --> FLASK
+    OPINIAO --> FLASK
+    BANCO --> FLASK
+    FLASK <--> SPA
+
+    classDef sync fill:#1e3a5f,stroke:#3b82f6,color:#e0f2fe
+    classDef async fill:#3f2d1e,stroke:#f59e0b,color:#fef3c7
+    classDef store fill:#1f3a2e,stroke:#22c55e,color:#dcfce7
+    classDef fall fill:#3f2d1e,stroke:#f59e0b,color:#fef3c7,stroke-dasharray: 5 3
+    class FONTE,LOOP,YOLO,POSE,REGRAS,ALERTA,ENCODE sync
+    class SUBMETER,PORTAO,DESCARTE,EXECUTOR,SCHEMA,NADA,OPINIAO async
+    class BANCO,FLASK,SPA store
+    class FIXTURE fall
+```
+
+**O que o diagrama diz, e por que importa:**
+
+- **Azul é o caminho do frame**, e ele é síncrono. Todo o orçamento de tempo
+  vive ali: 19,56 fps com uma câmera a `imgsz=416`
+  ([BENCH.md](BENCH.md)). Um `inference_lock` compartilhado serializa a
+  inferência entre câmeras — é por isso que multi-câmera **não escala**, e a
+  espera foi medida em 134 a 237 ms com 2 câmeras.
+- **Âmbar é assíncrono e descartável.** A camada LLM é acionada só quando um
+  alerta é **criado**, reaproveita o JPEG que o loop já codificou (não há
+  segundo `imencode`) e devolve o controle em 9–13 µs. Quando já há uma chamada
+  em voo ou o debounce está fechado, o evento é **descartado, não enfileirado**:
+  enfileirar produziria respostas descrevendo uma cena que já passou.
+- **A seta do LLM não volta para os alertas.** Ela vai para `segunda_opiniao`,
+  campo separado. O modelo de linguagem **não** cria, resolve nem suprime
+  alerta — informa o operador, não decide. Resposta que não cabe no schema vira
+  `None` e log.
+- **Modo fixture é estado de primeira classe** (tracejado), não falha
+  silenciosa: depois de `RTSP_MAX_TENTATIVAS` tentativas o worker assume a
+  fixture em loop e a UI mostra "modo fixture — fonte de demonstração". Ver
+  [DEMO.md](DEMO.md).
+
+Em desenvolvimento, o Vite roda como servidor separado (`:5173`) com proxy para o Flask (`:5000`). Em produção, o Flask serve o build estático do React diretamente.
+
+## Como rodar
+
+### Pré-requisitos
+- **Python 3.11 ou 3.12** — não 3.13+. `mediapipe==0.10.14` e `numpy==1.26.4` não publicam wheel para versões acima da 3.12, e `pip install` falha antes de instalar qualquer coisa.
+- Node.js + npm
+- (Opcional) Docker, se for usar PostgreSQL em vez de SQLite
+
+### Backend
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS/Linux
+
+pip install -r requirements.txt
+copy .env.example .env          # Windows
+# cp .env.example .env          # macOS/Linux
+```
+
+Edite o `.env`: gere a `SECRET_KEY` (a aplicação **não sobe** sem ela); mantenha `DATABASE_URL` comentada para usar SQLite local, ou suba um Postgres via `docker compose up -d postgres` e descomente a URL.
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Crie o esquema do banco:
+
+```bash
+flask --app wsgi db upgrade
+```
+
+Crie a primeira conta — sem ela não há como entrar:
+
+```bash
+flask --app wsgi users create --role supervisor
+```
+
+> **`AUTO_CREATE_TABLES` precisa estar `false`** (é o padrão do `.env.example`). Quem é dono do esquema é o Alembic. Com `true`, `create_app()` chama `db.create_all()` — e o CLI do Flask constrói a aplicação **antes** de executar o subcomando, então as tabelas nascem sem `alembic_version` e o `db upgrade` seguinte morre com `table alerts already exists`, **num clone limpo**. Se você ligou `AUTO_CREATE_TABLES=true` e caiu nesse erro, apague o banco (`instance/visionepi-dev.db`) e rode o `upgrade` de novo com a variável em `false`.
+>
+> Caso diferente: **já tinha um banco da versão anterior**, criado por `db.create_all()` quando ainda não havia migrações? Aí sim rode `flask --app wsgi db stamp f6cd160ae4e0` **uma vez** antes do `upgrade`, para o Alembic aplicar só as migrações novas em vez de recriar tabelas existentes. Isso **não** resolve o caso do clone limpo acima — são problemas distintos.
+
+O caminho documentado acima é coberto por `tests/test_onboarding.py`.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+### Rodando tudo
+
+```bash
+python run.py
+```
+
+Acesse `http://localhost:5000`. A porta vem de `PORT` no `.env` e é a mesma usada por `run.py`, Dockerfile, docker-compose e pelo proxy do Vite.
+
+Para apresentar, use o **modo demonstração** (banco isolado, contas geradas na hora e impressas só no terminal, câmeras das gravações e a webcam como "AO VIVO", offline):
+
+```bash
+python run.py --demo
+```
+
+Roteiro de 5 minutos, reset (`flask --app wsgi demo reset`, < 10 s) e plano B em [docs/NEXT2026/DEMO.md](NEXT2026/DEMO.md).
+
+`python run.py` é o servidor de **desenvolvimento**. Em produção quem serve é o gunicorn sobre `wsgi:app` — é o que o `Dockerfile` faz. `FLASK_DEBUG` nunca deve ser `true` fora da sua máquina: o modo debug do Werkzeug expõe um console interativo que executa código arbitrário.
+
+Para desenvolvimento do frontend com hot-reload, rode `npm run dev` dentro de `frontend/` em paralelo ao `python run.py` — o Vite abre em `http://localhost:5173` e faz proxy das chamadas de API/WebSocket para o Flask.
+
+### Configuração do modelo de EPI
+
+O `.env` aponta `PPE_MODEL_PATH` para o modelo de detecção de EPI. O padrão é **`models/vyra_ppe.pt`** ([Hexmon/vyra-yolo-ppe-detection](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection), YOLOv8m, 14 classes, licença **CC-BY-4.0 — exige atribuição ao autor**).
+
+**Alternativa: o peso da Sprint 4**, `models/visionepi_cppe_n416.pt`, já vem no repositório (6,2 MB; SHA-256 travado em `tests/test_onboarding.py`). YOLOv8n treinado no Construction-PPE a `imgsz=416`, com pessoa, 5 EPIs e 5 classes negativas num peso só; medido por pessoa, a precisão do alerta "sem capacete" foi de 0,39 para 0,85 ([docs/SPRINT4.md](SPRINT4.md)). Não é o padrão da demo: todas as medições, guardas de qualidade e E2E do NEXT 2026 foram feitos com o Vyra. Para usar, as três linhas juntas no `.env`:
+
+```
+PPE_MODEL_PATH=models/visionepi_cppe_n416.pt
+YOLO_CLASSES=
+MULTI_PERSON_DETECTION=false
+```
+
+Ele roda em PyTorch (o export OpenVINO aprovado no guarda é o do Vyra). `PPE_MISSING_POLICY=ausencia|evidencia` (padrão `ausencia`) decide se "não detectado" vira alerta.
+
+Os pesos **não são versionados** (`.gitignore: *.pt`): baixe o arquivo e salve em `models/vyra_ppe.pt`.
+
+Esse modelo tem a classe `Person` no índice 11 — mas veja a ressalva abaixo antes de confiar nela.
+
+#### A classe `Person` do Vyra não generaliza — use `MULTI_PERSON_DETECTION=true`
+
+O modelo **tem** a classe `Person`, e por isso o projeto nasceu com `MULTI_PERSON_DETECTION=false`. Medindo, a premissa não se sustenta:
+
+- **36 células testadas** (3 fotos independentes de canteiro de obra com pessoas de corpo inteiro × `imgsz` ∈ {416, 640, 960, 1280} × `conf` ∈ {0,35; 0,10; 0,02}, instância nova do modelo a cada célula): **zero detecções de `Person`**. Nas mesmas imagens o modelo detecta `Hardhat` e `Safety Vest` normalmente.
+- Somando ~650 quadros amostrados de quatro vídeos de segurança do trabalho (CDC/NIOSH), também **zero** `Person`.
+- A causa está na **matriz de confusão publicada pelo próprio autor** ([confusion_matrix.png](https://huggingface.co/Hexmon/vyra-yolo-ppe-detection/blob/main/confusion_matrix.png)): `Person` tem ~**277 instâncias** de validação contra ~**8.946** de `Hardhat`. É a menor classe real do dataset — ~32x menos suportada. Ela funciona na distribuição de treino dela e falha fora.
+- Para comparação, na mesma imagem `yolov8n.pt` (COCO) detecta as duas pessoas com confiança **0,87** e **0,73**.
+
+**Consequência:** com `MULTI_PERSON_DETECTION=false`, `person_compliance_matcher.py:83` recebe lista de pessoas vazia. O sistema desenha capacetes e coletes no vídeo e **nunca avalia a conformidade de ninguém** — nenhum alerta de EPI é criado.
+
+Por isso **`MULTI_PERSON_DETECTION=true` é o padrão** do `.env.example`, travado por `tests/test_onboarding.py`. O custo é declarado, não escondido: **−20% de FPS** (24,32 → 19,42 a `imgsz=416`, ver [docs/BENCH.md](BENCH.md)). É o preço de o sistema fazer o que promete.
+
+Isso exige o segundo peso, também não versionado. Baixe uma vez e mova para `models/`:
+
+```bash
+python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+```
+
+`PERSON_MODEL_PATH` aponta para `models/yolov8n.pt` de propósito: com o nome solto (`yolov8n.pt`), o ultralytics baixa o peso no diretório de trabalho de quem rodou — fora de `models/`, que é o único lugar ignorado pelo git.
+
+#### Resolução e runtime (NEXT 2026)
+
+A inferência roda a `YOLO_IMGSZ=640`, a resolução de treino do Vyra. O guarda
+de concordância reprovou 416 e 512. O `PPE_RUNTIME=auto` (também para pessoa
+e pose) escolhe o primeiro runtime **aprovado** de
+`RUNTIME_ORDEM=openvino-gpu,onnx,pytorch`: o OpenVINO na iGPU Intel, se
+houver; senão ONNX na CPU; senão o `.pt`.
+
+Os exports ficam em `models/export/`, fora do git como os pesos. Para gerá-los
+e aprová-los:
+
+```bash
+python scripts/concordancia.py
+python scripts/concordancia.py --modelo pessoa
+python scripts/concordancia.py --modelo esqueleto
+```
+
+O Diagnóstico mostra qual runtime e qual dispositivo estão rodando. Números
+em [docs/NEXT2026/BENCHMARKS.md](NEXT2026/BENCHMARKS.md).
+
+A classe `Fall-Detected` do Vyra virou regra: queda atribuída a um ID de
+rastreio, que cria o alerta com 2 análises seguidas (ver CHANGELOG do NEXT 2026).
+
+#### Alternativa
+
+Ligue `MULTI_PERSON_DETECTION=true` também ao usar um modelo de EPI sem classe `person` (ex.: `models/epi_pretrained.pt`) — e, nesse caso, **limpe `YOLO_CLASSES`**, porque os índices em `.env.example` são específicos do Vyra.
+
+Sem um modelo de EPI treinado/compatível configurado, o dashboard mostra aviso de "modelo não suportado" — o restante do sistema (detecção de pessoa, pose, área de risco) funciona normalmente mesmo assim.
+
+## Autenticação e papéis
+
+Todas as rotas da API exigem sessão. Os três papéis são **hierárquicos** —
+supervisor pode tudo que o técnico pode, e assim por diante:
+
+| | Operador | Técnico | Supervisor |
+|---|---|---|---|
+| Ver vídeo, alertas, conformidade, linha do tempo | ✅ | ✅ | ✅ |
+| Iniciar/parar monitoramento | ✅ | ✅ | ✅ |
+| Marcar falso positivo / avisar colaborador | ✅ | ✅ | ✅ |
+| Cadastrar e configurar câmeras | — | ✅ | ✅ |
+| Alterar configurações, overlay e área de risco | — | ✅ | ✅ |
+| Gerir usuários | — | — | ✅ |
+
+O Operador é restrito à **câmera do setor dele** (`User.camera_id`, definido pelo supervisor): lista de câmeras, vídeo, alertas, evidências, linha do tempo e score de risco vêm só daquela área, e ele não consegue iniciar nem parar o monitoramento de outra. Uma conta de operador **sem setor atribuído não vê nada** até o supervisor definir — deixar passar daria acesso amplo justamente à conta incompleta. Técnico e Supervisor veem o parque inteiro, porque é o trabalho deles.
+
+Comandos de gestão:
+
+```bash
+flask --app wsgi users create --role operator --camera-id 1
+```
+
+```bash
+flask --app wsgi users list
+```
+
+```bash
+flask --app wsgi users set-password --email pessoa@empresa.com
+```
+
+Detalhes que importam para a avaliação de segurança:
+
+- Senha nunca é persistida nem registrada em log — só o hash **scrypt** do werkzeug.
+- Sessão em cookie **HttpOnly** (JavaScript da página não lê, então XSS não rouba a sessão) e **SameSite=Lax**. Atrás de HTTPS, ligue `SESSION_COOKIE_SECURE=true`.
+- A aplicação **não sobe** com uma `SECRET_KEY` que conste no repositório (`change-me` do `.env.example`, o default do `config.py`, e afins) nem com uma chave curta demais. Esse segredo assina a sessão: com um valor público, qualquer pessoa forja o cookie de um supervisor sem credencial.
+- E-mail inexistente e senha errada devolvem a **mesma** resposta, e o custo de verificação é constante — não dá para descobrir quais contas existem.
+- Cinco tentativas erradas travam a conta por um tempo que dobra a cada rodada (até 30 min).
+- Desativar uma pessoa, ou trocar a senha dela, **revoga todas as sessões** já emitidas — inclusive um cookie que tivesse sido copiado. Cada sessão carrega a `session_epoch` vigente no login, e o servidor compara a cada request.
+- Sair encerra a sessão **naquele navegador**, não em todos: derrubar tudo a cada logout expulsaria a pessoa do kiosk do chão de fábrica quando ela saísse do desktop. Para revogar em todos os lugares (conta comprometida), troque a senha.
+- O socket revalida a sessão a cada 30 s. Sem isso, uma conexão já aberta seguiria recebendo vídeo e alertas depois de o acesso ser revogado.
+- O **WebSocket** também exige sessão — proteger só o REST deixaria o feed de análise e alertas acessível pela porta dos fundos.
+- O **escopo de câmera vale no WebSocket também**, via rooms do Socket.IO (`app/utils/salas.py`). Técnico e Supervisor entram na sala `parque`; o Operador entra só em `camera:<id>` do setor dele; Operador sem setor não entra em sala nenhuma. Antes disso, todo `emit` era broadcast: o operador que recebia 404 ao pedir outra área por HTTP recebia `analysis`, `compliance_state` e `active_alerts` daquela área pelo socket, ~12 vezes por segundo. Coberto por `tests/test_escopo_socket.py`.
+
+## Testes
+
+Roteiro de teste **manual** (do zero até os casos de borda), em [`docs/TESTE-MANUAL.md`](TESTE-MANUAL.md).
+
+Verificação automatizada:
+
+```bash
+pytest
+```
+
+Lint:
+
+```bash
+ruff check .
+```
+
+Typecheck do frontend:
+
+```bash
+npm --prefix frontend run build
+```
+
+Ponta a ponta (Playwright, servidor real com as gravações de demonstração):
+
+```bash
+python scripts/fetch_fixtures.py
+python -m playwright install chromium
+python -m pytest e2e -q
+```
+
+Benchmark (≤ 5 min, na máquina onde a demo vai rodar):
+
+```bash
+python scripts/bench.py --rapido
+```
+
+## Estrutura do projeto
+
+```
+app/                    Backend Flask
+  api/                  Blueprints REST (status, alerts, cameras, monitor, risk, ...)
+  services/             Lógica de negócio (monitor, workers, alertas, compliance, risk score)
+  repositories/         Acesso a dados
+  vision/               Detecção YOLO, tracking, pose, matching pessoa-EPI
+  models.py             Modelos SQLAlchemy
+migrations/             Migrações Alembic (Flask-Migrate)
+frontend/               SPA React + TypeScript + Vite
+  src/
+    api/                Cliente REST, tipos e chaves de EPI
+    socket/             Cliente WebSocket
+    store/              Estado global (Zustand)
+    components/         Componentes por domínio (vídeo, alertas, features, etc.)
+tests/                  Testes backend (pytest)
+```
+
+## Roadmap
+
+- [x] **Peso treinado no domínio** (Sprint 4) — YOLOv8n no Construction-PPE a `imgsz=416`; um modelo só no lugar de dois; avaliação por pessoa em 236 pessoas anotadas, com IC por reamostragem de cenas. [docs/SPRINT4.md](SPRINT4.md)
+- [x] **Classes negativas e o estado "não verificado"** (Sprint 4) — `PPE_MISSING_POLICY=ausencia|evidencia`, escolhida na validação.
+- [x] **Segundo gatilho do LLM** (Sprint 4) — capacete/colete "não verificado" por 3 detecções aciona a segunda opinião, sem criar alerta.
+- [ ] **Medir o LLM no conjunto anotado** — `scripts/avaliar_llm_dataset.py` pronto; falta rodar com chave (bloqueio de rede no ambiente da Sprint 4).
+- [ ] **Dataset das câmeras da planta**, anotado por duas pessoas — única forma de afirmar acurácia lá.
+
+- [x] Tracking estável de pessoa entre frames — feito com um tracker IoU por câmera (`app/vision/person_tracker.py`) em vez de `model.track(persist=True)`: o estado do tracker do Ultralytics vive dentro do objeto do modelo, e os modelos aqui são compartilhados entre câmeras.
+- [x] Matching geométrico EPI–pessoa por posição real, com atribuição exclusiva
+- [x] Autenticação nos endpoints REST sensíveis — login com papéis, cobrindo REST e WebSocket
+- [x] Retry/backoff no stream de vídeo, com teto — e fallback para fonte de demonstração quando o teto não resolve. Exercitado contra um **servidor RTSP local com usuário e senha**, não só contra dublê: mata o servidor → backoff dispara e o estado aparece; religa → reconecta sozinho (`total_reconnects=1`); não religa → assume a fixture e segue publicando frame. 12 testes em `tests/test_camera_worker_falha_de_fonte.py` + 7 em `tests/test_video_stream.py`, e o log do ciclo completo em [DEMO.md](DEMO.md).
+- [x] Segunda opinião multimodal ligada no boot — disparo no alerta criado, fora da thread do frame (`submeter()` em 9–13 µs), com re-bench dentro do ruído. O LLM não cria, resolve nem suprime alerta. 11 testes em `tests/test_camera_worker_llm.py`; `LLM_ENABLED=false` é o default e o sistema funciona sem chave.
+- [ ] **Pose por pessoa com instância própria** — os recortes por pessoa já existem (`POSE_PER_PERSON=true`, `tests/test_pose_por_pessoa.py`), mas todas as pessoas passam pela **mesma** instância do MediaPipe em `static_image_mode=True`. Trocar para o modo de stream mediu **2,25x** (34,10 → 15,14 ms de p50), e não foi aplicado: a doc oficial descreve `True` como o modo para "a batch of static, possibly unrelated, images", que é exatamente o que `estimate_for_people` alimenta. O caminho que dá os dois é uma instância por track rastreado. Número e citação em [BENCH.md](BENCH.md).
+- [ ] Feature por câmera em runtime — `PUT /api/cameras/<id>` grava no banco, mas o worker em execução só relê a configuração quando é reconstruído (mudança de fonte/fps/resolução)
+- [x] Multi-câmera que escala melhor — um agendador de inferência único em rodízio, captura "último quadro vence" e OpenVINO na iGPU (NEXT 2026). No perfil batata, 4 câmeras: 0,34 análise/s por câmera contra 0,08 antes, com o vídeo desacoplado da análise. A análise continua dividida entre as câmeras: o limite agora é a GPU integrada. Números em [docs/NEXT2026/BENCHMARKS.md](NEXT2026/BENCHMARKS.md).
+- [ ] Ruído de alertas na multidão — 5 alertas por pessoa (um por EPI) e um conjunto novo a cada troca de ID do rastreador. A demo liga só capacete, colete e luvas; agrupar por pessoa fica para depois.
+
+## Equipe
+
+Desenvolvido para o Challenge 2026 (FIAP × SPI Integração), com mentoria de Fernando V. Marcolina e Wendel de Almeida Passos.

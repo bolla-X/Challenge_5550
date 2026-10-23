@@ -15,6 +15,8 @@ interface AnaliseLlm {
 interface EstadoLlm {
   habilitado: boolean;
   motivo?: string;
+  /** "demonstracao": resposta fixa do modo demonstração, sem GEMINI_API_KEY (app/llm). */
+  modo?: "real" | "demonstracao";
   versao_prompt?: string;
   aceitos?: number;
   descartados_em_voo?: number;
@@ -51,6 +53,7 @@ export function LlmPanel({ camId }: { camId: number }) {
   }, [camId]);
 
   const ultima = llm?.ultima ?? null;
+  const demonstracao = llm?.modo === "demonstracao";
 
   return (
     <Panel
@@ -60,16 +63,22 @@ export function LlmPanel({ camId }: { camId: number }) {
     >
       {!llm?.habilitado ? (
         <p className="empty-state">
-          Camada desligada. {llm?.motivo ? `Motivo: ${llm.motivo}.` : ""} Ligue com LLM_ENABLED=true e GEMINI_API_KEY no arquivo .env.
+          Segunda opinião desligada. Quem administra o sistema pode ligá-la (a página Status do sistema explica como).
         </p>
       ) : (
         <>
           <div className="actions">
-            <span className="chip ok">
-              <span className="dot" />
-              Ligada · instruções {llm.versao_prompt}
-            </span>
-            <span className="chip">{pluralizar(llm.aceitos ?? 0, "análise")}</span>
+            {llm.modo === "demonstracao" ? (
+              <span className="chip" data-testid="llm-modo-demonstracao">
+                Modo demonstração · resposta fixa, sem chave do Gemini
+              </span>
+            ) : (
+              <span className="chip ok">
+                <span className="dot" />
+                Ligada · instruções {llm.versao_prompt}
+              </span>
+            )}
+            <span className="chip">{demonstracao ? pluralizar(llm.aceitos ?? 0, "resposta fixa", "respostas fixas") : pluralizar(llm.aceitos ?? 0, "análise")}</span>
             {(llm.em_voo?.length ?? 0) > 0 && <span className="chip">analisando…</span>}
             {(llm.invalidos ?? 0) > 0 && (
               <span className="chip miss">
@@ -77,7 +86,12 @@ export function LlmPanel({ camId }: { camId: number }) {
               </span>
             )}
           </div>
-          {ultima ? (
+          {ultima && demonstracao ? (
+            // Resposta fixa: nada de risco nem confiança, que pareceriam uma análise da imagem que não aconteceu.
+            <p className="empty-state" data-testid="llm-exemplo-fixo">
+              Exemplo de resposta (fixa). A imagem não foi analisada por um LLM. Com GEMINI_API_KEY no terminal antes de <code>run.py --demo</code>, aqui aparece a análise real.
+            </p>
+          ) : ultima ? (
             <div className="alert-list">
               <div className={`alert-row ${ultima.nivel_risco === "critico" || ultima.nivel_risco === "alto" ? "critical" : "medium"}`}>
                 <span className="dot" />

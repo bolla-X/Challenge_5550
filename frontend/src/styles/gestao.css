@@ -1,0 +1,105 @@
+/* Gestão de EPIs (/gestao) e o cartão dela no Início. Só tokens de tokens.css, claro e escuro.
+   Cor só para estado: conforme = --ok, pendência = --danger (cheio) ou contorno (a vencer, média). Mono só em identificador (CA, matrícula, código).
+   Este arquivo entra no bundle antes do global.css: onde a regra global tem a mesma especificidade (.chip, .home-tile, a.button.ghost),
+   o seletor daqui é composto (.chip.gt-alerta, .home-tile.gt-tile) para não perder pela ordem. */
+.gt-tela { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s5); padding: var(--s5) 20px var(--s7); max-width: 1800px; margin-inline: auto; }
+.gt-cabeca { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); flex-wrap: wrap; }
+.gt-cabeca h1 { margin: 0 0 var(--s1); font-size: var(--t-title-1); line-height: var(--t-title-1-lh); letter-spacing: var(--t-title-1-tr); }
+.gt-cabeca-acoes { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.gt-ajuda { margin: 0; font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-2); }
+.gt-privacidade { margin-top: var(--s1); color: var(--text); font-weight: 500; }
+.gt-simulados { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s2); }
+.gt-norma { padding-top: var(--s2); }
+.gt-erro { margin: 0; font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--danger); font-weight: 600; }
+.gt-erro-bloco { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.gt-rotulo { font-size: var(--t-footnote); font-weight: 500; color: var(--text-2); }
+.gt-campo { min-width: 0; }
+.chip.gt-simulado { box-shadow: inset 0 0 0 1px var(--control-line); background: transparent; color: var(--text); }
+.gt-so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* abas: faixa afundada com a aba ativa elevada, o desenho do Tabs do painel */
+.gt-abas { display: flex; gap: 2px; padding: 3px; background: var(--sunken); border-radius: var(--r-chip); overflow-x: auto; scrollbar-width: none; justify-self: start; max-width: 100%; }
+.gt-abas::-webkit-scrollbar { display: none; }
+.gt-aba-botao {
+  height: 32px; padding: 0 14px; border: 0; border-radius: var(--r-chip); background: transparent; color: var(--text-2);
+  font-size: var(--t-footnote); font-weight: 500; letter-spacing: 0; flex: none;
+}
+.gt-aba-botao:hover { background: transparent; color: var(--text); }
+.gt-aba-botao.ativa, .gt-aba-botao.ativa:hover { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.gt-abas .gt-aba-botao:focus-visible { outline-offset: -2px; }
+
+.gt-painel-da-aba { min-width: 0; }
+.gt-aba { display: grid; gap: var(--s4); min-width: 0; }
+.gt-tela .card + .card { margin-top: 0; }
+.gt-barra { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; }
+.gt-filtros { display: flex; align-items: flex-end; gap: var(--s3); flex-wrap: wrap; min-width: 0; }
+.gt-filtros .gt-campo { min-width: 160px; }
+.gt-filtros .gt-busca { min-width: min(280px, 100%); }
+
+.gt-painel { display: grid; gap: var(--s3); padding: var(--s5); min-width: 0; }
+.gt-painel h2, .gt-form h2 { margin: 0; font-size: var(--t-title-3); line-height: var(--t-title-3-lh); letter-spacing: var(--t-title-3-tr); }
+.gt-painel h2.gt-titulo-detalhe { font-size: var(--t-title-2); line-height: var(--t-title-2-lh); letter-spacing: var(--t-title-2-tr); }
+.gt-titulo-detalhe:focus-visible { outline-offset: 4px; border-radius: 4px; }
+.gt-painel-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); flex-wrap: wrap; }
+.gt-topo-acoes { display: flex; align-items: center; gap: var(--s2); }
+.gt-detalhe { display: grid; gap: var(--s4); min-width: 0; justify-items: start; }
+.gt-detalhe > .card { justify-self: stretch; }
+.gt-ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s4); margin: 0; }
+.gt-ficha dt { font-size: var(--t-footnote); color: var(--text-2); }
+.gt-ficha dd { margin: var(--s1) 0 0; font-size: var(--t-body); }
+
+.gt-form { display: grid; gap: var(--s4); padding: var(--s5); max-width: 760px; }
+.gt-form-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s4); }
+.gt-check { display: inline-flex; align-items: center; gap: var(--s2); font-size: var(--t-callout); color: var(--text); }
+.gt-form .modal-acoes { margin-top: 0; }
+
+/* tabelas: o .tabela do sistema; número alinhado e tabular, mono só no identificador */
+.gt-num { font-family: var(--font-mono); font-size: var(--t-footnote); font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; }
+.gt-sub { display: block; margin-top: 2px; font-size: var(--t-footnote); line-height: var(--t-footnote-lh); color: var(--text-2); }
+.gt-sub-inline { color: var(--text-2); }
+.gt-descricao { min-width: 220px; max-width: 420px; }
+.gt-nowrap { white-space: nowrap; }
+.gt-tela .tabela td { font-variant-numeric: tabular-nums; }
+.gt-tela .tabela td.num, .gt-tela .tabela th.num { padding-right: var(--s5); }
+.gt-tela .tabela td .chip:not(:first-child) { margin-left: var(--s2); }
+.gt-link {
+  height: auto; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--accent);
+  font: inherit; font-weight: 500; letter-spacing: 0; line-height: 1.4; text-align: left; white-space: normal;
+}
+.gt-link:hover { background: transparent; text-decoration: underline; }
+.chip.gt-alerta { background: transparent; color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+
+/* resumo e exportação */
+.gt-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s4); margin: 0; }
+.gt-resumo > div { padding: var(--s4); border-radius: var(--r-control); background: var(--sunken); }
+.gt-resumo dt { font-size: var(--t-footnote); color: var(--text-2); }
+.gt-resumo dd { margin: var(--s1) 0 0; font-size: var(--t-title-1); line-height: var(--t-title-1-lh); letter-spacing: var(--t-title-1-tr); font-variant-numeric: tabular-nums; }
+.gt-resumo .pendencia dd, .home-tile.gt-tile .gt-tile-numeros .pendencia dd { color: var(--danger); }
+.gt-exportar { list-style: none; margin: 0; padding: 0; display: grid; }
+.gt-exportar li { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; padding: var(--s3) 0; border-bottom: 1px solid var(--hairline); }
+.gt-exportar strong { display: block; font-size: var(--t-callout); }
+.gt-exportar span { font-size: var(--t-footnote); color: var(--text-2); }
+.gt-exportar a.button.ghost { border: 1px solid var(--control-line); gap: var(--s2); }
+.gt-mensal { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; padding-top: var(--s2); font-size: var(--t-callout); color: var(--text-2); }
+
+/* cartão no Início do Supervisor: linha inteira do bento, com os números do resumo */
+.home-tile.gt-tile { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "icone numeros" "texto numeros"; align-items: end; column-gap: var(--s6); row-gap: var(--s3); }
+.home-tile.gt-tile > svg { grid-area: icone; margin-bottom: 0; }
+.home-tile.gt-tile > .gt-tile-texto { grid-area: texto; display: grid; gap: var(--s1); max-width: 56ch; color: var(--text); }
+.home-tile.gt-tile .gt-tile-texto > span { font-size: var(--t-callout); color: var(--text-2); }
+.home-tile.gt-tile > .gt-tile-numeros { grid-area: numeros; display: grid; grid-template-columns: repeat(4, minmax(110px, auto)); gap: var(--s5); margin: 0; }
+.home-tile.gt-tile .gt-tile-numeros dt { font-size: var(--t-footnote); color: var(--text-2); }
+.home-tile.gt-tile .gt-tile-numeros dd { margin: var(--s1) 0 0; font-size: var(--t-title-1); line-height: var(--t-title-1-lh); letter-spacing: var(--t-title-1-tr); font-variant-numeric: tabular-nums; color: var(--text); }
+
+@media (max-width: 900px) {
+  .home-tile.gt-tile { grid-template-columns: 1fr; grid-template-areas: "icone" "texto" "numeros"; }
+  .home-tile.gt-tile > .gt-tile-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 800px) {
+  .gt-tela { padding: var(--s4); }
+  .gt-painel, .gt-form { padding: var(--s4); }
+}
+
+/* O rotulo so-leitor (position:absolute) da coluna Acoes escapava do corte do cartao e esticava a pagina a 390 px:
+   o scroller precisa ser o bloco de contencao. Medido no E2E (test_gestao_no_celular_nao_estoura_a_largura). */
+.gt-tela .tabela-rolavel { position: relative; }

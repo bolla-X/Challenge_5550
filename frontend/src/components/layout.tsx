@@ -187,6 +187,11 @@ export function Topbar() {
         </button>
       )}
       {access.canConfigure && (
+        <a className="button ghost" href="/gestao" data-testid="topbar-gestao">
+          Gestão de EPIs
+        </a>
+      )}
+      {access.canConfigure && (
         <button type="button" className="ghost" onClick={() => setScreen("sobre")}>
           Sobre
         </button>

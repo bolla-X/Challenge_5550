@@ -266,6 +266,11 @@ class Config:
     # alerta.
     LLM_DEBOUNCE_S = env_float("LLM_DEBOUNCE_S", 15.0)
     LLM_PROMPT_VERSION = os.getenv("LLM_PROMPT_VERSION", "v2")
+    # Só o modo demonstração liga isto (app/demo_ambiente.py): sem GEMINI_API_KEY,
+    # a segunda opinião vem de um provedor FIXO, rotulado "modo demonstração" na
+    # tela, em vez de sumir. Com a chave, vale o Gemini de verdade. Fora da demo
+    # fica `false`: sem chave, a camada continua desligada como sempre.
+    LLM_DEMO_FALLBACK = env_bool("LLM_DEMO_FALLBACK", False)
 
     PPE_MODEL_PATH = os.getenv("PPE_MODEL_PATH", "models/vyra_ppe.pt")
     # Modelos de EPI ADICIONAIS, rodados no mesmo frame que o PPE_MODEL_PATH e

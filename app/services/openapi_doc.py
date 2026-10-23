@@ -155,7 +155,7 @@ TAGS_DE_INTEGRACAO = ["Autenticação", "Alertas", "Incidentes", "Câmeras", "In
 TAG_POR_BLUEPRINT = {
     "alerts": "Alertas", "auth": "Autenticação", "cameras": "Câmeras", "celular": "Celular", "custodia": "Custódia",
     "demo": "Demonstração", "desafio": "Desafio", "escala": "Escala", "evacuacao": "Evacuação", "features": "Recursos",
-    "feedback": "Feedback", "gemeo": "Gêmeo digital", "incidentes": "Incidentes", "integracao": "Integração",
+    "feedback": "Feedback", "gemeo": "Gêmeo digital", "gestao": "Gestão de EPIs","incidentes": "Incidentes", "integracao": "Integração",
     "lab": "Laboratório", "liga": "Liga de Setores", "monitor": "Monitor", "onboarding": "Primeiro acesso",
     "palco": "Palco", "permissoes": "Permissões", "regras": "Regras", "relatorio": "Relatório de turno",
     "risk": "Risco", "rotulos": "Rótulos", "runtime": "Diagnóstico", "simulador": "Simulador", "status": "Páginas",

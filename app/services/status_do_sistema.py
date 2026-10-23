@@ -38,6 +38,7 @@ from sqlalchemy import text as sql_text
 from app.config import BASE_DIR
 from app.extensions import db
 from app.llm import ProvedorGemini, redigir_segredos
+from app.services.llm_risk_service import fallback_de_demonstracao
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +337,11 @@ class ServicoDeStatus:
         }
         if not ligado:
             return item(DESLIGADO, "Segunda opinião desligada. O resto do sistema funciona normalmente.", **detalhes)
+        if not tem_chave and fallback_de_demonstracao(config):
+            return item(OK, "Modo demonstração: sem chave, a segunda opinião é uma resposta fixa, sem análise da imagem. "
+                            "Para a análise real, defina GEMINI_API_KEY no terminal antes de subir a demo (no modo "
+                            "demonstração o arquivo .env não é lido).",
+                        **detalhes, modo="demonstracao")
         if not tem_chave:
             return item(ATENCAO, "Ligada, mas sem chave configurada: a segunda opinião não roda.", **detalhes)
         return item(OK, "Segunda opinião ligada, com chave configurada.", **detalhes)

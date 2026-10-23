@@ -57,11 +57,12 @@ function textoDoErro(err: unknown): string {
 }
 
 /** Ponto + palavra. Só o ponto e o selo carregam a cor do estado. */
-export function SeloDeEstado({ estado, rotulo }: { estado: EstadoDoComponente; rotulo?: string }) {
-  const classe = estado === "ok" ? "chip ok" : estado === "falha" ? "chip miss" : "chip";
+export function SeloDeEstado({ estado, rotulo, neutro = false }: { estado: EstadoDoComponente; rotulo?: string; neutro?: boolean }) {
+  // `neutro`: o componente responde, mas não é "ligado de verdade" (ex.: LLM em modo demonstração), então sem verde.
+  const classe = neutro ? "chip" : estado === "ok" ? "chip ok" : estado === "falha" ? "chip miss" : "chip";
   return (
     <span className={`${classe} status-selo`} data-estado={estado}>
-      {estado === "ok" && <span className="dot" aria-hidden="true" />}
+      {estado === "ok" && !neutro && <span className="dot" aria-hidden="true" />}
       {estado === "atencao" && <span className="status-anel" aria-hidden="true" />}
       {rotulo ?? ROTULO_DO_ESTADO[estado]}
     </span>
@@ -85,6 +86,7 @@ function Cartao({
   resumo,
   largo = false,
   rotuloDoSelo,
+  seloNeutro = false,
   children,
 }: {
   id: string;
@@ -93,13 +95,14 @@ function Cartao({
   resumo?: string;
   largo?: boolean;
   rotuloDoSelo?: string;
+  seloNeutro?: boolean;
   children?: ReactNode;
 }) {
   return (
     <section className={`card status-cartao ${largo ? "largo" : ""}`.trim()} data-testid={`status-${id}`} data-estado={estado} aria-labelledby={`status-${id}-t`}>
       <div className="status-cartao-topo">
         <h2 id={`status-${id}-t`}>{titulo}</h2>
-        <SeloDeEstado estado={estado} rotulo={rotuloDoSelo} />
+        <SeloDeEstado estado={estado} rotulo={rotuloDoSelo} neutro={seloNeutro} />
       </div>
       {resumo && <p className="status-resumo-do-cartao">{resumo}</p>}
       {children && <div className="status-list">{children}</div>}
@@ -213,14 +216,21 @@ function CartaoDeIntegracao({ id, titulo, dados }: { id: string; titulo: string;
 
 // ---------------------------------------------------------------------- LLM --
 function CartaoDoLlm({ dados }: { dados: StatusDoSistema["componentes"]["llm"] }) {
-  const rotulo = dados.estado === "ok" ? "Ligada" : dados.estado === "desligado" ? "Desligada" : dados.tem_chave === false ? "Sem chave" : undefined;
+  const demonstracao = dados.modo === "demonstracao";
+  const rotulo = demonstracao
+    ? "Demonstração"
+    : dados.estado === "ok" ? "Ligada" : dados.estado === "desligado" ? "Desligada" : dados.tem_chave === false ? "Sem chave" : undefined;
   return (
-    <Cartao id="llm" titulo="Segunda opinião (LLM)" estado={dados.estado} resumo={dados.resumo} rotuloDoSelo={rotulo}>
+    <Cartao id="llm" titulo="Segunda opinião (LLM)" estado={dados.estado} resumo={dados.resumo} rotuloDoSelo={rotulo} seloNeutro={demonstracao}>
       <Linha rotulo="Chave de acesso" texto>{dados.tem_chave ? "configurada" : "não configurada"}</Linha>
       {dados.versao_do_prompt && <Linha rotulo="Versão do prompt">{dados.versao_do_prompt}</Linha>}
       {typeof dados.intervalo_minimo_s === "number" && <Linha rotulo="Intervalo mínimo por câmera">{decimal(dados.intervalo_minimo_s, 0)} s</Linha>}
       {typeof dados.limite_de_espera_s === "number" && <Linha rotulo="Limite de espera">{decimal(dados.limite_de_espera_s, 0)} s</Linha>}
-      {dados.estado !== "ok" && dados.como_ligar && <Linha rotulo="Para ligar" texto>defina <code>{dados.como_ligar}</code> no arquivo <code>.env</code></Linha>}
+      {(dados.estado !== "ok" || demonstracao) && dados.como_ligar && (
+        <Linha rotulo="Para ligar" texto>
+          defina <code>{dados.como_ligar}</code> no ambiente do terminal antes de subir o servidor (no modo demonstração o arquivo <code>.env</code> não é lido)
+        </Linha>
+      )}
     </Cartao>
   );
 }

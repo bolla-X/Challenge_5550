@@ -25,7 +25,10 @@ Candidatos baixados e **descartados** depois de inspecionar folhas de contato
 PD — capacete detectado em 1 de 9 quadros), *Walking down the Trubarjeva street*
 (CC BY 3.0). Nenhum foi usado.
 
-A obra derivada (recorte/redimensionamento) de `bench.mp4` e de `portal.mp4` herda a CC BY-SA 4.0.
+| `amostras/canteiro_amostra.mp4` (**versionada**, ES Sprint 4) | o mesmo `bench.mp4` acima | Acabashi | **CC BY-SA 4.0** | os 7 s da `bench.mp4`, 640×360, 12 fps, sem áudio | toca no lugar de uma gravação não baixada (ver `amostras/LICENCA.md`) |
+
+A obra derivada (recorte/redimensionamento) de `bench.mp4`, de `portal.mp4` e de `amostras/canteiro_amostra.mp4`
+herda a CC BY-SA 4.0. A amostra é a única que o repositório redistribui, com a atribuição em `amostras/LICENCA.md`.
 
 **Por que `portal.mp4` é curto e em vai-e-volta** (ADENDO 3 da MISSÃO 2): o
 Portal precisava de UMA pessoa de perto. Medido com o peso de EPI (capacete e

@@ -26,9 +26,17 @@ import threading
 import time
 from collections.abc import Callable
 
-from app.llm import AnalisadorDeRisco, AnaliseRisco, ProvedorGemini
+from app.llm import AnalisadorDeRisco, AnaliseDeDemonstracao, AnaliseRisco, ProvedorDemonstracao, ProvedorGemini
 
 logger = logging.getLogger(__name__)
+
+
+def fallback_de_demonstracao(config) -> bool:
+    """A resposta fixa só vale DENTRO da demo: `LLM_DEMO_FALLBACK` sozinho (um .env copiado) não basta.
+
+    Fonte única da decisão: a fábrica abaixo e a sonda de `app/services/status_do_sistema.py` perguntam aqui.
+    """
+    return bool(config.get("DEMO_MODE", False) and config.get("LLM_DEMO_FALLBACK", False))
 
 
 def _executor_em_thread(funcao: Callable[[], None]) -> None:
@@ -58,6 +66,7 @@ class ServicoDeRiscoLLM:
         debounce_s: float = 15.0,
         versao: str = "v1",
         habilitado: bool = True,
+        modo: str = "real",
     ) -> None:
         self.analisador = analisador
         self.executor = executor or _executor_em_thread
@@ -65,6 +74,8 @@ class ServicoDeRiscoLLM:
         self.debounce_s = float(debounce_s)
         self.versao = versao
         self.habilitado = bool(habilitado)
+        # "real" (Gemini) ou "demonstracao" (ProvedorDemonstracao, só na demo).
+        self.modo = modo
 
         # Quem consome o resultado. Fica como atributo (e não no construtor)
         # porque o consumidor é o worker, que nasce depois do serviço.
@@ -89,6 +100,7 @@ class ServicoDeRiscoLLM:
         with self._trava:
             return {
                 "habilitado": self.habilitado,
+                "modo": self.modo,
                 "versao_prompt": self.versao,
                 "debounce_s": self.debounce_s,
                 "aceitos": self.aceitos,
@@ -138,6 +150,10 @@ class ServicoDeRiscoLLM:
                 logger.info("llm_evento_ignorado", extra={"camera_id": camera_id})
                 return
 
+            if self.modo == "demonstracao":
+                # A marca viaja no payload (painel, socket): ninguém analisou a imagem.
+                analise = AnaliseDeDemonstracao(**analise.model_dump())
+
             consumidor = self.ao_concluir
             if consumidor is None:
                 return
@@ -158,10 +174,21 @@ class ServicoDeRiscoLLM:
 
         Sem `GEMINI_API_KEY` o serviço nasce **desligado** e nada acontece — é
         degradação explícita, não erro. A chave não é lida para variável local
-        nem logada: quem decide é `ProvedorGemini.configurado`.
+        nem logada: quem decide é `ProvedorGemini.configurado`. Única exceção:
+        no modo demonstração (`DEMO_MODE` E `LLM_DEMO_FALLBACK`), sem chave, nasce
+        ligado com a resposta fixa e rotulada (`fallback_de_demonstracao`).
         """
         provedor = ProvedorGemini(timeout_s=float(config.get("LLM_TIMEOUT_S", 8.0)))
         pedido = bool(config.get("LLM_ENABLED", False))
+        if pedido and not provedor.configurado and fallback_de_demonstracao(config):
+            # Modo demonstração sem chave: resposta fixa e rotulada, nunca Gemini.
+            return cls(
+                analisador=AnalisadorDeRisco(provedor=ProvedorDemonstracao()),
+                debounce_s=float(config.get("LLM_DEBOUNCE_S", 15.0)),
+                versao=str(config.get("LLM_PROMPT_VERSION", "v1")),
+                habilitado=True,
+                modo="demonstracao",
+            )
         if pedido and not provedor.configurado:
             logger.warning("llm_sem_chave", extra={"hint": "defina GEMINI_API_KEY no .env"})
         return cls(

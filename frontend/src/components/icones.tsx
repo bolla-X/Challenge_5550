@@ -11,6 +11,7 @@ import {
   BellRingingIcon,
   CaretRightIcon,
   CheckCircleIcon,
+  ClipboardTextIcon,
   CubeIcon,
   DroneIcon,
   MoonIcon,
@@ -62,5 +63,6 @@ export const IconeTrofeu = (p: IconProps) => <TrophyIcon {...BASE} {...p} />;
 export const IconeFrasco = (p: IconProps) => <FlaskIcon {...BASE} {...p} />;
 export const IconeStories = (p: IconProps) => <FilmStripIcon {...BASE} {...p} />;
 export const IconeTv = (p: IconProps) => <TelevisionSimpleIcon {...BASE} {...p} />;
-export const IconeContas = (p: IconProps) => <UsersThreeIcon {...BASE} {...p} />;
+export const IconeGestao = (p: IconProps) => <ClipboardTextIcon {...BASE} {...p} />;
+export const IconeContas =(p: IconProps) => <UsersThreeIcon {...BASE} {...p} />;
 export const IconeAjuda = (p: IconProps) => <QuestionIcon {...BASE} {...p} />;

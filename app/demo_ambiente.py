@@ -66,19 +66,42 @@ MISSOES = [
 METAS = {"Obra": {"minutos_conformes": 30, "checkins_portal": 5}, "Portaria": {"minutos_conformes": 30, "checkins_portal": 10}}
 
 
+# Amostra VERSIONADA (7 s, 640x360, ~0,5 MB), recorte da bench.mp4: Acabashi,
+# Wikimedia Commons, CC BY-SA 4.0 (amostras/LICENCA.md). Só entra no lugar de
+# uma gravação que não foi baixada: a demo sobe num clone sem fetch_fixtures.
+AMOSTRA = BASE_DIR / "amostras" / "canteiro_amostra.mp4"
+
+
+def fonte_da_gravacao(arquivo: str) -> Path:
+    """A gravação baixada, se existir; senão a amostra versionada."""
+    baixada = FIXTURES / arquivo
+    return baixada if baixada.exists() or not AMOSTRA.exists() else AMOSTRA
+
+
 def preparar_ambiente() -> None:
     """Antes do `create_app()`: banco novo e configuração da demo no ambiente."""
     faltando = [arq for _, _, arq in GRAVACOES if not (FIXTURES / arq).exists()]
-    if faltando:
+    if faltando and not AMOSTRA.exists():
         raise SystemExit(f"[demo] gravações ausentes em tests/fixtures: {', '.join(faltando)}. "
                          "Rode uma vez, com internet: python scripts/fetch_fixtures.py")
+    py = r".venv\Scripts\python" if os.name == "nt" else ".venv/bin/python"
+    if faltando:
+        cameras = ", ".join(nome for nome, _, arq in GRAVACOES if arq in faltando)
+        print(f"[demo] {cameras}: gravação não baixada; vai tocar o vídeo curto de amostra (7 s, "
+              "amostras/canteiro_amostra.mp4). A detecção funciona, mas as cenas de multidão e de queda do Modo "
+              f"Apresentação não aparecem. Para os vídeos completos: {py} scripts/fetch_fixtures.py", flush=True)
+    sem_peso = [p for p in ("vyra_ppe.pt", "yolov8n.pt", "yolo11n-pose.pt") if not (BASE_DIR / "models" / p).exists()]
+    if sem_peso:
+        print(f"[demo] Faltam modelos de detecção em models/ ({', '.join(sem_peso)}). Sem eles o vídeo aparece, mas "
+              f"nada é detectado. Rode uma vez, com internet: {py} scripts/preparar.py", flush=True)
     PASTA.mkdir(parents=True, exist_ok=True)
     for arquivo in (BANCO, Path(str(BANCO) + "-journal"), Path(str(BANCO) + "-wal"), Path(str(BANCO) + "-shm")):
         try:
             if arquivo.exists():
                 arquivo.unlink()
         except PermissionError:
-            raise SystemExit("[demo] o banco da demo está em uso: já há uma demo rodando? Feche-a e tente de novo.") from None
+            raise SystemExit("[demo] Já há uma demo rodando (o banco da demo está em uso). Feche o outro terminal com "
+                             "Ctrl+C e rode de novo.") from None
     for sub in ("clips", "snapshots", "rotulos", "trilhas", "referencias"):
         shutil.rmtree(PASTA / sub, ignore_errors=True)
     os.environ.update({
@@ -91,7 +114,10 @@ def preparar_ambiente() -> None:
         # contas de demo à mão de qualquer um na rede. `run.py --https` reabre para a LAN (celular).
         "HOST": os.environ.get("HOST", "127.0.0.1"),
         "SECRET_KEY": secrets.token_hex(32),
-        "LLM_ENABLED": "false",
+        # Segunda opinião ligada: com GEMINI_API_KEY no ambiente do terminal, é o
+        # Gemini real; sem ela, a resposta fixa do "modo demonstração" (app/llm).
+        "LLM_ENABLED": "true",
+        "LLM_DEMO_FALLBACK": "true",
         "REPLAY_DIR": str(PASTA / "clips"),
         "SNAPSHOT_DIR": str(PASTA / "snapshots"),
         # A demo já apaga snapshots e clipes ao subir e no reset. Limpar a cada

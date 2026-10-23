@@ -60,3 +60,9 @@ tests/fixtures/demo_sprint4.mp4
 # Excecao: o peso da Sprint 4 (6,2 MB) E versionado, para o default rodar num
 # clone limpo sem 2,5 h de treino. SHA-256 travado em tests/test_onboarding.py.
 !models/visionepi_cppe_n416.pt
+
+# Arquivos locais da maquina do grupo (fora do repositorio; auditoria da ES Sprint 4)
+/Sprint4_IA_entrega/
+/Claude outputs/
+/VisionEPI - Challenge 2026.pptx
+/.gitignore.bak

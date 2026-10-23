@@ -23,7 +23,8 @@ as colunas "E2E" abaixo dizem "ensaiar" onde isso vale.
 3. Suba **antes** da banca e deixe no ar: `python run.py --demo --https` (≈ 1 min até a 1ª análise).
 4. Anote as três senhas que o terminal imprime (não aparecem de novo).
 5. Abra `https://127.0.0.1:5000`, entre como **supervisor**, confira em `/status` que tudo está "OK" (modelos, 4
-   câmeras, OPC UA e MQTT "no ar"; LLM "desligado" é o esperado).
+   câmeras, OPC UA e MQTT "no ar"; a segunda opinião aparece como "Modo demonstração" sem `GEMINI_API_KEY`, desde
+   a ES Sprint 4 — antes era "desligado"; ver `docs/adr/0009-fallback-deterministico-do-llm-so-na-demo.md`).
 6. **Preparação da arena, câmera por câmera, nesta ordem** (tela da câmera, aba "Áreas", em "Mais"):
    1. **Área de detecção**: "Área de detecção" → "Retângulo" → "Desenhar no vídeo" → arraste sobre o palco →
       "Salvar área". Fora dela (a plateia) nenhuma pessoa é detectada, rastreada ou gera alerta, e o vídeo fica
@@ -85,7 +86,11 @@ python run.py --demo --https
   gravação `portal.mp4` (um trabalhador de capacete e colete, de perto);
 - **todos os EPIs exigidos** ligados (o painel agrupa em incidentes);
 - quatro missões de turno da equipe (Liga de Setores);
-- tema claro (projetor); LLM desligado.
+- tema claro (projetor); segunda opinião em "modo demonstração" (resposta fixa e rotulada) sem `GEMINI_API_KEY`, ou o
+  Gemini real se a chave estiver no ambiente do terminal;
+- dados simulados da Gestão de EPIs (colaboradores, catálogo com CA, entregas, ocorrências e alertas históricos já
+  resolvidos), pelo mesmo seed de `flask --app wsgi gestao semear`;
+- sem as gravações baixadas, as câmeras tocam a amostra versionada `amostras/canteiro_amostra.mp4`.
 - **Tempo de subida** até a primeira análise publicada (`scripts/medir_partida.py`,
   3 rodadas cada, 14/10): **com o cache aquecido, mediana 53 s** (50–67 s);
   **a frio** (pasta de cache nova e vazia), **mediana 68 s** (58–76 s). O caso de

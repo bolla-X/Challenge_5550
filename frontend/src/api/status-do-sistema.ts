@@ -58,6 +58,8 @@ export type StatusDoSistema = {
     llm: Item & {
       ligado?: boolean;
       tem_chave?: boolean;
+      /** "demonstracao": resposta fixa, sem GEMINI_API_KEY. Ausente em servidores que não mandam o campo. */
+      modo?: "real" | "demonstracao";
       versao_do_prompt?: string;
       intervalo_minimo_s?: number | null;
       limite_de_espera_s?: number | null;
