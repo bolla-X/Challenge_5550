@@ -1,0 +1,110 @@
+﻿2026-07-19 e1e483a bolla-X | Adicionar projeto VisionEPI V5
+2026-08-05 292695a lukiin-z | Initial commit: VisionEPI com frontend React + TS + Vite
+2026-08-05 d771ca7 lukiin-z | Merge: resolve conflitos mantendo versão migrada para React
+2026-08-05 d224bd0 lukiin-z | Remove artefatos de runtime e pesos de modelo do controle de versão
+2026-08-05 e1e144f lukiin-z | Redesign completo: direção Autoridade Discreta
+2026-08-06 07d5ed8 lukiin-z | Adiciona camada de motion/som/UX: chimes, sparkline histórico, command palette, skeleton states e correções de acessibilidade
+2026-08-06 631ed5f lukiin-z | Reformula README com estado atual do projeto
+2026-08-06 6738cbc lukiin-z | Fase 1: layout com scroll regions independentes + abas
+2026-08-06 7ebd7e9 lukiin-z | Fase 1 fix: max-width 68ch no conteúdo, não no scroll container
+2026-08-06 a5f8393 lukiin-z | Vite dev proxy: adiciona /risk-score
+2026-08-06 e600b9c lukiin-z | Fase 2: refino visual — acento, bordas, densidade, bugs pontuais
+2026-08-06 6a73a64 lukiin-z | Fase 3: motion — alert row spec, timeline stagger, message-bar, tab swap
+2026-08-06 655c10e lukiin-z | Fase 4: perfis — Supervisor, mute por perfil, fix do cmdk
+2026-08-06 c5a544a lukiin-z | Fase 4 fix: datas do CSV em DD/MM/AAAA HH:MM:SS local
+2026-08-06 8f10da5 lukiin-z | feat: refactor layout/scroll, visual polish, motion e perfis (Operador/Técnico/Supervisor)
+2026-08-23 bd6e016 bolla-X | feat: interface multi-camera (grid, kiosk operador, foco por camera, sidebar/paineis reais restaurados) - dados de camera mockados, deteccao/config continuam single-source
+2026-08-23 3469904 laszo | Merge pull request #1 from bolla-X/feat/interface-multi-camera
+2026-08-23 aa852cc Lucas Zolla Assis | feat(backend+frontend): correcao do bug de video por camera, resolucao/fps configuraveis por camera, deteccao real de dispositivos
+2026-08-23 d9b2207 laszo | Merge pull request #2 from bolla-X/feat/backend-multi-camera
+2026-08-23 e3049f2 Lucas Zolla Assis | chore: corrige .gitignore corrompido e remove banco local/lixo do repositorio
+2026-08-23 2cfdb68 Lucas Zolla Assis | chore: remove todos os .DS_Store rastreados e .env.save definitivamente
+2026-08-23 8626484 Lucas Zolla Assis | fix: .env.example nao forca Postgres por padrao
+2026-08-23 79fe127 Lucas Zolla Assis | fix: reaplica correcoes perdidas (detect() gracioso sem modelo PPE, remove seed automatico de camera)
+2026-08-24 e4cd04c lucas-baraldi | feat(vision): modelo Vyra (14 classes) + deteccao de oculos de protecao
+2026-08-24 f74463c lucas-baraldi | Merge pull request #3 from bolla-X/feat/modelo-vyra
+2026-08-24 c3b5ffa lucas-baraldi | refactor: revisao de qualidade (10 itens) — bugs, seguranca, performance e testes
+2026-08-24 83d3a14 lucas-baraldi | Merge pull request #4 from bolla-X/feat/revisao-qualidade
+2026-08-24 35c0c67 lucas-baraldi | fix: remove CR soltos introduzidos no merge do #4 + .gitattributes
+2026-08-24 29e0ffc lucas-baraldi | fix: desfaz a duplicacao de linha que o 35c0c67 introduziu
+2026-08-24 f7b29c0 lucas-baraldi | feat(pose): uma pose por pessoa + geometria de queda em pixels
+2026-08-24 c24c011 lucas-baraldi | feat(video): reconexao automatica com backoff na captura
+2026-08-24 b7fefd0 Lucas Baraldi | Merge pull request #5 from bolla-X/feat/stream-resiliente
+2026-08-24 40a7df9 Lucas Baraldi | Merge pull request #6 from bolla-X/feat/pose-por-pessoa
+2026-08-24 6bfeb41 lucas-baraldi | feat(auth): autenticacao real com papeis, cobrindo REST e WebSocket
+2026-08-24 4a0e039 lucas-baraldi | fix(auth): corrige achados da auditoria — chave publica, revogacao de sessao e vazamento entre contas
+2026-08-24 4f8c7ce Lucas Baraldi | Merge pull request #7 from bolla-X/feat/autenticacao
+2026-08-24 204206f lucas-baraldi | feat(auth): Operador restrito a camera do setor dele
+2026-08-24 f607802 Lucas Baraldi | Merge pull request #8 from bolla-X/feat/escopo-camera-operador
+2026-08-24 2d74e96 lucas-baraldi | perf(captura): destrava o video e habilita multicam com duas webcams
+2026-08-24 ffcfca2 lucas-baraldi | Merge branch 'perf/loop-de-captura-e-multicam'
+2026-09-08 9ead049 lukiin-z | docs: registra o ambiente verificado da Fase -2
+2026-09-08 68bd01e lukiin-z | chore(fixtures): script de download com checksum e doc de licenca
+2026-09-08 e51d952 lukiin-z | test: caracteriza o caminho de instalacao documentado (VERMELHO)
+2026-09-08 73edc00 lukiin-z | fix(onboarding): Alembic passa a ser o dono do esquema por padrao
+2026-09-08 e790469 lukiin-z | test: prova o vazamento de escopo de camera no WebSocket (VERMELHO)
+2026-09-08 ec41617 lukiin-z | fix(seguranca): escopo de camera passa a valer no WebSocket
+2026-09-09 0769c97 lukiin-z | test: trava MULTI_PERSON_DETECTION=true no default (VERMELHO)
+2026-09-09 a42d2e5 lukiin-z | fix(deteccao): liga o detector de pessoa no default
+2026-09-09 10d97bc lukiin-z | test: caracteriza a deteccao intercalada do CameraWorker
+2026-09-09 b834d7d lukiin-z | test: histerese deve contar deteccao, nao iteracao do loop (VERMELHO)
+2026-09-09 f379910 lukiin-z | fix(alertas): histerese conta deteccao, nao iteracao do loop
+2026-09-09 cc3fbee lukiin-z | docs(bench): registra pos-Fase-1 lado a lado com o baseline
+2026-09-09 463cbdd lukiin-z | chore(fixtures): as 3 cenas estaticas da Sprint 3, fora do git
+2026-09-09 66f3b0b lukiin-z | test: especifica a camada LLM antes de existir (VERMELHO)
+2026-09-09 9b2f995 lukiin-z | feat(llm): schema validado, provedor atras de interface, dois prompts
+2026-09-09 07b6f69 lukiin-z | test: trava o desenho assincrono da camada LLM (VERMELHO)
+2026-09-09 0950df0 lukiin-z | feat(llm): disparo assincrono com uma chamada em voo por camera
+2026-09-09 eff4829 lukiin-z | feat(llm): golden tests offline e bench com LLM ligado/desligado
+2026-09-09 443bfad lukiin-z | docs(sprint3): relatorio comparativo com a coluna do LLM em aberto
+2026-09-09 0403585 lukiin-z | test: credencial RTSP nunca sai do processo (VERMELHO)
+2026-09-09 9737ad4 lukiin-z | fix(seguranca): credencial RTSP redigida em todas as saidas
+2026-09-09 6d39b30 lukiin-z | test: especifica o cadastro de camera por CLI (VERMELHO)
+2026-09-09 18b3b7a lukiin-z | feat(cameras): cadastro por CLI sem hardcode e sem senha em argv
+2026-09-09 c5d8767 lukiin-z | test: caracteriza o _loop no caminho de falha de fonte (VERMELHO)
+2026-09-09 6dcccb5 lukiin-z | feat(resiliencia): modo fixture como estado de primeira classe
+2026-09-09 8965fe8 lukiin-z | test: abertura de fonte de rede morta custa 34 s (VERMELHO)
+2026-09-09 3088570 lukiin-z | fix(captura): backend FFMPEG e teto de abertura para fonte de rede
+2026-09-09 884f683 lukiin-z | feat(ui): badge de modo por camera, sem CSS novo
+2026-09-09 59e4489 lukiin-z | test: especifica o fio entre CameraWorker e a camada LLM (VERMELHO)
+2026-09-09 fd97d46 lukiin-z | feat(llm): liga a camada como segunda opiniao no boot
+2026-09-09 da2117f lukiin-z | docs: DEMO.md, diagrama Mermaid, roadmap e os numeros da Fase 2
+2026-09-09 1e0fe6e lukiin-z | docs(demo): usa o placeholder que a varredura de credencial reconhece
+2026-09-09 9b93115 lukiin-z | chore(seguranca): ignora a chave privada que o mediamtx gera
+2026-09-09 8172fbf lukiin-z | feat(llm): 6 goldens reais gravados; os 18 testes viram verdes
+2026-09-09 53763db lukiin-z | test: com AUTO_CREATE_TABLES=false o boot sobe sem worker (VERMELHO)
+2026-09-09 8f227df lukiin-z | fix(boot): carregar workers deixa de depender de AUTO_CREATE_TABLES
+2026-09-09 2296f6a lukiin-z | chore(demo): teto de tentativas para 2 antes do modo fixture
+2026-09-09 8141634 lukiin-z | docs(demo): tres correcoes achadas no ensaio do zero, e os numeros de 2 cameras
+2026-09-09 58c8e3a lukiin-z | docs+test: trava v2 como default e poe os 3 achados no topo do DEMO.md
+2026-09-09 0ab0db9 lukiin-z | feat(demo): perfil Dahua medido, latencia carimbada e diagnostico na tela
+2026-09-09 efe27e3 lukiin-z | test(captura): fila de frame RTSP e o descarte que nao existe (VERMELHO)
+2026-09-09 7945dcf lukiin-z | fix(captura): descarta frame atrasado em fonte de rede (VERDE)
+2026-09-09 ed0a43d lukiin-z | docs(bench): Fase 7 — a prova do descarte, antes e depois
+2026-09-09 57c67a5 lukiin-z | feat(usb)+docs: webcam ponta a ponta, as duas fontes juntas, e o subtype por enquadramento
+2026-09-09 905eca8 lukiin-z | feat(rtsp): RTSP_LIMIAR_GRAB_MS configuravel + runbook manda logar como Tecnico
+2026-09-09 d0cf752 lukiin-z | docs(bench): o capacete e fraco NESTE modelo, e nao e a resolucao
+2026-09-09 066477b lukiin-z | test(diagnostico): fonte CEGA aceita em silencio (VERMELHO)
+2026-09-09 2f2e826 lukiin-z | feat(diagnostico): fonte CEGA aparece na tela (VERDE) + roteiro para outra maquina
+2026-09-28 558d423 lukiin-z | test: avaliacao por pessoa e o terceiro estado de EPI, ausente != nao visto (VERMELHO)
+2026-09-28 0a42644 lukiin-z | feat(epi): classes negativas e politica de missing ausencia|evidencia (VERDE)
+2026-09-28 eb15d6b lukiin-z | test: LLM chamado quando 'nao verificado' persiste, sem criar alerta (VERMELHO)
+2026-09-28 c229c3f lukiin-z | feat(llm+avaliacao): segundo gatilho no 'nao verificado' e harness de avaliacao por pessoa (VERDE)
+2026-09-28 859bf4f lukiin-z | test+feat: default passa ao peso da Sprint 4, um modelo so, politica escolhida na validacao
+2026-09-28 083e947 lukiin-z | feat(modelo): peso VisionEPI treinado no Construction-PPE + avaliacao completa
+2026-09-28 d4e0b2e lukiin-z | build(frontend): dist com o estado 'unverified' (amarelo) nos cards de EPI
+2026-09-28 77a659a lukiin-z | bench: --classes no bench_pipeline e FPS Sprint 3 x Sprint 4 (3,42 -> 11,15 fps, deteccao a cada frame)
+2026-09-28 52e10e2 lukiin-z | docs(evidencias): dashboard rodando com o peso da Sprint 4, video de 96 s e casos antes/depois
+2026-09-28 c214b37 lukiin-z | docs(sprint4): relatorio tecnico, diagrama da arquitetura final, auditoria dos erros e README
+2026-09-28 57d07c6 lukiin-z | fix(kiosk): EPI que o modelo nao detecta aparece como 'indisponivel', nao como check verde
+2026-09-28 8becf59 lukiin-z | docs(sprint4): o que o video montado penaliza e o defeito do kiosk achado na captura
+2026-09-28 07c0233 lukiin-z | docs(sprint4): corrige a razao de resolucao do video montado
+2026-09-28 39d436f lukiin-z | docs(sprint4): correcoes da verificacao independente + relatorio final em PDF
+2026-09-28 6c3ed61 lukiin-z | docs(readme): aponta a entrega da Sprint 4
+2026-10-14 a6d303b lucas-baraldi | PR7: Release — VisionEPI NEXT 2026 integrado com a Sprint 4 (MISSÃO 2, Fase D) (#16)
+2026-10-14 d76941b lucas-baraldi | Fumaça da demo na main + verificação pós-merge do PR7 (#17)
+2026-10-17 75d0de6 lucas-baraldi | docs(next2026): verificação final da main (15/10) (#18)
+2026-10-17 44dafdc lucas-baraldi | PR8: QA de base + Fábrica conectada (MISSÃO 4) (#19)
+2026-10-19 2ede29a lucas-baraldi | PR9: Experiência de empresa + Operação avançada (MISSÃO 4) (#20)
+2026-10-20 4ca2a7e lucas-baraldi | PR10: Todos os caminhos testados + entrega (MISSÃO 4) (#21)
+2026-10-22 a4df215 lucas-baraldi | MISSÃO 7: área de detecção por câmera (#22)

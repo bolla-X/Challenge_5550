@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>VisionEPI — cartelas do vídeo</title>
+<!--
+  Cartelas do vídeo da Sprint 4 (docs/pitch/storyboard.md). Uma página, uma cena por âncora:
+  cartelas.html#abertura, #problema, #solucao, #impacto, #evolucao, #encerramento.
+  Gravadas por scripts/video/gravar_cartelas.py (Playwright, 1920x1080). Cores e tipografia
+  copiadas de frontend/src/styles/tokens.css (tema claro); fontes e marca de frontend/public.
+-->
+<style>
+@font-face{font-family:"Geist Variable";src:url("../../frontend/public/fonts/geist-latin-wght-normal.woff2") format("woff2-variations");font-weight:100 900}
+@font-face{font-family:"Geist Mono Variable";src:url("../../frontend/public/fonts/geist-mono-latin-wght-normal.woff2") format("woff2-variations");font-weight:100 900}
+:root{
+  --canvas:#F5F5F7; --surface:#FFFFFF; --sunken:#EBEBEF; --hairline:#E5E5EA;
+  --text:#1A1A1C; --text-2:#5E5E64; --text-3:#68686F;
+  --accent:#0A66C2; --danger:#AF4606; --ok:#16794A; --tint-danger:rgba(175,70,6,.10); --tint-ok:rgba(22,121,74,.06);
+  --shadow-1:0 1px 2px rgba(16,17,20,.06),0 1px 1px rgba(16,17,20,.04);
+  --shadow-2:0 10px 30px rgba(16,17,20,.12),0 2px 8px rgba(16,17,20,.06);
+  --r-card:16px; --r-sheet:28px;
+  --font:"Geist Variable","Segoe UI",system-ui,sans-serif; --mono:"Geist Mono Variable",Consolas,monospace;
+  --ease:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--canvas);color:var(--text);font-family:var(--font);
+  -webkit-font-smoothing:antialiased}
+.cena{display:none;position:absolute;inset:0;padding:120px 160px 110px}
+.cena.ativa{display:flex;flex-direction:column}
+.marca{display:flex;align-items:center;gap:18px;color:var(--text-2);font-size:24px;font-weight:550;letter-spacing:-.01em}
+.marca img{width:44px;height:44px}
+h1{font-size:136px;line-height:1;letter-spacing:-.045em;font-weight:650}
+h2{font-size:76px;line-height:1.05;letter-spacing:-.035em;font-weight:640}
+.sub{font-size:40px;line-height:1.25;letter-spacing:-.02em;color:var(--text-2);font-weight:450;max-width:1400px}
+.linha{font-size:26px;color:var(--text-3);letter-spacing:.005em}
+.rodape{margin-top:auto;font-size:24px;color:var(--text-3);line-height:1.4}
+.entra{opacity:0;transform:translateY(18px);animation:entra .9s var(--ease) forwards}
+@keyframes entra{to{opacity:1;transform:none}}
+
+/* abertura */
+#abertura{justify-content:center;gap:34px}
+.equipe{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:40px}
+.pessoa{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow-1)}
+.pessoa b{display:block;font-size:30px;font-weight:600;letter-spacing:-.015em}
+.pessoa span{font-family:var(--mono);font-size:24px;color:var(--text-2)}
+
+/* problema */
+.pontos{display:flex;flex-direction:column;gap:28px;margin-top:64px;max-width:1500px}
+.ponto{display:flex;gap:28px;align-items:flex-start;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);
+  padding:34px 40px;box-shadow:var(--shadow-1);font-size:38px;line-height:1.3;letter-spacing:-.015em}
+.ponto i{flex:none;width:16px;height:16px;margin-top:16px;border-radius:50%;background:var(--danger)}
+
+/* solução */
+.diagrama{margin-top:46px;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-sheet);padding:40px 44px;box-shadow:var(--shadow-2)}
+.fluxo{display:flex;align-items:stretch;gap:0}
+.caixa{flex:1;border:1.5px solid var(--hairline);border-radius:14px;padding:22px 20px;background:var(--canvas)}
+.caixa b{display:block;font-size:27px;font-weight:620;letter-spacing:-.015em;margin-bottom:6px}
+.caixa span{font-size:20px;color:var(--text-2);line-height:1.35}
+.caixa.forte{border-color:var(--accent);background:#fff}
+.seta{flex:none;width:46px;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:30px}
+.lado{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:26px}
+.caixa.llm{border-style:dashed}
+.caixa.gestao{border-color:var(--ok);background:var(--tint-ok)}
+
+/* impacto */
+.colunas{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:56px}
+.bloco{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:36px 40px;box-shadow:var(--shadow-1)}
+.bloco h3{font-size:26px;color:var(--text-3);font-weight:560;margin-bottom:22px;letter-spacing:.01em}
+.bloco li{list-style:none;font-size:32px;line-height:1.32;letter-spacing:-.012em;margin-bottom:22px}
+.bloco li small{display:block;font-size:21px;color:var(--text-3);margin-top:6px;letter-spacing:0}
+.num{font-family:var(--mono);font-weight:600;color:var(--accent);white-space:nowrap}
+
+/* evolução */
+.sprints{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:56px}
+.sprint{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-card);padding:30px 30px 34px;box-shadow:var(--shadow-1);min-height:470px}
+.sprint .n{font-family:var(--mono);font-size:22px;color:var(--accent);font-weight:600}
+.sprint h3{font-size:36px;letter-spacing:-.02em;margin:8px 0 4px}
+.sprint .data{font-size:21px;color:var(--text-3);margin-bottom:22px}
+.sprint li{font-size:25px;line-height:1.32;margin:0 0 14px 22px}
+.sprint.atual{border-color:var(--accent)}
+
+/* encerramento */
+#encerramento{justify-content:center;gap:30px}
+.links{font-family:var(--mono);font-size:36px;color:var(--accent);line-height:1.6}
+</style>
+</head>
+<body>
+
+<section class="cena" id="abertura">
+  <div class="marca entra"><img src="../../frontend/public/marca/simbolo.svg" alt="">VisionEPI</div>
+  <h1 class="entra" style="animation-delay:.15s">VisionEPI</h1>
+  <p class="sub entra" style="animation-delay:.35s">Gestão de EPIs e segurança industrial para a Metaindústria</p>
+  <p class="linha entra" style="animation-delay:.55s">FIAP · Engenharia de Software · Turma 3ECR · Sprint 4 · Prof. Hercules Lima Ramos</p>
+  <div class="equipe">
+    <div class="pessoa entra" style="animation-delay:.9s"><b>Pedro Gonçalves</b><span>RM 557936</span></div>
+    <div class="pessoa entra" style="animation-delay:1.05s"><b>Lucas Baraldi</b><span>RM 555407</span></div>
+    <div class="pessoa entra" style="animation-delay:1.2s"><b>Lucas Zolla</b><span>RM 557952</span></div>
+    <div class="pessoa entra" style="animation-delay:1.35s"><b>Vitor Pantarotto</b><span>RM 554961</span></div>
+  </div>
+</section>
+
+<section class="cena" id="problema">
+  <div class="marca entra"><img src="../../frontend/public/marca/simbolo.svg" alt="">VisionEPI</div>
+  <h2 class="entra" style="margin-top:48px;animation-delay:.1s">O problema da Metaindústria</h2>
+  <div class="pontos">
+    <div class="ponto entra" style="animation-delay:.6s"><i></i>A segurança é reativa: inspeção periódica, checklist manual, punição depois do incidente.</div>
+    <div class="ponto entra" style="animation-delay:8.6s"><i></i>A ficha de EPI fica no papel: entrega sem histórico, troca vencida e CA vencido passam despercebidos.</div>
+    <div class="ponto entra" style="animation-delay:16.6s"><i></i>A ocorrência é registrada depois do fato, sem ligação com o que as câmeras já mostravam.</div>
+  </div>
+</section>
+
+<section class="cena" id="solucao">
+  <div class="marca entra"><img src="../../frontend/public/marca/simbolo.svg" alt="">VisionEPI</div>
+  <h2 class="entra" style="margin-top:40px;animation-delay:.1s">A solução</h2>
+  <p class="sub entra" style="margin-top:18px;animation-delay:.4s">Câmeras comuns que enxergam EPI, queda e área de risco ao vivo, e uma ficha de EPI digital no mesmo sistema.</p>
+  <div class="diagrama entra" style="animation-delay:2s">
+    <div class="fluxo">
+      <div class="caixa"><b>Câmeras</b><span>RTSP, USB ou gravação</span></div>
+      <div class="seta">→</div>
+      <div class="caixa forte"><b>Visão</b><span>YOLO de EPI, pessoa e pose</span></div>
+      <div class="seta">→</div>
+      <div class="caixa"><b>Regras</b><span>histerese, área de risco, queda</span></div>
+      <div class="seta">→</div>
+      <div class="caixa"><b>Alertas</b><span>incidentes e cadeia de custódia</span></div>
+      <div class="seta">→</div>
+      <div class="caixa"><b>Flask</b><span>REST + Socket.IO</span></div>
+      <div class="seta">→</div>
+      <div class="caixa forte"><b>Painel React</b><span>tempo real, tema claro e escuro</span></div>
+    </div>
+    <div class="lado">
+      <div class="caixa llm"><b>Segunda opinião (LLM)</b><span>Gemini fora do caminho do quadro; informa, nunca cria alerta. Sem chave: modo demonstração.</span></div>
+      <div class="caixa gestao"><b>Gestão de EPIs</b><span>colaboradores, catálogo com CA e validade, entregas, ocorrências e CSV. Separada da visão.</span></div>
+    </div>
+  </div>
+  <p class="rodape entra" style="animation-delay:3s">Banco SQLite ou PostgreSQL · Por setor, nunca por pessoa: a visão não identifica ninguém.</p>
+</section>
+
+<section class="cena" id="impacto">
+  <div class="marca entra"><img src="../../frontend/public/marca/simbolo.svg" alt="">VisionEPI</div>
+  <h2 class="entra" style="margin-top:48px;animation-delay:.1s">Impacto esperado</h2>
+  <div class="colunas">
+    <div class="bloco entra" style="animation-delay:.6s">
+      <h3>Medido no projeto</h3>
+      <ul>
+        <li>Primeiro alerta em <span class="num">~2 s</span> no perfil de 2 núcleos; antes, <span class="num">38 s</span><small>perfil "batata" · README, NEXT 2026</small></li>
+        <li>Precisão do alerta "sem capacete": <span class="num">0,39 → 0,85</span><small>236 pessoas anotadas · docs/SPRINT4.md</small></li>
+      </ul>
+    </div>
+    <div class="bloco entra" style="animation-delay:5s">
+      <h3>Esperado (não medido em planta)</h3>
+      <ul>
+        <li>Ficha de EPI digital, com histórico e exportação<small>NR-6, item 6.5.1 d)</small></li>
+        <li>CA vencido e troca vencida visíveis antes da entrega</li>
+        <li>Ocorrência com ação corretiva rastreável</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="cena" id="evolucao">
+  <div class="marca entra"><img src="../../frontend/public/marca/simbolo.svg" alt="">VisionEPI</div>
+  <h2 class="entra" style="margin-top:48px;animation-delay:.1s">Evolução em 4 sprints</h2>
+  <div class="sprints">
+    <div class="sprint entra" style="animation-delay:.6s"><div class="n">SPRINT 1</div><h3>Detecção</h3><div class="data">até 04/05/2026</div>
+      <ul><li>EPIs em tempo real</li><li>Rastreio de pessoas</li><li>Zona de risco</li></ul></div>
+    <div class="sprint entra" style="animation-delay:4.6s"><div class="n">SPRINT 2</div><h3>Pose</h3><div class="data">até 22/06/2026</div>
+      <ul><li>Pose por pessoa</li><li>Queda e postura</li></ul></div>
+    <div class="sprint entra" style="animation-delay:8.6s"><div class="n">SPRINT 3</div><h3>Produto</h3><div class="data">até 24/08/2026</div>
+      <ul><li>Painel React</li><li>Alertas com severidade</li><li>Portaria</li><li>Login com papéis</li><li>Multicâmera</li></ul></div>
+    <div class="sprint atual entra" style="animation-delay:12.6s"><div class="n">SPRINT 4</div><h3>Solução</h3><div class="data">até 23/10/2026</div>
+      <ul><li>Segunda opinião LLM</li><li>Peso treinado no domínio</li><li>Final do FIAP NEXT</li><li>Gestão de EPIs</li><li>Demo reprodutível</li></ul></div>
+  </div>
+  <p class="rodape entra" style="animation-delay:14s">Cronograma: docs/challenge/CONSOLIDADO.md · Sprints 1 e 2 reconstruídas dos documentos de fase.</p>
+</section>
+
+<section class="cena" id="encerramento">
+  <div class="marca entra"><img src="../../frontend/public/marca/simbolo.svg" alt="">VisionEPI</div>
+  <h1 class="entra" style="font-size:112px;animation-delay:.1s">Obrigado.</h1>
+  <p class="links entra" style="animation-delay:.5s">github.com/bolla-X/Challenge_5550<br>trello.com/b/zVZW2n1p</p>
+  <p class="linha entra" style="animation-delay:.9s">Pedro Gonçalves · Lucas Baraldi · Lucas Zolla · Vitor Pantarotto — 3ECR</p>
+</section>
+
+<script>
+  function mostrar(){
+    const id = (location.hash || "#abertura").slice(1);
+    document.querySelectorAll(".cena").forEach(c => c.classList.toggle("ativa", c.id === id));
+  }
+  window.addEventListener("hashchange", mostrar);
+  mostrar();
+</script>
+</body>
+</html>
